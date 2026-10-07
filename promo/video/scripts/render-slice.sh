@@ -11,5 +11,5 @@ to=$2
 mkdir -p out/slices
 out="out/slices/slice-$(printf %05d "$from")-$(printf %05d "$to").mp4"
 # SCALE: 4/3 renders 2560x1440 from the 1920x1080 composition (set SCALE=1 for 1080p).
-npx remotion render PaladexLaunch "$out" --frames="$from-$to" --muted --concurrency="${CONCURRENCY:-2}" --scale="${SCALE:-1.3333333333}"
+npx remotion render PaladexLaunch "$out" --frames="$from-$to" --muted --concurrency="${CONCURRENCY:-2}" --scale="${SCALE:-1.3333333333333333}"
 echo "slice -> $out"

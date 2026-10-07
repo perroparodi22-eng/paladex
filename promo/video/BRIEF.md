@@ -12,7 +12,7 @@ The owner watched v1 and asked for: **a fuller, faster opening** (the first ~10 
 - **Full frames.** Avoid big empty black areas: layer depth (foreground elements, secondary rackets, UI fragments, type) so frames feel rich. Still the black-studio look and palette (section 2).
 - **No counts.** Never show or say how many rackets/brands (no "62", no "12"). Don't feature the site's own count line ("62 rackets") either: keep it out of frame or unreadable.
 - **No unfinished rackets.** 14 rackets have no finished design (`capture/unfinished.json`, e.g. the Nox ML10 Pro Cup). Never show them. `capture/cdp.mjs` hides them automatically in every capture (cards, list items, finder results, by link/poster/name); WebGL racket models come only from `public/models` (all finished). Check your captures anyway.
-- **Detail.** The final render is **2560×1440** (`--scale 4/3`). Footage/stills that appear large must be captured at **dpr 2** (stills, crops) and clips at **dpr 1.5–2** so they stay crisp at 1440p; check frames at full size with `--scale 1.3333333333`.
+- **Detail.** The final render is **2560×1440** (`--scale 4/3`). Footage/stills that appear large must be captured at **dpr 2** (stills, crops) and clips at **dpr 1.5–2** so they stay crisp at 1440p; check frames at full size with `--scale 1.3333333333333333` (fewer digits gives a non-integer height that Remotion rejects).
 - **Sound.** Livelier: put SFX on every cut, hit, landing and click (whoosh / swipe / impact / pop / tick / click / riser / shimmer), louder for key hits (0.5–0.9), so the picture feels punchy.
 
 ### Storyboard for new/changed scenes (v2)
