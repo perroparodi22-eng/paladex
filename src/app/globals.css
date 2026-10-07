@@ -1,0 +1,662 @@
+@import "tailwindcss";
+
+/*
+ * Google Sans Flex (SIL Open Font License), self-hosted and trimmed to the axes and
+ * ranges this site uses: optical size 6-144, roundness 0-100, width 100-115%,
+ * weight 400-700. The full family with every axis was 1.4 MB; these files are
+ * about 220 KB for latin, and the other two load only if a page needs them.
+ */
+@font-face {
+  font-family: "Google Sans Flex";
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 100% 115%;
+  font-display: swap;
+  src: url("/fonts/google-sans-flex-v23-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Google Sans Flex";
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 100% 115%;
+  font-display: swap;
+  src: url("/fonts/google-sans-flex-v23-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Google Sans Flex";
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 100% 115%;
+  font-display: swap;
+  src: url("/fonts/google-sans-flex-v23-symbols.woff2") format("woff2");
+  unicode-range: U+0001-000C, U+000E-001F, U+007F-009F, U+20DD-20E0, U+20E2-20E4, U+2150-218F, U+2190, U+2192, U+2194-2199, U+21AF, U+21E6-21F0, U+21F3, U+2218-2219, U+2299, U+22C4-22C6, U+2300-243F, U+2440-244A, U+2460-24FF, U+25A0-27BF, U+2800-28FF, U+2921-2922, U+2981, U+29BF, U+29EB, U+2B00-2BFF, U+4DC0-4DFF, U+FFF9-FFFB, U+10140-1018E, U+10190-1019C, U+101A0, U+101D0-101FD, U+102E0-102FB, U+10E60-10E7E, U+1D2C0-1D2D3, U+1D2E0-1D37F, U+1F000-1F0FF, U+1F100-1F1AD, U+1F1E6-1F1FF, U+1F30D-1F30F, U+1F315, U+1F31C, U+1F31E, U+1F320-1F32C, U+1F336, U+1F378, U+1F37D, U+1F382, U+1F393-1F39F, U+1F3A7-1F3A8, U+1F3AC-1F3AF, U+1F3C2, U+1F3C4-1F3C6, U+1F3CA-1F3CE, U+1F3D4-1F3E0, U+1F3ED, U+1F3F1-1F3F3, U+1F3F5-1F3F7, U+1F408, U+1F415, U+1F41F, U+1F426, U+1F43F, U+1F441-1F442, U+1F444, U+1F446-1F449, U+1F44C-1F44E, U+1F453, U+1F46A, U+1F47D, U+1F4A3, U+1F4B0, U+1F4B3, U+1F4B9, U+1F4BB, U+1F4BF, U+1F4C8-1F4CB, U+1F4D6, U+1F4DA, U+1F4DF, U+1F4E3-1F4E6, U+1F4EA-1F4ED, U+1F4F7, U+1F4F9-1F4FB, U+1F4FD-1F4FE, U+1F503, U+1F507-1F50B, U+1F50D, U+1F512-1F513, U+1F53E-1F54A, U+1F54F-1F5FA, U+1F610, U+1F650-1F67F, U+1F687, U+1F68D, U+1F691, U+1F694, U+1F698, U+1F6AD, U+1F6B2, U+1F6B9-1F6BA, U+1F6BC, U+1F6C6-1F6CF, U+1F6D3-1F6D7, U+1F6E0-1F6EA, U+1F6F0-1F6F3, U+1F6F7-1F6FC, U+1F700-1F7FF, U+1F800-1F80B, U+1F810-1F847, U+1F850-1F859, U+1F860-1F887, U+1F890-1F8AD, U+1F8B0-1F8BB, U+1F8C0-1F8C1, U+1F900-1F90B, U+1F93B, U+1F946, U+1F984, U+1F996, U+1F9E9, U+1FA00-1FA6F, U+1FA70-1FA7C, U+1FA80-1FA89, U+1FA8F-1FAC6, U+1FACE-1FADC, U+1FADF-1FAE9, U+1FAF0-1FAF8, U+1FB00-1FBFF;
+}
+
+/*
+ * Paladex visual world: "Black studio".
+ * A dark, quiet showroom. Off-black ground, graphite surfaces, off-white type
+ * and off-white as the single action colour. Rackets stand on a black stage
+ * under one soft spotlight with a subtle shadow, so the object is the only
+ * thing that shines. Ball-lime is reserved for the sweet spot.
+ * One variable face (Google Sans Flex), upright and calm.
+ *
+ * Token names are semantic and shared with the rest of the code:
+ * "court" is the action colour (off-white here), "ground/surface" are the
+ * layers, "ink" is text.
+ */
+
+@theme {
+  --color-ground: #0a0b0d;
+  --color-surface: #131519;
+  --color-surface-2: #1a1d22;
+  --color-surface-3: #23272d;
+  --color-ink: #eceef1;
+  --color-ink-2: #a9aeb8;
+  --color-ink-3: #878d98;
+  --color-court: #eceef1;
+  --color-court-deep: #f7f8fa;
+  --color-court-hi: #ffffff;
+  --color-court-tint: #24282f;
+  --color-court-mist: #3b4049;
+  --color-on-court: #0a0b0d;
+  --color-ball: #d9f04a;
+  --color-ball-deep: #29300a;
+  --color-danger: #ff7b6e;
+  --color-warn: #f2c26b;
+  --color-warn-fill: #3a2f16;
+  --color-ok: #5fd6a4;
+  --color-series-1: #eceef1;
+  --color-series-2: #8f9bb3;
+  --color-series-3: #5f6672;
+  --color-series-4: #c7cbd3;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1); /* smooth deceleration, no overshoot */
+
+  --breakpoint-xs: 28rem;
+
+  --radius-plate: 18px;
+  --radius-card: 22px;
+  --radius-field: 12px;
+
+  --shadow-soft: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 16px 34px -22px rgb(0 0 0 / 0.9);
+  --shadow-lift: 0 1px 0 rgb(255 255 255 / 0.06) inset, 0 30px 60px -28px rgb(0 0 0 / 0.95);
+  --shadow-court: 0 12px 30px -16px rgb(0 0 0 / 0.9);
+}
+
+@theme inline {
+  --font-sans: "Google Sans Flex", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Google Sans Flex", ui-sans-serif, system-ui, sans-serif;
+  --font-label: "Google Sans Flex", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ---------------------------------------------------------------- base */
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    /* Variable-font axes. Elements change the custom properties; the
+       universal rule recomputes the settings on every element. */
+    --wdth: 100;
+    --rond: 20;
+    --header-h: 64px;
+  }
+
+  *,
+  *::before,
+  *::after {
+    font-variation-settings:
+      "wdth" var(--wdth),
+      "ROND" var(--rond);
+  }
+
+  html {
+    background: var(--color-ground);
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    scrollbar-color: rgb(255 255 255 / 0.18) var(--color-ground);
+    scrollbar-width: thin;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  /* A faint jigsaw pattern on the ground (about 4.5% white). Static and painted
+     once with the page, so it costs nothing while scrolling. Opaque surfaces
+     (the 3D stage, cards, panels) cover it, so it never sits behind content. */
+  body {
+    min-height: 100dvh;
+    background-color: var(--color-ground);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><path d='M0 0V44A15.4 15.4 0 1 0 0 66V110M220 0V44A15.4 15.4 0 1 0 220 66V110M0 0H44A15.4 15.4 0 1 1 66 0H110M0 220H44A15.4 15.4 0 1 1 66 220H110M0 110V154A15.4 15.4 0 1 1 0 176V220M220 110V154A15.4 15.4 0 1 1 220 176V220M0 110H44A15.4 15.4 0 1 0 66 110H110M110 0V44A15.4 15.4 0 1 1 110 66V110M110 0H154A15.4 15.4 0 1 0 176 0H220M110 220H154A15.4 15.4 0 1 0 176 220H220M110 110V154A15.4 15.4 0 1 0 110 176V220M110 110H154A15.4 15.4 0 1 1 176 110H220' fill='none' stroke='white' stroke-opacity='0.045' stroke-width='1.25'/></svg>");
+    background-size: 220px 220px;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.6;
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    caret-color: var(--color-ink);
+  }
+
+  ::selection {
+    background: rgb(236 238 241 / 0.85);
+    color: var(--color-ground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 3px;
+    border-radius: 10px;
+  }
+
+  a {
+    text-underline-offset: 0.24em;
+    text-decoration-thickness: 1px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(255 255 255 / 0.16);
+    border: 3px solid var(--color-ground);
+    border-radius: 999px;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  select option {
+    background: var(--color-surface-2);
+    color: var(--color-ink);
+  }
+
+  input[type="range"],
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--color-ink);
+  }
+
+  table {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+}
+
+/* ---------------------------------------------------------- components */
+
+@layer components {
+  /* Display: wide, upright and calm. Weight and size carry the hierarchy. */
+  .display {
+    font-family: var(--font-display);
+    --wdth: 112;
+    --rond: 30;
+    font-weight: 620;
+    letter-spacing: -0.035em;
+    line-height: 1;
+  }
+
+  .title {
+    font-family: var(--font-display);
+    --wdth: 106;
+    --rond: 30;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.15;
+  }
+
+  /* Small data labels (never used as an eyebrow above a heading). */
+  .label {
+    font-family: var(--font-label);
+    --wdth: 104;
+    font-weight: 500;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    color: var(--color-ink-2);
+  }
+
+  .num {
+    --wdth: 100;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* A graphite plate: the page's one container. */
+  .plate {
+    background: var(--color-surface);
+    border: 1px solid rgb(255 255 255 / 0.07);
+    border-radius: var(--radius-plate);
+    box-shadow: var(--shadow-soft);
+  }
+
+  /* A light plate (rare emphasis on the dark page). */
+  .plate-court {
+    background: var(--color-court);
+    color: var(--color-on-court);
+    border-radius: var(--radius-plate);
+  }
+
+  /* The racket stage: a black studio with one soft spotlight. Used behind
+     posters and 3D canvases so both share the same light. */
+  .stage-sky {
+    background:
+      radial-gradient(48% 42% at 50% 46%, rgb(255 255 255 / 0.075), transparent 72%),
+      radial-gradient(70% 22% at 50% 92%, rgb(255 255 255 / 0.04), transparent 70%),
+      #070809;
+  }
+
+  /* Card stage: the same studio, slightly softer for grids. */
+  .card-sky {
+    background:
+      radial-gradient(60% 46% at 50% 44%, rgb(255 255 255 / 0.07), transparent 75%),
+      #0d0e11;
+  }
+
+  /* White studio, for viewers set to the light backdrop. */
+  .stage-light {
+    background:
+      radial-gradient(55% 45% at 50% 45%, #ffffff, transparent 75%),
+      #e7e8eb;
+  }
+
+  .grain {
+    position: relative;
+    isolation: isolate;
+  }
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 46px;
+    padding: 0 1.3rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    --wdth: 104;
+    font-weight: 560;
+    font-size: 0.9375rem;
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+    transition:
+      background-color 220ms var(--ease-out-expo),
+      border-color 220ms var(--ease-out-expo),
+      color 220ms var(--ease-out-expo),
+      transform 320ms var(--ease-out-expo),
+      box-shadow 260ms var(--ease-out-expo);
+    cursor: pointer;
+    user-select: none;
+  }
+  .btn:active {
+    transform: scale(0.98);
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .btn-primary,
+  .btn-light {
+    background: var(--color-court);
+    color: var(--color-on-court);
+  }
+  .btn-primary:hover,
+  .btn-light:hover {
+    background: #ffffff;
+  }
+  .btn-secondary {
+    background: rgb(255 255 255 / 0.04);
+    color: var(--color-ink);
+    border-color: rgb(255 255 255 / 0.16);
+  }
+  .btn-secondary:hover {
+    border-color: rgb(255 255 255 / 0.4);
+    background: rgb(255 255 255 / 0.07);
+  }
+  .btn-ghost {
+    color: var(--color-ink-2);
+  }
+  .btn-ghost:hover {
+    color: var(--color-ink);
+    background: rgb(255 255 255 / 0.06);
+  }
+  .btn-sm {
+    min-height: 38px;
+    padding: 0 0.95rem;
+    font-size: 0.8125rem;
+  }
+  .btn-icon {
+    min-width: 46px;
+    padding: 0;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 38px;
+    padding: 0 0.95rem;
+    border-radius: 999px;
+    border: 1px solid rgb(255 255 255 / 0.12);
+    background: transparent;
+    --wdth: 104;
+    font-weight: 500;
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+    transition:
+      color 180ms,
+      border-color 180ms,
+      background-color 180ms;
+  }
+  .chip:hover {
+    color: var(--color-ink);
+    border-color: rgb(255 255 255 / 0.32);
+  }
+  .chip[aria-pressed="true"],
+  .chip[data-active="true"] {
+    color: var(--color-on-court);
+    border-color: var(--color-court);
+    background: var(--color-court);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    --wdth: 104;
+    font-weight: 500;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    background: rgb(255 255 255 / 0.07);
+    color: var(--color-ink-2);
+  }
+  .badge-warn {
+    background: rgb(242 194 107 / 0.12);
+    color: var(--color-warn);
+  }
+  .badge-court {
+    background: var(--color-court);
+    color: var(--color-on-court);
+  }
+  .badge-ball {
+    background: var(--color-ball);
+    color: var(--color-ball-deep);
+  }
+
+  .field {
+    width: 100%;
+    min-height: 46px;
+    padding: 0.6rem 0.95rem;
+    border-radius: var(--radius-field);
+    background: var(--color-surface-2);
+    border: 1px solid rgb(255 255 255 / 0.12);
+    color: var(--color-ink);
+    transition:
+      border-color 160ms,
+      box-shadow 220ms var(--ease-out-expo);
+  }
+  .field::placeholder {
+    color: var(--color-ink-3);
+  }
+  .field:hover {
+    border-color: rgb(255 255 255 / 0.24);
+  }
+  .field:focus {
+    outline: none;
+    border-color: rgb(255 255 255 / 0.55);
+    box-shadow: 0 0 0 4px rgb(255 255 255 / 0.08);
+  }
+
+  /* Caption on a dark plate (used in the compare summary and admin notes). */
+  .lower-third {
+    background: var(--color-surface-2);
+    color: var(--color-ink);
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: var(--radius-plate);
+  }
+
+  /* DOM elements pinned to 3D points by the viewer's projector. */
+  .anchor {
+    position: absolute;
+    left: 0;
+    top: 0;
+    will-change: transform;
+    transition: opacity 180ms;
+  }
+  .anchor:not([style]) {
+    opacity: 0;
+  }
+  .anchor[data-facing="back"] {
+    opacity: 0.18;
+    pointer-events: none;
+  }
+  .anchor[data-onscreen="false"] {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Long-form reading (guides, legal). */
+  .prose {
+    max-width: 68ch;
+    color: var(--color-ink-2);
+    font-size: 1.0625rem;
+    line-height: 1.75;
+  }
+  .prose h2 {
+    font-family: var(--font-display);
+    --wdth: 110;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    font-size: clamp(1.6rem, 2.6vw, 2.1rem);
+    line-height: 1.1;
+    margin: 3rem 0 0.9rem;
+    color: var(--color-ink);
+  }
+  .prose h3 {
+    --wdth: 106;
+    font-weight: 600;
+    font-size: 1.2rem;
+    margin: 2rem 0 0.5rem;
+    color: var(--color-ink);
+  }
+  .prose p {
+    margin: 0 0 1.1rem;
+  }
+  .prose ul {
+    margin: 0 0 1.2rem;
+    padding-left: 1.2rem;
+    list-style: disc;
+  }
+  .prose li {
+    margin: 0.35rem 0;
+  }
+  .prose li::marker {
+    color: var(--color-ink-3);
+  }
+  .prose a {
+    color: var(--color-ink);
+    text-decoration: underline;
+  }
+  .prose strong {
+    color: var(--color-ink);
+    font-weight: 600;
+  }
+  .not-prose {
+    color: var(--color-ink);
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+}
+
+/* -------------------------------------------------------------- motion */
+
+/* Reveal once: an element below the fold starts tilted back in depth and
+   settles forward as it enters. After that it stays put; scrolling back up
+   never hides it again. Elements already on screen are never hidden. */
+[data-reveal="pending"] {
+  opacity: 0;
+  transform: perspective(1400px) translate3d(0, 48px, -60px) rotateX(9deg);
+}
+[data-reveal="in"] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 900ms var(--ease-out-quint),
+    transform 1100ms var(--ease-out-expo);
+  transition-delay: calc(var(--beat, 0) * 90ms);
+}
+
+/* Gentle first paint for small groups (menus). */
+@keyframes rise {
+  from {
+    opacity: 0.4;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  animation: rise 700ms var(--ease-out-expo) both;
+  animation-delay: calc(var(--beat, 0) * 60ms);
+}
+
+@keyframes hint-drift {
+  0%,
+  100% {
+    transform: translateX(-7px);
+  }
+  50% {
+    transform: translateX(7px);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.gauge-fill {
+  transform-origin: left center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  [data-reveal="pending"] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Dialogs: the backdrop fades, panels settle in; the menu drawer slides from the left. */
+.dialog::backdrop {
+  background: rgb(0 0 0 / 0.62);
+  animation: fade-in 320ms var(--ease-out-quint) both;
+}
+.dialog[data-closing]::backdrop {
+  animation: fade-out 300ms ease both;
+}
+.dialog[open] > div {
+  animation: pop-in 420ms var(--ease-out-expo) both;
+}
+.dialog[data-closing] > div {
+  animation: pop-out 280ms ease both;
+}
+.dialog-drawer[open] > div {
+  animation: drawer-in 560ms var(--ease-out-expo) both;
+}
+.dialog-drawer[data-closing] > div {
+  animation: drawer-out 320ms var(--ease-in-out-quart) both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+}
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(-104%);
+  }
+}
+@keyframes drawer-out {
+  to {
+    transform: translateX(-104%);
+  }
+}

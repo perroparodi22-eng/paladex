@@ -1,0 +1,44 @@
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local database (recreate with `npm run setup`)
+data/*.db
+data/*.db-*
+data/*.db-journal
+
+# Admin uploads in local development (production uses object storage)
+data/uploads/
+
+# Decoders are copied from node_modules on install
+public/decoders/
+
+# Secrets: never commit real environment files
+.env
+.env.*
+!.env.example
+
+# Design tooling scratch
+.impeccable/questions/
+.impeccable/review/
+.impeccable/live/
+
+npm-debug.log*
+.DS_Store
+.vercel
+.netlify
+.tmp/
+
+# Promo video renders and captured frames (regenerate with promo/video scripts)
+promo/video/out/
+promo/video/public/capture/
+
+node_modules/
+.next/
+promo/video/out/
+.env*
+!.env.example
+

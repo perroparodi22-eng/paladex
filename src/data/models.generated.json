@@ -1,0 +1,1344 @@
+{
+ "adidas-metalbone-3-4": {
+  "kind": "platform",
+  "url": "/models/platform/adidas-metalbone-3-4.glb?v=1.0.0-5pkk",
+  "previewUrl": "/models/platform/adidas-metalbone-3-4.preview.glb?v=1.0.0-5pkk",
+  "bytes": 266420,
+  "previewBytes": 139652,
+  "triangles": 24140,
+  "bbox": {
+   "min": [
+    -0.1265,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1267,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-5pkk",
+  "generatedAt": "2026-10-06T06:33:46.137Z"
+ },
+ "bullpadel-vertex-05": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/bullpadel-vertex-05.glb?v=1.0.0-3grg",
+  "previewUrl": "/models/placeholders/bullpadel-vertex-05.preview.glb?v=1.0.0-3grg",
+  "bytes": 161692,
+  "previewBytes": 78416,
+  "triangles": 27985,
+  "bbox": {
+   "min": [
+    -0.1316,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.1316,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-3grg",
+  "generatedAt": "2026-10-06T06:33:46.280Z"
+ },
+ "nox-at10-luxury-genius-18k-alum": {
+  "kind": "platform",
+  "url": "/models/platform/nox-at10-luxury-genius-18k-alum.glb?v=1.0.0-8m1k",
+  "previewUrl": "/models/platform/nox-at10-luxury-genius-18k-alum.preview.glb?v=1.0.0-8m1k",
+  "bytes": 401816,
+  "previewBytes": 193080,
+  "triangles": 41856,
+  "bbox": {
+   "min": [
+    -0.1287,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1286,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-8m1k",
+  "generatedAt": "2026-10-06T06:33:46.884Z"
+ },
+ "nox-ml10-pro-cup-rough-surface": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/nox-ml10-pro-cup-rough-surface.glb?v=1.0.0-3ozc",
+  "previewUrl": "/models/placeholders/nox-ml10-pro-cup-rough-surface.preview.glb?v=1.0.0-3ozc",
+  "bytes": 172344,
+  "previewBytes": 83876,
+  "triangles": 33380,
+  "bbox": {
+   "min": [
+    -0.13,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.13,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-3ozc",
+  "generatedAt": "2026-10-06T06:33:47.001Z"
+ },
+ "babolat-technical-viper-2026": {
+  "kind": "platform",
+  "url": "/models/platform/babolat-technical-viper-2026.glb?v=1.0.0-9tfs",
+  "previewUrl": "/models/platform/babolat-technical-viper-2026.preview.glb?v=1.0.0-9tfs",
+  "bytes": 458056,
+  "previewBytes": 214380,
+  "triangles": 40852,
+  "bbox": {
+   "min": [
+    -0.1302,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1304,
+    0.4548,
+    0.019
+   ]
+  },
+  "version": "1.0.0-9tfs",
+  "generatedAt": "2026-10-06T06:33:47.596Z"
+ },
+ "bullpadel-neuron-02-2026": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/bullpadel-neuron-02-2026.glb?v=1.0.0-36ck",
+  "previewUrl": "/models/placeholders/bullpadel-neuron-02-2026.preview.glb?v=1.0.0-36ck",
+  "bytes": 148196,
+  "previewBytes": 76328,
+  "triangles": 27354,
+  "bbox": {
+   "min": [
+    -0.1316,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.1316,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-36ck",
+  "generatedAt": "2026-10-06T06:33:47.697Z"
+ },
+ "head-speed-pro-2025": {
+  "kind": "platform",
+  "url": "/models/platform/head-speed-pro-2025.glb?v=1.0.0-4oiw",
+  "previewUrl": "/models/platform/head-speed-pro-2025.preview.glb?v=1.0.0-4oiw",
+  "bytes": 218408,
+  "previewBytes": 140956,
+  "triangles": 20886,
+  "bbox": {
+   "min": [
+    -0.1143,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1147,
+    0.4546,
+    0.019
+   ]
+  },
+  "version": "1.0.0-4oiw",
+  "generatedAt": "2026-10-06T06:33:48.041Z"
+ },
+ "head-extreme-pro-2025": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/head-extreme-pro-2025.glb?v=1.0.0-3fdw",
+  "previewUrl": "/models/placeholders/head-extreme-pro-2025.preview.glb?v=1.0.0-3fdw",
+  "bytes": 159908,
+  "previewBytes": 79652,
+  "triangles": 28826,
+  "bbox": {
+   "min": [
+    -0.1316,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.1316,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-3fdw",
+  "generatedAt": "2026-10-06T06:33:48.141Z"
+ },
+ "wilson-bela-pro-v3": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/wilson-bela-pro-v3.glb?v=1.0.0-402g",
+  "previewUrl": "/models/placeholders/wilson-bela-pro-v3.preview.glb?v=1.0.0-402g",
+  "bytes": 186712,
+  "previewBytes": 86196,
+  "triangles": 33132,
+  "bbox": {
+   "min": [
+    -0.1315,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.1315,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-402g",
+  "generatedAt": "2026-10-06T06:33:48.241Z"
+ },
+ "bullpadel-hack-04-2026": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-hack-04-2026.glb?v=1.0.0-7uu0",
+  "previewUrl": "/models/platform/bullpadel-hack-04-2026.preview.glb?v=1.0.0-7uu0",
+  "bytes": 366552,
+  "previewBytes": 216192,
+  "triangles": 48352,
+  "bbox": {
+   "min": [
+    -0.1306,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1305,
+    0.4548,
+    0.019
+   ]
+  },
+  "version": "1.0.0-7uu0",
+  "generatedAt": "2026-10-06T07:32:28.346Z"
+ },
+ "siux-electra-st4-pro": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/siux-electra-st4-pro.glb?v=1.0.0-3alk",
+  "previewUrl": "/models/placeholders/siux-electra-st4-pro.preview.glb?v=1.0.0-3alk",
+  "bytes": 153704,
+  "previewBytes": 77360,
+  "triangles": 27586,
+  "bbox": {
+   "min": [
+    -0.1316,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.1316,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-3alk",
+  "generatedAt": "2026-10-06T06:33:48.409Z"
+ },
+ "starvie-triton-pro-2025": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/starvie-triton-pro-2025.glb?v=1.0.0-3a8k",
+  "previewUrl": "/models/placeholders/starvie-triton-pro-2025.preview.glb?v=1.0.0-3a8k",
+  "bytes": 153236,
+  "previewBytes": 78100,
+  "triangles": 28874,
+  "bbox": {
+   "min": [
+    -0.1315,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.1315,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-3a8k",
+  "generatedAt": "2026-10-06T06:33:48.509Z"
+ },
+ "black-crown-piton-5": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/black-crown-piton-5.glb?v=1.0.0-3ooc",
+  "previewUrl": "/models/placeholders/black-crown-piton-5.preview.glb?v=1.0.0-3ooc",
+  "bytes": 171948,
+  "previewBytes": 83812,
+  "triangles": 33380,
+  "bbox": {
+   "min": [
+    -0.13,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.13,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-3ooc",
+  "generatedAt": "2026-10-06T06:33:48.596Z"
+ },
+ "head-vibe-2026": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/head-vibe-2026.glb?v=1.0.0-3d6g",
+  "previewUrl": "/models/placeholders/head-vibe-2026.preview.glb?v=1.0.0-3d6g",
+  "bytes": 157048,
+  "previewBytes": 76156,
+  "triangles": 26848,
+  "bbox": {
+   "min": [
+    -0.13,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.13,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-3d6g",
+  "generatedAt": "2026-10-06T06:33:48.671Z"
+ },
+ "head-evo-speed": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/head-evo-speed.glb?v=1.0.0-3bp4",
+  "previewUrl": "/models/placeholders/head-evo-speed.preview.glb?v=1.0.0-3bp4",
+  "bytes": 155128,
+  "previewBytes": 78416,
+  "triangles": 29420,
+  "bbox": {
+   "min": [
+    -0.13,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.13,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-3bp4",
+  "generatedAt": "2026-10-06T06:33:48.760Z"
+ },
+ "bullpadel-xplo-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-xplo-27.glb?v=1.0.0-aors",
+  "previewUrl": "/models/platform/bullpadel-xplo-27.preview.glb?v=1.0.0-aors",
+  "bytes": 498664,
+  "previewBytes": 281236,
+  "triangles": 55074,
+  "bbox": {
+   "min": [
+    -0.13,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.13,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-aors",
+  "generatedAt": "2026-10-06T06:33:49.237Z"
+ },
+ "bullpadel-xplo-comfort-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-xplo-comfort-27.glb?v=1.0.0-9bmc",
+  "previewUrl": "/models/platform/bullpadel-xplo-comfort-27.preview.glb?v=1.0.0-9bmc",
+  "bytes": 434964,
+  "previewBytes": 237456,
+  "triangles": 47166,
+  "bbox": {
+   "min": [
+    -0.1298,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1297,
+    0.4547,
+    0.019
+   ]
+  },
+  "version": "1.0.0-9bmc",
+  "generatedAt": "2026-10-06T08:27:01.357Z"
+ },
+ "bullpadel-wonder-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-wonder-27.glb?v=1.0.0-b864",
+  "previewUrl": "/models/platform/bullpadel-wonder-27.preview.glb?v=1.0.0-b864",
+  "bytes": 523804,
+  "previewBytes": 295576,
+  "triangles": 59034,
+  "bbox": {
+   "min": [
+    -0.1285,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1287,
+    0.4542,
+    0.019
+   ]
+  },
+  "version": "1.0.0-b864",
+  "generatedAt": "2026-10-06T06:33:50.446Z"
+ },
+ "bullpadel-elite-02-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-elite-02-27.glb?v=1.0.0-96q0",
+  "previewUrl": "/models/platform/bullpadel-elite-02-27.preview.glb?v=1.0.0-96q0",
+  "bytes": 428616,
+  "previewBytes": 238348,
+  "triangles": 48718,
+  "bbox": {
+   "min": [
+    -0.1293,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1294,
+    0.4547,
+    0.019
+   ]
+  },
+  "version": "1.0.0-96q0",
+  "generatedAt": "2026-10-06T08:26:38.933Z"
+ },
+ "bullpadel-flow-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-flow-27.glb?v=1.0.0-ari8",
+  "previewUrl": "/models/platform/bullpadel-flow-27.preview.glb?v=1.0.0-ari8",
+  "bytes": 502208,
+  "previewBytes": 287644,
+  "triangles": 59246,
+  "bbox": {
+   "min": [
+    -0.1292,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1294,
+    0.4547,
+    0.019
+   ]
+  },
+  "version": "1.0.0-ari8",
+  "generatedAt": "2026-10-06T06:33:51.607Z"
+ },
+ "bullpadel-icon-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-icon-27.glb?v=1.0.0-ano0",
+  "previewUrl": "/models/platform/bullpadel-icon-27.preview.glb?v=1.0.0-ano0",
+  "bytes": 497232,
+  "previewBytes": 288480,
+  "triangles": 58978,
+  "bbox": {
+   "min": [
+    -0.1292,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.13,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-ano0",
+  "generatedAt": "2026-10-06T06:33:52.178Z"
+ },
+ "bullpadel-neuron-02-comfort-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-neuron-02-comfort-27.glb?v=1.0.0-apb4",
+  "previewUrl": "/models/platform/bullpadel-neuron-02-comfort-27.preview.glb?v=1.0.0-apb4",
+  "bytes": 499360,
+  "previewBytes": 289860,
+  "triangles": 51498,
+  "bbox": {
+   "min": [
+    -0.1306,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1307,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-apb4",
+  "generatedAt": "2026-10-06T06:33:52.776Z"
+ },
+ "bullpadel-neuron-02-edge-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-neuron-02-edge-27.glb?v=1.0.0-aayw",
+  "previewUrl": "/models/platform/bullpadel-neuron-02-edge-27.preview.glb?v=1.0.0-aayw",
+  "bytes": 480776,
+  "previewBytes": 278388,
+  "triangles": 54080,
+  "bbox": {
+   "min": [
+    -0.1317,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1315,
+    0.455,
+    0.019
+   ]
+  },
+  "version": "1.0.0-aayw",
+  "generatedAt": "2026-10-06T06:33:53.415Z"
+ },
+ "bullpadel-neuron-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-neuron-27.glb?v=1.0.0-b3ek",
+  "previewUrl": "/models/platform/bullpadel-neuron-27.preview.glb?v=1.0.0-b3ek",
+  "bytes": 517628,
+  "previewBytes": 292480,
+  "triangles": 55608,
+  "bbox": {
+   "min": [
+    -0.1289,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.129,
+    0.4548,
+    0.019
+   ]
+  },
+  "version": "1.0.0-b3ek",
+  "generatedAt": "2026-10-06T06:33:54.080Z"
+ },
+ "bullpadel-vertex-05-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-vertex-05-27.glb?v=1.0.0-ag3c",
+  "previewUrl": "/models/platform/bullpadel-vertex-05-27.preview.glb?v=1.0.0-ag3c",
+  "bytes": 487416,
+  "previewBytes": 260484,
+  "triangles": 48396,
+  "bbox": {
+   "min": [
+    -0.1298,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1297,
+    0.4547,
+    0.019
+   ]
+  },
+  "version": "1.0.0-ag3c",
+  "generatedAt": "2026-10-06T08:26:14.920Z"
+ },
+ "bullpadel-vertex-05-comfort-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-vertex-05-comfort-27.glb?v=1.0.0-bhlo",
+  "previewUrl": "/models/platform/bullpadel-vertex-05-comfort-27.preview.glb?v=1.0.0-bhlo",
+  "bytes": 536028,
+  "previewBytes": 300944,
+  "triangles": 52870,
+  "bbox": {
+   "min": [
+    -0.1288,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1288,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-bhlo",
+  "generatedAt": "2026-10-06T06:33:55.728Z"
+ },
+ "bullpadel-vertex-05-geo-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-vertex-05-geo-27.glb?v=1.0.0-950k",
+  "previewUrl": "/models/platform/bullpadel-vertex-05-geo-27.preview.glb?v=1.0.0-950k",
+  "bytes": 426404,
+  "previewBytes": 244756,
+  "triangles": 48576,
+  "bbox": {
+   "min": [
+    -0.13,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1299,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-950k",
+  "generatedAt": "2026-10-06T06:33:56.296Z"
+ },
+ "bullpadel-vertex-05-hybrid-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-vertex-05-hybrid-27.glb?v=1.0.0-7qa8",
+  "previewUrl": "/models/platform/bullpadel-vertex-05-hybrid-27.preview.glb?v=1.0.0-7qa8",
+  "bytes": 360656,
+  "previewBytes": 211044,
+  "triangles": 47792,
+  "bbox": {
+   "min": [
+    -0.13,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.13,
+    0.4548,
+    0.019
+   ]
+  },
+  "version": "1.0.0-7qa8",
+  "generatedAt": "2026-10-06T06:33:56.880Z"
+ },
+ "bullpadel-vertex-05-w-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-vertex-05-w-27.glb?v=1.0.0-9e24",
+  "previewUrl": "/models/platform/bullpadel-vertex-05-w-27.preview.glb?v=1.0.0-9e24",
+  "bytes": 438124,
+  "previewBytes": 250988,
+  "triangles": 53442,
+  "bbox": {
+   "min": [
+    -0.1294,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1296,
+    0.4532,
+    0.019
+   ]
+  },
+  "version": "1.0.0-9e24",
+  "generatedAt": "2026-10-06T06:33:57.466Z"
+ },
+ "bullpadel-hack-05-comfort-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-hack-05-comfort-27.glb?v=1.0.0-c45o",
+  "previewUrl": "/models/platform/bullpadel-hack-05-comfort-27.preview.glb?v=1.0.0-c45o",
+  "bytes": 565260,
+  "previewBytes": 325056,
+  "triangles": 61800,
+  "bbox": {
+   "min": [
+    -0.1292,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1294,
+    0.4551,
+    0.019
+   ]
+  },
+  "version": "1.0.0-c45o",
+  "generatedAt": "2026-10-06T06:33:58.163Z"
+ },
+ "bullpadel-hack-05-hybrid-27": {
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-hack-05-hybrid-27.glb?v=1.0.0-ap24",
+  "previewUrl": "/models/platform/bullpadel-hack-05-hybrid-27.preview.glb?v=1.0.0-ap24",
+  "bytes": 499036,
+  "previewBytes": 280984,
+  "triangles": 53458,
+  "bbox": {
+   "min": [
+    -0.1305,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1307,
+    0.4546,
+    0.019
+   ]
+  },
+  "version": "1.0.0-ap24",
+  "generatedAt": "2026-10-06T06:33:58.936Z"
+ },
+ "head-speed-one-x-2025": {
+  "kind": "platform",
+  "url": "/models/platform/head-speed-one-x-2025.glb?v=1.0.0-4zuk",
+  "previewUrl": "/models/platform/head-speed-one-x-2025.preview.glb?v=1.0.0-4zuk",
+  "bytes": 233084,
+  "previewBytes": 151648,
+  "triangles": 22802,
+  "bbox": {
+   "min": [
+    -0.1145,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1143,
+    0.4547,
+    0.019
+   ]
+  },
+  "version": "1.0.0-4zuk",
+  "generatedAt": "2026-10-06T06:33:59.276Z"
+ },
+ "head-speed-one-2025": {
+  "kind": "platform",
+  "url": "/models/platform/head-speed-one-2025.glb?v=1.0.0-4a40",
+  "previewUrl": "/models/platform/head-speed-one-2025.preview.glb?v=1.0.0-4a40",
+  "bytes": 199728,
+  "previewBytes": 130124,
+  "triangles": 20286,
+  "bbox": {
+   "min": [
+    -0.1133,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1142,
+    0.4542,
+    0.019
+   ]
+  },
+  "version": "1.0.0-4a40",
+  "generatedAt": "2026-10-06T06:33:59.599Z"
+ },
+ "head-speed-motion-2025": {
+  "kind": "platform",
+  "url": "/models/platform/head-speed-motion-2025.glb?v=1.0.0-4ha4",
+  "previewUrl": "/models/platform/head-speed-motion-2025.preview.glb?v=1.0.0-4ha4",
+  "bytes": 209020,
+  "previewBytes": 137264,
+  "triangles": 20192,
+  "bbox": {
+   "min": [
+    -0.1165,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1163,
+    0.4539,
+    0.019
+   ]
+  },
+  "version": "1.0.0-4ha4",
+  "generatedAt": "2026-10-06T06:33:59.997Z"
+ },
+ "head-speed-team-2025": {
+  "kind": "platform",
+  "url": "/models/platform/head-speed-team-2025.glb?v=1.0.0-4nso",
+  "previewUrl": "/models/platform/head-speed-team-2025.preview.glb?v=1.0.0-4nso",
+  "bytes": 217464,
+  "previewBytes": 142776,
+  "triangles": 22050,
+  "bbox": {
+   "min": [
+    -0.1158,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1154,
+    0.4541,
+    0.019
+   ]
+  },
+  "version": "1.0.0-4nso",
+  "generatedAt": "2026-10-06T06:34:00.320Z"
+ },
+ "head-radical-pro-2026": {
+  "kind": "platform",
+  "url": "/models/platform/head-radical-pro-2026.glb?v=1.0.0-4a3k",
+  "previewUrl": "/models/platform/head-radical-pro-2026.preview.glb?v=1.0.0-4a3k",
+  "bytes": 199712,
+  "previewBytes": 127660,
+  "triangles": 19034,
+  "bbox": {
+   "min": [
+    -0.1152,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1155,
+    0.4546,
+    0.019
+   ]
+  },
+  "version": "1.0.0-4a3k",
+  "generatedAt": "2026-10-06T06:34:00.739Z"
+ },
+ "head-radical-motion-2026": {
+  "kind": "platform",
+  "url": "/models/platform/head-radical-motion-2026.glb?v=1.0.0-4qjs",
+  "previewUrl": "/models/platform/head-radical-motion-2026.preview.glb?v=1.0.0-4qjs",
+  "bytes": 221032,
+  "previewBytes": 139432,
+  "triangles": 20390,
+  "bbox": {
+   "min": [
+    -0.1172,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1173,
+    0.4546,
+    0.019
+   ]
+  },
+  "version": "1.0.0-4qjs",
+  "generatedAt": "2026-10-06T06:34:01.062Z"
+ },
+ "head-radical-team-2026": {
+  "kind": "platform",
+  "url": "/models/platform/head-radical-team-2026.glb?v=1.0.0-4kn4",
+  "previewUrl": "/models/platform/head-radical-team-2026.preview.glb?v=1.0.0-4kn4",
+  "bytes": 213376,
+  "previewBytes": 135220,
+  "triangles": 19784,
+  "bbox": {
+   "min": [
+    -0.1152,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1153,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-4kn4",
+  "generatedAt": "2026-10-06T06:34:01.389Z"
+ },
+ "nox-at10-luxury-genius-12k-alum-xtrem-2026": {
+  "kind": "platform",
+  "url": "/models/platform/nox-at10-luxury-genius-12k-alum-xtrem-2026.glb?v=1.0.0-6d0o",
+  "previewUrl": "/models/platform/nox-at10-luxury-genius-12k-alum-xtrem-2026.preview.glb?v=1.0.0-6d0o",
+  "bytes": 296808,
+  "previewBytes": 156248,
+  "triangles": 37648,
+  "bbox": {
+   "min": [
+    -0.1284,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1288,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-6d0o",
+  "generatedAt": "2026-10-06T06:34:01.804Z"
+ },
+ "nox-at10-luxury-genius-attack-12k-alum-xtrem-2026": {
+  "kind": "platform",
+  "url": "/models/platform/nox-at10-luxury-genius-attack-12k-alum-xtrem-2026.glb?v=1.0.0-6brg",
+  "previewUrl": "/models/platform/nox-at10-luxury-genius-attack-12k-alum-xtrem-2026.preview.glb?v=1.0.0-6brg",
+  "bytes": 295180,
+  "previewBytes": 155608,
+  "triangles": 38116,
+  "bbox": {
+   "min": [
+    -0.1291,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.129,
+    0.455,
+    0.019
+   ]
+  },
+  "version": "1.0.0-6brg",
+  "generatedAt": "2026-10-06T06:34:02.207Z"
+ },
+ "nox-at10-luxury-genius-attack-18k-alum-2026": {
+  "kind": "platform",
+  "url": "/models/platform/nox-at10-luxury-genius-attack-18k-alum-2026.glb?v=1.0.0-7erw",
+  "previewUrl": "/models/platform/nox-at10-luxury-genius-attack-18k-alum-2026.preview.glb?v=1.0.0-7erw",
+  "bytes": 345740,
+  "previewBytes": 169088,
+  "triangles": 37884,
+  "bbox": {
+   "min": [
+    -0.1287,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.129,
+    0.4548,
+    0.019
+   ]
+  },
+  "version": "1.0.0-7erw",
+  "generatedAt": "2026-10-06T06:34:02.700Z"
+ },
+ "nox-at10-luxury-genius-12k-alum-xtrem-lite-2026": {
+  "kind": "platform",
+  "url": "/models/platform/nox-at10-luxury-genius-12k-alum-xtrem-lite-2026.glb?v=1.0.0-6y10",
+  "previewUrl": "/models/platform/nox-at10-luxury-genius-12k-alum-xtrem-lite-2026.preview.glb?v=1.0.0-6y10",
+  "bytes": 324036,
+  "previewBytes": 167348,
+  "triangles": 40008,
+  "bbox": {
+   "min": [
+    -0.1287,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1287,
+    0.4548,
+    0.019
+   ]
+  },
+  "version": "1.0.0-6y10",
+  "generatedAt": "2026-10-06T06:34:03.131Z"
+ },
+ "nox-ml10-ventus-control-3k-2026": {
+  "kind": "platform",
+  "url": "/models/platform/nox-ml10-ventus-control-3k-2026.glb?v=1.0.0-8734",
+  "previewUrl": "/models/platform/nox-ml10-ventus-control-3k-2026.preview.glb?v=1.0.0-8734",
+  "bytes": 382432,
+  "previewBytes": 187328,
+  "triangles": 42612,
+  "bbox": {
+   "min": [
+    -0.1289,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1287,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-8734",
+  "generatedAt": "2026-10-06T06:34:03.618Z"
+ },
+ "nox-ea10-ventus-attack-12k-xtrem-2026": {
+  "kind": "platform",
+  "url": "/models/platform/nox-ea10-ventus-attack-12k-xtrem-2026.glb?v=1.0.0-7jqo",
+  "previewUrl": "/models/platform/nox-ea10-ventus-attack-12k-xtrem-2026.preview.glb?v=1.0.0-7jqo",
+  "bytes": 352176,
+  "previewBytes": 180404,
+  "triangles": 41578,
+  "bbox": {
+   "min": [
+    -0.129,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1292,
+    0.4551,
+    0.019
+   ]
+  },
+  "version": "1.0.0-7jqo",
+  "generatedAt": "2026-10-06T06:34:04.068Z"
+ },
+ "nox-ea10-ventus-hybrid-12k-xtrem-2026": {
+  "kind": "platform",
+  "url": "/models/platform/nox-ea10-ventus-hybrid-12k-xtrem-2026.glb?v=1.0.0-7wmc",
+  "previewUrl": "/models/platform/nox-ea10-ventus-hybrid-12k-xtrem-2026.preview.glb?v=1.0.0-7wmc",
+  "bytes": 368868,
+  "previewBytes": 180080,
+  "triangles": 39340,
+  "bbox": {
+   "min": [
+    -0.1285,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1289,
+    0.455,
+    0.019
+   ]
+  },
+  "version": "1.0.0-7wmc",
+  "generatedAt": "2026-10-06T06:34:04.564Z"
+ },
+ "babolat-counter-viper-2-6-2026": {
+  "kind": "platform",
+  "url": "/models/platform/babolat-counter-viper-2-6-2026.glb?v=1.0.0-a6tc",
+  "previewUrl": "/models/platform/babolat-counter-viper-2-6-2026.preview.glb?v=1.0.0-a6tc",
+  "bytes": 475392,
+  "previewBytes": 212516,
+  "triangles": 37994,
+  "bbox": {
+   "min": [
+    -0.1299,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1297,
+    0.4548,
+    0.019
+   ]
+  },
+  "version": "1.0.0-a6tc",
+  "generatedAt": "2026-10-06T06:34:05.126Z"
+ },
+ "babolat-technical-viper-soft-3-0-2026": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/babolat-technical-viper-soft-3-0-2026.glb?v=1.0.0-3cy0",
+  "previewUrl": "/models/placeholders/babolat-technical-viper-soft-3-0-2026.preview.glb?v=1.0.0-3cy0",
+  "bytes": 156744,
+  "previewBytes": 76416,
+  "triangles": 26486,
+  "bbox": {
+   "min": [
+    -0.1316,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.1316,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-3cy0",
+  "generatedAt": "2026-10-06T06:34:05.222Z"
+ },
+ "babolat-technical-veron-3-0-2026": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/babolat-technical-veron-3-0-2026.glb?v=1.0.0-3bgk",
+  "previewUrl": "/models/placeholders/babolat-technical-veron-3-0-2026.preview.glb?v=1.0.0-3bgk",
+  "bytes": 154820,
+  "previewBytes": 75956,
+  "triangles": 26614,
+  "bbox": {
+   "min": [
+    -0.1315,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.1315,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-3bgk",
+  "generatedAt": "2026-10-06T06:34:05.313Z"
+ },
+ "adidas-metalbone-team-2026": {
+  "kind": "platform",
+  "url": "/models/platform/adidas-metalbone-team-2026.glb?v=1.0.0-74fo",
+  "previewUrl": "/models/platform/adidas-metalbone-team-2026.preview.glb?v=1.0.0-74fo",
+  "bytes": 332340,
+  "previewBytes": 221728,
+  "triangles": 35192,
+  "bbox": {
+   "min": [
+    -0.1279,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1279,
+    0.4548,
+    0.019
+   ]
+  },
+  "version": "1.0.0-74fo",
+  "generatedAt": "2026-10-06T06:34:05.714Z"
+ },
+ "head-coello-pro-2026": {
+  "kind": "platform",
+  "url": "/models/platform/head-coello-pro-2026.glb?v=1.0.0-4bjs",
+  "previewUrl": "/models/platform/head-coello-pro-2026.preview.glb?v=1.0.0-4bjs",
+  "bytes": 201592,
+  "previewBytes": 130876,
+  "triangles": 19608,
+  "bbox": {
+   "min": [
+    -0.1184,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1185,
+    0.4546,
+    0.019
+   ]
+  },
+  "version": "1.0.0-4bjs",
+  "generatedAt": "2026-10-06T07:32:14.277Z"
+ },
+ "adidas-metalbone-hrd-plus-2026": {
+  "kind": "platform",
+  "url": "/models/platform/adidas-metalbone-hrd-plus-2026.glb?v=1.0.0-a7t4",
+  "previewUrl": "/models/platform/adidas-metalbone-hrd-plus-2026.preview.glb?v=1.0.0-a7t4",
+  "bytes": 476680,
+  "previewBytes": 260444,
+  "triangles": 47926,
+  "bbox": {
+   "min": [
+    -0.1273,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1273,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-a7t4",
+  "generatedAt": "2026-10-06T07:32:17.803Z"
+ },
+ "babolat-viper-juan-lebron-3-0-2026": {
+  "kind": "platform",
+  "url": "/models/platform/babolat-viper-juan-lebron-3-0-2026.glb?v=1.0.0-6trk",
+  "previewUrl": "/models/platform/babolat-viper-juan-lebron-3-0-2026.preview.glb?v=1.0.0-6trk",
+  "bytes": 318512,
+  "previewBytes": 169956,
+  "triangles": 31966,
+  "bbox": {
+   "min": [
+    -0.1293,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1296,
+    0.4547,
+    0.019
+   ]
+  },
+  "version": "1.0.0-6trk",
+  "generatedAt": "2026-10-06T07:32:21.202Z"
+ },
+ "siux-electra-pro-shadow-red-2026": {
+  "kind": "platform",
+  "url": "/models/platform/siux-electra-pro-shadow-red-2026.glb?v=1.0.0-bcys",
+  "previewUrl": "/models/platform/siux-electra-pro-shadow-red-2026.preview.glb?v=1.0.0-bcys",
+  "bytes": 530020,
+  "previewBytes": 306588,
+  "triangles": 64164,
+  "bbox": {
+   "min": [
+    -0.1284,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1284,
+    0.4543,
+    0.019
+   ]
+  },
+  "version": "1.0.0-bcys",
+  "generatedAt": "2026-10-06T07:32:24.742Z"
+ },
+ "lok-maxx-hype-gen-2-yanguas-2026": {
+  "kind": "platform",
+  "url": "/models/platform/lok-maxx-hype-gen-2-yanguas-2026.glb?v=1.0.0-8db8",
+  "previewUrl": "/models/platform/lok-maxx-hype-gen-2-yanguas-2026.preview.glb?v=1.0.0-8db8",
+  "bytes": 390500,
+  "previewBytes": 227856,
+  "triangles": 44806,
+  "bbox": {
+   "min": [
+    -0.1327,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1327,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-8db8",
+  "generatedAt": "2026-10-06T07:32:31.735Z"
+ },
+ "kuikma-hybrid-pro-coki-nieto": {
+  "kind": "placeholder",
+  "url": "/models/placeholders/kuikma-hybrid-pro-coki-nieto.glb?v=1.0.0-3fes",
+  "previewUrl": "/models/placeholders/kuikma-hybrid-pro-coki-nieto.preview.glb?v=1.0.0-3fes",
+  "bytes": 159940,
+  "previewBytes": 77188,
+  "triangles": 27514,
+  "bbox": {
+   "min": [
+    -0.1316,
+    0,
+    -0.0202
+   ],
+   "max": [
+    0.1316,
+    0.4566,
+    0.0202
+   ]
+  },
+  "version": "1.0.0-3fes",
+  "generatedAt": "2026-10-06T07:32:34.572Z"
+ },
+ "siux-fenix-pro-2026": {
+  "kind": "platform",
+  "url": "/models/platform/siux-fenix-pro-2026.glb?v=1.0.0-75hw",
+  "previewUrl": "/models/platform/siux-fenix-pro-2026.preview.glb?v=1.0.0-75hw",
+  "bytes": 333716,
+  "previewBytes": 181588,
+  "triangles": 39258,
+  "bbox": {
+   "min": [
+    -0.1283,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1295,
+    0.4548,
+    0.019
+   ]
+  },
+  "version": "1.0.0-75hw",
+  "generatedAt": "2026-10-06T07:32:37.806Z"
+ },
+ "drop-shot-axion-attack-1-5-2025": {
+  "kind": "platform",
+  "url": "/models/platform/drop-shot-axion-attack-1-5-2025.glb?v=1.0.0-60dw",
+  "previewUrl": "/models/platform/drop-shot-axion-attack-1-5-2025.preview.glb?v=1.0.0-60dw",
+  "bytes": 280436,
+  "previewBytes": 158624,
+  "triangles": 31598,
+  "bbox": {
+   "min": [
+    -0.1305,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.13,
+    0.4544,
+    0.019
+   ]
+  },
+  "version": "1.0.0-60dw",
+  "generatedAt": "2026-10-06T07:41:51.576Z"
+ },
+ "wilson-endure-pro-v1-2026": {
+  "kind": "platform",
+  "url": "/models/platform/wilson-endure-pro-v1-2026.glb?v=1.0.0-82bc",
+  "previewUrl": "/models/platform/wilson-endure-pro-v1-2026.preview.glb?v=1.0.0-82bc",
+  "bytes": 376248,
+  "previewBytes": 210928,
+  "triangles": 43614,
+  "bbox": {
+   "min": [
+    -0.1287,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1287,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-82bc",
+  "generatedAt": "2026-10-06T07:32:45.632Z"
+ },
+ "wilson-defy-pro-v1": {
+  "kind": "platform",
+  "url": "/models/platform/wilson-defy-pro-v1.glb?v=1.0.0-3l10",
+  "previewUrl": "/models/platform/wilson-defy-pro-v1.preview.glb?v=1.0.0-3l10",
+  "bytes": 167220,
+  "previewBytes": 92156,
+  "triangles": 15754,
+  "bbox": {
+   "min": [
+    -0.1294,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1297,
+    0.4542,
+    0.019
+   ]
+  },
+  "version": "1.0.0-3l10",
+  "generatedAt": "2026-10-06T07:32:49.091Z"
+ },
+ "adidas-arrow-hit-pro-edt-2026": {
+  "kind": "platform",
+  "url": "/models/platform/adidas-arrow-hit-pro-edt-2026.glb?v=1.0.0-7phg",
+  "previewUrl": "/models/platform/adidas-arrow-hit-pro-edt-2026.preview.glb?v=1.0.0-7phg",
+  "bytes": 359620,
+  "previewBytes": 207440,
+  "triangles": 44514,
+  "bbox": {
+   "min": [
+    -0.1288,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1288,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-7phg",
+  "generatedAt": "2026-10-06T07:32:52.555Z"
+ },
+ "head-extreme-motion-2026": {
+  "kind": "platform",
+  "url": "/models/platform/head-extreme-motion-2026.glb?v=1.0.0-9mso",
+  "previewUrl": "/models/platform/head-extreme-motion-2026.preview.glb?v=1.0.0-9mso",
+  "bytes": 449448,
+  "previewBytes": 259940,
+  "triangles": 55052,
+  "bbox": {
+   "min": [
+    -0.1309,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1307,
+    0.4557,
+    0.019
+   ]
+  },
+  "version": "1.0.0-9mso",
+  "generatedAt": "2026-10-06T07:41:57.173Z"
+ }
+}
