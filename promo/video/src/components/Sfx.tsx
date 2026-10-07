@@ -8,7 +8,7 @@ export type SfxName = "click" | "whoosh" | "whoosh-soft" | "impact" | "riser" | 
 
 /** Gain of every effect between lines, and under the voice (keeps the VO clearly on top of the bed). */
 const GAIN = 0.8;
-const GAIN_UNDER_VOICE = 0.32;
+const GAIN_UNDER_VOICE = 0.2;
 
 /** Effect gain at absolute frame `f`: eases down while a voice line is speaking. */
 const duck = (f: number) => {
