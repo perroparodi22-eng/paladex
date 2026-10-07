@@ -25,7 +25,7 @@ import type { SceneProps } from "./types";
 
 // ---------------------------------------------------------------------------
 // Voice anchors (scene-local frames come from the word timings).
-const WORDS = { answer: "Answer", see: "see", fit: "fit", how: "how", play: "play" } as const;
+const WORDS = { answer: "Answer", see: "get", rackets: "rackets", fit: "fit", how: "how", play: "play" } as const;
 
 // ---------------------------------------------------------------------------
 // The deck. `target` is the option the cursor taps (a key of the still's marks).
@@ -107,13 +107,14 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
   const w = WORDS;
 
   // Beats (all derived from the voice).
-  const A = wordAt(timing, w.answer, 100);
-  const S = wordAt(timing, w.see, 213);
-  const F = wordAt(timing, w.fit, 267);
-  const H = wordAt(timing, w.how, 295);
-  const W = wordAt(timing, w.play, H + 33) + 8; // after the last word: the camera cranes down to the matches
-  const c1 = A + 6; // Intermediate (home card)
-  const gap = Math.round(Math.max(20, Math.min(30, (S - c1 - 60) / 2)));
+  const A = wordAt(timing, w.answer, 137);
+  const S = wordAt(timing, w.see, 265);
+  const RK = wordAt(timing, w.rackets, 296);
+  const F = wordAt(timing, w.fit, 339);
+  const H = wordAt(timing, w.how, 354);
+  const W = wordAt(timing, w.play, 408) + 8; // after the last word: the camera cranes down to the matches
+  const c1 = A + 4; // Intermediate (home card)
+  const gap = Math.round(Math.max(16, Math.min(22, (S - c1 - 60) / 2)));
   const c2 = c1 + gap; // Balanced
   const c3 = c2 + gap; // Control
   // Questions 4–7 are answered in a rapid-fire riffle locked to the music's
@@ -142,10 +143,12 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
   const est = interpolate(frame, [0, c1 + 6], [0, 1], { ...clamp, easing: Easing.bezier(0.36, 0.06, 0.24, 1) });
   const riffleT = interpolate(frame, [R0, R1], [0, 1], clamp);
   const surge = Math.sin(Math.PI * riffleT);
+  // A quick punch-in on every tap (fast attack, soft settle).
+  const punch = [c1, c2, c3, ...taps, c4].reduce((a, c) => a + (frame >= c ? 38 * Math.exp(-(frame - c) / 5) : 0), 0);
   const cam = {
     x: mix(-260, 0, est),
     y: mix(190, 0, est),
-    z: mix(-1050, 0, est) + Math.min(frame, S) * 0.4 + surge * 90, // plus a slow, constant dolly-in
+    z: mix(-1050, 0, est) + Math.min(frame, S) * 0.4 + surge * 90 + punch, // plus a slow, constant dolly-in
     rx: mix(-15, -2.5, est) + drift("fd-rx", frame, 0.9, 0.07),
     ry: mix(-38, 4.5, est) + drift("fd-ry", frame, 1.3, 0.06) - surge * 2,
     rz: mix(3, 0, est) + surge * 1.2 + drift("fd-rz", frame, 0.35, 0.05),
@@ -198,7 +201,7 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
   // ---- Results: come forward out of the depth on "see", settle on "fit", then
   // a slow orbit toward "Why it fits" for "how you really play".
   const rStart = c4 + 2;
-  const rIn = interpolate(frame, [rStart, F + 6], [0, 1], { ...clamp, easing: Easing.bezier(0.18, 0.72, 0.24, 1) });
+  const rIn = interpolate(frame, [rStart, rStart + 32], [0, 1], { ...clamp, easing: Easing.bezier(0.1, 0.8, 0.2, 1) });
   const rCam = interpolate(frame, [F, D + OV], [0, 1], { ...clamp, easing: Easing.bezier(0.42, 0, 0.36, 1) });
   const toReasons = interpolate(frame, [H - 20, D + OV], [0, 1], { ...clamp, easing: Easing.bezier(0.45, 0, 0.3, 1) });
   const crane = interpolate(frame, [W - 16, D + OV], [0, 1], { ...clamp, easing: Easing.bezier(0.45, 0, 0.3, 1) });
@@ -245,7 +248,7 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
                 {/* Lifted straight off the plate (no drop, slim margin) so it never covers the "Strengths" row below;
                     cropped to the text column so the floating card stays inside the plate. */}
                 <CropLift name="finder-reasons" t={reasonsLift} z={80} grow={0.03} radius={14} pad={6} padColor="rgb(20,21,25)" shadow={0.45} cropW={356} />
-                <MatchWave frame={frame} at={W} />
+                <MatchWave frame={frame} at={RK} />
               </LiftLayer>
             </>
           )}
@@ -264,20 +267,28 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
         </div>
       </Space3D>
 
-      <Sfx name="whoosh-soft" at={2} volume={0.3} />
-      <Sfx name="click" at={c1} volume={0.55} />
-      <Sfx name="whoosh-soft" at={c1 + 5} volume={0.35} />
-      <Sfx name="click" at={c2} volume={0.55} />
-      <Sfx name="whoosh-soft" at={c2 + 5} volume={0.35} />
-      <Sfx name="click" at={c3} volume={0.55} />
-      <Sfx name="swipe" at={R0 - 2} volume={0.36} />
-      {taps.map((t) => (
-        <Sfx key={t} name="click" at={t} volume={0.3} />
+      <Sfx name="whoosh" at={2} volume={0.45} />
+      <Sfx name="riser" at={Math.max(4, A - 40)} volume={0.3} />
+      {[c1, c2, c3].map((c) => (
+        <React.Fragment key={c}>
+          <Sfx name="click" at={c} volume={0.8} />
+          <Sfx name="whoosh-soft" at={c + 4} volume={0.45} />
+          <Sfx name="pop" at={c + 18} volume={0.35} />
+        </React.Fragment>
       ))}
-      <Sfx name="click" at={c4} volume={0.6} />
-      <Sfx name="whoosh" at={c4 + 3} volume={0.5} />
-      <Sfx name="pop" at={F} volume={0.3} />
-      <Sfx name="whoosh-soft" at={W - 14} volume={0.22} />
+      {rs.map((r) => (
+        <Sfx key={`f${r}`} name="swipe" at={r} volume={0.4} />
+      ))}
+      {taps.map((t) => (
+        <Sfx key={t} name="click" at={t} volume={0.7} />
+      ))}
+      <Sfx name="click" at={c4} volume={0.9} />
+      <Sfx name="whoosh" at={c4 + 3} volume={0.7} />
+      <Sfx name="impact" at={c4 + 24} volume={0.6} />
+      <Sfx name="pop" at={RK} volume={0.5} />
+      <Sfx name="pop" at={RK + 6} volume={0.4} />
+      <Sfx name="shimmer" at={F} volume={0.4} />
+      <Sfx name="whoosh-soft" at={W - 14} volume={0.35} />
     </AbsoluteFill>
   );
 };
@@ -436,8 +447,9 @@ const MatchWave: React.FC<{ frame: number; at: number }> = ({ frame, at }) => {
   const m = 3; // keep the selected card's ring
   return (
     <>
-      {[0, 1, 2, 3, 4, 5].map((i) => {
-        const t = interpolate(frame, [at + i * 5, at + i * 5 + 30], [0, 1], { ...clamp, easing: easeOut });
+      {[0, 1].map((i) => {
+        // Only the finished rackets are shown (the capture hides the rest), so two cards rise.
+        const t = interpolate(frame, [at + i * 6, at + i * 6 + 22], [0, 1], { ...clamp, easing: easeOut });
         if (t <= 0.001) return null;
         const left = i * (cardW + 8) - m;
         return (
