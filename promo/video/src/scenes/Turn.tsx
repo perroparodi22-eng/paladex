@@ -31,7 +31,7 @@ import { browserPose, bump, hermite, mix, projectPage, smooth, type OrbitPose } 
 
 /** Voice words this scene syncs to, per language (fallbacks are the English frames). */
 const WORDS = {
-  en: { grab: "Grab", spin: "Spin", it: "it", front: "Front", side: "Side", back: "Back", every: "Every", detail: "detail", up: "up", close: "close" },
+  en: { grab: "Grab", spin: "Spin", it: "it", front: "Front", side: "Side", back: "Back", every: "Every", detail: "detail", up: "up", close: "close", face: "face", frame: "frame", finish: "finish" },
 } as const;
 
 const PATH = "/rackets/nox-at10-luxury-genius-18k-alum";
@@ -58,6 +58,9 @@ type Marks = {
   detail: number;
   up: number;
   close: number;
+  face: number;
+  frameW: number;
+  finish: number;
   grab: number;
   release: number;
   clicks: number[];
@@ -172,7 +175,7 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
 
   const every = wordAt(timing, W.every, 282);
   const grabF = wordAt(timing, W.grab, 20) + 8;
-  const relF = Math.max(grabF + 20, wordAt(timing, W.it, 77, 0, "end") + 4);
+  const relF = grabF + 22; // the drag is short; the racket then keeps spinning on its own through "Spin it"
   const front = wordAt(timing, W.front, 124);
   const side = wordAt(timing, W.side, 177);
   const back = wordAt(timing, W.back, 228);
@@ -181,9 +184,26 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const evRel = ev.find((e) => e.type === "release")?.frame ?? 128;
   const evClicks = ev.filter((e) => e.type === "click").map((e) => e.frame);
   const [c0, c1, c2] = [evClicks[0] ?? 162, evClicks[1] ?? 203, evClicks[2] ?? 250];
-  const GLIDE = 40; // clip frames from the Back click to the end of its glide
-  const fs = [0, grabF, relF, front, side, back, every, every + 400];
-  const cs = [Math.max(0, Math.round(evGrab - 1.15 * grabF)), evGrab, evRel, c0, c1, c2, c2 + GLIDE, c2 + GLIDE + 400];
+  // The site's camera needs ~40-50 clip frames to settle on a new view, so each click is
+  // played LEAD scene frames BEFORE its word and the glide is sped up (clip frames per
+  // scene frame) so the view is settled exactly when the word is spoken.
+  const LEAD = 30;
+  const SETTLE = [40, 46, 48]; // clip frames from each click to a settled view
+  const clickAt = [front - LEAD, side - LEAD, back - LEAD];
+  const fs = [0, grabF, relF, clickAt[0], front, clickAt[1], side, clickAt[2], back, every, every + 400];
+  const cs = [
+    Math.max(0, Math.round(evGrab - 1.15 * grabF)),
+    evGrab,
+    evRel,
+    c0,
+    c0 + SETTLE[0],
+    c1,
+    c1 + SETTLE[1],
+    c2,
+    c2 + SETTLE[2],
+    c2 + SETTLE[2] + 22,
+    c2 + SETTLE[2] + 22 + 400,
+  ];
   for (let i = 1; i < fs.length; i++) fs[i] = Math.max(fs[i], fs[i - 1] + 1), (cs[i] = Math.max(cs[i], cs[i - 1] + 1));
   const cm = (f: number) => interpolate(f, fs, cs, { easing: (t) => t, extrapolateLeft: "extend", extrapolateRight: "extend" });
   const rate = (f: number) => cm(f + 0.5) - cm(f - 0.5);
@@ -197,9 +217,12 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     detail: wordAt(timing, W.detail, 304),
     up: wordAt(timing, W.up, 335),
     close: wordAt(timing, W.close, 348),
+    face: wordAt(timing, W.face, 324),
+    frameW: wordAt(timing, W.frame, 351),
+    finish: wordAt(timing, W.finish, 379),
     grab: grabF,
     release: relF,
-    clicks: [front, side, back],
+    clicks: clickAt,
     cm,
     rate,
     // The hand-off is invisible (same racket, same tone) and runs under the end of
@@ -256,8 +279,13 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     // Free camera path (from the camera matched at the break-out). The racket lands big with
     // the whole head in frame (headroom above the rim, throat clear of the subtitles);
     // only then does the macro push crop in.
-    const dist = mix(m0.dist, 0.75, e) * mix(1, 0.405, g);
-    const fov = mix(m0.fov, 31, e) - 5 * g;
+    // Three macro beats, each ARRIVED at on its word: the face (holes + texture), the frame
+    // (rim edge, seen at an angle), the finish (throat insert + decals). One continuous
+    // path through them; the closest zoom stays at ~0.4 m so the textures stay sharp.
+    const K = [m.close - 6, m.face, m.frameW, m.finish, END + 30];
+    const kd = (a: number[]) => smooth(frame, K, a);
+    const dist = mix(m0.dist, 0.75, e) * mix(1, kd([0.86, 0.46, 0.42, 0.52, 0.5]), g);
+    const fov = mix(m0.fov, 31, e) - 4 * g;
     const shiftX = mix(m0.shiftX, 190, e) * (1 - g) + hand("sx", 6);
     const shiftY = mix(m0.shiftY, -4, e) * (1 - g) + hand("sy", 4);
     const free = {
@@ -266,15 +294,15 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
       dist,
       fov,
     };
-    // Through the whole cross-fade the hero stays glued to the captured racket, so the
-    // dissolve never shows two rackets; only once the captured one has gone (BO) do the
-    // window start to fall and the camera ease off the match onto the free path
-    // (measured: blending during the dissolve left the last frames 8-14 px apart).
     const w = interpolate(u, [GLUE - 2, GLUE + 14], [0, 1], { ...clamp, easing: swapEase });
-    const camAz = w * (0.6 * g + 0.03 * e + hand("az", 0.012));
-    const camEl = w * (0.04 * e + 0.2 * g + hand("el", 0.01));
-    const target: Vec3 = [w * 0.072 * g, w * (mix(0, 0.05, e) + 0.035 * g), w * 0.017 * g];
-    const roll = w * (-0.05 * e + 0.09 * g);
+    const camAz = w * (0.03 * e + hand("az", 0.012) + g * kd([0.1, 0.15, 0.55, -0.25, -0.3]));
+    const camEl = w * (0.04 * e + hand("el", 0.01) + g * kd([0.12, 0.12, 0.16, 0.06, 0.04]));
+    const target: Vec3 = [
+      w * g * kd([0.03, 0.0, 0.125, 0.02, 0.0]),
+      w * (mix(0, 0.05, e) + g * kd([0.05, 0.08, 0.125, -0.07, -0.08])),
+      w * 0.017 * g,
+    ];
+    const roll = w * (-0.05 * e + g * kd([0.05, 0.05, 0.12, -0.06, -0.08]));
     const mf = matchAt(frame, m, cams);
     const cam = {
       shiftX: mix(mf.shiftX, free.shiftX, w),
@@ -331,6 +359,18 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
             <Browser3D {...pose} path={PATH} glare={glare}>
               {pageSwap < 1 && <Footage name={CLIP} frame={m.cm(frame)} />}
               {pageSwap > 0 && <PageStill name={EMPTY} style={{ opacity: pageSwap }} />}
+              {/* Past the title the page text sinks into the dark: the spec values with
+                  empty fields, the price and the score are not featured. */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: 1060,
+                  top: 560,
+                  width: 860,
+                  height: 520,
+                  background: "linear-gradient(180deg, rgba(7,8,9,0) 0%, rgba(7,8,9,1) 9%, rgba(7,8,9,1) 100%)",
+                }}
+              />
               {cur && curOpacity > 0 && (
                 // The grabbing hand is drawn smaller than the arrow: scale it up to read.
                 <Cursor x={cur.x} y={cur.y} down={cur.down} grab={grab} clicks={m.clicks} frame={frame} opacity={curOpacity} scale={grab ? 1.55 : 1.35} />

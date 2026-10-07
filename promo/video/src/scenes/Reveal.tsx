@@ -245,6 +245,7 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const everyAt = wordAt(timing, W.every, 180);
   const racketAt = wordAt(timing, W.racket, 222);
   const threeDAt = wordAt(timing, W.threeD, 263);
+  const browserAt = wordAt(timing, "browser", 290);
 
   const env = enterExit(frame, D, ov);
 
@@ -272,14 +273,17 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     // After the arrival the camera swings in closer and rolls flat to face the page,
     // landing on "3D" (a second decisive move).
     const fin = easeOut(interpolate(f, [swingEnd - 6, threeDAt + 4], [0, 1], clamp));
+    // "right in your browser": pull back and orbit so the whole window, chrome and address
+    // bar included, shows the racket turning live in it; it rises clear of the subtitle.
+    const post = easeInOut(interpolate(f, [threeDAt + 6, END - 20], [0, 1], clamp));
     return {
       tx: WIN_POS.x * tl + interpolate(f, [swingStart, END], [0, 60], clamp) + hand("x", 6),
-      ty: WIN_POS.y * t + hand("y", 5),
+      ty: WIN_POS.y * t + 75 * post + hand("y", 5),
       tz: WIN_POS.z * t,
-      yaw: interpolate(f, [0, END], [11, -4]) + hand("yaw", 0.5) - 5 * fin,
+      yaw: interpolate(f, [0, END], [11, -4]) + hand("yaw", 0.5) - 5 * fin + 9 * post,
       pitch: interpolate(f, [0, END], [2.5, -0.5]) + hand("pitch", 0.4),
       roll: hand("roll", 0.25) + 1.4 * (1 - fin) * t,
-      dolly: -130 + 1.5 * f + 200 * fin + interpolate(f, [threeDAt, END], [0, 30], clamp),
+      dolly: -130 + 1.5 * f + 200 * fin - 230 * post + interpolate(f, [threeDAt, END], [0, 30], clamp),
     };
   };
   const cam = camAt(frame);
@@ -532,7 +536,8 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
       <Sfx name="whoosh" at={swingStart} volume={0.7} />
       <Sfx name="whoosh-soft" at={swingEnd - 8} volume={0.35} />
       <Sfx name="impact" at={threeDAt} volume={0.55} />
-      <Sfx name="tick" at={threeDAt + 40} volume={0.3} />
+      <Sfx name="whoosh-soft" at={browserAt - 40} volume={0.35} />
+      <Sfx name="tick" at={browserAt} volume={0.3} />
     </AbsoluteFill>
   );
 };
