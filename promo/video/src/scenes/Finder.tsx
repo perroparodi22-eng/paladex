@@ -1,5 +1,5 @@
-// Scene 6, "finder": "Not sure where to start? Answer a few quick questions, and see
-// the rackets that fit how you really play."
+// Scene 6, "finder": "Not sure where to start? Answer a few quick questions, and get
+// the rackets that fit how you really play. Your match, in seconds."
 //
 // Camera language: a fly-through of a deck. The real "Find my racket" flow, as a
 // stack of cards in depth (captured dpr-2 stills of the live site):
@@ -10,13 +10,17 @@
 // past the camera as the next one comes forward), the rest of the deck riffles past
 // with the answers lit, and on "see" the cursor hits "See my matches": the last card
 // pushes through the lens and the real results page (60 fps footage, the 3D racket
-// turning on the site's own clock) comes forward out of the depth. On "fit" the
-// match score lifts off the page; the camera then orbits toward "Why it fits".
+// bobbing on the site's own clock) comes forward out of the depth. On "rackets" the
+// racket viewer lifts off the page, on "fit" the match name, on "how you really play" the
+// "Why it fits" reasons (a relay of highlights; the match % is never featured, it is masked).
+// On "Your match, in seconds" the page falls back and the real 3D racket spins in, lands on
+// "seconds" and the name lights up.
 import React from "react";
 import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame } from "remotion";
 import { Browser3D, CHROME_H, Space3D, poseTransform, type Pose } from "../components/Browser3D";
 import { Cursor, cursorAt, type CursorKey } from "../components/Cursor";
 import { Footage, still } from "../components/Footage";
+import { RacketModel, RacketStage } from "../components/Racket3D";
 import { Sfx } from "../components/Sfx";
 import { clamp, drift, easeInOut, easeOut, enterExit, mix } from "../lib/motion";
 import { C } from "../theme";
@@ -25,7 +29,12 @@ import type { SceneProps } from "./types";
 
 // ---------------------------------------------------------------------------
 // Voice anchors (scene-local frames come from the word timings).
-const WORDS = { answer: "Answer", see: "get", rackets: "rackets", fit: "fit", how: "how", play: "play" } as const;
+const WORDS = { answer: "Answer", see: "get", rackets: "rackets", fit: "fit", how: "how", play: "play", your: "Your", match: "match", seconds: "seconds" } as const;
+/** The racket that lands at the end: the quiz's best match, a real traced model. */
+const MATCH_SLUG = "head-radical-team-2026";
+/** Regions of the results page (CSS px) lifted straight from the footage. */
+const VIEWER_BOX = { x: 280, y: 129, w: 550, h: 648 }; // racket viewer, without the % badge
+const NAME_BOX = { x: 1044, y: 148, w: 480, h: 80 }; // "Your best match · Head" + the name
 
 // ---------------------------------------------------------------------------
 // The deck. `target` is the option the cursor taps (a key of the still's marks).
@@ -107,12 +116,15 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
   const w = WORDS;
 
   // Beats (all derived from the voice).
-  const A = wordAt(timing, w.answer, 137);
-  const S = wordAt(timing, w.see, 265);
-  const RK = wordAt(timing, w.rackets, 296);
-  const F = wordAt(timing, w.fit, 339);
-  const H = wordAt(timing, w.how, 354);
-  const W = wordAt(timing, w.play, 408) + 8; // after the last word: the camera cranes down to the matches
+  const A = wordAt(timing, w.answer, 89);
+  const S = wordAt(timing, w.see, 184);
+  const RK = wordAt(timing, w.rackets, 204);
+  const F = wordAt(timing, w.fit, 233);
+  const H = wordAt(timing, w.how, 243);
+  const P = wordAt(timing, w.play, 282);
+  const Y = wordAt(timing, w.your, 309); // "Your match, in seconds": the finale
+  const M = wordAt(timing, w.match, 321);
+  const SEC = wordAt(timing, w.seconds, 351);
   const c1 = A + 4; // Intermediate (home card)
   const gap = Math.round(Math.max(16, Math.min(22, (S - c1 - 60) / 2)));
   const c2 = c1 + gap; // Balanced
@@ -143,17 +155,17 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
   // Opening: a camera that changes every beat of "Not sure where to start?":
   // deck fans in from depth on "Not", whips to the cover on "sure", orbits the stack on "where",
   // swings back on "start", and settles square (first answer tappable) just before "Answer".
-  const wNot = wordAt(timing, "Not", 17);
-  const wSure = wordAt(timing, "sure", 33);
-  const wWhere = wordAt(timing, "where", 51);
-  const wStart = wordAt(timing, "start", 86);
+  const wNot = wordAt(timing, "Not", 14);
+  const wSure = wordAt(timing, "sure", 23);
+  const wWhere = wordAt(timing, "where", 39);
+  const wStart = wordAt(timing, "start", 65);
   type CamK = { f: number; x: number; y: number; z: number; rx: number; ry: number; rz: number };
   const camKeys: CamK[] = [
     { f: 0, x: -460, y: 280, z: -1600, rx: -24, ry: -58, rz: 7 },
-    { f: wNot + 10, x: -200, y: 130, z: -760, rx: -13, ry: -36, rz: 3 },
-    { f: wSure + 8, x: 70, y: 25, z: -120, rx: -3, ry: 9, rz: 0 },
-    { f: wWhere + 8, x: 360, y: -100, z: -430, rx: 7, ry: 34, rz: -2.5 },
-    { f: wStart + 6, x: -150, y: 70, z: -260, rx: -7, ry: -14, rz: 1.5 },
+    { f: wNot + 12, x: -200, y: 130, z: -760, rx: -13, ry: -36, rz: 3 },
+    { f: wSure + 16, x: 70, y: 25, z: -120, rx: -3, ry: 9, rz: 0 },
+    { f: wWhere + 14, x: 360, y: -100, z: -430, rx: 7, ry: 34, rz: -2.5 },
+    { f: wStart + 8, x: -150, y: 70, z: -260, rx: -7, ry: -14, rz: 1.5 },
     { f: Math.max(wStart + 20, c1 - 4), x: 0, y: 0, z: 0, rx: -2.5, ry: 4.5, rz: 0 },
   ];
   const camEase = Easing.bezier(0.16, 0.85, 0.22, 1);
@@ -222,36 +234,40 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
     return 0;
   };
 
-  // ---- Results: come forward out of the depth on "see", settle on "fit", then
-  // a slow orbit toward "Why it fits" for "how you really play".
+  // ---- Results: come forward out of the depth on "get the rackets", then a relay of lifts
+  // (viewer on "rackets", name on "fit", reasons on "how you really play") while the page keeps
+  // orbiting; on "Your" it falls back and the 3D racket takes over.
   const rStart = c4 + 2;
   const rIn = interpolate(frame, [rStart, rStart + 32], [0, 1], { ...clamp, easing: Easing.bezier(0.1, 0.8, 0.2, 1) });
-  const rCam = interpolate(frame, [F, D + OV], [0, 1], { ...clamp, easing: Easing.bezier(0.42, 0, 0.36, 1) });
-  const toReasons = interpolate(frame, [H - 20, D + OV], [0, 1], { ...clamp, easing: Easing.bezier(0.45, 0, 0.3, 1) });
-  const crane = interpolate(frame, [W - 16, D + OV], [0, 1], { ...clamp, easing: Easing.bezier(0.45, 0, 0.3, 1) });
+  const orbit = interpolate(frame, [F - 20, P + 30], [0, 1], { ...clamp, easing: Easing.bezier(0.42, 0, 0.36, 1) });
+  const back = interpolate(frame, [Y - 16, Y + 26], [0, 1], { ...clamp, easing: Easing.bezier(0.45, 0, 0.2, 1) });
   const rPose: Pose = {
-    x: mix(220, 70, rIn) - 150 * toReasons + 110 * crane,
-    y: mix(-150, SLOT_Y + 2, rIn) + 10 * rCam - 140 * crane,
-    z: mix(-1900, -S * 0.4, rIn) + 90 * rCam + 300 * crane,
-    rotateX: mix(16, 3, rIn) + drift("fr-rx", frame, 0.6, 0.07) - 1 * rCam + 7 * crane,
-    rotateY: mix(30, 7, rIn) - 13 * toReasons + 5 * crane + drift("fr-ry", frame, 0.8, 0.06),
-    rotateZ: mix(-5, 0, rIn),
+    x: mix(220, 70, rIn) - 120 * orbit + 160 * back,
+    y: mix(-150, SLOT_Y + 2, rIn) + 14 * orbit - 40 * back,
+    z: mix(-1900, -S * 0.4, rIn) + 70 * orbit - 520 * back + 0.5 * Math.max(0, frame - Y),
+    rotateX: mix(16, 3, rIn) + drift("fr-rx", frame, 0.6, 0.07) - 1.5 * orbit + 4 * back,
+    rotateY: mix(30, 7, rIn) - 11 * orbit + 12 * back + drift("fr-ry", frame, 0.8, 0.06),
+    rotateZ: mix(-5, 0, rIn) + 2 * back,
     scale: RESULTS_SCALE,
   };
   const rOpacity = interpolate(rIn, [0, 0.22], [0, 1], clamp);
-  // Lifts: the match score on "fit", the "Why it fits" reasons on "how you really play".
+  // Lifts: the racket viewer on "rackets", the name on "fit", the "Why it fits" reasons on "how you really play".
   // Each lift settles back into the page as the next one rises (a relay of highlights).
-  const spot =
-    interpolate(frame, [RK - 6, RK + 10], [0, 1], { ...clamp, easing: easeOut }) - interpolate(frame, [F - 10, F + 10], [0, 1], { ...clamp, easing: easeInOut });
-  const badgeLift =
-    interpolate(frame, [F - 4, F + 22], [0, 1], { ...clamp, easing: easeOut }) - interpolate(frame, [H - 4, H + 30], [0, 1], { ...clamp, easing: easeInOut });
+  const viewerLift =
+    interpolate(frame, [RK - 6, RK + 16], [0, 1], { ...clamp, easing: easeOut }) - interpolate(frame, [F + 4, F + 30], [0, 1], { ...clamp, easing: easeInOut });
+  const nameLift =
+    interpolate(frame, [F - 6, F + 16], [0, 1], { ...clamp, easing: easeOut }) - interpolate(frame, [H + 8, H + 36], [0, 1], { ...clamp, easing: easeInOut });
   const reasonsLift =
-    interpolate(frame, [H - 6, H + 26], [0, 1], { ...clamp, easing: easeOut }) - interpolate(frame, [W - 6, W + 34], [0, 1], { ...clamp, easing: easeInOut });
+    interpolate(frame, [H - 6, H + 26], [0, 1], { ...clamp, easing: easeOut }) - interpolate(frame, [P - 10, P + 22], [0, 1], { ...clamp, easing: easeInOut });
+  // Finale: the page falls back (dim + soft blur) while the racket spins in.
+  const pageBlur = back * 7;
+  const pageDim = back * 0.6;
 
   const env = enterExit(frame, D, OV);
 
   return (
     <AbsoluteFill style={{ opacity: env.opacity, scale: env.scale, filter: `blur(${env.blur}px)` }}>
+      <AbsoluteFill style={{ filter: pageBlur > 0.05 ? `blur(${pageBlur}px)` : undefined }}>
       <Space3D perspective={2200} originY={46}>
         <div
           style={{
@@ -268,17 +284,15 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
                 <Footage name={RESULTS} frame={frame - rStart} />
               </Browser3D>
               <LiftLayer pose={rPose} opacity={rOpacity}>
-                {/* dy cancels the perspective drift of the lift (the badge sits above the vanishing point), so it
-                    rises toward the lens over its own slot instead of sliding up over the "White studio" chip. */}
-                {/* Spotlight: the page dims while the two finished matches rise, so the short row reads as the focus. */}
-                {spot > 0.001 && (
-                  <div style={{ position: "absolute", left: 0, top: 0, width: 1920, height: 1080, background: `rgba(5,6,7,${0.42 * spot})`, transform: "translateZ(2px)" }} />
-                )}
-                <CropLift name="finder-badge" t={badgeLift} z={120} grow={0.16} dy={16} radius={999} />
+                {/* The match % is sample data: the badge is covered, and so are the two chips on the thumbnails. */}
+                <Cover x={840} y={176} w={170} h={66} radius={34} color="rgb(7,8,10)" />
+                <Cover x={288} y={919} w={68} h={38} radius={19} color="rgb(14,15,17)" />
+                <Cover x={516} y={919} w={68} h={38} radius={19} color="rgb(13,14,16)" />
+                <FootageLift frame={frame - rStart} box={VIEWER_BOX} t={viewerLift} z={90} grow={0.07} radius={26} />
+                <FootageLift frame={frame - rStart} box={NAME_BOX} t={nameLift} z={110} grow={0.1} radius={14} pad={10} padColor="rgb(20,21,25)" origin="0% 50%" />
                 {/* Lifted straight off the plate (no drop, slim margin) so it never covers the "Strengths" row below;
                     cropped to the text column so the floating card stays inside the plate. */}
                 <CropLift name="finder-reasons" t={reasonsLift} z={80} grow={0.03} radius={14} pad={6} padColor="rgb(20,21,25)" shadow={0.45} cropW={356} />
-                <MatchWave frame={frame} at={RK} />
               </LiftLayer>
             </>
           )}
@@ -296,6 +310,11 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
           </div>
         </div>
       </Space3D>
+      </AbsoluteFill>
+      {pageDim > 0.002 && <AbsoluteFill style={{ backgroundColor: `rgba(5,6,7,${pageDim})` }} />}
+
+      {/* Finale: "Your match, in seconds." The racket spins in and lands on "seconds", the name lights up. */}
+      <Finale frame={frame} Y={Y} M={M} SEC={SEC} />
 
       <Sfx name="whoosh" at={2} volume={0.5} />
       <Sfx name="swipe" at={wNot + 2} volume={0.45} />
@@ -318,12 +337,16 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
         <Sfx key={t} name="click" at={t} volume={0.7} />
       ))}
       <Sfx name="click" at={c4} volume={0.9} />
-      <Sfx name="whoosh" at={c4 + 3} volume={0.7} />
-      <Sfx name="impact" at={c4 + 24} volume={0.6} />
-      <Sfx name="pop" at={RK} volume={0.5} />
-      <Sfx name="pop" at={RK + 6} volume={0.4} />
-      <Sfx name="shimmer" at={F} volume={0.4} />
-      <Sfx name="whoosh-soft" at={W - 14} volume={0.35} />
+      {/* Results reveal: kept well under the voice ("get the rackets"). */}
+      <Sfx name="whoosh" at={c4 + 3} volume={0.3} />
+      <Sfx name="impact" at={c4 + 16} volume={0.22} />
+      <Sfx name="pop" at={RK - 2} volume={0.25} />
+      <Sfx name="pop" at={F - 2} volume={0.25} />
+      <Sfx name="pop" at={H - 2} volume={0.22} />
+      <Sfx name="whoosh-soft" at={Y - 6} volume={0.3} />
+      <Sfx name="riser" at={Y} volume={0.2} />
+      <Sfx name="shimmer" at={SEC - 2} volume={0.3} />
+      <Sfx name="impact" at={SEC} volume={0.28} />
     </AbsoluteFill>
   );
 };
@@ -481,50 +504,6 @@ const LiftLayer: React.FC<{ pose: Pose; opacity: number; children: React.ReactNo
   );
 };
 
-/** The six real match cards (dpr-2 crop of the results row) rising one after another. */
-const MatchWave: React.FC<{ frame: number; at: number }> = ({ frame, at }) => {
-  const s = still("finder-matches");
-  const box = s.marks!.frame;
-  const cardW = (box.w - 5 * 8) / 6; // grid-cols-6, gap-2
-  const m = 3; // keep the selected card's ring
-  return (
-    <>
-      {[0, 1].map((i) => {
-        // Only the finished rackets are shown (the capture hides the rest), so two cards rise.
-        const t = interpolate(frame, [at + i * 6, at + i * 6 + 22], [0, 1], { ...clamp, easing: easeOut });
-        if (t <= 0.001) return null;
-        const left = i * (cardW + 8) - m;
-        return (
-          <React.Fragment key={i}>
-            <Recess x={box.x + i * (cardW + 8)} y={box.y} w={cardW} h={box.h} radius={24} t={t} />
-            <div
-              style={{
-                position: "absolute",
-                left: box.x + left,
-                top: box.y - m,
-                width: cardW + m * 2,
-                height: box.h + m * 2,
-                padding: m,
-                boxSizing: "border-box",
-                borderRadius: 24 + m,
-                overflow: "hidden",
-                transformOrigin: "50% 50%",
-                transform: `translateZ(${t * 40}px) scale(${1 + t * 0.03})`,
-                boxShadow: `0 ${t * 22}px ${t * 44}px rgba(0,0,0,${0.55 * t})`,
-                opacity: interpolate(t, [0, 0.12], [0, 1], clamp),
-              }}
-            >
-              <div style={{ position: "relative", width: cardW, height: box.h, overflow: "hidden", borderRadius: 24 }}>
-                <Img src={staticFile(s.file)} style={{ position: "absolute", left: -i * (cardW + 8), top: 0, width: box.w, height: box.h, display: "block" }} />
-              </div>
-            </div>
-          </React.Fragment>
-        );
-      })}
-    </>
-  );
-};
-
 /**
  * A dpr-2 crop of the real results page, placed exactly over the same spot of the
  * footage (`marks.frame`), rising off the page plane by `t` (0–1).
@@ -592,3 +571,120 @@ const Recess: React.FC<{ x: number; y: number; w: number; h: number; radius: num
     }}
   />
 );
+
+/** Opaque patch over a bit of the page that shows sample data (the match %). */
+const Cover: React.FC<{ x: number; y: number; w: number; h: number; radius: number; color: string }> = ({ x, y, w, h, radius, color }) => (
+  <div style={{ position: "absolute", left: x, top: y, width: w, height: h, borderRadius: radius, background: color, transform: "translateZ(2px)" }} />
+);
+
+/** A crop of the results footage (so it keeps playing) lifting off the page plane by `t` (0–1). */
+const FootageLift: React.FC<{
+  frame: number;
+  box: { x: number; y: number; w: number; h: number };
+  t: number;
+  z: number;
+  grow: number;
+  radius: number;
+  pad?: number;
+  padColor?: string;
+  origin?: string;
+}> = ({ frame, box, t, z, grow, radius, pad = 0, padColor, origin = "50% 50%" }) => {
+  if (t <= 0.001) return null;
+  return (
+    <>
+      <Recess x={box.x} y={box.y} w={box.w} h={box.h} radius={radius} t={t} />
+      <div
+        style={{
+          position: "absolute",
+          left: box.x - pad,
+          top: box.y - pad,
+          width: box.w + pad * 2,
+          height: box.h + pad * 2,
+          padding: pad,
+          boxSizing: "border-box",
+          background: padColor,
+          transformOrigin: origin,
+          transform: `translate3d(0px, 0px, ${t * z}px) scale(${1 + t * grow})`,
+          borderRadius: radius,
+          overflow: "hidden",
+          boxShadow: `0 ${t * 26}px ${t * 56}px rgba(0,0,0,${0.6 * t}), 0 0 0 ${pad ? 1 : 0}px rgba(255,255,255,${0.08 * t})`,
+          opacity: interpolate(t, [0, 0.15], [0, 1], clamp),
+        }}
+      >
+        <div style={{ position: "relative", width: box.w, height: box.h, overflow: "hidden" }}>
+          <Footage name={RESULTS} frame={frame} style={{ left: -box.x, top: -box.y }} />
+        </div>
+      </div>
+    </>
+  );
+};
+
+/**
+ * "Your match, in seconds." The real Radical Team model spins in from depth (fast, decelerating),
+ * lands front-on exactly on "seconds", and keeps swaying; the name block (a crop of the real
+ * results page, blown up) slides in on "match" and lights on the landing.
+ */
+const Finale: React.FC<{ frame: number; Y: number; M: number; SEC: number }> = ({ frame, Y, M, SEC }) => {
+  if (frame < Y - 4) return null;
+  const { width, height } = { width: 1920, height: 1080 };
+  const land = interpolate(frame, [Y, SEC], [0, 1], { ...clamp, easing: Easing.bezier(0.2, 0.7, 0.2, 1) });
+  const after = Math.max(0, frame - SEC);
+  const swayIn = interpolate(frame, [SEC, SEC + 24], [0, 1], clamp);
+  const ry = (1 - land) * -Math.PI * 5 + swayIn * (0.34 * Math.sin(after / 22));
+  const bob = 0.012 * Math.sin(frame / 17) * swayIn;
+  const scale = mix(0.45, 1, interpolate(frame, [Y, Y + 22], [0, 1], { ...clamp, easing: easeOut }));
+  const pose = {
+    position: [-0.3, mix(-0.12, 0, land) + bob, mix(-0.9, 0, land)] as [number, number, number],
+    rotation: [0.08 * (1 - land) + 0.04, ry, (1 - land) * 0.5 + 0.03] as [number, number, number],
+  };
+  // Name block.
+  const nIn = interpolate(frame, [M - 4, M + 22], [0, 1], { ...clamp, easing: easeOut });
+  const flash = Math.exp(-after / 12) * (frame >= SEC ? 1 : 0);
+  const sweep = interpolate(frame, [SEC - 6, SEC + 26], [-30, 130], clamp);
+  const NS = 1.5;
+  return (
+    <AbsoluteFill style={{ opacity: interpolate(frame, [Y - 4, Y + 6], [0, 1], clamp) }}>
+      <AbsoluteFill style={{ pointerEvents: "none" }}>
+        <RacketStage width={width} height={height} cameraPosition={[0, 0, 1.4]} fov={30} floorY={null}>
+          <RacketModel slug={MATCH_SLUG} position={pose.position} rotation={pose.rotation} scale={scale} />
+        </RacketStage>
+      </AbsoluteFill>
+      {/* Soft lime halo behind the racket, flaring on the landing. */}
+      <AbsoluteFill
+        style={{
+          background: `radial-gradient(ellipse 28% 46% at 30% 50%, rgba(217,240,74,${0.1 + 0.22 * flash}) 0%, rgba(217,240,74,0) 70%)`,
+          mixBlendMode: "screen",
+          zIndex: -1,
+        }}
+      />
+      {nIn > 0.001 && (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: NAME_BOX.w,
+            height: NAME_BOX.h,
+            marginLeft: 260 - NAME_BOX.w / 2,
+            marginTop: -90 - NAME_BOX.h / 2,
+            transform: `translateX(${(1 - nIn) * 120}px) scale(${NS * (1 + 0.04 * flash)})`,
+            opacity: interpolate(nIn, [0, 0.4], [0, 1], clamp),
+            filter: `brightness(${1 + 0.55 * flash}) drop-shadow(0 0 ${6 + 26 * flash}px rgba(217,240,74,${0.1 + 0.55 * flash}))`,
+            overflow: "hidden",
+          }}
+        >
+          <Footage name={RESULTS} frame={frame} style={{ left: -NAME_BOX.x, top: -NAME_BOX.y }} />
+          {/* A lime light sweeps across the name as the racket lands. */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: `linear-gradient(100deg, rgba(217,240,74,0) ${sweep - 14}%, rgba(217,240,74,0.5) ${sweep}%, rgba(217,240,74,0) ${sweep + 14}%)`,
+              mixBlendMode: "screen",
+            }}
+          />
+        </div>
+      )}
+    </AbsoluteFill>
+  );
+};
