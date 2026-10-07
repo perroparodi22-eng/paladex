@@ -1,4 +1,4 @@
-// Scene 7, brands: "Sixty-two rackets. Thirteen brands. All in one place."
+// Scene 7, brands: "Sixty-two rackets. Twelve brands. All in one place."
 //
 // Three beats, each on its words (scene-local frames from the voice timing):
 //
@@ -6,16 +6,17 @@
 //                        .glb files) receding from the right edge into the dark; the camera
 //                        dollies fast along it so the rackets stream past, each idling on its
 //                        own axis. A big counter rises to 62 in the clear space on the left.
-//   "Thirteen brands"    the camera cranes up and back, the line sinks into soft focus, and
+//   "Twelve brands"      the camera cranes up and back, the line sinks into soft focus, and
 //                        the site's real brand cards (dpr 2 crops of the /rackets rail) swing
-//                        in as a 3D carousel ring that spins and glides to rest. The counter
-//                        rolls over to 13.
+//                        in as a 3D carousel ring (all 12 brands) that spins and glides to
+//                        rest. The counter rolls over to 12.
 //   "All in one place"   a browser window rises from depth with the real /rackets page; the
-//                        ring unrolls and every card flies (arcing toward the lens) into its
-//                        exact slot in the page's rail, where a clean plate of the page shows
-//                        the slots empty until each card lands; then each card hands over to
-//                        the footage. The captured cursor picks Nox and the grid filters.
-//                        House exit to the end card.
+//                        ring unrolls: the seven cards the page's rail shows at scroll 0 fly
+//                        (arcing toward the lens) into their exact slots, where a clean plate
+//                        of the page shows the slots empty until each card lands, then hand
+//                        over to the footage; the back of the ring (brands scrolled off the
+//                        rail on the page) sinks away. The captured cursor picks Nox and the
+//                        grid filters while the camera keeps pushing in. House exit.
 import React from "react";
 import { AbsoluteFill, Easing, Img, interpolate, random, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { Browser3D, CHROME_H, Space3D, type Pose } from "../components/Browser3D";
@@ -30,7 +31,7 @@ import type { SceneProps } from "./types";
 
 /** What the counters say (the catalogue today, as the voice says it). */
 const RACKETS = 62;
-const BRANDS = 13;
+const BRANDS = 12;
 
 /* ------------------------------------------------------------------ wall */
 /** Real traced models, brands interleaved so neighbours always differ. */
@@ -168,7 +169,9 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
   // Voice sync.
   const sixtyAt = wordAt(timing, "Sixty-two", 24);
   const racketsAt = wordAt(timing, "rackets", 61);
-  const thirteenAt = wordAt(timing, "Thirteen", 121);
+  // The owner re-voiced this beat as "Twelve brands" (12 brands have rackets on the site);
+  // fall back to the old "Thirteen" until the new line is in the timeline.
+  const twelveAt = wordAt(timing, "Twelve", wordAt(timing, "Thirteen", 121));
   const brandsAt = wordAt(timing, "brands", 142);
   const allAt = wordAt(timing, "All", 197);
   const placeAt = wordAt(timing, "place", 216);
@@ -176,29 +179,30 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
   const env = enterExit(frame, D, ov);
 
   /* ------------------------------------------------------------- the wall */
-  // A fast dolly along the line (decelerating), then (on "Thirteen") a crane up and back.
-  const track = interpolate(frame, [0, thirteenAt + 40], [0, 1], { ...clamp, easing: trackEase });
-  const crane = interpolate(frame, [thirteenAt - 16, allAt + 16], [0, 1], { ...clamp, easing: easeInOut });
-  const camX = mix(0.4, -2.75, track) - interpolate(frame, [thirteenAt + 40, END], [0, 0.3], clamp);
+  // A fast dolly along the line (decelerating), then (on "Twelve") a crane up and back.
+  const track = interpolate(frame, [0, twelveAt + 40], [0, 1], { ...clamp, easing: trackEase });
+  const crane = interpolate(frame, [twelveAt - 16, allAt + 16], [0, 1], { ...clamp, easing: easeInOut });
+  const camX = mix(0.4, -2.75, track) - interpolate(frame, [twelveAt + 40, END], [0, 0.3], clamp);
   const camY = mix(0.08, 1.1, crane) + drift("br-cy", frame, 0.01, 0.1);
   const camZ = mix(1.55, 2.9, crane);
   const look = mix(3.75, 5, crane);
   const camTarget: V3 = [camX - look, mix(0, 0.2, crane), 0];
   const wallIn = interpolate(frame, [0, 14], [0, 1], { ...clamp, easing: easeOut });
-  const wallDim = interpolate(frame, [thirteenAt - 12, brandsAt + 8, allAt + 4, allAt + 18], [1, 0.32, 0.2, 0], clamp);
-  const wallBlur = interpolate(frame, [thirteenAt - 12, brandsAt + 10], [0, 6], clamp);
+  const wallDim = interpolate(frame, [twelveAt - 20, brandsAt + 4, allAt + 4, allAt + 18], [1, 0.32, 0.2, 0], clamp);
+  const wallBlur = interpolate(frame, [twelveAt - 20, brandsAt + 6], [0, 6], clamp);
   const wallOn = frame < allAt + 18;
 
   /* ------------------------------------------------------------ counters */
-  const count62 = Math.round(RACKETS * interpolate(frame, [sixtyAt - 3, racketsAt + 12], [0, 1], { ...clamp, easing: countEase }));
-  const count13 = Math.round(BRANDS * interpolate(frame, [thirteenAt - 2, brandsAt + 12], [0, 1], { ...clamp, easing: countEase }));
-  const in62 = interpolate(frame, [sixtyAt - 8, sixtyAt + 14], [0, 1], { ...clamp, easing: easeOut });
-  const out62 = interpolate(frame, [thirteenAt - 12, thirteenAt + 4], [0, 1], { ...clamp, easing: easeIn });
-  const in13 = interpolate(frame, [thirteenAt - 4, thirteenAt + 18], [0, 1], { ...clamp, easing: easeOut });
-  const out13 = interpolate(frame, [allAt - 16, allAt + 2], [0, 1], { ...clamp, easing: easeIn });
+  const countR = Math.round(RACKETS * interpolate(frame, [sixtyAt - 3, racketsAt + 12], [0, 1], { ...clamp, easing: countEase }));
+  const countB = Math.round(BRANDS * interpolate(frame, [twelveAt - 2, brandsAt + 12], [0, 1], { ...clamp, easing: countEase }));
+  const inR = interpolate(frame, [sixtyAt - 8, sixtyAt + 14], [0, 1], { ...clamp, easing: easeOut });
+  // The rackets count lifts out before the brands count rises, so the two never overprint.
+  const outR = interpolate(frame, [twelveAt - 18, twelveAt - 3], [0, 1], { ...clamp, easing: easeIn });
+  const inB = interpolate(frame, [twelveAt - 4, twelveAt + 16], [0, 1], { ...clamp, easing: easeOut });
+  const outB = interpolate(frame, [allAt - 16, allAt + 2], [0, 1], { ...clamp, easing: easeIn });
   const labelR = interpolate(frame, [racketsAt - 6, racketsAt + 16], [0, 1], { ...clamp, easing: easeOut });
   const labelB = interpolate(frame, [brandsAt - 6, brandsAt + 16], [0, 1], { ...clamp, easing: easeOut });
-  const scrim = Math.max(in62 * (1 - out62), in13 * (1 - out13));
+  const scrim = Math.max(inR * (1 - outR), inB * (1 - outB));
 
   /* ------------------------------------------------------- landing plan */
   // Cards land left to right on "place", a beat apart; each hands over to the footage
@@ -246,16 +250,17 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
   const curOpacity = interpolate(frame, [moveStart - 16, moveStart], [0, 1], { ...clamp, easing: easeOut });
 
   /* ---------------------------------------------------------------- ring */
-  const ringIn = interpolate(frame, [thirteenAt - 20, thirteenAt + 26], [0, 1], { ...clamp, easing: easeOut });
-  const ringOp = interpolate(frame, [thirteenAt - 20, thirteenAt - 2], [0, 1], { ...clamp, easing: easeOut });
+  const ringIn = interpolate(frame, [twelveAt - 20, twelveAt + 26], [0, 1], { ...clamp, easing: easeOut });
+  const ringOp = interpolate(frame, [twelveAt - 20, twelveAt - 2], [0, 1], { ...clamp, easing: easeOut });
   const ringF = Math.min(frame, release);
-  const spin = interpolate(ringF, [thirteenAt - 20, release], [250, 0], { ...clamp, easing: spinEase });
+  // Spins in fast and glides to rest at the release; then keeps a slow turn while it unrolls.
+  const spin = interpolate(ringF, [twelveAt - 20, release], [250, 0], { ...clamp, easing: spinEase }) - Math.max(0, frame - release) * 0.12;
   const ringC = {
     x: RING.x + (1 - ringIn) * 1100,
     y: RING.y + (1 - ringIn) * -60,
     z: RING.z - (1 - ringIn) * 900,
   };
-  const tilesOn = frame >= thirteenAt - 20 && frame < landAt(ON_RAIL - 1) + HAND + 2;
+  const tilesOn = frame >= twelveAt - 20 && frame < landAt(ON_RAIL - 1) + HAND + 2;
 
   return (
     <AbsoluteFill style={{ opacity: env.opacity, scale: env.scale, filter: env.blur > 0.01 ? `blur(${env.blur}px)` : undefined }}>
@@ -306,7 +311,7 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
               const info = still(`brands-tile-${slug}`);
               const ringPose = (a: number): P7 => {
                 const [x, y, z] = rotate([RING.r * Math.sin(a * DEG), 0, RING.r * Math.cos(a * DEG)], RING.tilt, 0, 0);
-                return { x: ringC.x + x, y: ringC.y + y + drift(`br-ty-${j}`, ringF, 5, 0.18), z: ringC.z + z, rx: RING.tilt, ry: a, rz: 0, s: RING.s };
+                return { x: ringC.x + x, y: ringC.y + y + drift(`br-ty-${j}`, frame, 5, 0.18), z: ringC.z + z, rx: RING.tilt, ry: a, rz: 0, s: RING.s };
               };
               const onRail = j < ON_RAIL;
               const m = PAGE.marks?.[`card-${slug}`];
@@ -363,7 +368,7 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
                       {face < 0.97 && <AbsoluteFill style={{ background: "#050607", opacity: interpolate(face, [0, 0.97], [0.75, 0], clamp) * (1 - t) }} />}
                     </>
                   ) : (
-                    <AbsoluteFill style={{ background: C.surface, boxShadow: "inset 0 0 0 1.5px rgba(255,255,255,0.06)", opacity: 0.55 }} />
+                    <AbsoluteFill style={{ background: "#0f1114", boxShadow: "inset 0 0 0 1.5px rgba(255,255,255,0.07)", opacity: 0.4 }} />
                   )}
                 </div>
               );
@@ -373,11 +378,11 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
       )}
 
       {/* Counters. */}
-      <Counter value={count62} label="rackets" inP={in62} outP={out62} labelP={labelR} frame={frame} seed="r" />
-      <Counter value={count13} label="brands" inP={in13} outP={out13} labelP={labelB} frame={frame} seed="b" />
+      <Counter value={countR} label="rackets" inP={inR} outP={outR} labelP={labelR} frame={frame} seed="r" />
+      <Counter value={countB} label="brands" inP={inB} outP={outB} labelP={labelB} frame={frame} seed="b" />
 
       <Sfx name="whoosh-soft" at={4} volume={0.35} />
-      <Sfx name="swipe" at={thirteenAt - 18} volume={0.4} />
+      <Sfx name="swipe" at={twelveAt - 18} volume={0.4} />
       <Sfx name="whoosh" at={flyStart} volume={0.45} />
       <Sfx name="pop" at={landAt(0)} volume={0.25} />
       <Sfx name="tick" at={landAt(3)} volume={0.2} />

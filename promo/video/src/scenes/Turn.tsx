@@ -183,8 +183,8 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const glare = interpolate(frame, [B - 44, B - 6], [1, 0], { ...clamp, easing: easeInOut });
   const fall = interpolate(frame, [B, B + 62], [0, 1], { ...clamp, easing: breakEase });
   const fade = interpolate(frame, [B + 40, END], [0, 1], clamp);
-  const browserOpacity = mix(1, 0.5, fall) * mix(1, 0.55, fade);
-  const browserBlur = 4.5 * fall + 2 * fade;
+  const browserOpacity = 0;
+  const browserBlur = 0;
 
   // Captured cursor (page px), fading as the racket leaves the screen.
   const cur = footageCursor(CLIP, frame);
@@ -258,7 +258,7 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     }
     yaw += 0.05 * g;
   }
-  const heroOpacity = swap;
+  const heroOpacity = 1; const DBG = true;
   const ring = interpolate(frame, [m.up - 4, m.up + 30], [0, 1], { ...clamp, easing: easeOut });
   const sweepT = interpolate(frame, [m.detail - 6, m.close + 70], [0, 1], { ...clamp, easing: Easing.bezier(0.4, 0, 0.6, 1) });
   const sweepX = mix(-1.8, 1.8, sweepT);
@@ -277,8 +277,7 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
         <AbsoluteFill style={{ opacity: browserOpacity, filter: browserBlur > 0.01 ? `blur(${browserBlur}px)` : undefined }}>
           <Space3D perspective={PERSP} originX={ORIGIN_X} originY={ORIGIN_Y}>
             <Browser3D {...pose} path={PATH} glare={glare}>
-              {swap < 1 && <Footage name={CLIP} frame={frame} />}
-              {swap > 0 && <PageStill name={EMPTY} style={{ opacity: swap }} />}
+              <Footage name={CLIP} frame={frame} />
               {cur && curOpacity > 0 && (
                 // The grabbing hand is drawn smaller than the arrow: scale it up to read.
                 <Cursor x={cur.x} y={cur.y} down={cur.down} grab={grab} clicks={m.clicks} frame={frame} opacity={curOpacity} scale={grab ? 1.55 : 1.35} />
@@ -289,7 +288,7 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
 
         {/* The hero racket, out of the screen. */}
         {showHero && heroCam && (
-          <AbsoluteFill style={{ opacity: heroOpacity }}>
+          <AbsoluteFill style={{ opacity: heroOpacity, mixBlendMode: undefined }}>
             <TurnStage width={width} height={height} cam={heroCam} sweepX={sweepX} sweep={sweep}>
               <HeroRacket yaw={yaw} pitch={pitch} ring={ring} ringScale={mix(0.9, 1, ring)} />
             </TurnStage>
