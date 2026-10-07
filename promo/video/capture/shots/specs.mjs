@@ -107,6 +107,8 @@ async function stills() {
 
   // Header (sticky, solid once scrolled).
   await save("header.jpg", { x: 0, y: S2, width: 1920, height: 64 });
+  // The translucent header has the row behind it (Collection AT10) baked in: paint it out.
+  execFileSync("python", [join(ROOT, "capture/shots/specs-header-clean.py"), join(OUT, "header.jpg")], { stdio: "inherit" });
 
   // Hover state of the Sweet spot "Show on model" button (viewport coords at S2).
   const b = g.sweetBtn;
