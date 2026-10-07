@@ -93,7 +93,15 @@ export const cuts = (timing: SceneTiming) => {
   const one = wordAt(timing, "one", 221);
   const padel = wordAt(timing, "padel", 237);
   const racket = wordAt(timing, "racket", 259);
+  const would = wordAt(timing, "Would", 227);
+  const buy = wordAt(timing, "buy", 249);
+  const it = wordAt(timing, "it", 261);
+  const blind = wordAt(timing, "blind", 272);
   return {
+    would,
+    buy,
+    it,
+    blind,
     two,
     hundred,
     euros,
@@ -242,9 +250,9 @@ export const buildShots = (T: Cuts, overlap: number): Shot[] => [
       const t = p(lt);
       const q = ramp(lt, 0, len, Easing.linear);
       return {
-        cam: orbit([mix(-0.02, 0.03, t), mix(-0.02, 0.15, t), 0], 0.38, mix(-0.12, 0.05, t), 0.4, 30, 0.1),
+        cam: orbit([mix(-0.02, 0.03, t), mix(-0.02, 0.15, t), 0], 0.38, mix(-0.12, 0.05, t), 0.6, 30, 0.1),
         items: [
-          { key: "m3", slug: pick(12), pos: [0, 0, 0], rot: [0.04, 0.12, 0.08] },
+          { key: "m3", slug: "siux-electra-pro-shadow-red-2026", pos: [0, 0, 0], rot: [0.04, 0.12, 0.08] },
           { key: "m3b", slug: pick(21), pos: [mix(-0.55, -0.35, q), 0.08, -0.9], rot: [0.1, 0.9 + q * 0.4, -0.2] },
         ],
         blur: [0, Math.min(26, 120 * speed(p, lt))],
@@ -359,7 +367,7 @@ export const buildShots = (T: Cuts, overlap: number): Shot[] => [
           key: "hero",
           slug: HERO_SLUG,
           pos: [mix(0.25, 0, a), mix(-0.12, 0, a) + drift("co-hy", f, 0.004, 0.2), mix(-2.6, 0, a)],
-          rot: [mix(0.4, 0.06, a) + drift("co-hp", f, 0.02, 0.12), 0.32 + spinOf(lt) + 0.0018 * Math.max(0, after), mix(-0.6, -0.05, a)],
+          rot: [mix(0.4, 0.06, a) + drift("co-hp", f, 0.02, 0.12), 0.32 + spinOf(lt) + 0.0042 * Math.max(0, after), mix(-0.6, -0.05, a)],
         },
       ];
       // A dim constellation of other rackets far behind, turning in the fog.
@@ -373,10 +381,12 @@ export const buildShots = (T: Cuts, overlap: number): Shot[] => [
           rot: [0.05, ang + 0.01 * lt, 0.1 * Math.sin(ang)],
         });
       }
-      const d = mix(1.25, 0.98, ramp(lt, 0, landAt + 60, Easing.bezier(0.2, 0, 0.3, 1)));
+      // After the landing the camera keeps pushing in and swinging round, so the hero never hangs still.
+      const push = ramp(after, 0, len - landAt, Easing.bezier(0.3, 0.1, 0.6, 1));
+      const d = mix(1.25, 0.98, ramp(lt, 0, landAt + 60, Easing.bezier(0.2, 0, 0.3, 1))) - 0.28 * push;
       const sp = Math.abs(spinOf(lt + 0.5) - spinOf(lt - 0.5));
       return {
-        cam: orbit([0, -0.01, 0], 0.08 + drift("co-az", f, 0.02, 0.08) - 0.06 * settle, 0.02 + drift("co-el", f, 0.01, 0.08), d, 30, drift("co-roll", f, 0.01, 0.07)),
+        cam: orbit([0, -0.01, 0], 0.08 + drift("co-az", f, 0.02, 0.08) - 0.06 * settle + 0.2 * push, 0.02 + drift("co-el", f, 0.01, 0.08), d, 30, drift("co-roll", f, 0.01, 0.07)),
         items,
         blur: [Math.min(28, sp * 55), 0],
         sweepX: mix(-2.4, 2.4, ramp(after, -6, 40, Easing.bezier(0.4, 0, 0.3, 1))),
