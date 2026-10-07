@@ -74,7 +74,8 @@ const CARDS: CardDef[] = [
     scale: 1.18,
     target: "see",
     aim: [0.4, 0.5],
-    fly: { sx: 0, sy: -0.12, rx: -6, ry: 0, rz: 0, z: 1500, fade: [0.12, 0.5] },
+    // Gone within ~6 frames of leaving, so it never double-exposes over the results coming in behind it.
+    fly: { sx: 0, sy: -0.12, rx: -6, ry: 0, rz: 0, z: 2000, fade: [0.06, 0.3] },
   },
 ];
 
@@ -238,9 +239,12 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
                 <Footage name={RESULTS} frame={frame - rStart} />
               </Browser3D>
               <LiftLayer pose={rPose} opacity={rOpacity}>
-                <CropLift name="finder-badge" t={badgeLift} z={120} grow={0.22} radius={999} />
-                {/* Lifted straight off the plate (no drop, slim margin) so it never covers the "Strengths" row below. */}
-                <CropLift name="finder-reasons" t={reasonsLift} z={80} grow={0.03} radius={14} pad={6} padColor="rgb(20,21,25)" shadow={0.45} />
+                {/* dy cancels the perspective drift of the lift (the badge sits above the vanishing point), so it
+                    rises toward the lens over its own slot instead of sliding up over the "White studio" chip. */}
+                <CropLift name="finder-badge" t={badgeLift} z={120} grow={0.16} dy={16} radius={999} />
+                {/* Lifted straight off the plate (no drop, slim margin) so it never covers the "Strengths" row below;
+                    cropped to the text column so the floating card stays inside the plate. */}
+                <CropLift name="finder-reasons" t={reasonsLift} z={80} grow={0.03} radius={14} pad={6} padColor="rgb(20,21,25)" shadow={0.45} cropW={356} />
                 <MatchWave frame={frame} at={W} />
               </LiftLayer>
             </>
@@ -483,19 +487,22 @@ const CropLift: React.FC<{
   dy?: number;
   /** Strength of the cast shadow (0–1). */
   shadow?: number;
-}> = ({ name, t, z, grow, dy = 0, radius, pad = 0, padColor, origin = "50% 50%", shadow = 1 }) => {
+  /** Show only the left `cropW` CSS px of the crop (e.g. just the text column). */
+  cropW?: number;
+}> = ({ name, t, z, grow, dy = 0, radius, pad = 0, padColor, origin = "50% 50%", shadow = 1, cropW }) => {
   if (t <= 0.001) return null;
   const s = still(name);
   const box = s.marks!.frame;
+  const w = Math.min(cropW ?? box.w, box.w);
   return (
     <>
-      <Recess x={box.x} y={box.y} w={box.w} h={box.h} radius={radius} t={t} />
+      <Recess x={box.x} y={box.y} w={w} h={box.h} radius={radius} t={t} />
       <div
         style={{
           position: "absolute",
           left: box.x - pad,
           top: box.y - pad,
-          width: box.w + pad * 2,
+          width: w + pad * 2,
           height: box.h + pad * 2,
           padding: pad,
           boxSizing: "border-box",
@@ -508,7 +515,9 @@ const CropLift: React.FC<{
           opacity: interpolate(t, [0, 0.15], [0, 1], clamp),
         }}
       >
-        <Img src={staticFile(s.file)} style={{ width: box.w, height: box.h, display: "block" }} />
+        <div style={{ width: w, height: box.h, overflow: "hidden" }}>
+          <Img src={staticFile(s.file)} style={{ width: box.w, height: box.h, display: "block" }} />
+        </div>
       </div>
     </>
   );
