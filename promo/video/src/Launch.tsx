@@ -4,6 +4,7 @@ import { Audio } from "@remotion/media";
 import React from "react";
 import { AbsoluteFill, Sequence, interpolate, staticFile, useVideoConfig } from "remotion";
 import { Backdrop } from "./components/Backdrop";
+import { isAudioOnly } from "./components/Racket3D";
 import { Captions } from "./components/Captions";
 import { scene, TIMELINES, type Lang, type SceneId, type Timeline } from "./timeline";
 import { Brands } from "./scenes/Brands";
@@ -45,33 +46,37 @@ export const Launch: React.FC<LaunchProps> = ({ lang, subtitles, music }) => {
   const s = (id: SceneId) => scene(t, id);
   return (
     <AbsoluteFill style={{ backgroundColor: "#070809" }}>
-      <Backdrop />
-      <Sequence name="1 Cold open" from={s("cold-open").start} durationInFrames={s("cold-open").duration + ov} premountFor={fps}>
-        <ColdOpen timing={s("cold-open")} timeline={t} lang={lang} />
-      </Sequence>
-      <Sequence name="2 Problem" from={s("problem").start} durationInFrames={s("problem").duration + ov} premountFor={fps}>
-        <Problem timing={s("problem")} timeline={t} lang={lang} />
-      </Sequence>
-      <Sequence name="3 Reveal" from={s("reveal").start} durationInFrames={s("reveal").duration + ov} premountFor={fps}>
-        <Reveal timing={s("reveal")} timeline={t} lang={lang} />
-      </Sequence>
-      <Sequence name="4 Turn" from={s("turn").start} durationInFrames={s("turn").duration + ov} premountFor={fps}>
-        <Turn timing={s("turn")} timeline={t} lang={lang} />
-      </Sequence>
-      <Sequence name="5 Specs" from={s("specs").start} durationInFrames={s("specs").duration + ov} premountFor={fps}>
-        <Specs timing={s("specs")} timeline={t} lang={lang} />
-      </Sequence>
-      <Sequence name="6 Finder" from={s("finder").start} durationInFrames={s("finder").duration + ov} premountFor={fps}>
-        <Finder timing={s("finder")} timeline={t} lang={lang} />
-      </Sequence>
-      <Sequence name="7 Brands" from={s("brands").start} durationInFrames={s("brands").duration + ov} premountFor={fps}>
-        <Brands timing={s("brands")} timeline={t} lang={lang} />
-      </Sequence>
-      <Sequence name="8 End card" from={s("endcard").start} durationInFrames={s("endcard").duration} premountFor={fps}>
-        <EndCard timing={s("endcard")} timeline={t} lang={lang} />
-      </Sequence>
+      {/* Soundtrack-only renders (scripts/render-audio.mjs) hide the picture so the
+          browser paints nothing; the scenes still mount, so their SFX still play. */}
+      <AbsoluteFill style={isAudioOnly() ? { display: "none" } : undefined}>
+        <Backdrop />
+        <Sequence name="1 Cold open" from={s("cold-open").start} durationInFrames={s("cold-open").duration + ov} premountFor={fps}>
+          <ColdOpen timing={s("cold-open")} timeline={t} lang={lang} />
+        </Sequence>
+        <Sequence name="2 Problem" from={s("problem").start} durationInFrames={s("problem").duration + ov} premountFor={fps}>
+          <Problem timing={s("problem")} timeline={t} lang={lang} />
+        </Sequence>
+        <Sequence name="3 Reveal" from={s("reveal").start} durationInFrames={s("reveal").duration + ov} premountFor={fps}>
+          <Reveal timing={s("reveal")} timeline={t} lang={lang} />
+        </Sequence>
+        <Sequence name="4 Turn" from={s("turn").start} durationInFrames={s("turn").duration + ov} premountFor={fps}>
+          <Turn timing={s("turn")} timeline={t} lang={lang} />
+        </Sequence>
+        <Sequence name="5 Specs" from={s("specs").start} durationInFrames={s("specs").duration + ov} premountFor={fps}>
+          <Specs timing={s("specs")} timeline={t} lang={lang} />
+        </Sequence>
+        <Sequence name="6 Finder" from={s("finder").start} durationInFrames={s("finder").duration + ov} premountFor={fps}>
+          <Finder timing={s("finder")} timeline={t} lang={lang} />
+        </Sequence>
+        <Sequence name="7 Brands" from={s("brands").start} durationInFrames={s("brands").duration + ov} premountFor={fps}>
+          <Brands timing={s("brands")} timeline={t} lang={lang} />
+        </Sequence>
+        <Sequence name="8 End card" from={s("endcard").start} durationInFrames={s("endcard").duration} premountFor={fps}>
+          <EndCard timing={s("endcard")} timeline={t} lang={lang} />
+        </Sequence>
 
-      {subtitles && <Captions timeline={t} />}
+        {subtitles && <Captions timeline={t} />}
+      </AbsoluteFill>
 
       {t.scenes.map((sc) => (
         <Audio key={sc.id} name={`Voice: ${sc.id}`} src={staticFile(sc.vo.file)} from={sc.vo.at} premountFor={fps} volume={1} />
