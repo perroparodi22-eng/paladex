@@ -6,7 +6,7 @@ import { ContactShadows, Environment, Lightformer } from "@react-three/drei";
 import { useLoader, useThree } from "@react-three/fiber";
 import { ThreeCanvas } from "@remotion/three";
 import React, { useLayoutEffect, useMemo } from "react";
-import { staticFile } from "remotion";
+import { getInputProps, staticFile } from "remotion";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
@@ -14,6 +14,9 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 /** Slugs with a traced 3D model in public/models (copied from the site). */
 export const HERO_SLUG = "nox-at10-luxury-genius-18k-alum";
 export const modelUrl = (slug: string) => staticFile(`models/${slug}.glb`);
+
+/** True while rendering the soundtrack only (scripts/render-audio.mjs): the 3D layers are skipped. */
+export const isAudioOnly = () => Boolean((getInputProps() as { audioOnly?: boolean }).audioOnly);
 
 type Vec3 = [number, number, number];
 
@@ -33,6 +36,7 @@ export const RacketStage: React.FC<{
   floorY?: number | null;
   style?: React.CSSProperties;
 }> = ({ width, height, children, cameraPosition = [0, 0, 1.4], cameraTarget = [0, 0, 0], fov = 30, exposure = 1.05, floorY = null, style }) => {
+  if (isAudioOnly()) return null;
   return (
     <ThreeCanvas
       width={width}

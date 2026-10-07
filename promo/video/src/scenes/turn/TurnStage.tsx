@@ -11,7 +11,7 @@ import React, { useLayoutEffect, useMemo } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { HERO_SLUG, RacketModel, modelUrl } from "../../components/Racket3D";
+import { HERO_SLUG, RacketModel, isAudioOnly, modelUrl } from "../../components/Racket3D";
 
 export type Vec3 = [number, number, number];
 
@@ -63,7 +63,8 @@ export const TurnStage: React.FC<{
   sweep: number;
   exposure?: number;
   children: React.ReactNode;
-}> = ({ width, height, cam, sweepX, sweep, exposure = 1.05, children }) => (
+}> = ({ width, height, cam, sweepX, sweep, exposure = 1.05, children }) =>
+  isAudioOnly() ? null : (
   <ThreeCanvas
     width={width}
     height={height}

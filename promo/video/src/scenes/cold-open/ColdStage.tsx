@@ -8,6 +8,7 @@ import { useThree } from "@react-three/fiber";
 import { ThreeCanvas } from "@remotion/three";
 import React, { useLayoutEffect } from "react";
 import * as THREE from "three";
+import { isAudioOnly } from "../../components/Racket3D";
 
 export type Vec3 = [number, number, number];
 
@@ -72,6 +73,7 @@ export const ColdStage: React.FC<{
   rig: LightRig;
   children: React.ReactNode;
 }> = ({ width, height, camera, rig, children }) => {
+  if (isAudioOnly()) return null;
   const { rim, rimEnv, rimTravel, camAz, key, fill, back, sweepX, sweep, exposure } = rig;
   // Rim lights start high above the head and travel down both sides, so the
   // highlight runs along the frame like a pen tracing the outline.
