@@ -142,6 +142,71 @@ const Burst: React.FC<{ frame: number; at: number; amp?: number; size?: number; 
   );
 };
 
+/** Light streaks fired out of the impact point: radial rays plus an anamorphic bar. */
+const Streaks: React.FC<{ frame: number }> = ({ frame }) => {
+  if (frame > 34) return null;
+  const t = interpolate(frame, [0, 26], [0, 1], { ...clamp, easing: easeOut });
+  const fade = 1 - interpolate(frame, [4, 34], [0, 1], { ...clamp, easing: easeIn });
+  const rays = Array.from({ length: 22 }, (_, i) => {
+    const a = (i / 22) * 360 + (i % 2) * 7;
+    const len = (260 + ((i * 97) % 5) * 150) * t;
+    const start = 120 + t * 260;
+    return { a, len, start, w: i % 3 === 0 ? 3 : 1.5 };
+  });
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none", opacity: fade }}>
+      {rays.map((r, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: r.len,
+            height: r.w,
+            marginTop: -r.w / 2,
+            transformOrigin: "0 50%",
+            transform: `rotate(${r.a}deg) translateX(${r.start}px)`,
+            background: "linear-gradient(90deg, rgba(236,238,241,0.9), rgba(236,238,241,0))",
+          }}
+        />
+      ))}
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          width: 2600,
+          height: 7,
+          marginLeft: -1300,
+          marginTop: -3.5,
+          background: "linear-gradient(90deg, rgba(236,238,241,0), rgba(255,255,255,1) 50%, rgba(236,238,241,0))",
+          boxShadow: "0 0 70px 14px rgba(236,238,241,0.35)",
+          scale: `${mix(0.08, 1, t)} ${mix(1.6, 0.3, t)}`,
+        }}
+      />
+      {[0.55, 0.8].map((k, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: 1300,
+            height: 1300,
+            marginLeft: -650,
+            marginTop: -650,
+            borderRadius: "50%",
+            border: "2px solid rgba(236,238,241,0.5)",
+            scale: interpolate(frame, [i * 5, 30 + i * 5], [0.1, k * 1.9], { ...clamp, easing: easeOut }),
+            opacity: 0.5 * (1 - interpolate(frame, [i * 5, 30 + i * 5], [0, 1], clamp)),
+          }}
+        />
+      ))}
+    </AbsoluteFill>
+  );
+};
+
 const TITLE = 214; // "Not anymore." font size, px
 
 /** One slammed word of the opening line. */
@@ -153,8 +218,9 @@ const SlamWord: React.FC<{ frame: number; at: number; text: string; dir: number 
       style={{
         display: "inline-block",
         opacity: interpolate(frame, [at - 2, at + 2], [0, 1], clamp),
-        scale: mix(1.9, 1, t),
-        translate: `${(1 - t) * dir * 90}px 0px`,
+        scale: mix(1.4, 1, t),
+        transformOrigin: dir < 0 ? "100% 60%" : "0% 60%", // grows away from its neighbour: the gap stays
+        translate: `${(1 - t) * dir * 70}px 0px`,
         rotate: `${(1 - settle) * dir * 1.6}deg`,
         filter: t < 0.999 ? `blur(${(1 - t) * 22}px)` : undefined,
       }}
@@ -172,7 +238,7 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const W = WORDS[lang];
 
   // Voice sync (scene-local frames).
-  const notAt = wordAt(timing, W.not, 23);
+  const notAt = wordAt(timing, W.not, 23) - 7; // lands on the beat just ahead of the voice
   const anymoreAt = wordAt(timing, W.anymore, 40);
   const meetAt = wordAt(timing, W.meet, 100);
   const paladexAt = wordAt(timing, W.paladex, 120);
@@ -213,7 +279,7 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
       yaw: interpolate(f, [0, END], [11, -4]) + hand("yaw", 0.5) - 5 * fin,
       pitch: interpolate(f, [0, END], [2.5, -0.5]) + hand("pitch", 0.4),
       roll: hand("roll", 0.25) + 1.4 * (1 - fin) * t,
-      dolly: -130 + 1.5 * f + 260 * fin + interpolate(f, [threeDAt, END], [0, 70], clamp),
+      dolly: -130 + 1.5 * f + 200 * fin + interpolate(f, [threeDAt, END], [0, 30], clamp),
     };
   };
   const cam = camAt(frame);
@@ -237,7 +303,7 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
         opacity: 1 - splitP * 0.6,
       }}
     >
-      <div style={{ ...display, fontSize: TITLE, whiteSpace: "nowrap", letterSpacing: "-0.04em", display: "flex", gap: 38 }}>
+      <div style={{ ...display, fontSize: TITLE, whiteSpace: "nowrap", letterSpacing: "-0.04em", display: "flex", gap: 64 }}>
         <SlamWord frame={frame} at={notAt} text="Not" dir={-1} />
         <SlamWord frame={frame} at={anymoreAt} text="anymore." dir={1} />
       </div>
@@ -448,7 +514,8 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
       </AbsoluteFill>
 
       {/* Impact flourishes, over the transition (not faded in by the envelope). */}
-      <Burst frame={frame} at={0} amp={1} />
+      <Streaks frame={frame} />
+      <Burst frame={frame} at={0} amp={1.35} size={1.3} />
       <Burst frame={frame} at={notAt} amp={0.4} size={0.7} ring={false} />
       <Burst frame={frame} at={anymoreAt} amp={0.75} size={0.9} />
       <Burst frame={frame} at={punchAt} amp={0.9} />
