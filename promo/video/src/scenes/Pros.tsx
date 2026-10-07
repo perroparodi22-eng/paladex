@@ -269,10 +269,11 @@ const PageHead: React.FC<{ f: number; x: number; y: number }> = ({ f, x, y }) =>
   );
   return (
     <div style={{ position: "absolute", left: x, top: y, width: 700, height: 420, transform: `perspective(1400px) rotateY(${mix(-14, -5, t1)}deg) translateX(${f * -0.12}px)`, transformOrigin: "0 50%" }}>
+      <div style={{ position: "absolute", left: -60, top: -50, width: 820, height: 480, borderRadius: 40, background: "radial-gradient(ellipse at 40% 50%, rgba(7,8,9,0.88) 0%, rgba(7,8,9,0.7) 55%, rgba(7,8,9,0) 100%)", opacity: t1 }} />
       {row(t1, <div style={{ ...display, fontSize: 84, width: 700 }}>Pro players' rackets</div>, 0)}
       {row(
         t2,
-        <div style={{ fontFamily: FONT, fontSize: 25, lineHeight: 1.42, color: C.ink2, width: 640 }}>
+        <div style={{ fontFamily: FONT, fontSize: 28, lineHeight: 1.4, color: C.ink2, width: 680 }}>
           What the top of the tour plays, in 3D. Players are matched to rackets from public lists as of early 2026; sponsors and editions change during the season, and some pros play a personalised version of the model shown.
         </div>,
         190,
