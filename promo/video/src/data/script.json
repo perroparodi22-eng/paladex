@@ -1,0 +1,73 @@
+{
+  "fps": 60,
+  "bpm": 120,
+  "overlapFrames": 18,
+  "scenes": [
+    {
+      "id": "cold-open",
+      "seconds": 4,
+      "voAt": 0.5,
+      "tail": 0.12
+    },
+    {
+      "id": "problem",
+      "seconds": 4,
+      "voAt": 0.0,
+      "tail": 0.12
+    },
+    {
+      "id": "reveal",
+      "seconds": 5,
+      "voAt": 0.6,
+      "tail": 0.45
+    },
+    {
+      "id": "turn",
+      "seconds": 8,
+      "voAt": 0.3,
+      "tail": 0.5
+    },
+    {
+      "id": "specs",
+      "seconds": 6,
+      "voAt": 0.3,
+      "tail": 0.5
+    },
+    {
+      "id": "finder",
+      "seconds": 8,
+      "voAt": 0.3,
+      "tail": 0.5
+    },
+    {
+      "id": "brands",
+      "seconds": 5,
+      "voAt": 0.3,
+      "tail": 0.5
+    },
+    {
+      "id": "endcard",
+      "seconds": 6,
+      "voAt": 0.6,
+      "tail": 1.2
+    }
+  ],
+  "langs": {
+    "en": {
+      "voice": "en-US-AndrewMultilingualNeural",
+      "rate": "+6%",
+      "pitch": "-2Hz",
+      "lines": {
+        "cold-open": "You're about to spend two hundred euros on a padel racket...",
+        "problem": "based on one flat photo, and a spec sheet nobody explains.",
+        "reveal": "Meet Paladex. Every padel racket, in 3D.",
+        "turn": "Pick any racket and turn it in your hand. Front. Side. Back. Every detail, up close.",
+        "specs": "Every spec is translated into what it actually means for your game.",
+        "finder": "Not sure where to start? Answer a few quick questions, and see the rackets that fit how you really play.",
+        "brands": "Sixty-two rackets. Thirteen brands. All in one place.",
+        "endcard": "Paladex. See it from every side, before you buy it."
+      }
+    }
+  },
+  "quantumBeats": 2
+}

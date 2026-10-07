@@ -1,0 +1,1 @@
+ALTER TABLE `products` ADD `pro_players` text DEFAULT '[]' NOT NULL;

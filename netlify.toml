@@ -1,0 +1,14 @@
+# Netlify preview build. The SQLite catalogue is created during the build and shipped
+# with the server code (see DATABASE_TEMPLATE in src/server/db/connection.ts).
+# Runtime-only variables (DATABASE_URL, DATABASE_TEMPLATE, NEXT_PUBLIC_SITE_URL) are set in
+# the Netlify UI. Admin secrets are deliberately not set, so /admin stays locked.
+[build]
+  command = "npm run db:migrate && npm run db:seed && npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Netlify's Next.js runtime (server rendering, API routes, image optimisation).
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
