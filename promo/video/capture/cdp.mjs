@@ -10,7 +10,10 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const CHROME = process.env.CHROME ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
+const WIN = process.platform === "win32";
+const CHROME =
+  process.env.CHROME ??
+  (WIN ? "C:/Program Files/Google/Chrome/Application/chrome.exe" : "/opt/pw-browsers/chromium-1194/chrome-linux/chrome");
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const TIME_SHIM = String.raw`(() => {
@@ -100,7 +103,18 @@ const TIME_SHIM = String.raw`(() => {
 // Hide dev-only chrome (Next.js dev indicator) and the scrollbar.
 const HIDE_CSS = `nextjs-portal{display:none!important} html{scrollbar-width:none} ::-webkit-scrollbar{display:none}`;
 
-export async function launch({ width = 1920, height = 1080, dpr = 1, gpu = true, mobile = false } = {}) {
+// The site's viewer gives up ("3D view paused") if a loaded model hasn't drawn its first
+// frame after 9 s of *visible* time. With a GPU that never happens; on SwiftShader the
+// shader warm-up can take longer. So outside Windows the page reports itself as hidden
+// while it loads (the watchdog only counts visible time) and becomes visible again on
+// freeze(), before anything is recorded.
+const HIDE_SHIM = `(() => {
+  window.__forceHidden = true;
+  Object.defineProperty(Document.prototype, "visibilityState", { configurable: true, get() { return window.__forceHidden ? "hidden" : "visible"; } });
+  Object.defineProperty(Document.prototype, "hidden", { configurable: true, get() { return !!window.__forceHidden; } });
+})();`;
+
+export async function launch({ width = 1920, height = 1080, dpr = 1, gpu = true, mobile = false, hideWhileLoading = !WIN } = {}) {
   const port = 9600 + Math.floor(Math.random() * 300);
   const profile = mkdtempSync(join(tmpdir(), "promo-cap-"));
   const proc = spawn(
@@ -108,7 +122,9 @@ export async function launch({ width = 1920, height = 1080, dpr = 1, gpu = true,
     [
       "--headless=new",
       `--remote-debugging-port=${port}`,
-      ...(gpu ? ["--use-angle=d3d11", "--enable-gpu-rasterization", "--ignore-gpu-blocklist"] : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]),
+      // No GPU outside Windows (cloud containers): WebGL runs on SwiftShader.
+      ...(gpu && WIN ? ["--use-angle=d3d11", "--enable-gpu-rasterization", "--ignore-gpu-blocklist"] : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]),
+      ...(WIN ? [] : ["--no-sandbox", "--disable-dev-shm-usage"]),
       "--hide-scrollbars",
       "--no-first-run",
       "--no-default-browser-check",
@@ -122,6 +138,12 @@ export async function launch({ width = 1920, height = 1080, dpr = 1, gpu = true,
     ],
     { stdio: "ignore" },
   );
+  // Never leave a headless Chrome behind, even when the script throws.
+  process.on("exit", () => {
+    try {
+      proc.kill("SIGKILL");
+    } catch {}
+  });
   let targets = [];
   for (let i = 0; i < 80; i++) {
     try {
@@ -161,6 +183,7 @@ export async function launch({ width = 1920, height = 1080, dpr = 1, gpu = true,
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }, { name: "prefers-color-scheme", value: "dark" }] });
   if (mobile) await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
   await send("Page.addScriptToEvaluateOnNewDocument", { source: TIME_SHIM });
+  if (hideWhileLoading) await send("Page.addScriptToEvaluateOnNewDocument", { source: HIDE_SHIM });
   await send("Page.addScriptToEvaluateOnNewDocument", {
     source: `document.addEventListener("DOMContentLoaded",()=>{const s=document.createElement("style");s.textContent=${JSON.stringify(HIDE_CSS)};document.head.appendChild(s);});`,
   });
@@ -207,7 +230,12 @@ export async function launch({ width = 1920, height = 1080, dpr = 1, gpu = true,
         return { x: r.x, y: r.y, w: r.width, h: r.height };
       })()`);
     },
-    freeze: () => page.eval("window.__vt.freeze(), true"),
+    /** Make the page visible again (see HIDE_SHIM). */
+    show: () => page.eval(`(() => { if (window.__forceHidden) { window.__forceHidden = false; document.dispatchEvent(new Event("visibilitychange")); } return true; })()`),
+    async freeze() {
+      await page.show();
+      return page.eval("window.__vt.freeze(), true");
+    },
     thaw: () => page.eval("window.__vt.thaw(), true"),
     step: (dt = 1000 / 60) => page.eval(`window.__vt.step(${dt})`),
     async mouse(type, x, y, { buttons = 0, button = "none", clickCount = 0 } = {}) {

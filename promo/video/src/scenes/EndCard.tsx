@@ -26,11 +26,6 @@ const COPY: Record<Lang, { headline: string[]; cta: string; note: string }> = {
     cta: "Find your racket",
     note: "Free · No sign-up",
   },
-  it: {
-    headline: ["Guardala da ogni lato,", "prima di comprarla."],
-    cta: "Trova la tua racchetta",
-    note: "Gratis · Senza registrazione",
-  },
 };
 
 // Layout (frame px). Text column on the left, racket on the right (the site's hero
@@ -108,8 +103,8 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   // The model faces the camera at spin ≈ -0.15 and is edge-on near ±1.5 from there:
   // it arrives nearly edge-on (the frame catching the rim light), turns through the
   // face as the line starts, and rests on the right three-quarter in the key light.
-  const everyAt = wordAt(timing, lang === "it" ? "ogni" : "every", lineAt + 30);
-  const sideEnd = wordAt(timing, lang === "it" ? "lato" : "side", everyAt + 30, 0, "end");
+  const everyAt = wordAt(timing, "every", lineAt + 30);
+  const sideEnd = wordAt(timing, "side", everyAt + 30, 0, "end");
   const spin =
     -1.38 +
     1.06 * (frame / span) +

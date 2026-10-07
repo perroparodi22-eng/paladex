@@ -24,7 +24,6 @@ import type { SceneProps } from "./types";
 // Words each beat syncs to (scene-local frames come from the voice timing).
 const ANCHORS: Record<Lang, { spec: string; lift: string; hero: string; end: string }> = {
   en: { spec: "spec", lift: "translated", hero: "means", end: "game" },
-  it: { spec: "caratteristica", lift: "tradotta", hero: "davvero", end: "gioco" },
 };
 
 const PAGE_W = 1920;

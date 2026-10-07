@@ -27,7 +27,6 @@ import type { SceneProps } from "./types";
 // Voice anchors per language (scene-local frames come from the word timings).
 const WORDS: Record<Lang, { answer: string; see: string; fit: string; how: string; play: string }> = {
   en: { answer: "Answer", see: "see", fit: "fit", how: "how", play: "play" },
-  it: { answer: "Rispondi", see: "scopri", fit: "adatte", how: "come", play: "davvero" },
 };
 
 // ---------------------------------------------------------------------------

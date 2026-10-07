@@ -30,7 +30,6 @@ import type { SceneProps } from "./types";
 /** Voice words this scene syncs to, per language (fallbacks are the English frames). */
 const WORDS = {
   en: { paladex: "Paladex", every: "Every", threeD: "3D" },
-  it: { paladex: "Paladex", every: "Ogni", threeD: "3D" },
 } as const;
 
 const CLIP = "reveal-home";

@@ -28,7 +28,6 @@ import { browserPose, bump, hermite, mix, projectPage, smooth, type OrbitPose } 
 /** Voice words this scene syncs to, per language (fallbacks are the English frames). */
 const WORDS = {
   en: { pick: "Pick", turn: "turn", hand: "hand", front: "Front", side: "Side", back: "Back", every: "Every", detail: "detail", up: "up", close: "close" },
-  it: { pick: "Scegli", turn: "girala", hand: "mani", front: "Fronte", side: "Lato", back: "Retro", every: "Ogni", detail: "dettaglio", up: "da", close: "vicino" },
 } as const;
 
 const PATH = "/rackets/nox-at10-luxury-genius-18k-alum";

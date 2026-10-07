@@ -1,6 +1,6 @@
 // Scene 4 "turn": the hero racket's page. The cursor approaches the 3D racket,
 // grabs and turns it on "turn it in your hand", then clicks the viewer's Front /
-// Side / Back buttons exactly on those words. One clip per language (word-synced).
+// Side / Back buttons exactly on those words (word-synced clip, English).
 //
 // Besides the frames, we record the site's own 3D camera every frame (by watching
 // the WebGL viewMatrix/projectionMatrix uniforms), so the Remotion scene can place
@@ -8,19 +8,18 @@
 // browser. Finally a still of the same page state with the 3D canvas hidden (the
 // racket has left the screen).
 //
-// usage: node capture/shots/turn.mjs [en|it]
+// usage: node capture/shots/turn.mjs
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { launch, packCursor, record, sleep, writeManifest } from "../cdp.mjs";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const URL_ = "http://localhost:3100/rackets/nox-at10-luxury-genius-18k-alum";
-const langs = process.argv[2] ? [process.argv[2]] : ["en", "it"];
+const langs = ["en"];
 
-// Words that drive the shot, per language (same lookups as wordAt() in the scene).
+// Words that drive the shot (same lookups as wordAt() in the scene).
 const KEYS = {
   en: { pick: "Pick", turn: "turn", hand: "hand", front: "Front", side: "Side", back: "Back", every: "Every" },
-  it: { pick: "Scegli", turn: "girala", hand: "mani", front: "Fronte", side: "Lato", back: "Retro", every: "Ogni" },
 };
 
 const norm = (x) => x.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
@@ -170,6 +169,9 @@ for (const lang of langs) {
   await page.mouse("mouseMoved", start[0], start[1]);
   await sleep(2500);
 
+  // The view buttons appear once the model has loaded (slow on a software GPU).
+  await page.waitFor(`[...document.querySelectorAll("button")].some((b) => b.textContent.trim() === "Back")`, 120000);
+  await sleep(1500);
   const btn = {};
   for (const label of ["Front", "Side", "Back"]) {
     const r = await page.rectByText(label, "button");

@@ -1,7 +1,7 @@
 // Render many stills of one composition with a single bundle, plus an optional
 // contact sheet. Much faster than calling `npx remotion still` per frame.
 //
-// usage: node scripts/stills.mjs <compositionId> <outDir> <frame|from-to/step> ... [--sheet name.jpg] [--scale 0.5] [--props '{"lang":"it"}'] [--entry src/dev/<scene>.tsx]
+// usage: node scripts/stills.mjs <compositionId> <outDir> <frame|from-to/step> ... [--sheet name.jpg] [--scale 0.5] [--props '{"subtitles":false}'] [--entry src/dev/<scene>.tsx]
 //   e.g. node scripts/stills.mjs PaladexLaunch out/stills 600-1080/60 1200 --sheet turn.jpg
 //   one scene only (isolated bundle, scene-local frames): node scripts/stills.mjs Dev out/turn 0-480/24 --entry src/dev/turn.tsx --sheet sheet.jpg
 import { bundle } from "@remotion/bundler";
@@ -53,12 +53,15 @@ const t0 = Date.now();
 const serveUrl = await bundle({ entryPoint: join(root, entry), rootDir: root, publicDir: join(root, "public") });
 const files = [];
 try {
-  const chromiumOptions = { gl: "angle" };
-  const composition = await selectComposition({ serveUrl, id, inputProps: props, chromiumOptions });
+  // GPU WebGL on Windows; software (SwiftShader) in GPU-less Linux containers.
+  const win = process.platform === "win32";
+  const chromiumOptions = { gl: win ? "angle" : "swangle" };
+  const browserExecutable = process.env.REMOTION_BROWSER ?? (win ? null : "/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell");
+  const composition = await selectComposition({ serveUrl, id, inputProps: props, chromiumOptions, browserExecutable });
   mkdirSync(join(root, outDir), { recursive: true });
   for (const frame of frames) {
     const output = join(root, outDir, `${id}-${String(frame).padStart(5, "0")}.jpg`);
-    await renderStill({ composition, serveUrl, output, frame, inputProps: props, imageFormat: "jpeg", jpegQuality: 88, scale, chromiumOptions, overwrite: true });
+    await renderStill({ composition, serveUrl, output, frame, inputProps: props, imageFormat: "jpeg", jpegQuality: 88, scale, chromiumOptions, browserExecutable, overwrite: true });
     files.push(output);
     console.log(`frame ${frame} -> ${output}`);
   }
