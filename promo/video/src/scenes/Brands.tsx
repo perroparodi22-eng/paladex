@@ -81,7 +81,7 @@ const ON_RAIL = 7;
 
 const PERSP = 2000;
 /** A carousel ring (world px, frame centre = 0), seen from slightly above, right of the counter. */
-const RING = { x: 380, y: -30, z: -260, r: 540, tilt: -12, s: 1.32 };
+const RING = { x: 380, y: -60, z: -260, r: 540, tilt: -12, s: 1.32 };
 const RING_STEP = 360 / TILES.length;
 /** Card j sits at (j - FRONT) * RING_STEP + spin; spin glides to 0, so the front half then
  * reads left to right in the rail's order (Bullpadel … Wilson) before it unrolls. */
@@ -188,7 +188,7 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
   const look = mix(3.75, 5, crane);
   const camTarget: V3 = [camX - look, mix(0, 0.2, crane), 0];
   const wallIn = interpolate(frame, [0, 14], [0, 1], { ...clamp, easing: easeOut });
-  const wallDim = interpolate(frame, [twelveAt - 20, brandsAt + 4, allAt + 4, allAt + 18], [1, 0.32, 0.2, 0], clamp);
+  const wallDim = interpolate(frame, [twelveAt - 20, twelveAt + 4, brandsAt + 4, allAt + 4, allAt + 18], [1, 0.45, 0.32, 0.2, 0], clamp);
   const wallBlur = interpolate(frame, [twelveAt - 20, brandsAt + 6], [0, 6], clamp);
   const wallOn = frame < allAt + 18;
 
