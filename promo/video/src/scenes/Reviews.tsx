@@ -15,7 +15,7 @@ import { Browser3D, CHROME_H, Space3D } from "../components/Browser3D";
 import { Cursor, cursorAt } from "../components/Cursor";
 import { Footage, still } from "../components/Footage";
 import { Sfx } from "../components/Sfx";
-import { clamp, drift, easeInOut, enterExit } from "../lib/motion";
+import { clamp, drift, easeIn, easeInOut, enterExit } from "../lib/motion";
 import { wordAt } from "../timeline";
 import { mixSlab, monotone, poseAt, slabTransform, type FullPose, type PoseKey, type SlabState } from "./specs/rig";
 import type { SceneProps } from "./types";
@@ -67,7 +67,9 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
     { key: "summary", still: "reviews-crop-summary", take: wReviewers - 16, land: wReviewers + 4, back: wSay - 16, home: wSay + 8, scale: 2.6, rotY: 6, rotX: 2, y: -70 },
     { key: "lists", still: "reviews-crop-lists", take: wSay - 14, land: wSay + 4, back: wSummed - 18, home: wSummed + 6, scale: 2.55, rotY: -6, rotX: 3, y: -50 },
     { key: "read", still: "reviews-crop-read", take: wSummed - 16, land: wSummed + 6, back: wWith - 16, home: wWith + 8, scale: 2.7, rotY: 5, rotX: 3, y: -60 },
-    { key: "sources", still: "reviews-crop-sources", take: wWith - 16, land: wWith + 8, back: D + 200, home: D + 220, scale: 3.1, rotY: -4, rotX: 2, y: -40 },
+    { key: "sources", still: "reviews-crop-sources", take: wWith - 16, land: wWith + 8, back: D + 200, home: D + 220, scale: 3.1, rotY: -4, rotX: 2, y: 110 },
+    // Finale: Paladex's read comes back up behind the Sources, composed in depth.
+    { key: "read2", still: "reviews-crop-read", take: wWith + 14, land: wWith + 34, back: D + 200, home: D + 220, scale: 1.95, rotY: 9, rotX: 4, y: -245 },
   ];
   const crops = pieces.map((p) => {
     const s = still(p.still);
@@ -115,15 +117,17 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
     const down = interpolate(frame, [p.back, p.home], [0, 1], { ...clamp, easing: sink });
     const t = up * (1 - down);
     const dir = i % 2 === 0 ? -1 : 1;
+    const yOff = p.key === "sources" ? interpolate(frame, [wWith + 10, wWith + 36], [-150, 0], { ...clamp, easing: lift }) : 0;
+    const push = p.key === "sources" ? interpolate(frame, [wSources - 6, wSources + 40], [1, 1.14], { ...clamp, easing: lift }) : 1;
     const hero: SlabState = {
       P: {
         x: drift(`rv-hx${i}`, frame, 12, 0.1) + dir * interpolate(frame, [p.land, p.back], [-14, 14], clamp),
-        y: p.y + drift(`rv-hy${i}`, frame, 7, 0.1),
+        y: p.y + yOff + drift(`rv-hy${i}`, frame, 7, 0.1),
         z: interpolate(frame, [p.land, p.back], [0, 70], clamp),
         rotateX: p.rotX + drift(`rv-hrx${i}`, frame, 0.8, 0.08),
         rotateY: interpolate(frame, [p.take, p.back], [p.rotY * 2.4, p.rotY * -0.4], clamp) + drift(`rv-hry${i}`, frame, 1, 0.08),
         rotateZ: drift(`rv-hrz${i}`, frame, 0.35, 0.08),
-        scale: interpolate(frame, [p.take, p.back], [p.scale * 0.9, p.scale * 1.06], clamp),
+        scale: interpolate(frame, [p.take, p.back], [p.scale * 0.9, p.scale * 1.06], clamp) * push,
       },
       cx: 0,
       cy: 0,
@@ -142,9 +146,8 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
 
   // --- Sources interaction (cursor + hover crops inside the sources slab) ----------
   const src = crops[4];
-  const links = [still("reviews-link-hover-0"), still("reviews-link-hover-1")];
   const lk = [M.link0, M.link1];
-  const hoverAt = [wSources, wSources + 30];
+  const hoverAt = [wSources, wSources + 24];
   const hoverOp = hoverAt.map((h, i) => {
     const next = hoverAt[i + 1];
     return interpolate(frame, [h - 3, h, ...(next ? [next - 3, next] : [h + 400, h + 401])], [0, 1, ...(next ? [1, 0] : [1, 1])], clamp);
@@ -163,8 +166,8 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
   const curOp = interpolate(frame, [wWith + 4, wWith + 14], [0, 1], clamp);
 
   // --- Page treatment ---------------------------------------------------------
-  const veil = interpolate(hold, [0, 1], [0, 0.3]);
-  const pageBlur = hold * 1.6;
+  const veil = interpolate(hold, [0, 1], [0, 0.1]);
+  const pageBlur = hold * 1.2;
   const poolOp = hold;
 
   return (
@@ -187,6 +190,8 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
               }}
             />
           ))}
+          {/* Keep the sample "Platform scores" block below the section out of frame. */}
+          <div style={{ position: "absolute", left: 0, top: M.sources.y + M.sources.h + 12 - scroll, width: 1920, height: 1400, background: "linear-gradient(180deg, rgba(8,9,11,0) 0, rgba(8,9,11,1) 16px)" }} />
           <Footage name="reviews-viewer" frame={frame} style={{ left: viewer.x, top: viewer.y, width: viewer.w, height: viewer.h }} />
           <Img src={staticFile(still("reviews-header").file)} style={{ position: "absolute", left: 0, top: 0, width: 1920, height: 64 }} />
           <AbsoluteFill style={{ background: "#050607", opacity: veil }} />
@@ -200,7 +205,7 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
         }}
       />
 
-      <Space3D>
+      <Space3D style={{ translate: `${interpolate(frame, [D - 14, D + 18], [0, 420], { ...clamp, easing: easeIn })}px 0px`, rotate: `${interpolate(frame, [D - 14, D + 18], [0, -2], { ...clamp, easing: easeIn })}deg` }}>
         {slabs.map((s) => {
           if (s.on <= 0.001) return null;
           const isSrc = s.key === "sources";
@@ -231,11 +236,21 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
                 <Img src={staticFile(s.file)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
                 {isSrc && (
                   <div style={{ position: "absolute", left: 0, top: 0, width: s.w, height: s.h, transformOrigin: "0 0", scale: `${K}` }}>
-                    {links.map((l, i) => (
-                      <Img
+                    {lk.map((l, i) => (
+                      <div
                         key={i}
-                        src={staticFile(l.file)}
-                        style={{ position: "absolute", left: l.marks!.crop.x - src.crop.x, top: l.marks!.crop.y - src.crop.y, width: l.width, height: l.height, opacity: hoverOp[i] }}
+                        style={{
+                          position: "absolute",
+                          left: l.x - src.crop.x,
+                          top: l.y - src.crop.y,
+                          width: l.w,
+                          height: l.h,
+                          borderRadius: 18,
+                          border: "1.5px solid rgba(236,238,241,0.6)",
+                          boxSizing: "border-box",
+                          background: "rgba(236,238,241,0.07)",
+                          opacity: hoverOp[i],
+                        }}
                       />
                     ))}
                     <Cursor x={cur.x} y={cur.y} frame={frame} opacity={curOp} scale={1.1} />
