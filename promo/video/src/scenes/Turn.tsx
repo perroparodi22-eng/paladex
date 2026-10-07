@@ -175,8 +175,15 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
 
   /* ----------------------------------------------------------- browser */
   const pose = browserPose(orbitAt(frame, m));
-  const H = 10; // cross-fade frames at the hand-off
-  const swap = interpolate(frame, [B, B + H], [0, 1], { ...clamp, easing: swapEase });
+  // The hand-off, in three steps so the racket never dims or doubles:
+  //  1. the WebGL hero fades in ON TOP of the full captured racket (exactly over it);
+  //  2. only once it is opaque does the page underneath swap to the racket-less still
+  //     (fading both at once left the racket ~75 % opaque mid-dissolve);
+  //  3. only once the page has no racket left does the hero leave the captured pose.
+  const H = 10; // hero dissolve frames
+  const heroIn = interpolate(frame, [B, B + H], [0, 1], { ...clamp, easing: swapEase });
+  const pageSwap = interpolate(frame, [B + H, B + H + 5], [0, 1], { ...clamp, easing: easeInOut });
+  const GLUE = H + 5; // frames the hero stays glued to the captured racket
   // The window's glass glare peaks right over the viewer at the break-out and lifts the
   // captured racket's blacks (~+15 levels); the WebGL racket is not behind glass. Wipe
   // the glare off during the glide to "Back" so both rackets share one tone at the swap.
@@ -223,7 +230,7 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     // window has started to move), so the dissolve never shows two rackets; only once
     // the captured one has gone does the camera ease off the match onto the free path
     // (measured: blending during the dissolve left the last frames 8-14 px apart).
-    const w = interpolate(u, [H - 2, H + 16], [0, 1], { ...clamp, easing: swapEase });
+    const w = interpolate(u, [GLUE, GLUE + 18], [0, 1], { ...clamp, easing: swapEase });
     const camAz = w * (0.6 * g + 0.03 * e + hand("az", 0.012));
     const camEl = w * (0.04 * e + 0.2 * g + hand("el", 0.01));
     const target: Vec3 = [w * 0.072 * g, w * (mix(0, 0.05, e) + 0.035 * g), w * 0.017 * g];
@@ -245,7 +252,7 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     // Orientation: the captured view angle through the hand-off (the site's camera is
     // still gliding to "Back"), then the glide continues with the same speed into the
     // exact back view.
-    const hEnd = B + H;
+    const hEnd = B + GLUE;
     const settle = hEnd + 46;
     const cA = cams[Math.min(cams.length - 1, hEnd)];
     const cP = cams[Math.min(cams.length - 1, hEnd - 1)];
@@ -261,7 +268,7 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     }
     yaw += 0.05 * g;
   }
-  const heroOpacity = swap;
+  const heroOpacity = heroIn;
   const ring = interpolate(frame, [m.up - 4, m.up + 30], [0, 1], { ...clamp, easing: easeOut });
   const sweepT = interpolate(frame, [m.detail - 6, m.close + 70], [0, 1], { ...clamp, easing: Easing.bezier(0.4, 0, 0.6, 1) });
   const sweepX = mix(-1.8, 1.8, sweepT);
@@ -280,8 +287,8 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
         <AbsoluteFill style={{ opacity: browserOpacity, filter: browserBlur > 0.01 ? `blur(${browserBlur}px)` : undefined }}>
           <Space3D perspective={PERSP} originX={ORIGIN_X} originY={ORIGIN_Y}>
             <Browser3D {...pose} path={PATH} glare={glare}>
-              {swap < 1 && <Footage name={CLIP} frame={frame} />}
-              {swap > 0 && <PageStill name={EMPTY} style={{ opacity: swap }} />}
+              {pageSwap < 1 && <Footage name={CLIP} frame={frame} />}
+              {pageSwap > 0 && <PageStill name={EMPTY} style={{ opacity: pageSwap }} />}
               {cur && curOpacity > 0 && (
                 // The grabbing hand is drawn smaller than the arrow: scale it up to read.
                 <Cursor x={cur.x} y={cur.y} down={cur.down} grab={grab} clicks={m.clicks} frame={frame} opacity={curOpacity} scale={grab ? 1.55 : 1.35} />
