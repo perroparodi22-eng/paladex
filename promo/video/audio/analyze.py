@@ -275,14 +275,22 @@ def report(lang: str, y: np.ndarray, song) -> dict:
     # start; 0 ms = the section change lands exactly on the scene's frame 0
     from scipy.ndimage import uniform_filter1d
     from dsp import hp
-    hf = hp(y.mean(axis=1), 1500)
-    env = np.sqrt(uniform_filter1d(hf ** 2, nsamp(0.001)) + 1e-20)
-    onsets = {}
+    # (rise = 3 ms HF energy after vs 3 ms before; the largest relative jump in the window)
+    hf = hp(y.mean(axis=1), 1500) ** 2
+    w3 = nsamp(0.003)
+    c = np.concatenate([[0.0], np.cumsum(hf)])
+    onsets, rises = {}, {}
     for s in scenes:
         a, w = s["start"], nsamp(0.06)
-        lo, hi = max(1, a - w), min(n - 1, a + w)
-        onsets[s["id"]] = round((lo + int(np.argmax(np.diff(env[lo:hi]))) - a) / SR * 1000, 1)
+        idx = np.arange(max(w3, a - w), min(n - w3, a + w))
+        after = c[idx + w3] - c[idx]
+        before = c[idx] - c[idx - w3]
+        r = 10 * np.log10((after + 1e-12) / (before + 1e-12))
+        j = int(np.argmax(r))
+        onsets[s["id"]] = round((idx[j] - a) / SR * 1000, 2)
+        rises[s["id"]] = round(float(r[a - idx[0]]), 1) if idx[0] <= a <= idx[-1] else None
     stats["onset_offset_ms"] = onsets
+    stats["rise_at_scene_start_db"] = rises
     # hard stops before hits: how silent the gap is (before the reverse suck) and how loud the suck gets
     stops = []
     for a, b in getattr(song, "stops", []):

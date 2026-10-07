@@ -25,8 +25,8 @@ def kick(vel: float = 1.0, long: bool = False) -> np.ndarray:
     amp = (1 - np.exp(-t / 0.0005)) * np.exp(-t / (0.32 if long else 0.12))
     body = np.sin(ph) * amp
     body = np.tanh(body * 2.3) / np.tanh(2.3)
-    click = bp(noise(n), 4200, 0.8) * np.exp(-t / 0.0014) * 0.32
-    knock = np.sin(2 * np.pi * 1250 * t) * np.exp(-t / 0.0022) * 0.07
+    click = bp(noise(n), 4200, 0.8) * np.exp(-t / 0.0014) * 0.4
+    knock = np.sin(2 * np.pi * 1250 * t) * np.exp(-t / 0.0022) * 0.12
     x = body + click + knock
     x = lp(x, 11000)
     return fade(x, 0.0, 0.02) * vel

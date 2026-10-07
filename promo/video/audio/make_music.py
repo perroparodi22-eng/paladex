@@ -104,18 +104,18 @@ _B = dict(kick="4", clap=True, snare=False, ghost=False, hat="16", ohat=True, sh
 CFG = {
     "cold-open": {**_B, "ohat": False, "bass": 3, "pulse": "A", "stab": "drive", "pad": False, "motif": None,
                   "fill": "roll1", "cut": None},
-    "reveal": {**_B, "snare": True, "stab": "down", "fill": "roll2", "cut": (1100, 2000)},
-    "turn": {**_B, "ghost": True, "perc": "rim", "arp": "A", "fill": "toms", "cut": (1600, 2600)},
+    "reveal": {**_B, "snare": True, "stab": "down", "fill": "roll2", "cut": (1800, 3200)},
+    "turn": {**_B, "ghost": True, "perc": "rim", "arp": "A", "fill": "toms", "cut": (2200, 3400)},
     "specs": {**_B, "ohat": False, "shaker": True, "perc": "data", "bass": 0, "pulse": "B", "motif": "bell",
-              "fill": "stutter", "cut": (1500, 1900)},
+              "fill": "stutter", "cut": (2000, 2600)},
     "reviews": {**_B, "ghost": True, "tamb": True, "perc": "bongo", "bass": 2, "stab": "down", "motif": "callresp",
-                "arp": "B", "fill": "kickdrop", "cut": (1800, 2600)},
+                "arp": "B", "fill": "kickdrop", "cut": (2400, 3400)},
     "pros": {**_B, "kick": "4+", "snare": True, "ghost": True, "shaker": True, "perc": "bongo", "bass": 3,
-             "pulse": "A", "lead": True, "fill": "roll2", "cut": (2000, 3000)},
-    "finder": {**_B, "shaker": True, "perc": "rim", "pulse": "B", "arp": "B", "fill": "riser", "cut": (1700, 3000)},
+             "pulse": "A", "lead": True, "fill": "roll2", "cut": (2600, 3800)},
+    "finder": {**_B, "shaker": True, "perc": "rim", "pulse": "B", "arp": "B", "fill": "riser", "cut": (2200, 4000)},
     "brands": {**_B, "kick": "4+", "snare": True, "ghost": True, "shaker": True, "tamb": True, "perc": "bongo",
-               "bass": 2, "pulse": "A", "stab": "drive", "arp": "A", "lead": True, "fill": "big", "cut": (2600, 3800)},
-    "endcard": {**_B, "snare": True, "stab": "down", "fill": None, "cut": (2600, 900)},
+               "bass": 2, "pulse": "A", "stab": "drive", "arp": "A", "lead": True, "fill": "big", "cut": (3200, 5000)},
+    "endcard": {**_B, "snare": True, "stab": "down", "fill": None, "cut": (3200, 1100)},
 }
 CFG_DEFAULT = {**_B, "perc": "rim", "arp": "A"}
 
@@ -144,10 +144,14 @@ FILLS = {
 }
 
 # Stem gains (linear) and bus sends.
-GAIN = dict(kick=0.50, sub=0.22, midbass=0.24, pad=0.62, clap=0.62, snare=0.30, tom=0.30, hat=0.24, ohat=0.10,
-            shaker=0.15, perc=0.22, rim=0.15, bongo=0.20, tamb=0.10, motif=0.52, bell=0.13, arp=0.18, lead=0.10,
-            stab=0.30, pulse=0.15, crash=0.07, swell=0.14, riser=0.15, impact=0.70, logo=0.14, suck=0.30,
-            downl=0.09)
+GAIN = dict(kick=0.40, sub=0.14, midbass=0.27, pad=0.85, clap=0.80, snare=0.40, tom=0.34, hat=0.32, ohat=0.14,
+            shaker=0.20, perc=0.30, rim=0.22, bongo=0.25, tamb=0.14, motif=0.58, bell=0.15, arp=0.24, lead=0.11,
+            stab=0.55, pulse=0.22, crash=0.08, swell=0.15, riser=0.16, impact=0.62, logo=0.15, suck=0.30,
+            downl=0.10)
+# Section gain automation (dB) on the pre-master sum: an arc (the drop and the last scenes on top);
+# a (from, to) pair ramps across the scene.
+SECTION_GAIN = {"cold-open": -0.6, "problem": (-3.0, 0.0), "reveal": 1.0, "turn": 0.0, "specs": -0.3, "reviews": 0.0,
+                "pros": 0.3, "finder": 0.0, "brands": 0.6, "endcard": 0.4}
 SEND_HALL = dict(pad=0.30, motif=0.28, bell=0.55, arp=0.30, lead=0.45, clap=0.10, logo=0.9, stab=0.25, pulse=0.12,
                  swell=0.2, crash=0.2, bongo=0.10, rim=0.15, downl=0.3)
 SEND_ROOM = dict(clap=0.30, snare=0.30, tom=0.25, hat=0.10, perc=0.25, shaker=0.08, rim=0.25, bongo=0.25, tamb=0.15)
@@ -555,9 +559,9 @@ class Song:
         a = s["start"]
         u = np.arange(t_stop - a) / SPB
         pts = [0, (nb - 1) / 3, 2 * (nb - 1) / 3, nb - 1]
-        cut = np.exp(np.interp(u, pts, np.log([650.0, 1500.0, 4200.0, 16000.0])))
+        cut = np.exp(np.interp(u, pts, np.log([900.0, 1900.0, 4800.0, 16000.0])))
         self.filters.append((a, t_stop, cut))
-        self.ev(s["start"], f"{sid}: build (low-pass 650 Hz -> 16 kHz, snare roll, data storm) "
+        self.ev(s["start"], f"{sid}: build (low-pass 900 Hz -> 16 kHz, snare roll, data storm) "
                 + " ".join(sg["chord"] for sg in self.segments(sid)))
         self.ev(t_stop - rn, "riser starts")
         self.ev(t_stop, "hard stop (1 beat) + suck")
@@ -650,6 +654,21 @@ class Song:
         y[a0:b] = x[a0:b] * (1 - w)[:, None] + seg * w[:, None]
         return y
 
+    def section_gain(self) -> np.ndarray:
+        g = np.zeros(self.L)
+        for sid in self.order:
+            s = self.sc[sid]
+            v = SECTION_GAIN.get(sid, 0.0)
+            a, b = s["start"], s["end"]
+            g[a:b] = np.linspace(v[0], v[1], b - a) if isinstance(v, tuple) else v
+        last = SECTION_GAIN.get(self.end_id, 0.0)
+        g[self.sc[self.end_id]["end"]:] = last[1] if isinstance(last, tuple) else last
+        # ~4 ms ramp that starts AT each scene start (causal), so the new level lands on frame 0
+        k = nsamp(0.004)
+        from scipy.signal import lfilter
+        g = lfilter(np.ones(k) / k, [1.0], g)
+        return 10 ** (g / 20)
+
     def stop_gates(self) -> tuple[np.ndarray, np.ndarray]:
         """dry gate (hard stop, instant reopen on the hit) and wet gate (also kills old reverb tails,
         reopening over 150 ms after the hit)."""
@@ -688,7 +707,7 @@ class Song:
         st["pulse"] = st["pulse"] + pingpong(st["pulse"], 0.375, 0.3, 4, 3200, 500) * 0.2
         st["stab"] = widen(hp(st["stab"], 160), 1.2)
         st["lead"] = chorus(st["lead"], 5, 0.3, 0.5)
-        st["midbass"] = saturate(lp(st["midbass"], 1600), 1.3)
+        st["midbass"] = saturate(lp(st["midbass"], 2600), 1.7)
         st["hat"] = lp(hp(st["hat"], 6000), 12500)
         st["ohat"] = lp(st["ohat"], 12000)
         st["perc"] = lp(st["perc"], 12000)
@@ -725,6 +744,7 @@ class Song:
         dark = convolve(dark_in, self.irs["dark"])
         y = dry + (hall * 0.9 + room * 0.8 + dark * 0.8) * gw[:, None]
         self.stem_levels = {k: float(db(np.sqrt(np.mean((v * GAIN.get(k, 0)) ** 2)) + 1e-12)) for k, v in st.items()}
+        y = y * self.section_gain()[:, None]
         # master: low cut, mono lows, gentle glue
         y = hp(y, 22)
         y = mono_below(y, 110)
