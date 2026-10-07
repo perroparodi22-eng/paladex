@@ -240,8 +240,8 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
                 )}
                 {s.key === "lists" && (
                   <>
-                    <div style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", background: "#0a0b0d", opacity: interpolate(frame, [wGood + 28, wBad - 4], [0, 0.62], clamp) * interpolate(frame, [wBad + 24, wBad + 40], [1, 0], clamp) }} />
-                    <div style={{ position: "absolute", right: 0, top: 0, width: "50%", height: "100%", background: "#0a0b0d", opacity: interpolate(frame, [wGood - 20, wGood - 6], [0, 0.62], clamp) * interpolate(frame, [wGood + 22, wGood + 34], [1, 0], clamp) }} />
+                    <div style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", background: "#0a0b0d", opacity: interpolate(frame, [wBad - 6, wBad + 6], [0, 0.62], clamp) }} />
+                    <div style={{ position: "absolute", right: 0, top: 0, width: "50%", height: "100%", background: "#0a0b0d", opacity: interpolate(frame, [wGood - 20, wGood - 6], [0, 0.62], clamp) * interpolate(frame, [wBad - 8, wBad + 2], [1, 0], clamp) }} />
                   </>
                 )}
                 {isSrc && (
