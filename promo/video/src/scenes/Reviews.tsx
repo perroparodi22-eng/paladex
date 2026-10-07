@@ -25,6 +25,7 @@ const PAGE_H = 1080;
 const WIN_CY = (PAGE_H + CHROME_H) / 2;
 const K = 2.6; // slabs are authored K× larger and scaled down (sharp when close)
 
+const cw = (p: { key: string; w: number }) => (p.key === "sources" ? p.w * 0.47 : p.w);
 const lift = Easing.bezier(0.2, 0, 0.1, 1); // quick take-off, soft settle
 const sink = Easing.bezier(0.6, 0, 0.3, 1);
 
@@ -54,25 +55,23 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
   const viewer = M.viewer;
 
   // --- Beats (voice) ----------------------------------------------------------
-  const wWhat = wordAt(timing, "What", 17);
-  // Each lift needs ~half a second: a fast read can put these words closer than that, so the
-  // beats follow the voice but never bunch up (keeps every interpolate range increasing).
-  const GAP = 30;
-  const wReviewers = Math.max(wordAt(timing, "reviewers", 49), wWhat + GAP);
-  const wSay = Math.max(wordAt(timing, "say", 80), wReviewers + GAP);
-  const wSummed = Math.max(wordAt(timing, "summed", 112), wSay + GAP);
-  const wUp = Math.max(wordAt(timing, "up", 136), wSummed + 12);
-  const wWith = Math.max(wordAt(timing, "with", 153), wSummed + GAP);
-  const wSources = Math.max(wordAt(timing, "sources", 186, 0, "end"), wWith + 24);
+  // Three long beats, one card at a time (each readable 1+ s), every card in its own 3D context so
+  // two planes can never slice through each other:
+  //   "What the reviewers say, summed up"  the summary paragraph (a highlight sweeps it on "summed up")
+  //   "The good, the bad"                   the two lists: green column on "good", red one on "bad"
+  //   "with the sources to back it"         the Sources card; the cursor opens each link
+  const wWhat = wordAt(timing, "What", 14);
+  const wSummed = Math.max(wordAt(timing, "summed", 72), wWhat + 40);
+  const wGood = Math.max(wordAt(timing, "good", 122), wSummed + 40);
+  const wBad = Math.max(wordAt(timing, "bad", 148), wGood + 20);
+  const wWith = Math.max(wordAt(timing, "with", 166), wBad + 14);
+  const wSources = Math.max(wordAt(timing, "sources", 186, 0, "end"), wWith + 14);
+  const wBack = Math.max(wordAt(timing, "back", 214), wSources + 20);
 
   const pieces: Piece[] = [
-    { key: "title", still: "reviews-crop-title", take: wWhat - 14, land: wWhat + 4, back: wReviewers - 16, home: wReviewers + 6, scale: 2.75, rotY: -7, rotX: 3, y: -90 },
-    { key: "summary", still: "reviews-crop-summary", take: wReviewers - 16, land: wReviewers + 4, back: wSay - 16, home: wSay + 8, scale: 2.6, rotY: 6, rotX: 2, y: -70 },
-    { key: "lists", still: "reviews-crop-lists", take: wSay - 14, land: wSay + 4, back: wSummed - 18, home: wSummed + 6, scale: 2.55, rotY: -6, rotX: 3, y: -50 },
-    { key: "read", still: "reviews-crop-read", take: wSummed - 16, land: wSummed + 6, back: wWith - 16, home: wWith + 8, scale: 2.7, rotY: 5, rotX: 3, y: -60 },
-    { key: "sources", still: "reviews-crop-sources", take: wWith - 16, land: wWith + 8, back: D + 200, home: D + 220, scale: 3.1, rotY: -4, rotX: 2, y: 110 },
-    // Finale: Paladex's read comes back up behind the Sources, composed in depth.
-    { key: "read2", still: "reviews-crop-read", take: wWith + 14, land: wWith + 34, back: D + 200, home: D + 220, scale: 1.95, rotY: 9, rotX: 4, y: -245 },
+    { key: "summary", still: "reviews-crop-summary", take: wWhat - 6, land: wWhat + 14, back: wGood - 22, home: wGood - 4, scale: 2.6, rotY: 6, rotX: 2, y: -40 },
+    { key: "lists", still: "reviews-crop-lists", take: wGood - 20, land: wGood + 2, back: wWith - 12, home: wWith + 6, scale: 2.55, rotY: -6, rotX: 3, y: -30 },
+    { key: "sources", still: "reviews-crop-sources", take: wWith - 8, land: wWith + 14, back: D + 200, home: D + 220, scale: 3.9, rotY: -4, rotX: 2, y: 20 },
   ];
   const crops = pieces.map((p) => {
     const s = still(p.still);
@@ -81,15 +80,15 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
 
   // --- Page scroll -------------------------------------------------------------
   const S2 = M.scroll.h;
-  const scroll = monotone([-10, wReviewers, wSummed, wSources, D + 60], [S0 + 10, S0 + 60, S0 + 130, S2 - 4, S2], frame);
+  const scroll = monotone([-10, wWhat + 20, wGood, wWith + 20, D + 60], [S0 + 10, S0 + 60, S0 + 130, S2 - 4, S2], frame);
 
   // --- Page camera -----------------------------------------------------------
   const keys: PoseKey[] = [
     { f: -20, x: 40, y: 140, z: -420, rotateX: 30, rotateY: -32, rotateZ: 4, scale: 1 },
     { f: wWhat + 10, x: -330, y: 40, z: -90, rotateX: 18, rotateY: -20, rotateZ: 1.5, scale: 1 },
-    { f: wSay, x: -380, y: 90, z: -140, rotateX: 22, rotateY: -15, rotateZ: 0.4, scale: 1 },
-    { f: wSummed + 20, x: -300, y: 110, z: -190, rotateX: 26, rotateY: -12, rotateZ: -0.4, scale: 1 },
-    { f: wSources + 10, x: -120, y: 60, z: -110, rotateX: 18, rotateY: -6, rotateZ: -0.6, scale: 1 },
+    { f: wSummed, x: -380, y: 90, z: -140, rotateX: 22, rotateY: -15, rotateZ: 0.4, scale: 1 },
+    { f: wGood + 20, x: -300, y: 110, z: -190, rotateX: 26, rotateY: -12, rotateZ: -0.4, scale: 1 },
+    { f: wWith + 20, x: -120, y: 60, z: -110, rotateX: 18, rotateY: -6, rotateZ: -0.6, scale: 1 },
     { f: D + 18, x: 200, y: 20, z: -80, rotateX: 8, rotateY: 8, rotateZ: -1, scale: 1 },
     { f: D + 120, x: 420, y: 0, z: 200, rotateX: 4, rotateY: 12, rotateZ: -1.2, scale: 1 },
   ];
@@ -120,8 +119,8 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
     const down = interpolate(frame, [p.back, p.home], [0, 1], { ...clamp, easing: sink });
     const t = up * (1 - down);
     const dir = i % 2 === 0 ? -1 : 1;
-    const yOff = p.key === "sources" ? interpolate(frame, [wWith + 10, wWith + 36], [-150, 0], { ...clamp, easing: lift }) : 0;
-    const push = p.key === "sources" ? interpolate(frame, [wSources - 6, wSources + 40], [1, 1.14], { ...clamp, easing: lift }) : 1;
+    const yOff = 0;
+    const push = p.key === "sources" ? interpolate(frame, [wSources - 6, D + 40], [1, 1.1], { ...clamp, easing: lift }) : 1;
     const hero: SlabState = {
       P: {
         x: drift(`rv-hx${i}`, frame, 12, 0.1) + dir * interpolate(frame, [p.land, p.back], [-14, 14], clamp),
@@ -148,9 +147,9 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
   });
 
   // --- Sources interaction (cursor + hover crops inside the sources slab) ----------
-  const src = crops[4];
+  const src = crops[2];
   const lk = [M.link0, M.link1];
-  const hoverAt = [wSources, wSources + 24];
+  const hoverAt = [wSources, wBack];
   const hoverOp = hoverAt.map((h, i) => {
     const next = hoverAt[i + 1];
     return interpolate(frame, [h - 3, h, ...(next ? [next - 3, next] : [h + 400, h + 401])], [0, 1, ...(next ? [1, 0] : [1, 1])], clamp);
@@ -158,11 +157,11 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
   const pt = (i: number) => ({ x: lk[i].x - src.crop.x + lk[i].w / 2, y: lk[i].y - src.crop.y + lk[i].h / 2 });
   const cur = cursorAt(
     [
-      { f: wWith + 4, x: src.w * 0.93, y: src.h + 40 },
-      { f: hoverAt[0] - 2, x: pt(0).x + 8, y: pt(0).y + 6 },
-      { f: hoverAt[0] + 8, x: pt(0).x + 8, y: pt(0).y + 6 },
-      { f: hoverAt[1] - 2, x: pt(1).x + 8, y: pt(1).y + 6 },
-      { f: D + 60, x: pt(1).x + 14, y: pt(1).y + 12 },
+      { f: wWith + 4, x: src.w * 0.5, y: src.h + 60 },
+      { f: hoverAt[0] - 2, x: pt(0).x + 8, y: pt(0).y + 16 },
+      { f: hoverAt[0] + 8, x: pt(0).x + 8, y: pt(0).y + 16 },
+      { f: hoverAt[1] - 2, x: pt(1).x + 8, y: pt(1).y + 16 },
+      { f: D + 60, x: pt(1).x + 14, y: pt(1).y + 16 },
     ],
     frame,
   );
@@ -208,21 +207,20 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
         }}
       />
 
-      <Space3D style={{ translate: `${interpolate(frame, [D - 14, D + 18], [0, 420], { ...clamp, easing: easeIn })}px 0px`, rotate: `${interpolate(frame, [D - 14, D + 18], [0, -2], { ...clamp, easing: easeIn })}deg` }}>
-        {slabs.map((s) => {
+      {slabs.map((s) => {
           if (s.on <= 0.001) return null;
           const isSrc = s.key === "sources";
           return (
+            <Space3D key={s.key} style={{ translate: `${interpolate(frame, [D - 14, D + 18], [0, 420], { ...clamp, easing: easeIn })}px 0px`, rotate: `${interpolate(frame, [D - 14, D + 18], [0, -2], { ...clamp, easing: easeIn })}deg` }}>
             <div
-              key={s.key}
               style={{
                 position: "absolute",
                 left: "50%",
                 top: "50%",
-                width: s.w * K,
+                width: cw(s) * K,
                 height: s.h * K,
                 transformOrigin: "0 0",
-                transform: slabTransform(s.state, s.w, s.h, K),
+                transform: slabTransform(s.state, cw(s), s.h, K),
                 opacity: s.on,
               }}
             >
@@ -236,7 +234,16 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
                   background: "#0a0b0d",
                 }}
               >
-                <Img src={staticFile(s.file)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+                <Img src={staticFile(s.file)} style={{ position: "absolute", left: 0, top: 0, width: s.w * K, height: s.h * K, maxWidth: "none" }} />
+                {s.key === "summary" && (
+                  <div style={{ position: "absolute", left: 0, right: 0, top: `${interpolate(frame, [wSummed - 4, wSummed + 34], [-20, 110], clamp)}%`, height: "22%", background: "linear-gradient(180deg, rgba(236,238,241,0), rgba(236,238,241,0.13) 50%, rgba(236,238,241,0))", opacity: interpolate(frame, [wSummed - 4, wSummed + 4, wSummed + 28, wSummed + 36], [0, 1, 1, 0], clamp) }} />
+                )}
+                {s.key === "lists" && (
+                  <>
+                    <div style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", background: "#0a0b0d", opacity: interpolate(frame, [wGood + 28, wBad - 4], [0, 0.62], clamp) * interpolate(frame, [wBad + 24, wBad + 40], [1, 0], clamp) }} />
+                    <div style={{ position: "absolute", right: 0, top: 0, width: "50%", height: "100%", background: "#0a0b0d", opacity: interpolate(frame, [wGood - 20, wGood - 6], [0, 0.62], clamp) * interpolate(frame, [wGood + 22, wGood + 34], [1, 0], clamp) }} />
+                  </>
+                )}
                 {isSrc && (
                   <div style={{ position: "absolute", left: 0, top: 0, width: s.w, height: s.h, transformOrigin: "0 0", scale: `${K}` }}>
                     {lk.map((l, i) => (
@@ -270,9 +277,9 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
                 />
               </div>
             </div>
+            </Space3D>
           );
         })}
-      </Space3D>
 
       <Sfx name="whoosh-soft" at={0} volume={0.35} />
       {crops.map((p, i) => (
@@ -281,10 +288,11 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
           <Sfx name="tick" at={p.land} volume={0.45} />
         </React.Fragment>
       ))}
-      <Sfx name="impact" at={wSummed + 6} volume={0.5} />
+      <Sfx name="tick" at={wGood} volume={0.4} />
+      <Sfx name="tick" at={wBad} volume={0.4} />
       <Sfx name="pop" at={hoverAt[0]} volume={0.5} />
       <Sfx name="pop" at={hoverAt[1]} volume={0.45} />
-      <Sfx name="shimmer" at={wSources + 4} volume={0.3} />
+      <Sfx name="click" at={wBack} volume={0.5} />
     </AbsoluteFill>
   );
 };

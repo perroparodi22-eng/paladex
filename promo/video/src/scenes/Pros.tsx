@@ -30,7 +30,7 @@ type CardDef = { key: string; who: string; tour: string; name: string };
 const ALL = cards as CardDef[];
 const byWho = (who: string) => ALL.find((c) => c.who === who)!;
 const MEN = ["Arturo Coello", "Alejandro Galán", "Fede Chingotto", "Juan Lebrón", "Franco Stupaczuk", "Paquito Navarro", "Mike Yanguas", "Leo Augsburger", "Jon Sanz", "Martín Di Nenno"].map(byWho);
-const WOMEN = ["Ari Sánchez", "Paula Josemaría", "Gemma Triay", "Delfi Brea", "Alejandra Salazar", "Claudia Fernández"].map(byWho);
+const WOMEN = ["Ari Sánchez", "Delfi Brea", "Alejandra Salazar", "Claudia Fernández"].map(byWho);
 const TAPIA = byWho("Agustín Tapia");
 const TAPIA_SLUG = "nox-at10-luxury-genius-12k-alum-xtrem-2026"; // the real model of Tapia's racket
 
@@ -200,7 +200,7 @@ const ShotWomen: React.FC<{ f: number; dur: number; ping: number }> = ({ f, dur,
         })}
       </World>
       <World camX={camX * 2.1} camY={60} camRZ={3}>
-        {[WOMEN[4], WOMEN[1]].map((c, i) => (
+        {[WOMEN[3], WOMEN[1]].map((c, i) => (
           <ProCard key={c.key} def={c} x={i * 2200 + 500} y={-420} z={520} ry={8} scale={1.5} blur={11} opacity={0.8} dim={0.7} />
         ))}
       </World>
@@ -211,10 +211,15 @@ const ShotWomen: React.FC<{ f: number; dur: number; ping: number }> = ({ f, dur,
 /** Shot 3: macro of the "played by" line (dpr 4 crop). `p` = whole-shot progress. */
 const ShotMacro: React.FC<{ f: number; dur: number }> = ({ f, dur }) => {
   const s = still("pros-tapia-info");
-  const scale = mix(2.6, 3.4, easeOut(clamp01(f / (dur * 0.8)))) + f * 0.004;
+  const scale = mix(2.2, 2.85, easeOut(clamp01(f / (dur * 0.8))));
   const pan = mix(60, -90, clamp01(f / dur));
   return (
     <AbsoluteFill style={{ filter: `blur(${whip(f, dur, 4, 6)}px)` }}>
+      <World camX={mix(300, 700, clamp01(f / dur))} camY={0} camRZ={-1.5}>
+        {[MEN[2], MEN[3], MEN[4], MEN[5], MEN[6]].map((c, i) => (
+          <ProCard key={c.key} def={c} x={i * 520} y={(i % 2) * 40 - 20} z={-700} ry={-12} scale={1.3} blur={8} opacity={0.9} dim={0.55} />
+        ))}
+      </World>
       <Space3D perspective={1500}>
         <div style={{ position: "absolute", left: "50%", top: "50%", transformStyle: "preserve-3d", transform: `translate3d(${pan}px, -40px, 0px) rotateY(${mix(14, -6, clamp01(f / dur))}deg) rotateZ(${mix(-2.2, 0.6, clamp01(f / dur))}deg) scale(${scale})` }}>
           <div style={{ position: "absolute", left: -s.width / 2, top: -s.height / 2, width: s.width, height: s.height, borderRadius: 18, overflow: "hidden", boxShadow: "0 0 0 1px rgba(236,238,241,0.1), 0 50px 120px rgba(0,0,0,0.7)" }}>
@@ -255,35 +260,23 @@ const ShotLand: React.FC<{ f: number; dur: number }> = ({ f, dur }) => {
 
 const rise2 = (f: number, a: number, d: number) => interpolate(f, [a, a + d], [0, 1], { ...clamp, easing: easeOut });
 
-/** The page's title and its own caveat paragraph, crops of the real head still. */
+/** The page's own title and caveat (verbatim text), set in the video's type. */
 const PageHead: React.FC<{ f: number; x: number; y: number }> = ({ f, x, y }) => {
-  const s = still("pros-head");
   const t1 = rise2(f, 0, 26);
   const t2 = rise2(f, 7, 26);
-  const sc1 = 0.76;
-  const sc2 = 0.98;
-  // crop rows in head-still CSS px: title 66..172, caveat 172..268
-  const row = (t: number, top: number, h: number, w: number, sc: number, oy: number) => (
-    <div
-      style={{
-        position: "absolute",
-        left: 0,
-        top: oy,
-        width: w * sc,
-        height: h * sc,
-        overflow: "hidden",
-        opacity: t,
-        translate: `${(1 - t) * 120}px 0px`,
-        filter: `blur(${(1 - t) * 12}px)`,
-      }}
-    >
-      <Img src={src("pros-head")} style={{ position: "absolute", left: 0, top: -top * sc, width: s.width * sc, height: s.height * sc, maxWidth: "none" }} />
-    </div>
+  const row = (t: number, children: React.ReactNode, top: number) => (
+    <div style={{ position: "absolute", left: 0, top, opacity: t, translate: `${(1 - t) * 120}px 0px`, filter: `blur(${(1 - t) * 12}px)` }}>{children}</div>
   );
   return (
-    <div style={{ position: "absolute", left: x, top: y, width: 880, height: 360, transform: `perspective(1400px) rotateY(${mix(-14, -5, t1)}deg)`, transformOrigin: "0 50%" }}>
-      {row(t1, 66, 106, 860, sc1, 0)}
-      {row(t2, 172, 100, 700, sc2, 100)}
+    <div style={{ position: "absolute", left: x, top: y, width: 700, height: 420, transform: `perspective(1400px) rotateY(${mix(-14, -5, t1)}deg) translateX(${f * -0.12}px)`, transformOrigin: "0 50%" }}>
+      {row(t1, <div style={{ ...display, fontSize: 84, width: 700 }}>Pro players' rackets</div>, 0)}
+      {row(
+        t2,
+        <div style={{ fontFamily: FONT, fontSize: 25, lineHeight: 1.42, color: C.ink2, width: 640 }}>
+          What the top of the tour plays, in 3D. Players are matched to rackets from public lists as of early 2026; sponsors and editions change during the season, and some pros play a personalised version of the model shown.
+        </div>,
+        190,
+      )}
     </div>
   );
 };
@@ -335,7 +328,7 @@ export const Pros: React.FC<SceneProps> = ({ timing, timeline }) => {
         </AbsoluteFill>
       )}
 
-      {frame >= c3 + 44 && <PageHead f={frame - (c3 + 44)} x={1150} y={290} />}
+      {frame >= c3 + 44 && <PageHead f={frame - (c3 + 44)} x={1130} y={300} />}
 
       {/* landing impact: a soft flash and one thin ring */}
       {lf >= 14 && (
