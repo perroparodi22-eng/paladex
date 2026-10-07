@@ -82,13 +82,13 @@ def click() -> np.ndarray:
     t = _t(n)
     contact = bp(hp(noise(n), 2500), 6800, 0.9) * np.exp(-t / 0.0006)
     tock = _phase_sin(1850 + 1500 * np.exp(-t / 0.0018)) * np.exp(-t / 0.0045)
-    body = _phase_sin(165 + 140 * np.exp(-t / 0.0025)) * (1 - np.exp(-t / 0.0004)) * np.exp(-t / 0.011)
-    x = contact * 1.1 + tock * 0.55 + body * 0.75
+    body = _phase_sin(190 + 150 * np.exp(-t / 0.002)) * (1 - np.exp(-t / 0.0004)) * np.exp(-t / 0.005)
+    x = contact * 1.25 + tock * 0.6 + body * 0.42
     x = _sat(x, 1.6)
     x = fade(x, 0.00015, 0.01)
     y = _room(x, 0.16, 0.07, seed=3, damp=9000, lo_cut=500)
-    y = _trim(y, 0.075)
-    return _norm(_end_fade(y, 0.02), -2.0)
+    y = _trim(y, 0.07)
+    return _norm(_end_fade(y, 0.02), -4.0)
 
 
 def tick() -> np.ndarray:
@@ -110,18 +110,18 @@ def pop() -> np.ndarray:
     t = _t(n)
     f = 190 + 640 * (1 - np.exp(-t / 0.0095))
     ph = 2 * np.pi * np.cumsum(f) / SR
-    env = (1 - np.exp(-t / 0.0007)) * np.exp(-t / 0.038)
+    env = (1 - np.exp(-t / 0.0007)) * np.exp(-t / 0.026)
     body = np.sin(ph) * env
     harm = 0.28 * np.sin(2 * ph) * env * np.exp(-t / 0.012)
     lip = bp(noise(n), 3200, 1.6) * np.exp(-t / 0.0006) * 0.45
-    thump = _phase_sin(140 - 40 * (1 - np.exp(-t / 0.01))) * (1 - np.exp(-t / 0.0006)) * np.exp(-t / 0.018) * 0.45
+    thump = _phase_sin(140 - 40 * (1 - np.exp(-t / 0.01))) * (1 - np.exp(-t / 0.0006)) * np.exp(-t / 0.012) * 0.38
     x = body + harm + lip + thump
     x = _sat(x, 1.35)
     x = lp(x, 8000)
     x = fade(x, 0.0002, 0.03)
     y = _room(x, 0.3, 0.09, seed=5, damp=6500, lo_cut=350)
-    y = _trim(y, 0.2)
-    return _norm(_end_fade(y, 0.05), -2.5)
+    y = _trim(y, 0.17)
+    return _norm(_end_fade(y, 0.05), -3.5)
 
 
 def swipe() -> np.ndarray:
@@ -165,7 +165,7 @@ def _whoosh(dur: float, tp: float, speed: float, closest: float, bands: tuple, w
     for fc, q, g in bands:
         y += sweep(noise(n), fc * dop * (0.75 + 0.5 * amp), "bp", q=q, block=32) * g
     y = sweep(y, bright, "lp", q=0.7, block=64)
-    wh = sweep(noise(n), whistle_hz * dop, "bp", q=9.0, block=32) * 0.9 * amp ** 0.5
+    wh = sweep(noise(n), whistle_hz * dop, "bp", q=9.0, block=32) * 2.0 * amp ** 0.5
     bod = sweep(noise(n), 160 + 520 * amp, "lp", q=0.9, block=64) * body
     rum = _phase_sin(72 * dop) * rumble
     x = (y + wh + bod + rum) * amp
@@ -183,7 +183,7 @@ def _whoosh(dur: float, tp: float, speed: float, closest: float, bands: tuple, w
 
 def whoosh() -> np.ndarray:
     """Big pass-by whoosh (~0.85 s, peak at 0.32 s): air with body, a clear doppler drop."""
-    y = _whoosh(0.7, 0.32, 6.0, 0.55, ((700, 1.1, 1.0), (1700, 1.6, 0.6), (3800, 2.0, 0.35)), 980.0, 1.1, 0.35, 0.16,
+    y = _whoosh(0.7, 0.32, 6.0, 0.55, ((700, 1.1, 1.0), (1700, 1.6, 0.6), (3800, 2.0, 0.35)), 980.0, 1.1, 0.28, 0.16,
                 11, 0.8, 0.16)
     return _norm(y, -1.5)
 
@@ -212,8 +212,9 @@ def whip() -> np.ndarray:
     i = nsamp(0.22 * pk)
     crack = np.zeros(n)
     m = n - i
-    crack[i:] = hp(noise(m), 2500) * np.exp(-_t(m) / 0.004) * 0.9
+    crack[i:] = hp(noise(m), 2500) * np.exp(-_t(m) / 0.004) * 0.55
     x = hp(x + crack, 200)
+    x = _sat(x / np.max(np.abs(x)), 2.2)  # denser swish, same peak
     pan = np.tanh((u - pk) * 7.0) * 0.85
     y = _pan(x, pan)
     y = _room(fade(y, 0.001, 0.01), 0.3, 0.1, seed=14, damp=8000, lo_cut=600)
@@ -229,8 +230,8 @@ def hit() -> np.ndarray:
     n = nsamp(0.42)
     t = _t(n)
     f = 52 + 120 * np.exp(-t / 0.016) + 60 * np.exp(-t / 0.003)
-    punch = np.sin(2 * np.pi * np.cumsum(f) / SR) * (1 - np.exp(-t / 0.0004)) * np.exp(-t / 0.13)
-    punch = _sat(punch, 2.4)
+    punch = np.sin(2 * np.pi * np.cumsum(f) / SR) * (1 - np.exp(-t / 0.0004)) * np.exp(-t / 0.095)
+    punch = _sat(punch, 1.6)
     knock = _phase_sin(230 + 120 * np.exp(-t / 0.004)) * np.exp(-t / 0.035) * 0.45
     crack = np.zeros(n)
     nz = bp(noise(n), 1900, 0.7) + 0.6 * hp(noise(n), 4500)
@@ -240,7 +241,7 @@ def hit() -> np.ndarray:
         e[i:] = np.exp(-t[: n - i] / tau)
         crack += nz * e * g
     crack = hp(crack, 500)
-    x = punch * 1.0 + knock + crack * 0.55
+    x = punch * 1.0 + knock + crack * 0.8
     x = fade(x, 0.0002, 0.03)
     y = _room(x, 0.7, 0.16, seed=17, damp=7500, lo_cut=400)
     y = _trim(y, 0.66)
@@ -270,9 +271,11 @@ def impact() -> np.ndarray:
     dry = kick * 1.0 + sub * 0.9 + clang * 0.35 + body + burst + crack
     dry = fade(dry, 0.0003, 0.05)
     dry = _sat(dry / np.max(np.abs(dry)), 1.8)  # density: shave the transient, keep the weight
+    snap = (hp(noise(n), 1800) * np.exp(-t / 0.006) + _phase_sin(95 + 260 * np.exp(-t / 0.004)) * np.exp(-t / 0.02))
+    dry = dry + snap * 0.55
     ir = make_ir(2.6, predelay=0.018, damp_hz=3600, lo_cut=90, decay_hz_end=700, seed=21)
     wet = convolve(lp(dry, 5000), ir)[:n]
-    y = stereo(dry) * 0.9 + wet * 0.5
+    y = stereo(dry) * 0.9 + wet * 0.36
     y = hp(y, 24)
     y = _mono_low(y, 120)
     return _norm(_end_fade(y, 0.7), -1.5)
@@ -362,6 +365,8 @@ def render_all(out_dir: Path) -> dict[str, dict]:
     for name, fn in SFX.items():
         x = fn()
         assert x.ndim == 2 and x.shape[1] == 2
+        target = db(true_peak(x))
+        x = _norm(_end_fade(hp(x, 18), 0.003), target)  # remove DC from asymmetric transients
         assert db(true_peak(x)) <= -1.0 + 1e-6, name
         write_wav(out_dir / f"{name}.wav", x)
         k = x.mean(axis=1)
