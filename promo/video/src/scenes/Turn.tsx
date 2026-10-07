@@ -99,10 +99,12 @@ const orbitAt = (f: number, m: Marks): OrbitPose => {
   const px = smooth(f, [0, turn + 4, handEnd + 6], [930, 705, 662]);
   const py = smooth(f, [0, turn, front, every], [548, 562, 584, 590]);
   // Where that point sits on screen (offset from the frame centre).
-  const sx = smooth(f, [0, turn, front, every], [20, -86, -122, -128]);
+  // (plus a lateral kick on each click)
+  const kick = m.clicks.reduce((a, c, i) => a + [-34, 30, -24][i % 3] * interpolate(f, [c, c + 16], [0, 1], { ...clamp, easing: easeOut }), 0);
+  const sx = smooth(f, [0, turn, front, every], [20, -86, -122, -128]) + kick;
   const sy = smooth(f, [0, turn, front, every], [-6, -38, -60, -66]);
   // Push in: a quick approach, then a real push while the racket is spun.
-  let s = smooth(f, [0, turn, handEnd + 4, every], [0.58, 0.69, 0.86, 0.93]);
+  let s = smooth(f, [0, turn, handEnd + 4, every], [0.68, 0.74, 0.88, 0.93]);
   // Orbit: from the window's left side round to its right; each view click snaps the
   // camera a few degrees to the other side (a decisive change every click).
   const snap = m.clicks.reduce((a, c, i) => a + [-4.5, 5.5, -4][i % 3] * interpolate(f, [c, c + 13], [0, 1], { ...clamp, easing: easeOut }), 0);
@@ -181,7 +183,7 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const [c0, c1, c2] = [evClicks[0] ?? 162, evClicks[1] ?? 203, evClicks[2] ?? 250];
   const GLIDE = 40; // clip frames from the Back click to the end of its glide
   const fs = [0, grabF, relF, front, side, back, every, every + 400];
-  const cs = [Math.max(0, Math.round(evGrab - 1.6 * grabF)), evGrab, evRel, c0, c1, c2, c2 + GLIDE, c2 + GLIDE + 400];
+  const cs = [Math.max(0, Math.round(evGrab - 1.15 * grabF)), evGrab, evRel, c0, c1, c2, c2 + GLIDE, c2 + GLIDE + 400];
   for (let i = 1; i < fs.length; i++) fs[i] = Math.max(fs[i], fs[i - 1] + 1), (cs[i] = Math.max(cs[i], cs[i - 1] + 1));
   const cm = (f: number) => interpolate(f, fs, cs, { easing: (t) => t, extrapolateLeft: "extend", extrapolateRight: "extend" });
   const rate = (f: number) => cm(f + 0.5) - cm(f - 0.5);

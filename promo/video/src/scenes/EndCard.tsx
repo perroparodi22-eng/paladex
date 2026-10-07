@@ -106,13 +106,33 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const everyAt = wordAt(timing, "every", lineAt + 30);
   const sideEnd = wordAt(timing, "side", everyAt + 30, 0, "end");
   const spin =
-    -1.38 +
+    -2.28 +
     1.06 * (frame / span) +
+    0.9 * interpolate(frame, [4, brandAt + 56], [0, 1], { ...clamp, easing: Easing.bezier(0.25, 0.1, 0.2, 1) }) +
     0.84 * interpolate(frame, [everyAt - 60, sideEnd + 50], [0, 1], { ...clamp, easing: Easing.bezier(0.45, 0, 0.55, 1) }) +
     drift("ec-spin", frame, 0.02, 0.05);
   const lean = 0.1 + drift("ec-lean", frame, 0.012, 0.05);
   const pitch = 0.05 + drift("ec-pitch", frame, 0.015, 0.06);
   const bob = drift("ec-bob", frame, 0.004, 0.08);
+
+  // --- Depth layer: three soft rackets far behind the hero whip in from the right on
+  // the first beats and keep drifting, so the stretch before the headline is never a
+  // lone logo. They sit at the right, clear of the text column.
+  const backs = [
+    { slug: "bullpadel-elite-02-27", px: 1840, py: 700, z: -1.0, size: 1, at: 6, spin: 0.5, lean: -0.28 },
+    { slug: "babolat-technical-viper-2026", px: 1250, py: 760, z: -1.2, size: 1, at: 16, spin: -0.7, lean: 0.35 },
+    { slug: "adidas-metalbone-3-4", px: 1840, py: 230, z: -1.6, size: 1, at: 26, spin: 1.2, lean: 0.2 },
+  ].map((b, i) => {
+    const t = interpolate(frame, [b.at, b.at + 34], [0, 1], { ...clamp, easing: Easing.bezier(0.1, 0.7, 0.2, 1) });
+    const sxn = ((b.px + (1 - t) * 520 - width / 2) / (width / 2));
+    const syn = (height / 2 - (b.py + drift(`ec-b${i}y`, frame, 10, 0.07))) / (height / 2);
+    return {
+      ...b,
+      t,
+      pos: [camX + sxn * halfW * (d - b.z), camY + syn * halfH * (d - b.z), b.z] as [number, number, number],
+      rot: [0.05, b.spin + 0.9 * (1 - t) + 0.0045 * frame, 0] as [number, number, number],
+    };
+  });
 
   // --- Type block -----------------------------------------------------------
   const crane = interpolate(frame, [craneFrom, craneTo], [0, 1], { ...clamp, easing: easeInOut });
@@ -158,6 +178,11 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
         <group rotation={[0, 0, lean]} position={[0, bob, 0]}>
           <RacketModel slug={HERO_SLUG} rotation={[pitch, spin, 0]} />
         </group>
+        {backs.map((b) => (
+          <group key={b.slug} rotation={[0, 0, b.lean]} position={b.pos}>
+            <RacketModel slug={b.slug} rotation={b.rot} opacity={Math.min(1, b.t * 1.5) * 0.7} />
+          </group>
+        ))}
       </RacketStage>
 
       {/* Type block: drifts back with the camera (a hair, so the hold never freezes) */}
@@ -295,6 +320,8 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
       <Sfx name="whoosh-soft" at={craneFrom} volume={0.18} />
       <Sfx name="tick" at={ctaAt + 2} volume={0.35} />
       <Sfx name="swipe" at={times[0] - 4} volume={0.4} />
+      <Sfx name="whoosh" at={4} volume={0.45} />
+      <Sfx name="swipe" at={16} volume={0.3} />
       <Sfx name="impact" at={finalAt} volume={0.85} />
       <Sfx name="pop" at={finalAt} volume={0.5} />
       <Sfx name="shimmer" at={finalAt + 2} volume={0.3} />
