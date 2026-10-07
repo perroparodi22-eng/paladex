@@ -140,10 +140,13 @@ def music_volume(tl: dict, n: int) -> np.ndarray:
 
 
 def _decoded_vo(mp3_rel: str, lang: str) -> Path:
-    """Voice MP3 -> 48 kHz mono WAV under out/audio/vo/<lang>/ (Remotion's bundled ffmpeg)."""
+    """Voice file -> a WAV read_wav() can load. WAVs are used as they are (read_wav resamples);
+    MP3s are decoded to 48 kHz mono under out/audio/vo/<lang>/ (Remotion's bundled ffmpeg)."""
     import subprocess
-    wav = OUT / "vo" / lang / f"{Path(mp3_rel).stem}.wav"
     src = ROOT / "public" / mp3_rel
+    if src.suffix.lower() == ".wav":
+        return src
+    wav = OUT / "vo" / lang / f"{Path(mp3_rel).stem}.wav"
     if not wav.exists() or wav.stat().st_mtime < src.stat().st_mtime:
         wav.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(f'npx remotion ffmpeg -y -loglevel error -i "{src}" -ar 48000 -ac 1 "{wav}"', cwd=ROOT,
@@ -154,10 +157,13 @@ def _decoded_vo(mp3_rel: str, lang: str) -> Path:
 def voice_track(tl: dict, lang: str, n: int) -> np.ndarray:
     v = np.zeros(n)
     for s in tl["scenes"]:
-        w = read_wav(_decoded_vo(s["vo"]["file"], lang))[:, 0]
+        if not s.get("vo"):
+            continue
+        w = read_wav(_decoded_vo(s["vo"]["file"], lang)).mean(axis=1)
         st = s["vo"]["at"] * FRAME
         e = min(n, st + len(w))
-        v[st:e] += w[: e - st]
+        if e > st:
+            v[st:e] += w[: e - st]
     return v
 
 
@@ -169,7 +175,17 @@ def mix_check(lang: str, music: np.ndarray, tl: dict) -> dict:
     n = len(music)
     vol = music_volume(tl, n)
     m = music * vol[:, None]
-    v = voice_track(tl, lang, n)
+    try:
+        v = voice_track(tl, lang, n)
+    except Exception as e:  # missing/undecodable voice: report it, keep the other checks
+        return {"skipped": f"voice files could not be read ({e})", "music_ducked_lufs": round(lufs_integrated(m), 1)}
+    if np.max(np.abs(v)) < 1e-4:
+        # placeholders (estimated timeline): nothing to measure against; still write the ducked music
+        write_wav(OUT / f"mix-check.{lang}.wav", m)
+        overview_png(OUT / f"mix-check.{lang}.png", m, [dict(id=s["id"], start=s["start"] * FRAME) for s in tl["scenes"]],
+                     f"mix check {lang}: music x Launch.tsx ducking (voice files are silent placeholders)", vol=vol)
+        return {"skipped": "voice files are silent placeholders (estimated timeline); run again once the real voice exists",
+                "music_ducked_lufs": round(lufs_integrated(m), 1)}
     V = np.stack([v, v], axis=1)  # Remotion plays the mono voice on both channels
     mix = m + V
     pk = np.max(np.abs(mix))
@@ -255,6 +271,27 @@ def report(lang: str, y: np.ndarray, song) -> dict:
         a = s["start"]
         edges[s["id"]] = dict(before_rms=round(db(_rms(y[a - nsamp(0.5): a])), 1), after_rms=round(db(_rms(y[a: a + nsamp(0.5)])), 1))
     stats["scene_edges"] = edges
+    # frame accuracy: offset of the sharpest onset (1.5 kHz+ envelope rise) within +-60 ms of each scene
+    # start; 0 ms = the section change lands exactly on the scene's frame 0
+    from scipy.ndimage import uniform_filter1d
+    from dsp import hp
+    hf = hp(y.mean(axis=1), 1500)
+    env = np.sqrt(uniform_filter1d(hf ** 2, nsamp(0.001)) + 1e-20)
+    onsets = {}
+    for s in scenes:
+        a, w = s["start"], nsamp(0.06)
+        lo, hi = max(1, a - w), min(n - 1, a + w)
+        onsets[s["id"]] = round((lo + int(np.argmax(np.diff(env[lo:hi]))) - a) / SR * 1000, 1)
+    stats["onset_offset_ms"] = onsets
+    # hard stops before hits: how silent the gap is (before the reverse suck) and how loud the suck gets
+    stops = []
+    for a, b in getattr(song, "stops", []):
+        g0, g1 = a + nsamp(0.012), max(a + nsamp(0.014), b - nsamp(0.45))  # the suck fills the last 0.45 s
+        gap = y[g0:g1]
+        stops.append(dict(at=f"{a / SR:.2f}-{b / SR:.2f}s", gap_peak_db=round(db(np.max(np.abs(gap)) + 1e-9), 1),
+                          last_150ms_rms_db=round(db(_rms(y[b - nsamp(0.15): b])), 1),
+                          hit_100ms_rms_db=round(db(_rms(y[b: b + nsamp(0.1)])), 1)))
+    stats["stops"] = stops
     stats["stem_rms_db"] = {k: round(v, 1) for k, v in sorted(song.stem_levels.items())}
     stats["mix_check"] = mix_check(lang, y, tl)
     stats["events"] = [(round(t, 2), e) for t, e in song.events]
@@ -266,9 +303,11 @@ def report(lang: str, y: np.ndarray, song) -> dict:
 
 
 def sfx_png(path: Path) -> None:
-    names = ["click", "tick", "pop", "swipe", "whoosh", "whoosh-soft", "impact", "riser", "shimmer"]
+    import sfx
+    names = list(sfx.SFX)
     W, H = 600, 150
-    im = Image.new("RGB", (W * 3 + 40, (H * 2 + 30) * 3 + 20), (12, 13, 16))
+    rows = (len(names) + 2) // 3
+    im = Image.new("RGB", (W * 3 + 40, (H * 2 + 30) * rows + 20), (12, 13, 16))
     dr = ImageDraw.Draw(im)
     fnt = _font(13)
     for i, nme in enumerate(names):
