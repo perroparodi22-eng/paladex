@@ -2,6 +2,23 @@
 
 Read this whole file before touching code. It is the contract every scene follows.
 
+## 0a. Version 2.1: the owner's second round (read first; it overrides 0 where they differ)
+
+The owner watched v2 and asked for it **"a bit slower so people can see well everything, and silence is filled"**:
+
+- **Voice fills the time.** The script was extended (`src/data/script.json`); the timeline is now **56 s / 3360 frames** and the
+  gap between one line and the next is 0.4-1.3 s (was 1.2-2.6 s). Scene lengths: cold-open 5, problem 5, reveal 6, turn 7,
+  specs 6, reviews 5, pros 4, finder 7, brands 5, endcard 6 (seconds). New words are anchored with `wordAt()` like the old ones.
+- **Readable, not frantic.** Hold each readable thing (a card, a page section, a result) long enough to read it at a glance,
+  about 1-1.5 s minimum. No more five card swaps in four seconds. Motion should be continuous and smooth rather than many fast cuts.
+- **Never static.** No hold longer than ~0.4 s without visible motion (slow push, yaw, parallax, cursor, highlight sweep), and never
+  a near-empty or dim frame. Fill the whole frame.
+- **Honesty, sharper:** don't feature data the site marks as sample or missing. No zoom/highlight on match %, platform scores or
+  prices, and keep rows reading "Not published" or "—" out of the featured framing (crop or pan past them).
+- **Detail:** anything shown large must be sharp at 2560x1440 (no upscaled thumbnails or logos, no stair-stepped cut-outs).
+- **Captions** break only at phrase boundaries from the script (never "...from one flat" / "photo..."), and never leave one orphan word.
+- Check at the 1440p scale: `--scale 1.3333333333333333` (fewer digits gives a non-integer height that Remotion rejects).
+
 ## 0. Version 2: the owner's feedback (read first; it overrides anything below)
 
 The owner watched v1 and asked for: **a fuller, faster opening** (the first ~10 s felt empty and slow), **everything faster but the ad longer** (more content, quicker pacing), **no unfinished rackets**, **higher detail**, **a livelier voice and sound**, and **no counts** of rackets or brands anywhere (the catalogue grows every year).

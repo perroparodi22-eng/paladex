@@ -6,7 +6,7 @@
   {
    "id": "cold-open",
    "seconds": 5,
-   "voAt": 0.35,
+   "voAt": 0.3,
    "tail": 0.2
   },
   {
@@ -17,7 +17,7 @@
   },
   {
    "id": "reveal",
-   "seconds": 4,
+   "seconds": 6,
    "voAt": 0.3,
    "tail": 0.35
   },
@@ -29,13 +29,13 @@
   },
   {
    "id": "specs",
-   "seconds": 5,
+   "seconds": 6,
    "voAt": 0.2,
    "tail": 0.35
   },
   {
    "id": "reviews",
-   "seconds": 4,
+   "seconds": 5,
    "voAt": 0.2,
    "tail": 0.35
   },
@@ -53,21 +53,21 @@
   },
   {
    "id": "brands",
-   "seconds": 4,
+   "seconds": 5,
    "voAt": 0.2,
    "tail": 0.4
   },
   {
    "id": "endcard",
    "seconds": 6,
-   "voAt": 0.4,
+   "voAt": 0.3,
    "tail": 1.2
   }
  ],
  "langs": {
   "en": {
    "voice": "kokoro:am_puck",
-   "rate": "+6%",
+   "rate": "+4%",
    "pitch": "-2Hz",
    "lines": {
     "cold-open": [
@@ -76,36 +76,50 @@
       "rate": "-2%",
       "pitch": "-5Hz",
       "volume": "+5%",
-      "gap": 0.28
+      "gap": 0.2
      },
      {
       "text": "Maybe more.",
       "rate": "+4%",
       "pitch": "+7Hz",
       "volume": "+0%",
-      "gap": 0.22
+      "gap": 0.14
      },
      {
       "text": "For one padel racket.",
-      "rate": "+8%",
+      "rate": "+6%",
       "pitch": "-3Hz",
       "volume": "+5%",
+      "gap": 0.16
+     },
+     {
+      "text": "Would you buy it blind?",
+      "rate": "+4%",
+      "pitch": "+9Hz",
+      "volume": "+8%",
       "gap": 0.0
      }
     ],
     "problem": [
      {
       "text": "And you're choosing it from one flat photo...",
-      "rate": "+14%",
+      "rate": "+10%",
       "pitch": "+4Hz",
       "volume": "+5%",
       "gap": 0.12
      },
      {
       "text": "and a spec sheet nobody explains.",
-      "rate": "+20%",
+      "rate": "+14%",
       "pitch": "+9Hz",
       "volume": "+8%",
+      "gap": 0.2
+     },
+     {
+      "text": "Pure guesswork.",
+      "rate": "-2%",
+      "pitch": "-6Hz",
+      "volume": "+5%",
       "gap": 0.0
      }
     ],
@@ -125,9 +139,16 @@
       "gap": 0.18
      },
      {
-      "text": "Every padel racket, in 3D.",
-      "rate": "+10%",
+      "text": "Every padel racket, in 3D,",
+      "rate": "+8%",
       "pitch": "+4Hz",
+      "volume": "+8%",
+      "gap": 0.06
+     },
+     {
+      "text": "right in your browser.",
+      "rate": "+8%",
+      "pitch": "+7Hz",
       "volume": "+8%",
       "gap": 0.0
      }
@@ -135,67 +156,95 @@
     "turn": [
      {
       "text": "Grab one. Spin it.",
-      "rate": "+16%",
+      "rate": "+12%",
       "pitch": "+6Hz",
       "volume": "+8%",
-      "gap": 0.3
+      "gap": 0.28
      },
      {
       "text": "Front.",
-      "rate": "+8%",
+      "rate": "+6%",
       "pitch": "+2Hz",
       "volume": "+5%",
-      "gap": 0.24
+      "gap": 0.22
      },
      {
       "text": "Side.",
-      "rate": "+8%",
+      "rate": "+6%",
       "pitch": "+4Hz",
       "volume": "+5%",
-      "gap": 0.24
+      "gap": 0.22
      },
      {
       "text": "Back.",
-      "rate": "+8%",
+      "rate": "+6%",
       "pitch": "+6Hz",
       "volume": "+5%",
-      "gap": 0.3
+      "gap": 0.28
      },
      {
-      "text": "Every detail, up close.",
+      "text": "Every detail, up close:",
       "rate": "+4%",
       "pitch": "-3Hz",
       "volume": "+0%",
+      "gap": 0.08
+     },
+     {
+      "text": "the face, the frame, the finish.",
+      "rate": "+8%",
+      "pitch": "+5Hz",
+      "volume": "+6%",
       "gap": 0.0
      }
     ],
     "specs": [
      {
       "text": "Every spec, translated",
-      "rate": "+16%",
+      "rate": "+12%",
       "pitch": "+4Hz",
       "volume": "+6%",
       "gap": 0.06
      },
      {
       "text": "into what it means for your game.",
-      "rate": "+12%",
+      "rate": "+10%",
       "pitch": "+7Hz",
+      "volume": "+8%",
+      "gap": 0.22
+     },
+     {
+      "text": "No jargon.",
+      "rate": "+0%",
+      "pitch": "-5Hz",
+      "volume": "+6%",
+      "gap": 0.14
+     },
+     {
+      "text": "Just how it feels on court.",
+      "rate": "+8%",
+      "pitch": "+6Hz",
       "volume": "+8%",
       "gap": 0.0
      }
     ],
     "reviews": [
      {
-      "text": "What the reviewers say,",
-      "rate": "+16%",
+      "text": "What the reviewers say, summed up.",
+      "rate": "+12%",
       "pitch": "+3Hz",
       "volume": "+5%",
+      "gap": 0.18
+     },
+     {
+      "text": "The good, the bad,",
+      "rate": "+6%",
+      "pitch": "+7Hz",
+      "volume": "+6%",
       "gap": 0.06
      },
      {
-      "text": "summed up, with the sources.",
-      "rate": "+12%",
+      "text": "with the sources to back it.",
+      "rate": "+10%",
       "pitch": "-1Hz",
       "volume": "+5%",
       "gap": 0.0
@@ -203,49 +252,70 @@
     ],
     "pros": [
      {
-      "text": "See what the pros actually play.",
-      "rate": "+10%",
+      "text": "See what the pros actually play on tour,",
+      "rate": "+8%",
       "pitch": "+8Hz",
       "volume": "+10%",
+      "gap": 0.06
+     },
+     {
+      "text": "and the rackets behind their game.",
+      "rate": "+8%",
+      "pitch": "+3Hz",
+      "volume": "+6%",
       "gap": 0.0
      }
     ],
     "finder": [
      {
       "text": "Not sure where to start?",
-      "rate": "+8%",
+      "rate": "+6%",
       "pitch": "+7Hz",
       "volume": "+5%",
       "gap": 0.2
      },
      {
       "text": "Answer a few quick questions,",
-      "rate": "+18%",
+      "rate": "+14%",
       "pitch": "+3Hz",
       "volume": "+5%",
       "gap": 0.05
      },
      {
       "text": "and get the rackets that fit how you really play.",
-      "rate": "+14%",
+      "rate": "+10%",
       "pitch": "+5Hz",
       "volume": "+8%",
+      "gap": 0.22
+     },
+     {
+      "text": "Your match, in seconds.",
+      "rate": "+2%",
+      "pitch": "+9Hz",
+      "volume": "+10%",
       "gap": 0.0
      }
     ],
     "brands": [
      {
-      "text": "All the top brands.",
-      "rate": "+12%",
+      "text": "All the top brands, side by side.",
+      "rate": "+10%",
       "pitch": "+6Hz",
       "volume": "+8%",
       "gap": 0.18
      },
      {
-      "text": "All in one place.",
-      "rate": "+6%",
+      "text": "All in one place,",
+      "rate": "+4%",
       "pitch": "-2Hz",
       "volume": "+8%",
+      "gap": 0.06
+     },
+     {
+      "text": "updated every season.",
+      "rate": "+6%",
+      "pitch": "+4Hz",
+      "volume": "+6%",
       "gap": 0.0
      }
     ],
@@ -259,7 +329,7 @@
      },
      {
       "text": "See it from every side, before you buy it.",
-      "rate": "+4%",
+      "rate": "+2%",
       "pitch": "-2Hz",
       "volume": "+5%",
       "gap": 0.0
