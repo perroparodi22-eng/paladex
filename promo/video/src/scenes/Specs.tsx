@@ -61,7 +61,7 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
   const B = wordAt(timing, WORDS.lift, 59);
   const C = wordAt(timing, WORDS.hero, 154);
   const G = wordAt(timing, WORDS.end, 208, 0, "end");
-  const heroFrom = C - 32; // the Surface row starts its flight…
+  const heroFrom = C - 50; // the Surface row starts its flight…
   const heroTo = C + 4; // …and settles facing the camera on "means"
   const rowAt = [B, B + 9];
   const sinkAt = Math.min(G - 14, C + 38); // rows return as the line ends
@@ -70,13 +70,14 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
   // --- Page scroll (document y at the top of the viewport) --------------------
   // Never past S2 (marks.scroll.h): the strip ends exactly one viewport below it.
   const S2 = M.scroll.h;
-  const scroll = monotone([-12, A - 8, A + 14, B - 6, C, sinkAt, clickAt - 6, D + 60], [S0, S0 + 30, 3150, 3270, 3290, 3300, S2 - 6, S2], frame);
+  const scroll = monotone([-12, A - 8, B - 6, C, sinkAt, clickAt - 6, D + 60], [S0 + 470, S0 + 490, 3270, 3290, 3300, S2 - 6, S2], frame);
 
   // --- Camera on the page (Browser3D pose) -----------------------------------
   const keys: PoseKey[] = [
     { f: -18, x: -60, y: 160, z: -520, rotateX: 32, rotateY: -30, rotateZ: 3, scale: 1 },
     { f: A + 8, x: -350, y: 40, z: -230, rotateX: 18, rotateY: -18, rotateZ: 1.2, scale: 1 },
     { f: B + 24, x: -380, y: 110, z: -380, rotateX: 26, rotateY: -16, rotateZ: 0.6, scale: 1 },
+    { f: B + 52, x: -300, y: 70, z: -260, rotateX: 20, rotateY: -6, rotateZ: -0.8, scale: 1 },
     { f: C + 6, x: -360, y: 120, z: -560, rotateX: 28, rotateY: -13, rotateZ: 0, scale: 1 },
     { f: sinkAt + 24, x: 30, y: -110, z: -200, rotateX: 10, rotateY: 8, rotateZ: -0.5, scale: 0.9 },
     { f: clickAt + 18, x: 130, y: -100, z: -110, rotateX: 8, rotateY: 10, rotateZ: -0.6, scale: 0.92 },
