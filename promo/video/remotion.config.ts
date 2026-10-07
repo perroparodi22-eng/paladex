@@ -10,6 +10,9 @@ Config.setJpegQuality(95);
 Config.setCodec("h264");
 Config.setCrf(16);
 Config.setPixelFormat("yuv420p");
+// Without this the JPEG frames come out full-range (yuvj420p) tagged BT.601, which players can show with crushed
+// or lifted blacks; bt709 converts to limited range and tags BT.709 like any HD/UHD video.
+Config.setColorSpace("bt709");
 Config.setX264Preset("slow");
 Config.setAudioBitrate("320k");
 Config.setDelayRenderTimeoutInMilliseconds(120000);
