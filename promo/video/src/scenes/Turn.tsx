@@ -1,16 +1,17 @@
 // Scene 4, turn: "Pick any racket and turn it in your hand. Front. Side. Back.
 // Every detail, up close."
 //
-// A browser window shows the hero racket's real page (captured footage, one clip per
-// language, word-synced). The camera ORBITS the window, pivoting on the 3D viewer,
+// A browser window shows the hero racket's real page (captured footage, word-synced).
+// The camera ORBITS the window, pivoting on the 3D viewer,
 // and pushes in as the cursor reaches for the racket, grabs it and turns it round on
 // "turn it in your hand". On "Front / Side / Back" the cursor clicks the viewer's
 // real buttons exactly on the words (the site's camera glides between views); each
 // click nudges the camera. On "Every detail, up close" the racket BREAKS OUT of the
-// screen: the captured racket is replaced pixel for pixel (same place, size, view
-// angle and perspective, from the site camera recorded during capture) by the
-// WebGL hero racket, the window tilts back and falls away under it while the racket
-// comes up huge; then the camera cranes and pushes into a macro glide across the
+// screen: during "Back"'s glide the captured racket is invisibly replaced pixel for
+// pixel (same place, size, view angle, perspective and tone, from the site camera
+// recorded during capture) by the WebGL hero racket; on "Every" the window tilts back
+// and falls away under it while the racket lifts off and lands huge (whole head in
+// frame) on "up close"; then the camera cranes and pushes into a macro glide across the
 // face texture toward the frame edge, a strip light sweeps the face and a faint
 // ball-lime ring marks the sweet spot.
 import React from "react";
@@ -58,8 +59,10 @@ type Marks = {
   grab: number;
   release: number;
   clicks: number[];
-  /** Break-out start. */
+  /** Hand-off start: the WebGL hero dissolves in over the captured racket. */
   B: number;
+  /** Break-out: the window starts to fall away and the hero lifts off (after the glue). */
+  BO: number;
   END: number;
 };
 
@@ -74,12 +77,15 @@ const swapEase = Easing.bezier(0.45, 0, 0.55, 1); // an even dissolve, not a 3-f
 /** The macro glide's ease runs this many frames past the scene end (renormalised), so
  *  the camera is still gliding (~20 % of its peak speed) into the cut instead of parking. */
 const MACRO_TAIL = 60;
+/** Hand-off: hero dissolve frames, and frames the hero stays glued to the captured racket. */
+const H = 10;
+const GLUE = H + 5;
 
 /* ------------------------------------------------------------------ browser */
 
 /** The camera on the browser (orbit around the viewer), as an orbit pose. */
 const orbitAt = (f: number, m: Marks): OrbitPose => {
-  const { turn, handEnd, front, every, B, END } = m;
+  const { turn, handEnd, front, every, BO, END } = m;
   // Look at the page centre, then at the 3D viewer as the hand reaches for the racket.
   const px = smooth(f, [0, turn - 4, handEnd + 12], [930, 705, 662]);
   const py = smooth(f, [0, turn, front, every], [548, 562, 584, 590]);
@@ -97,8 +103,8 @@ const orbitAt = (f: number, m: Marks): OrbitPose => {
   s *= 1 + 0.016 * punch;
 
   // Break-out: the window tilts back, recedes and drops away under the racket.
-  const u = interpolate(f, [B, B + 62], [0, 1], { ...clamp, easing: breakEase });
-  const late = interpolate(f, [B + 40, END], [0, 1], clamp);
+  const u = interpolate(f, [BO, BO + 62], [0, 1], { ...clamp, easing: breakEase });
+  const late = interpolate(f, [BO + 40, END], [0, 1], clamp);
   const hand = (k: string, a: number, sp = 0.1) => drift(`turn-b-${k}`, f, a, sp);
   return {
     px,
@@ -166,10 +172,13 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     grab: ev.find((e) => e.type === "grab")?.frame ?? 82,
     release: ev.find((e) => e.type === "release")?.frame ?? 128,
     clicks: ev.filter((e) => e.type === "click").map((e) => e.frame),
-    B: every - 8,
+    // The hand-off is invisible (same racket, same tone), so it runs under "Back"'s
+    // glide; the window then falls away on "Every" and the racket is out by "up close".
+    B: every - 14,
+    BO: every - 14 + GLUE - 2,
     END,
   };
-  const { B } = m;
+  const { B, BO } = m;
 
   const env = enterExit(frame, D, ov);
 
@@ -180,16 +189,14 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   //  2. only once it is opaque does the page underneath swap to the racket-less still
   //     (fading both at once left the racket ~75 % opaque mid-dissolve);
   //  3. only once the page has no racket left does the hero leave the captured pose.
-  const H = 10; // hero dissolve frames
   const heroIn = interpolate(frame, [B, B + H], [0, 1], { ...clamp, easing: swapEase });
   const pageSwap = interpolate(frame, [B + H, B + H + 5], [0, 1], { ...clamp, easing: easeInOut });
-  const GLUE = H + 5; // frames the hero stays glued to the captured racket
   // The window's glass glare peaks right over the viewer at the break-out and lifts the
   // captured racket's blacks (~+15 levels); the WebGL racket is not behind glass. Wipe
   // the glare off during the glide to "Back" so both rackets share one tone at the swap.
   const glare = interpolate(frame, [B - 44, B - 6], [1, 0], { ...clamp, easing: easeInOut });
-  const fall = interpolate(frame, [B, B + 62], [0, 1], { ...clamp, easing: breakEase });
-  const fade = interpolate(frame, [B + 40, END], [0, 1], clamp);
+  const fall = interpolate(frame, [BO, BO + 62], [0, 1], { ...clamp, easing: breakEase });
+  const fade = interpolate(frame, [BO + 40, END], [0, 1], clamp);
   const browserOpacity = mix(1, 0.5, fall) * mix(1, 0.55, fade);
   const browserBlur = 4.5 * fall + 2 * fade;
 
@@ -204,14 +211,15 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   let yaw = 0;
   let pitch = 0;
   if (showHero) {
-    const m0 = matchAt(B, m, cams);
+    const m0 = matchAt(BO, m, cams); // the window is still in place here
     const u = frame - B;
-    const e = interpolate(u, [0, 64], [0, 1], { ...clamp, easing: emergeEase }); // racket comes up huge
+    const e = interpolate(frame, [BO, BO + 64], [0, 1], { ...clamp, easing: emergeEase }); // racket comes up huge
     // Macro glide: eased over a span that ends MACRO_TAIL frames after the scene, then
     // renormalised so it still reaches 1 on the last frame, with speed left over.
-    const gSpan = END - B - 26 + MACRO_TAIL;
-    const gNorm = macroEase((END - B - 26) / gSpan);
-    const g = Math.min(1, interpolate(u, [26, 26 + gSpan], [0, 1], { ...clamp, easing: macroEase }) / gNorm);
+    const g0 = BO + 16;
+    const gSpan = END - g0 + MACRO_TAIL;
+    const gNorm = macroEase((END - g0) / gSpan);
+    const g = Math.min(1, interpolate(frame, [g0, g0 + gSpan], [0, 1], { ...clamp, easing: macroEase }) / gNorm);
     const hand = (k: string, a: number, sp = 0.09) => drift(`turn-h-${k}`, frame, a, sp);
     // Free camera path (from the camera matched at the break-out). The racket lands big with
     // the whole head in frame (headroom above the rim, throat clear of the subtitles);
@@ -226,11 +234,11 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
       dist,
       fov,
     };
-    // Through the whole cross-fade the hero stays glued to the captured racket (the
-    // window has started to move), so the dissolve never shows two rackets; only once
-    // the captured one has gone does the camera ease off the match onto the free path
+    // Through the whole cross-fade the hero stays glued to the captured racket, so the
+    // dissolve never shows two rackets; only once the captured one has gone (BO) do the
+    // window start to fall and the camera ease off the match onto the free path
     // (measured: blending during the dissolve left the last frames 8-14 px apart).
-    const w = interpolate(u, [GLUE, GLUE + 18], [0, 1], { ...clamp, easing: swapEase });
+    const w = interpolate(u, [GLUE - 2, GLUE + 14], [0, 1], { ...clamp, easing: swapEase });
     const camAz = w * (0.6 * g + 0.03 * e + hand("az", 0.012));
     const camEl = w * (0.04 * e + 0.2 * g + hand("el", 0.01));
     const target: Vec3 = [w * 0.072 * g, w * (mix(0, 0.05, e) + 0.035 * g), w * 0.017 * g];
@@ -311,7 +319,7 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
       {m.clicks.map((c) => (
         <Sfx key={c} name="click" at={c} volume={0.6} />
       ))}
-      <Sfx name="whoosh" at={B - 2} volume={0.6} />
+      <Sfx name="whoosh" at={BO - 2} volume={0.6} />
       <Sfx name="shimmer" at={m.up - 4} volume={0.2} />
     </AbsoluteFill>
   );
