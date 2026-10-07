@@ -1,0 +1,10 @@
+# Your scenes: reviews (abs 1740-2039, now 5 s) + pros (abs 2040-2279, 4 s)
+Files you own: src/scenes/Reviews.tsx, src/scenes/Pros.tsx, src/scenes/pros/*, src/dev/reviews.tsx, src/dev/pros.tsx, and their capture shots/manifests if you re-capture.
+New words: reviews "What the reviewers say, summed up. The good, the bad, with the sources to back it." ("good" -> pros list, "bad" -> cons list, "sources" -> source chips, "back it" -> a source link opening or a highlight). pros "See what the pros actually play on tour, and the rackets behind their game."
+Review findings (v2):
+- [major] reviews: the 3D card planes pass THROUGH each other during card swaps, so a diagonal slice cuts words mid-glyph (e.g. v2 1748 "Paladex's read" card sliced by the Sources card; also 1652-1656, 1682-1688, 1714-1718, 1770-1776). Fix the depth: separate cards in Z, animate one fully out before the next crosses, or render them flat (no shared preserve-3d intersection). Check every swap frame-by-frame.
+- [major, owner request] reviews swapped cards ~5 times in 4 s: too fast to read. With 5 s now, show fewer, longer beats (each card readable ~1-1.5 s), synced to the new words.
+- [minor] reviews 1790-1860: near-static hold on the Sources chips; the right half of the Sources card was an empty dark slab; the cursor tip hid under the Padelgids chip outline.
+- [minor] pros 1900-1918: women's-tour card images low quality at full res ("Elite 02 27" jagged stair-stepped cutout edges with a pale halo and a black blotch on the grip; "Extreme Motion 2026" head cut flat with a white bar). Re-capture sharper, keep them small, or leave those cards out (never show an unfinished racket).
+- [minor] pros 1924-1944: the macro of Tapia's card text is soft/upscaled, and the card fills only a third of an otherwise black frame.
+- [minor] pros 1992-2099: the "Pro players' rackets" title and caveat paragraph are pasted screenshot strips on hard-edged black rectangles, with a sliver of red card showing through the gap. Make it read as designed type (e.g. set the title in the video's own type, or feather/mask the strips).
