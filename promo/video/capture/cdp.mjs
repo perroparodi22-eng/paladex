@@ -114,7 +114,28 @@ const HIDE_SHIM = `(() => {
   Object.defineProperty(Document.prototype, "hidden", { configurable: true, get() { return !!window.__forceHidden; } });
 })();`;
 
-export async function launch({ width = 1920, height = 1080, dpr = 1, gpu = true, mobile = false, hideWhileLoading = !WIN } = {}) {
+// Rackets without a finished 3D design never appear in the ad (owner's rule): every
+// capture hides any card, list item or result that links to one, shows its poster, or
+// is labelled with its exact name. See capture/unfinished.json.
+const UNFINISHED = JSON.parse(readFileSync(new URL("./unfinished.json", import.meta.url), "utf8"));
+const HIDE_UNFINISHED = `(() => {
+  const slugs = ${JSON.stringify(UNFINISHED.slugs)};
+  const names = new Set(${JSON.stringify(UNFINISHED.names)});
+  const bySlug = (v) => v && slugs.some((s) => new RegExp("/" + s + "(?![a-z0-9-])").test(v));
+  const hide = (el) => {
+    const box = el.closest("li") || el.closest("article") || el.closest("[class*='card']") || el;
+    if (box.style.display !== "none") box.style.setProperty("display", "none", "important");
+  };
+  const sweep = () => {
+    for (const a of document.querySelectorAll("a[href]")) if (bySlug(a.getAttribute("href"))) hide(a);
+    for (const img of document.querySelectorAll("img")) if (bySlug(img.getAttribute("src")) || bySlug(img.currentSrc)) hide(img);
+    for (const el of document.querySelectorAll("li span, li p, li h3, li h2")) if (names.has((el.textContent || "").trim())) hide(el);
+  };
+  const start = () => { sweep(); new MutationObserver(sweep).observe(document.documentElement, { childList: true, subtree: true }); };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+})();`;
+
+export async function launch({ width = 1920, height = 1080, dpr = 1, gpu = true, mobile = false, hideWhileLoading = !WIN, hideUnfinished = true } = {}) {
   const port = 9600 + Math.floor(Math.random() * 300);
   const profile = mkdtempSync(join(tmpdir(), "promo-cap-"));
   const proc = spawn(
@@ -186,6 +207,7 @@ export async function launch({ width = 1920, height = 1080, dpr = 1, gpu = true,
   if (mobile) await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
   await send("Page.addScriptToEvaluateOnNewDocument", { source: TIME_SHIM });
   if (hideWhileLoading) await send("Page.addScriptToEvaluateOnNewDocument", { source: HIDE_SHIM });
+  if (hideUnfinished) await send("Page.addScriptToEvaluateOnNewDocument", { source: HIDE_UNFINISHED });
   await send("Page.addScriptToEvaluateOnNewDocument", {
     source: `document.addEventListener("DOMContentLoaded",()=>{const s=document.createElement("style");s.textContent=${JSON.stringify(HIDE_CSS)};document.head.appendChild(s);});`,
   });

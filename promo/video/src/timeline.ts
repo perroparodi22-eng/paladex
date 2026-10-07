@@ -4,7 +4,7 @@
 import en from "./data/timeline.en.json";
 
 export type Lang = "en";
-export type SceneId = "cold-open" | "problem" | "reveal" | "turn" | "specs" | "finder" | "brands" | "endcard";
+export type SceneId = "cold-open" | "problem" | "reveal" | "turn" | "specs" | "reviews" | "pros" | "finder" | "brands" | "endcard";
 
 export interface Word {
   text: string;
@@ -29,6 +29,9 @@ export interface Timeline {
 }
 
 export const TIMELINES: Record<Lang, Timeline> = { en: en as Timeline };
+
+/** True while the timeline still has estimated word timings and silent voice files (make_vo.py --estimate). */
+export const ESTIMATED = Boolean((en as { estimated?: boolean }).estimated);
 
 export const scene = (t: Timeline, id: SceneId): SceneTiming => {
   const s = t.scenes.find((x) => x.id === id);

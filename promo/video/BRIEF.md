@@ -2,6 +2,43 @@
 
 Read this whole file before touching code. It is the contract every scene follows.
 
+## 0. Version 2: the owner's feedback (read first; it overrides anything below)
+
+The owner watched v1 and asked for: **a fuller, faster opening** (the first ~10 s felt empty and slow), **everything faster but the ad longer** (more content, quicker pacing), **no unfinished rackets**, **higher detail**, **a livelier voice and sound**, and **no counts** of rackets or brands anywhere (the catalogue grows every year).
+
+- **Length and structure.** About 54 s, 10 scenes: cold-open, problem, reveal, turn, specs, **reviews (new)**, **pros (new)**, finder, brands, endcard. New script in `src/data/script.json` (each line is several phrases voiced with different tone).
+- **Timing is ESTIMATED for now.** `src/data/timeline.en.json` has `"estimated": true` and silent voice files until the real voice can be generated (network). Derive every frame from `wordAt()` / `timing.duration` (never hard-code frames), so the scene re-syncs when the real voice lands. Scene lengths can still change by a beat or two.
+- **Pace.** No shot lingers: every ~1–1.5 s something decisive happens (a cut to a new framing, a whip, a punch-in, a new element landing on a word/beat). Camera moves are quicker with snappier ease-outs (fast start, soft settle), not slow drifts. Use the 120 BPM grid (beat = 30 frames, half-beat = 15) for hits. Keep it premium: fast and precise, never chaotic or cluttered. Transitions between scenes can be faster/punchier than the house dolly (whip, push-through, match cut) as long as the scene still enters/leaves within its overlap.
+- **Full frames.** Avoid big empty black areas: layer depth (foreground elements, secondary rackets, UI fragments, type) so frames feel rich. Still the black-studio look and palette (section 2).
+- **No counts.** Never show or say how many rackets/brands (no "62", no "12"). Don't feature the site's own count line ("62 rackets") either: keep it out of frame or unreadable.
+- **No unfinished rackets.** 14 rackets have no finished design (`capture/unfinished.json`, e.g. the Nox ML10 Pro Cup). Never show them. `capture/cdp.mjs` hides them automatically in every capture (cards, list items, finder results, by link/poster/name); WebGL racket models come only from `public/models` (all finished). Check your captures anyway.
+- **Detail.** The final render is **2560×1440** (`--scale 4/3`). Footage/stills that appear large must be captured at **dpr 2** (stills, crops) and clips at **dpr 1.5–2** so they stay crisp at 1440p; check frames at full size with `--scale 1.3333333333`.
+- **Sound.** Livelier: put SFX on every cut, hit, landing and click (whoosh / swipe / impact / pop / tick / click / riser / shimmer), louder for key hits (0.5–0.9), so the picture feels punchy.
+
+### Storyboard for new/changed scenes (v2)
+- **cold-open** — "Two hundred euros. Maybe more. For one padel racket." Open hard, not on an empty black frame: a rapid, rhythmic montage of real 3D rackets (many different finished models, WebGL) whipping through frame on the beat, macro glimpses of faces/frames, then "€200" slams in big on "Two hundred euros" (hit), a flicker up to "€250"/"€300" on "Maybe more", and the hero racket (Nox AT10 18K) lands centre on "For one padel racket". Dense, confident, music-driven.
+- **problem** — "And you're choosing it from one flat photo... and a spec sheet nobody explains." The hero flattens into a dull listing card on "flat photo", multiplied into a cold grid of identical flat cards; on "spec sheet nobody explains" a dense storm of cryptic spec chips; collapse to a point into the reveal impact. Faster than v1.
+- **reveal** — "Not anymore. Meet Paladex. Every padel racket, in 3D." Hit on "Not anymore", logo punch on "Paladex", the real home page arrives fast on "Every", settle on "3D".
+- **turn / specs / finder / endcard** — same ideas as section 8, tighter and faster (fewer slow holds, quicker moves, more shot changes).
+- **reviews (new)** — "What the reviewers say, summed up, with the sources." The real racket page's **"What reviewers say"** section (hero racket page): the summary lifts out in 3D, then the **Sources** links (e.g. Padel Kiwi, Padelgids) land on "with the sources". Honest: real text only, no invented quotes or ratings; don't feature prices.
+- **pros (new)** — "See what the pros actually play." The real **/pros** page ("Pro players' rackets — What the top of the tour plays, in 3D"): player cards/rows with their rackets, fast lateral sweep, land on a pro + racket on "play". Real data only; keep the page's caveat visible if it's in frame.
+- **brands** — "All the top brands. All in one place." No counters. The real brand tiles sweep/turn on "All the top brands" (real `/rackets` brand rail crops), then everything converges into the real `/rackets` page on "All in one place" (cursor picks a brand, the grid filters). Only finished rackets in the grid.
+
+### Timeline v2 (ESTIMATED; scene-local word frames)
+
+| # | Scene id (file) | Start | Frames | Voice |
+|---|---|---|---|---|
+| 1 | `cold-open` (`ColdOpen.tsx`) | 0 | 300 | Two@26 hundred@43 euros@74 Maybe@132 more@155 For@205 one@221 padel@237 racket@259 |
+| 2 | `problem` (`Problem.tsx`) | 300 | 360 | And@11 you're@26 choosing@49 it@78 from@90 one@108 flat@123 photo@141 and@185 a@200 spec@209 sheet@226 nobody@245 explains@267 |
+| 3 | `reveal` (`Reveal.tsx`) | 660 | 300 | Not@23 anymore@40 Meet@100 Paladex@120 Every@180 padel@201 racket@222 in@251 3D@263 |
+| 4 | `turn` (`Turn.tsx`) | 960 | 420 | Grab@20 one@37 Spin@59 it@77 Front@124 Side@177 Back@228 Every@282 detail@304 up@335 close@348 |
+| 5 | `specs` (`Specs.tsx`) | 1380 | 300 | Every@17 spec@37 translated@59 into@105 what@124 it@142 means@154 for@175 your@190 game@208 |
+| 6 | `reviews` (`Reviews.tsx`) | 1680 | 240 | What@17 the@34 reviewers@49 say@80 summed@112 up@136 with@153 the@171 sources@186 |
+| 7 | `pros` (`Pros.tsx`) | 1920 | 240 | See@17 what@32 the@51 pros@66 actually@85 play@115 |
+| 8 | `finder` (`Finder.tsx`) | 2160 | 480 | Not@17 sure@33 where@51 to@73 start@86 Answer@137 a@160 few@169 quick@183 questions@203 and@250 get@265 the@280 rackets@296 that@322 fit@339 how@354 you@369 really@384 play@408 |
+| 9 | `brands` (`Brands.tsx`) | 2640 | 240 | All@17 the@32 top@47 brands@63 All@114 in@131 one@144 place@160 |
+| 10 | `endcard` (`EndCard.tsx`) | 2880 | 360 | Paladex@29 See@96 it@113 from@126 every@146 side@168 before@192 you@218 buy@234 it@251 |
+
 ## 1. What we are making
 
 A ~47 s launch advertisement for **Paladex** (the 3D padel racket website in `C:\Users\diego\Downloads\paladex`), built in **Remotion** (`promo/video`). Goal: people watch, like it, and go to the site.

@@ -12,12 +12,29 @@ import { ColdOpen } from "./scenes/ColdOpen";
 import { EndCard } from "./scenes/EndCard";
 import { Finder } from "./scenes/Finder";
 import { Problem } from "./scenes/Problem";
+import { Pros } from "./scenes/Pros";
 import { Reveal } from "./scenes/Reveal";
+import { Reviews } from "./scenes/Reviews";
 import { Specs } from "./scenes/Specs";
 import { Turn } from "./scenes/Turn";
+import type { SceneProps } from "./scenes/types";
 import { loadFonts } from "./fonts";
 
 loadFonts();
+
+/** Scenes in story order (timing comes from the timeline by id). */
+const SCENES: [SceneId, React.FC<SceneProps>][] = [
+  ["cold-open", ColdOpen],
+  ["problem", Problem],
+  ["reveal", Reveal],
+  ["turn", Turn],
+  ["specs", Specs],
+  ["reviews", Reviews],
+  ["pros", Pros],
+  ["finder", Finder],
+  ["brands", Brands],
+  ["endcard", EndCard],
+];
 
 export type LaunchProps = {
   lang: Lang;
@@ -50,30 +67,15 @@ export const Launch: React.FC<LaunchProps> = ({ lang, subtitles, music }) => {
           browser paints nothing; the scenes still mount, so their SFX still play. */}
       <AbsoluteFill style={isAudioOnly() ? { display: "none" } : undefined}>
         <Backdrop />
-        <Sequence name="1 Cold open" from={s("cold-open").start} durationInFrames={s("cold-open").duration + ov} premountFor={fps}>
-          <ColdOpen timing={s("cold-open")} timeline={t} lang={lang} />
-        </Sequence>
-        <Sequence name="2 Problem" from={s("problem").start} durationInFrames={s("problem").duration + ov} premountFor={fps}>
-          <Problem timing={s("problem")} timeline={t} lang={lang} />
-        </Sequence>
-        <Sequence name="3 Reveal" from={s("reveal").start} durationInFrames={s("reveal").duration + ov} premountFor={fps}>
-          <Reveal timing={s("reveal")} timeline={t} lang={lang} />
-        </Sequence>
-        <Sequence name="4 Turn" from={s("turn").start} durationInFrames={s("turn").duration + ov} premountFor={fps}>
-          <Turn timing={s("turn")} timeline={t} lang={lang} />
-        </Sequence>
-        <Sequence name="5 Specs" from={s("specs").start} durationInFrames={s("specs").duration + ov} premountFor={fps}>
-          <Specs timing={s("specs")} timeline={t} lang={lang} />
-        </Sequence>
-        <Sequence name="6 Finder" from={s("finder").start} durationInFrames={s("finder").duration + ov} premountFor={fps}>
-          <Finder timing={s("finder")} timeline={t} lang={lang} />
-        </Sequence>
-        <Sequence name="7 Brands" from={s("brands").start} durationInFrames={s("brands").duration + ov} premountFor={fps}>
-          <Brands timing={s("brands")} timeline={t} lang={lang} />
-        </Sequence>
-        <Sequence name="8 End card" from={s("endcard").start} durationInFrames={s("endcard").duration} premountFor={fps}>
-          <EndCard timing={s("endcard")} timeline={t} lang={lang} />
-        </Sequence>
+        {SCENES.map(([id, Scene], i) => {
+          const sc = s(id);
+          const last = i === SCENES.length - 1;
+          return (
+            <Sequence key={id} name={`${i + 1} ${id}`} from={sc.start} durationInFrames={sc.duration + (last ? 0 : ov)} premountFor={fps}>
+              <Scene timing={sc} timeline={t} lang={lang} />
+            </Sequence>
+          );
+        })}
 
         {subtitles && <Captions timeline={t} />}
       </AbsoluteFill>

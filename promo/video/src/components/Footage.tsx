@@ -8,7 +8,9 @@ import coldOpen from "../data/capture/cold-open.json";
 import endcard from "../data/capture/endcard.json";
 import finder from "../data/capture/finder.json";
 import problem from "../data/capture/problem.json";
+import pros from "../data/capture/pros.json";
 import reveal from "../data/capture/reveal.json";
+import reviews from "../data/capture/reviews.json";
 import shared from "../data/capture/shared.json";
 import specs from "../data/capture/specs.json";
 import turn from "../data/capture/turn.json";
@@ -28,7 +30,7 @@ export type ClipInfo = {
 export type StillInfo = { file: string; width: number; height: number; dpr: number; marks?: Record<string, { x: number; y: number; w: number; h: number }> };
 
 type Manifest = { clips: Record<string, ClipInfo>; stills: Record<string, StillInfo> };
-const parts = [shared, coldOpen, problem, reveal, turn, specs, finder, brands, endcard] as unknown as Manifest[];
+const parts = [shared, coldOpen, problem, reveal, turn, specs, reviews, pros, finder, brands, endcard] as unknown as Manifest[];
 const M: Manifest = { clips: Object.assign({}, ...parts.map((p) => p.clips)), stills: Object.assign({}, ...parts.map((p) => p.stills)) };
 
 export const clip = (name: string): ClipInfo => {

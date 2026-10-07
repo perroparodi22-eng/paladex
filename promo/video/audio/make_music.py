@@ -60,6 +60,8 @@ CFG = {
     "reveal": dict(hat="8", ohat=False, shaker=False, perc=False, bassvar=0, motif="pluck", arp=None, lead=False, cut=(1000, 1700)),
     "turn": dict(hat="16", ohat=True, shaker=False, perc=False, bassvar=1, motif="pluck", arp="A", lead=False, cut=(1700, 2500)),
     "specs": dict(hat="16", ohat=False, shaker=False, perc=True, bassvar=0, motif="bell", arp=None, lead=False, cut=(1500, 1500)),
+    "reviews": dict(hat="16", ohat=True, shaker=False, perc=True, bassvar=1, motif="bell", arp="A", lead=False, cut=(1800, 2400)),
+    "pros": dict(hat="16", ohat=True, shaker=True, perc=True, bassvar=2, motif="pluck", arp="A", lead=True, cut=(2200, 3200)),
     "finder": dict(hat="16", ohat=True, shaker=True, perc=False, bassvar=2, motif="pluck", arp="B", lead=False, cut=(1900, 3000)),
     "brands": dict(hat="16", ohat=True, shaker=True, perc=True, bassvar=2, motif="pluck", arp="B", lead=True, cut=(3000, 3800)),
     "endcard": dict(hat="16", ohat=False, shaker=False, perc=False, bassvar=0, motif="pluck", arp=None, lead=False, cut=(2600, 800)),
