@@ -122,11 +122,19 @@ async function stills() {
   const tiles = [];
   for (let y = S0, i = 0; y < S0 + STRIP_H; y += 1080, i++) {
     await page.scrollTo(y);
-    await sleep(500);
+    await sleep(1500);
     const real = await page.eval("scrollY");
     if (Math.abs(real - y) > 0.5) throw new Error(`scroll ${y} landed at ${real}`);
     const f = join(OUT, `_tile${i}.png`);
-    const res = await page.send("Page.captureScreenshot", { format: "png" });
+    // On a busy machine (software raster) the compositor can still show stale tiles
+    // from the previous scroll position: shoot until two shots in a row match.
+    let res = await page.send("Page.captureScreenshot", { format: "png" });
+    for (let k = 0; k < 10; k++) {
+      await sleep(700);
+      const again = await page.send("Page.captureScreenshot", { format: "png" });
+      if (again.data === res.data) break;
+      res = again;
+    }
     fs.writeFileSync(f, Buffer.from(res.data, "base64"));
     tiles.push([f, (y - S0) * 2]);
   }
@@ -231,6 +239,13 @@ async function viewerClip() {
       await page.setAnimationRate(rate);
     }
     if (f === CLICK - 24) await page.mouse("mouseMoved", bx, by);
+    // The viewer renders on demand and has been idle since before freeze(), so R3F's
+    // clock would hand camera-controls the whole idle time as one delta on the first
+    // frame after the click: the camera snaps to the front view instead of gliding.
+    // A scroll event wakes the viewer once (its scroll-settle listener invalidates
+    // 160 ms later, i.e. on step CLICK - 2) without moving anything, so the click
+    // starts from a fresh 1/60 s delta and the site's own glide plays out.
+    if (f === CLICK - 11) await page.eval(`window.dispatchEvent(new Event('scroll')), true`);
     if (f === CLICK) {
       await page.mouse("mousePressed", bx, by, { button: "left", buttons: 1, clickCount: 1 });
       await page.mouse("mouseReleased", bx, by, { button: "left", buttons: 0, clickCount: 1 });

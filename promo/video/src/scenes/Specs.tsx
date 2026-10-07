@@ -17,14 +17,12 @@ import { Cursor, cursorAt } from "../components/Cursor";
 import { Footage, clip, still } from "../components/Footage";
 import { Sfx } from "../components/Sfx";
 import { clamp, drift, easeInOut, enterExit } from "../lib/motion";
-import { wordAt, type Lang } from "../timeline";
+import { wordAt } from "../timeline";
 import { mixSlab, monotone, poseAt, slabTransform, type FullPose, type PoseKey, type SlabState } from "./specs/rig";
 import type { SceneProps } from "./types";
 
 // Words each beat syncs to (scene-local frames come from the voice timing).
-const ANCHORS: Record<Lang, { spec: string; lift: string; hero: string; end: string }> = {
-  en: { spec: "spec", lift: "translated", hero: "means", end: "game" },
-};
+const WORDS = { spec: "spec", lift: "translated", hero: "means", end: "game" };
 
 const PAGE_W = 1920;
 const PAGE_H = 1080;
@@ -38,7 +36,7 @@ type Rect = { x: number; y: number; w: number; h: number };
 
 
 
-export const Specs: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
+export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
   const frame = useCurrentFrame();
   const D = timing.duration;
   const OV = timeline.overlapFrames;
@@ -57,20 +55,21 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     return { key: k, file: s.file, crop: s.marks!.crop };
   });
 
-  // --- Beats (synced to the voice; both languages) ----------------------------
-  const a = ANCHORS[lang];
-  const A = wordAt(timing, a.spec, 37);
-  const B = wordAt(timing, a.lift, 81);
-  const C = wordAt(timing, a.hero, 172);
-  const G = wordAt(timing, a.end, 200, 0, "end");
+  // --- Beats (synced to the voice) -------------------------------------------
+  const A = wordAt(timing, WORDS.spec, 37);
+  const B = wordAt(timing, WORDS.lift, 81);
+  const C = wordAt(timing, WORDS.hero, 172);
+  const G = wordAt(timing, WORDS.end, 200, 0, "end");
   const heroFrom = C - 40; // the Surface row starts its flight…
-  const heroTo = C + 6; // …and settles facing the camera on "means" / "davvero"
+  const heroTo = C + 6; // …and settles facing the camera on "means"
   const rowAt = [B, Math.max(B + 8, B + (heroFrom - B) * 0.45)];
   const sinkAt = Math.max(G + 6, C + 56); // rows return after the line
   const clickAt = sinkAt + 44; // "Show on model" on the Sweet spot row
 
   // --- Page scroll (document y at the top of the viewport) --------------------
-  const scroll = monotone([-12, A, B - 4, C, sinkAt, clickAt - 6, D + 60], [S0, 2870, 3270, 3290, 3298, 3320, 3326], frame);
+  // Never past S2 (marks.scroll.h): the strip ends exactly one viewport below it.
+  const S2 = M.scroll.h;
+  const scroll = monotone([-12, A, B - 4, C, sinkAt, clickAt - 6, D + 60], [S0, 2870, 3270, 3290, 3300, S2 - 6, S2], frame);
 
   // --- Camera on the page (Browser3D pose) -----------------------------------
   const keys: PoseKey[] = [
@@ -129,11 +128,12 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   };
 
   // A slab only appears or disappears while it sits exactly on its own row: it
-  // fades in over the first frames of its take-off (the lift eases in, so it has
-  // barely moved) and fades out just AFTER it has landed. Its slot is recessed for
-  // the same span, so a row never shows twice and nothing pops (the crops have no
+  // fades in over the 6 frames BEFORE its take-off (still at p = 0, pixel-aligned
+  // with the row) and fades out just AFTER it has landed. Its slot is recessed for
+  // the same span, so the slab is fully opaque and its row fully covered by the
+  // time it moves: a row never shows twice and nothing pops (the crops have no
   // page texture behind them).
-  const presence = (takeOff: number, landed: number) => interpolate(frame, [takeOff, takeOff + 5, landed, landed + 8], [0, 1, 1, 0], clamp);
+  const presence = (takeOff: number, landed: number) => interpolate(frame, [takeOff - 6, takeOff, landed, landed + 6], [0, 1, 1, 0], clamp);
 
   const slabs = rows.map((r, i) => {
     const slot = slotState(r.crop);
@@ -165,7 +165,8 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const pageBlur = heroHold * 2.2;
 
   // Viewer footage: the captured click lands on our click frame.
-  // Capture frames 0–6 are a warm-up (frame 6 is a blank WebGL frame): start at 7.
+  // Before the click the viewer holds its idle hero pose (capture frames 0–39 are
+  // identical); the first 6 are skipped as a warm-up in case a re-capture differs.
   const viewerFrame = Math.max(7, frame - clickAt + clipClick);
 
   // Cursor (page px, glued to the page).

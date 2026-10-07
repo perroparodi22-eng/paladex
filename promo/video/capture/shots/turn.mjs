@@ -160,6 +160,9 @@ for (const lang of langs) {
   await page.goto(URL_, 3000);
   await page.waitFor("document.querySelector('canvas')", 60000);
   await page.scrollTo(0);
+  // The canvas starts at the default 300x150 and gets its real size once the viewer
+  // has mounted: measure it only then (the grab point and the camera track use it).
+  await page.waitFor("document.querySelector('canvas').getBoundingClientRect().width > 400", 120000);
   const canvas = await page.rect("canvas");
   // Hover the viewer to signal intent, then let the full model load.
   await page.mouse("mouseMoved", canvas.x + canvas.w / 2, canvas.y + canvas.h / 2);

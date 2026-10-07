@@ -8,10 +8,18 @@
 //   intermediate · balanced · control · teardrop · medium · no limit · no arm pain · current: none
 //
 // usage: node capture/shots/finder.mjs [stills|crops|footage|all]
+// On a loaded Linux box, shoot with CPU raster (GPU raster can return stale tiles):
+//   CHROME_EXTRA_ARGS="--disable-gpu-rasterization" node capture/shots/finder.mjs all
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launch, record, sleep, writeManifest } from "../cdp.mjs";
+
+// Headless Chrome reports `(hover: none)` and no fine pointer, so the site's hover
+// styles (Tailwind `hover:` is gated on `@media (hover: hover)`) never show. Report a
+// desktop mouse, like a real visitor's browser.
+const DESKTOP_POINTER = "--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4";
+process.env.CHROME_EXTRA_ARGS = [process.env.CHROME_EXTRA_ARGS, DESKTOP_POINTER].filter(Boolean).join(" ");
 
 const SCENE = "finder";
 const BASE = "http://localhost:3100";
@@ -193,6 +201,20 @@ async function footage() {
     summary: "main p.text-ink-2",
   });
   await page.freeze();
+  // Let the pointer lean and the scroll settle on the virtual clock (auto-turn is still off).
+  for (let i = 0; i < 150; i++) await page.step(1000 / 60);
+  // The viewer reads document visibility only when it renders (`autoRotate && !isHidden()`),
+  // and it last rendered while the page was hidden for loading (cdp HIDE_SHIM), so its
+  // auto-turn stays off. Re-render it now that the page is visible by toggling the site's
+  // own "Stop turning" / "Turn slowly" button (synthetic clicks: no pointer, no lean).
+  const toggle = (label) =>
+    page.eval(`(() => { const b = document.querySelector('button[aria-label=${JSON.stringify(label)}]'); if (!b) return false; b.click(); return true; })()`);
+  if (!(await toggle("Stop turning"))) throw new Error('no "Stop turning" button');
+  await sleep(500);
+  if (!(await toggle("Turn slowly"))) throw new Error('no "Turn slowly" button');
+  await sleep(500);
+  if (!(await page.eval(`!!document.querySelector('button[aria-label="Stop turning"]')`))) throw new Error("auto-turn did not come back on");
+  for (let i = 0; i < 4; i++) await page.step(1000 / 60);
   const name = `${SCENE}-results`;
   const dir = join(PUB, "capture", SCENE, "results");
   const FR = Number(process.env.FRAMES ?? 320);

@@ -7,11 +7,22 @@ Writes public/audio/vo/<lang>/<nn>-<scene>.mp3
 Scene length = the planned seconds, stretched in steps of `quantumBeats` if the line
 needs more room, so every cut lands on the music's beat grid (120 BPM -> 1 beat = 0.5 s).
 Usage: python audio/make_vo.py [lang ...]   (default: every language in script.json)
+       python audio/make_vo.py --only <scene> [lang]
+         re-voice ONE line and update just that scene in the existing timeline (every
+         other scene keeps its voice and frames, so footage synced to them stays valid);
+         fails if the new line no longer fits the scene's length.
 """
-import asyncio, json, math, sys
+import asyncio, json, math, os, sys
 from pathlib import Path
 
 import edge_tts
+
+# Behind a TLS-inspecting proxy, trust its CA (edge-tts otherwise trusts certifi only).
+if os.environ.get("SSL_CERT_FILE"):
+    import ssl
+    import edge_tts.communicate
+
+    edge_tts.communicate._SSL_CTX = ssl.create_default_context(cafile=os.environ["SSL_CERT_FILE"])
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = json.loads((ROOT / "src/data/script.json").read_text(encoding="utf-8"))
@@ -80,6 +91,37 @@ async def build(lang):
     print(f"{lang}: total {cursor / FPS:.1f}s ({cursor} frames)")
 
 
+async def only(scene_id, lang):
+    cfg = SCRIPT["langs"][lang]
+    path = ROOT / f"src/data/timeline.{lang}.json"
+    timeline = json.loads(path.read_text(encoding="utf-8"))
+    i, sc = next((i, s) for i, s in enumerate(SCRIPT["scenes"]) if s["id"] == scene_id)
+    t = next(s for s in timeline["scenes"] if s["id"] == scene_id)
+    text = cfg["lines"][scene_id]
+    rel = f"audio/vo/{lang}/{i + 1:02d}-{scene_id}.mp3"
+    tmp = ROOT / "public" / (rel + ".new")
+    dur, words = await synth(text, cfg["voice"], cfg["rate"], cfg["pitch"], tmp)
+    speech_end = words[-1]["end"] if words else dur
+    need_f = math.ceil((sc["voAt"] + speech_end + sc["tail"]) * FPS)
+    if need_f > t["duration"]:
+        tmp.unlink()
+        sys.exit(f"{scene_id}: the new line needs {need_f} frames but the scene has {t['duration']}; run a full build instead")
+    tmp.replace(ROOT / "public" / rel)
+    at = t["vo"]["at"]
+    t["vo"].update({
+        "text": text,
+        "durationInFrames": math.ceil(dur * FPS),
+        "speechEnd": at + round(speech_end * FPS),
+        "words": [{"text": w["text"], "start": at + round(w["start"] * FPS), "end": at + round(w["end"] * FPS)} for w in words],
+    })
+    path.write_text(json.dumps(timeline, indent=1, ensure_ascii=False), encoding="utf-8")
+    print(f"{lang} {scene_id}: voice {sc['voAt']:.2f}+{speech_end:.2f}s in a {t['duration'] / FPS:.1f}s scene  {text}")
+
+
 if __name__ == "__main__":
-    for lang in sys.argv[1:] or list(SCRIPT["langs"]):
-        asyncio.run(build(lang))
+    args = sys.argv[1:]
+    if args[:1] == ["--only"]:
+        asyncio.run(only(args[1], args[2] if len(args) > 2 else "en"))
+    else:
+        for lang in args or list(SCRIPT["langs"]):
+            asyncio.run(build(lang))

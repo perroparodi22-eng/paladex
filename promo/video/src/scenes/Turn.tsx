@@ -70,6 +70,10 @@ const deg = (r: number) => (r * 180) / Math.PI;
 const breakEase = Easing.bezier(0.55, 0, 0.22, 1); // slow lift-off, long soft landing
 const emergeEase = Easing.bezier(0.5, 0, 0.18, 1);
 const macroEase = Easing.bezier(0.42, 0, 0.3, 1);
+const swapEase = Easing.bezier(0.45, 0, 0.55, 1); // an even dissolve, not a 3-frame snap
+/** The macro glide's ease runs this many frames past the scene end (renormalised), so
+ *  the camera is still gliding (~20 % of its peak speed) into the cut instead of parking. */
+const MACRO_TAIL = 60;
 
 /* ------------------------------------------------------------------ browser */
 
@@ -171,8 +175,12 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
 
   /* ----------------------------------------------------------- browser */
   const pose = browserPose(orbitAt(frame, m));
-  const H = 8; // cross-fade frames at the hand-off
-  const swap = interpolate(frame, [B, B + H], [0, 1], { ...clamp, easing: easeInOut });
+  const H = 10; // cross-fade frames at the hand-off
+  const swap = interpolate(frame, [B, B + H], [0, 1], { ...clamp, easing: swapEase });
+  // The window's glass glare peaks right over the viewer at the break-out and lifts the
+  // captured racket's blacks (~+15 levels); the WebGL racket is not behind glass. Wipe
+  // the glare off during the glide to "Back" so both rackets share one tone at the swap.
+  const glare = interpolate(frame, [B - 44, B - 6], [1, 0], { ...clamp, easing: easeInOut });
   const fall = interpolate(frame, [B, B + 62], [0, 1], { ...clamp, easing: breakEase });
   const fade = interpolate(frame, [B + 40, END], [0, 1], clamp);
   const browserOpacity = mix(1, 0.5, fall) * mix(1, 0.55, fade);
@@ -192,13 +200,19 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     const m0 = matchAt(B, m, cams);
     const u = frame - B;
     const e = interpolate(u, [0, 64], [0, 1], { ...clamp, easing: emergeEase }); // racket comes up huge
-    const g = interpolate(u, [26, END - B], [0, 1], { ...clamp, easing: macroEase }); // macro glide
+    // Macro glide: eased over a span that ends MACRO_TAIL frames after the scene, then
+    // renormalised so it still reaches 1 on the last frame, with speed left over.
+    const gSpan = END - B - 26 + MACRO_TAIL;
+    const gNorm = macroEase((END - B - 26) / gSpan);
+    const g = Math.min(1, interpolate(u, [26, 26 + gSpan], [0, 1], { ...clamp, easing: macroEase }) / gNorm);
     const hand = (k: string, a: number, sp = 0.09) => drift(`turn-h-${k}`, frame, a, sp);
-    // Free camera path (starts exactly at the matched camera).
-    const dist = mix(m0.dist, 0.66, e) * mix(1, 0.46, g);
+    // Free camera path (starts exactly at the matched camera). The racket lands big with
+    // the whole head in frame (headroom above the rim, throat clear of the subtitles);
+    // only then does the macro push crop in.
+    const dist = mix(m0.dist, 0.75, e) * mix(1, 0.405, g);
     const fov = mix(m0.fov, 31, e) - 5 * g;
     const shiftX = mix(m0.shiftX, 190, e) * (1 - g) + hand("sx", 6);
-    const shiftY = mix(m0.shiftY, 10, e) * (1 - g) + hand("sy", 4);
+    const shiftY = mix(m0.shiftY, -4, e) * (1 - g) + hand("sy", 4);
     const camAz = 0.6 * g + 0.03 * e + hand("az", 0.012);
     const camEl = 0.04 * e + 0.2 * g + hand("el", 0.01);
     const target: Vec3 = [0.072 * g, mix(0, 0.05, e) + 0.035 * g, 0.017 * g];
@@ -262,11 +276,12 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
         {/* The browser with the real racket page. */}
         <AbsoluteFill style={{ opacity: browserOpacity, filter: browserBlur > 0.01 ? `blur(${browserBlur}px)` : undefined }}>
           <Space3D perspective={PERSP} originX={ORIGIN_X} originY={ORIGIN_Y}>
-            <Browser3D {...pose} path={PATH}>
+            <Browser3D {...pose} path={PATH} glare={glare}>
               {swap < 1 && <Footage name={CLIP} frame={frame} />}
               {swap > 0 && <PageStill name={EMPTY} style={{ opacity: swap }} />}
               {cur && curOpacity > 0 && (
-                <Cursor x={cur.x} y={cur.y} down={cur.down} grab={grab} clicks={m.clicks} frame={frame} opacity={curOpacity} />
+                // The grabbing hand is drawn smaller than the arrow: scale it up to read.
+                <Cursor x={cur.x} y={cur.y} down={cur.down} grab={grab} clicks={m.clicks} frame={frame} opacity={curOpacity} scale={grab ? 1.55 : 1.35} />
               )}
             </Browser3D>
           </Space3D>

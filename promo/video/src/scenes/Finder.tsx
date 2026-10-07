@@ -20,14 +20,12 @@ import { Footage, still } from "../components/Footage";
 import { Sfx } from "../components/Sfx";
 import { clamp, drift, easeInOut, easeOut, enterExit, mix } from "../lib/motion";
 import { C } from "../theme";
-import { wordAt, type Lang } from "../timeline";
+import { wordAt } from "../timeline";
 import type { SceneProps } from "./types";
 
 // ---------------------------------------------------------------------------
-// Voice anchors per language (scene-local frames come from the word timings).
-const WORDS: Record<Lang, { answer: string; see: string; fit: string; how: string; play: string }> = {
-  en: { answer: "Answer", see: "see", fit: "fit", how: "how", play: "play" },
-};
+// Voice anchors (scene-local frames come from the word timings).
+const WORDS = { answer: "Answer", see: "see", fit: "fit", how: "how", play: "play" } as const;
 
 // ---------------------------------------------------------------------------
 // The deck. `target` is the option the cursor taps (a key of the still's marks).
@@ -101,11 +99,11 @@ const aimOf = (d: CardDef) => {
 
 // ---------------------------------------------------------------------------
 
-export const Finder: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
+export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
   const frame = useCurrentFrame();
   const D = timing.duration;
   const OV = timeline.overlapFrames;
-  const w = WORDS[lang];
+  const w = WORDS;
 
   // Beats (all derived from the voice).
   const A = wordAt(timing, w.answer, 100);
@@ -241,7 +239,8 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
               </Browser3D>
               <LiftLayer pose={rPose} opacity={rOpacity}>
                 <CropLift name="finder-badge" t={badgeLift} z={120} grow={0.22} radius={999} />
-                <CropLift name="finder-reasons" t={reasonsLift} z={80} grow={0.03} dy={10} origin="50% 0%" radius={16} pad={10} padColor="rgb(20,21,25)" />
+                {/* Lifted straight off the plate (no drop, slim margin) so it never covers the "Strengths" row below. */}
+                <CropLift name="finder-reasons" t={reasonsLift} z={80} grow={0.03} radius={14} pad={6} padColor="rgb(20,21,25)" shadow={0.45} />
                 <MatchWave frame={frame} at={W} />
               </LiftLayer>
             </>
@@ -472,17 +471,19 @@ const MatchWave: React.FC<{ frame: number; at: number }> = ({ frame, at }) => {
  * A dpr-2 crop of the real results page, placed exactly over the same spot of the
  * footage (`marks.frame`), rising off the page plane by `t` (0–1).
  */
-const CropLift: React.FC<{ name: string; t: number; z: number; grow: number; radius: number; pad?: number; padColor?: string; origin?: string; dy?: number }> = ({
-  name,
-  t,
-  z,
-  grow,
-  dy = 0,
-  radius,
-  pad = 0,
-  padColor,
-  origin = "50% 50%",
-}) => {
+const CropLift: React.FC<{
+  name: string;
+  t: number;
+  z: number;
+  grow: number;
+  radius: number;
+  pad?: number;
+  padColor?: string;
+  origin?: string;
+  dy?: number;
+  /** Strength of the cast shadow (0–1). */
+  shadow?: number;
+}> = ({ name, t, z, grow, dy = 0, radius, pad = 0, padColor, origin = "50% 50%", shadow = 1 }) => {
   if (t <= 0.001) return null;
   const s = still(name);
   const box = s.marks!.frame;
@@ -503,7 +504,7 @@ const CropLift: React.FC<{ name: string; t: number; z: number; grow: number; rad
           transform: `translate3d(0px, ${t * dy}px, ${t * z}px) scale(${1 + t * grow})`,
           borderRadius: radius,
           overflow: "hidden",
-          boxShadow: `0 ${t * 26}px ${t * 56}px rgba(0,0,0,${0.6 * t}), 0 0 0 ${pad ? 1 : 0}px rgba(255,255,255,${0.08 * t})`,
+          boxShadow: `0 ${t * 26 * shadow}px ${t * 56 * shadow}px rgba(0,0,0,${0.6 * t * Math.min(1, shadow * 1.4)}), 0 0 0 ${pad ? 1 : 0}px rgba(255,255,255,${0.08 * t})`,
           opacity: interpolate(t, [0, 0.15], [0, 1], clamp),
         }}
       >

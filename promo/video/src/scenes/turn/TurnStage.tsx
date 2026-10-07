@@ -133,13 +133,13 @@ export const HeroRacket: React.FC<{ yaw: number; pitch: number; roll?: number; r
         <group position={[0, geo.y, geo.z]} rotation={[0, Math.PI, 0]} scale={ringScale}>
           {/* thin ring */}
           <mesh renderOrder={2}>
-            <ringGeometry args={[r * 0.965, r, 160]} />
-            <meshBasicMaterial color="#d9f04a" transparent opacity={0.75 * ring} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
+            <ringGeometry args={[r * 0.972, r, 160]} />
+            <meshBasicMaterial color="#d9f04a" transparent opacity={0.6 * ring} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
           </mesh>
           {/* faint inner wash */}
           <mesh renderOrder={1}>
-            <circleGeometry args={[r * 0.965, 160]} />
-            <meshBasicMaterial color="#d9f04a" transparent opacity={0.07 * ring} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
+            <circleGeometry args={[r * 0.972, 160]} />
+            <meshBasicMaterial color="#d9f04a" transparent opacity={0.05 * ring} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
           </mesh>
         </group>
       )}

@@ -2,24 +2,25 @@
 //
 // Three beats, each on its words (scene-local frames from the voice timing):
 //
-//   "Sixty-two rackets"  a concave showroom wall of real racket models (WebGL, 22
-//                        different .glb files) with the camera tracking fast along it;
-//                        each racket idles on its own axis so the wall reads as 3D. A
-//                        big counter rises to 62.
-//   "Thirteen brands"    the camera cranes up and back, the wall sinks into the dark,
-//                        and the site's real brand tiles (dpr 2 crops of the /rackets
-//                        rail) sweep in on a curved rail, turning like a carousel. The
-//                        counter rolls over to 13.
-//   "All in one place"   a browser window rises from depth with the real /rackets page;
-//                        the rail unrolls and every tile flies into its exact slot on
-//                        the page (same 3D pose as the window), then hands over to the
-//                        footage, where the captured cursor picks Nox and the grid
-//                        filters. House exit to the end card.
+//   "Sixty-two rackets"  a long showroom line of real racket models (WebGL, 22 different
+//                        .glb files) receding from the right edge into the dark; the camera
+//                        dollies fast along it so the rackets stream past, each idling on its
+//                        own axis. A big counter rises to 62 in the clear space on the left.
+//   "Thirteen brands"    the camera cranes up and back, the line sinks into soft focus, and
+//                        the site's real brand cards (dpr 2 crops of the /rackets rail) swing
+//                        in as a 3D carousel ring that spins and glides to rest. The counter
+//                        rolls over to 13.
+//   "All in one place"   a browser window rises from depth with the real /rackets page; the
+//                        ring unrolls and every card flies (arcing toward the lens) into its
+//                        exact slot in the page's rail, where a clean plate of the page shows
+//                        the slots empty until each card lands; then each card hands over to
+//                        the footage. The captured cursor picks Nox and the grid filters.
+//                        House exit to the end card.
 import React from "react";
 import { AbsoluteFill, Easing, Img, interpolate, random, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { Browser3D, CHROME_H, Space3D, type Pose } from "../components/Browser3D";
 import { Cursor } from "../components/Cursor";
-import { Footage, clip, footageCursor, still } from "../components/Footage";
+import { Footage, clip, still } from "../components/Footage";
 import { RacketModel, RacketStage } from "../components/Racket3D";
 import { Sfx } from "../components/Sfx";
 import { clamp, drift, easeIn, easeInOut, easeOut, enterExit, mix } from "../lib/motion";
@@ -57,62 +58,74 @@ const WALL = [
   "head-extreme-motion-2026",
   "bullpadel-elite-02-27",
 ];
-/** The wall curves toward the camera (a showroom wrapping round the viewer). */
-const ARC_R = 3.4;
-const STEP = 0.1; // rad between rackets (≈ 0.34 m)
-const WALL_Z = -0.3;
+/** The line runs along -X from the origin (metres); rackets stand on it, turned toward the aisle. */
+const WALL_STEP = 0.4;
+const WALL_YAW = 0.45; // rad toward the camera side
+/** Darkness the far end of the line fades into (close to the backdrop). */
+const FOG = "#08090b";
 
 type V3 = [number, number, number];
 
-const wallPose = (i: number, f: number): { position: V3; rotation: V3 } => {
-  const th = (i - (WALL.length - 1) / 2) * STEP;
-  const y = (random(`br-y-${i}`) - 0.5) * 0.05 + drift(`br-fy-${i}`, f, 0.006, 0.2);
-  // Faces the centre of the curve, plus a slow idle turn of its own (phase per racket).
-  const yaw = -th + Math.sin(f * 0.021 + i * 1.9) * 0.34;
-  return {
-    position: [ARC_R * Math.sin(th), y, WALL_Z + ARC_R * (1 - Math.cos(th))],
-    rotation: [drift(`br-tx-${i}`, f, 0.05, 0.15), yaw, (random(`br-z-${i}`) - 0.5) * 0.08],
-  };
-};
+const wallPose = (i: number, f: number): { position: V3; rotation: V3 } => ({
+  position: [-i * WALL_STEP, (random(`br-y-${i}`) - 0.5) * 0.04 + drift(`br-fy-${i}`, f, 0.006, 0.2), 0],
+  // Turned toward the aisle, plus a slow idle turn of its own (phase per racket).
+  rotation: [drift(`br-tx-${i}`, f, 0.04, 0.15), WALL_YAW + Math.sin(f * 0.02 + i * 1.9) * 0.22, (random(`br-z-${i}`) - 0.5) * 0.06],
+});
 
-/* ------------------------------------------------------------- brand rail */
-/** The /rackets rail, in the page's order (tile crops captured by capture/shots/brands.mjs). */
+/* ------------------------------------------------------------- brand ring */
+/** The /rackets rail, in the page's order (logo cards captured by capture/shots/brands.mjs). */
 const TILES = ["bullpadel", "head", "nox", "adidas", "babolat", "siux", "wilson", "black-crown", "drop-shot", "kuikma", "lok", "starvie"];
+/** Cards that are inside the page's visible rail at scroll 0 (the rest are scrolled off to the right). */
+const ON_RAIL = 7;
 
 const PERSP = 2000;
-/** Convex carousel (centre behind the tiles), right of the counter. */
-const RAIL = { cx: 380, cy: -10, r: 1250, gap: 11, scale: 1.5 };
-const RAIL_CZ = -RAIL.r - 220;
+/** A carousel ring (world px, frame centre = 0), seen from slightly above, right of the counter. */
+const RING = { x: 380, y: -30, z: -260, r: 540, tilt: -12, s: 1.32 };
+const RING_STEP = 360 / TILES.length;
+/** Card j sits at (j - FRONT) * RING_STEP + spin; spin glides to 0, so the front half then
+ * reads left to right in the rail's order (Bullpadel … Wilson) before it unrolls. */
+const FRONT = 3;
 
 /* ------------------------------------------------------------- the page */
 const CLIP = "brands-rail";
 const PAGE = still("brands-page");
+const PLATE = still("brands-plate");
 const CLICK_FRAME = clip(CLIP).events?.find((e) => e.type === "click")?.frame ?? 84;
-/** The page's own background behind the rail (covers the footage's tiles until ours land). */
-const PAGE_BG = "#0b0c0e";
+/** The captured cursor leaves its rest pose at clip frame 18 (static page before that). */
+const MOVE_FROM = 18;
+const RAIL_BOX = PAGE.marks?.rail ?? { x: 240, y: 320, w: 1440, h: 221 };
+const NOX = PAGE.marks?.["card-nox"] ?? { x: 853, y: 329.3, w: 158, h: 160 };
+/** First clip frame where the cursor is over the Nox tile (the site starts its hover there). */
+const HOVER_FRAME = (() => {
+  const cur = clip(CLIP).cursor ?? [];
+  const i = cur.findIndex((c, k) => k > MOVE_FROM && c[1] >= NOX.y - 12);
+  return i < 0 ? 49 : i;
+})();
 /** Where the window settles (world px, frame centre = 0). */
-const WIN_REST: Required<Pose> = { x: 0, y: -26, z: 0, rotateX: 3, rotateY: -6, rotateZ: 0, scale: 0.74 };
-const WIN_FAR: Required<Pose> = { x: 120, y: 420, z: -2600, rotateX: 22, rotateY: -28, rotateZ: -3, scale: 0.74 };
+const WIN_REST: Required<Pose> = { x: 0, y: -56, z: 0, rotateX: 3, rotateY: -6, rotateZ: 0, scale: 0.75 };
+const WIN_FAR: Required<Pose> = { x: 420, y: 520, z: -2600, rotateX: 22, rotateY: -26, rotateZ: -3, scale: 0.75 };
 
 const DEG = Math.PI / 180;
 type P7 = { x: number; y: number; z: number; rx: number; ry: number; rz: number; s: number };
 
-/** World position of a page point (CSS px) on a window with this pose (CSS transform order). */
-const onWindow = (w: Required<Pose>, px: number, py: number): P7 => {
-  // Window-local offset from the window centre (the content box sits under the chrome bar).
-  let x = (px - 1920 / 2) * w.scale;
-  let y = (py + CHROME_H - (1080 + CHROME_H) / 2) * w.scale;
-  let z = 0;
-  // rotateZ, then rotateY, then rotateX (the CSS list applies right to left).
-  const c = Math.cos(w.rotateZ * DEG);
-  const s = Math.sin(w.rotateZ * DEG);
+/** Rotate a vector by CSS rotateX(rx) rotateY(ry) rotateZ(rz) (applied right to left). */
+const rotate = (v: V3, rx: number, ry: number, rz: number): V3 => {
+  let [x, y, z] = v;
+  const c = Math.cos(rz * DEG);
+  const s = Math.sin(rz * DEG);
   [x, y] = [x * c - y * s, x * s + y * c];
-  const cy = Math.cos(w.rotateY * DEG);
-  const sy = Math.sin(w.rotateY * DEG);
+  const cy = Math.cos(ry * DEG);
+  const sy = Math.sin(ry * DEG);
   [x, z] = [x * cy + z * sy, -x * sy + z * cy];
-  const cx = Math.cos(w.rotateX * DEG);
-  const sx = Math.sin(w.rotateX * DEG);
+  const cx = Math.cos(rx * DEG);
+  const sx = Math.sin(rx * DEG);
   [y, z] = [y * cx - z * sx, y * sx + z * cx];
+  return [x, y, z];
+};
+
+/** World pose of a page point (CSS px) on a window with this pose (same maths as Browser3D). */
+const onWindow = (w: Required<Pose>, px: number, py: number): P7 => {
+  const [x, y, z] = rotate([(px - 1920 / 2) * w.scale, (py + CHROME_H - (1080 + CHROME_H) / 2) * w.scale, 0], w.rotateX, w.rotateY, w.rotateZ);
   return { x: w.x + x, y: w.y + y, z: w.z + z, rx: w.rotateX, ry: w.rotateY, rz: w.rotateZ, s: w.scale };
 };
 
@@ -126,8 +139,24 @@ const mixPose = (a: Required<Pose>, b: Required<Pose>, t: number): Required<Pose
   scale: mix(a.scale, b.scale, t),
 });
 
+/** Cosine between a card's face normal and the direction to the lens (CSS perspective camera). */
+const facing = (p: P7) => {
+  const [nx, ny, nz] = rotate([0, 0, 1], p.rx, p.ry, p.rz);
+  const vx = -p.x;
+  const vy = -p.y;
+  const vz = PERSP - p.z;
+  return (nx * vx + ny * vy + nz * vz) / Math.hypot(vx, vy, vz);
+};
+
+/** Pick the equivalent angle (± 360) nearest to `to`, so a card never spins the long way round. */
+const nearAngle = (a: number, to: number) => a - 360 * Math.round((a - to) / 360);
+
 const travelEase = Easing.bezier(0.3, 0, 0.12, 1);
-const trackEase = Easing.bezier(0.42, 0, 0.3, 1);
+const trackEase = Easing.bezier(0.3, 0.32, 0.25, 1);
+const spinEase = Easing.bezier(0.18, 0.62, 0.28, 1);
+const flightEase = Easing.bezier(0.5, 0, 0.2, 1);
+const countEase = Easing.bezier(0.2, 0.6, 0.3, 1);
+const pushEase = Easing.bezier(0.45, 0, 0.75, 0.85);
 
 export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
   const frame = useCurrentFrame();
@@ -147,68 +176,94 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
   const env = enterExit(frame, D, ov);
 
   /* ------------------------------------------------------------- the wall */
-  // Fast lateral track along the wall, then (on "Thirteen") a crane up and back.
-  const track = interpolate(frame, [0, thirteenAt + 50], [0, 1], { ...clamp, easing: trackEase });
-  const crane = interpolate(frame, [thirteenAt - 14, allAt + 20], [0, 1], { ...clamp, easing: easeInOut });
-  const camX = mix(-2.05, 1.05, track) + interpolate(frame, [thirteenAt + 50, END], [0, 0.25], clamp);
-  const camY = mix(0.02, 0.42, crane) + drift("br-cy", frame, 0.012, 0.1);
-  const camZ = mix(1.45, 2.5, crane);
+  // A fast dolly along the line (decelerating), then (on "Thirteen") a crane up and back.
+  const track = interpolate(frame, [0, thirteenAt + 40], [0, 1], { ...clamp, easing: trackEase });
+  const crane = interpolate(frame, [thirteenAt - 16, allAt + 16], [0, 1], { ...clamp, easing: easeInOut });
+  const camX = mix(0.4, -2.75, track) - interpolate(frame, [thirteenAt + 40, END], [0, 0.3], clamp);
+  const camY = mix(0.08, 1.1, crane) + drift("br-cy", frame, 0.01, 0.1);
+  const camZ = mix(1.55, 2.9, crane);
+  const look = mix(3.75, 5, crane);
+  const camTarget: V3 = [camX - look, mix(0, 0.2, crane), 0];
   const wallIn = interpolate(frame, [0, 14], [0, 1], { ...clamp, easing: easeOut });
-  const wallDim = interpolate(frame, [thirteenAt - 12, brandsAt + 8, allAt + 6, allAt + 18], [1, 0.3, 0.16, 0], clamp);
-  const wallBlur = interpolate(frame, [thirteenAt - 12, brandsAt + 10], [0, 7], clamp);
+  const wallDim = interpolate(frame, [thirteenAt - 12, brandsAt + 8, allAt + 4, allAt + 18], [1, 0.32, 0.2, 0], clamp);
+  const wallBlur = interpolate(frame, [thirteenAt - 12, brandsAt + 10], [0, 6], clamp);
   const wallOn = frame < allAt + 18;
 
   /* ------------------------------------------------------------ counters */
-  const count62 = Math.round(RACKETS * interpolate(frame, [sixtyAt - 3, racketsAt + 12], [0, 1], { ...clamp, easing: Easing.bezier(0.2, 0.6, 0.3, 1) }));
-  const count13 = Math.round(BRANDS * interpolate(frame, [thirteenAt - 2, brandsAt + 12], [0, 1], { ...clamp, easing: Easing.bezier(0.2, 0.6, 0.3, 1) }));
+  const count62 = Math.round(RACKETS * interpolate(frame, [sixtyAt - 3, racketsAt + 12], [0, 1], { ...clamp, easing: countEase }));
+  const count13 = Math.round(BRANDS * interpolate(frame, [thirteenAt - 2, brandsAt + 12], [0, 1], { ...clamp, easing: countEase }));
   const in62 = interpolate(frame, [sixtyAt - 8, sixtyAt + 14], [0, 1], { ...clamp, easing: easeOut });
-  const out62 = interpolate(frame, [thirteenAt - 12, thirteenAt + 6], [0, 1], { ...clamp, easing: easeIn });
-  const in13 = interpolate(frame, [thirteenAt - 6, thirteenAt + 16], [0, 1], { ...clamp, easing: easeOut });
-  const out13 = interpolate(frame, [allAt - 10, allAt + 8], [0, 1], { ...clamp, easing: easeIn });
+  const out62 = interpolate(frame, [thirteenAt - 12, thirteenAt + 4], [0, 1], { ...clamp, easing: easeIn });
+  const in13 = interpolate(frame, [thirteenAt - 4, thirteenAt + 18], [0, 1], { ...clamp, easing: easeOut });
+  const out13 = interpolate(frame, [allAt - 16, allAt + 2], [0, 1], { ...clamp, easing: easeIn });
   const labelR = interpolate(frame, [racketsAt - 6, racketsAt + 16], [0, 1], { ...clamp, easing: easeOut });
   const labelB = interpolate(frame, [brandsAt - 6, brandsAt + 16], [0, 1], { ...clamp, easing: easeOut });
   const scrim = Math.max(in62 * (1 - out62), in13 * (1 - out13));
 
+  /* ------------------------------------------------------- landing plan */
+  // Cards land left to right on "place", a beat apart; each hands over to the footage
+  // right after it lands (its empty slot on the clean plate disappears under it first).
+  const FLIGHT = 32;
+  const landAt = (j: number) => placeAt + j * 2.4;
+  const flyAt = (j: number) => landAt(j) - FLIGHT;
+  const HAND = 10; // frames for a landed card to dissolve into the footage
+  const release = flyAt(0);
+
   /* --------------------------------------------------------------- window */
-  const L = placeAt + 18; // the tiles land and the window settles
-  const flyStart = allAt - 16;
-  const fly = interpolate(frame, [flyStart, L], [0, 1], { ...clamp, easing: travelEase });
+  const flyStart = allAt - 24;
+  const settle = placeAt + 14;
+  const fly = interpolate(frame, [flyStart, settle], [0, 1], { ...clamp, easing: travelEase });
   const hand = (seed: string, amp: number) => drift(`br-w-${seed}`, frame, amp, 0.11);
   const winPose: Required<Pose> = (() => {
     const p = mixPose(WIN_FAR, WIN_REST, fly);
     return {
       ...p,
-      x: p.x + hand("x", 3) + interpolate(frame, [L, END], [0, -18], clamp),
+      x: p.x + hand("x", 3) + interpolate(frame, [settle, END], [0, -16], clamp),
       y: p.y + hand("y", 2.5),
-      // A slow push-in after the settle, so the hold never stops.
-      z: p.z + interpolate(frame, [L, END], [0, 70], clamp),
-      rotateY: p.rotateY + hand("ry", 0.35) + interpolate(frame, [L, END], [0, 3.5], clamp),
+      // After the settle the camera keeps pushing in on the rail and the click (never stops).
+      z: p.z + interpolate(frame, [settle, END], [0, 230], { ...clamp, easing: pushEase }),
+      rotateY: p.rotateY + hand("ry", 0.35) + interpolate(frame, [settle, END], [0, 3], clamp),
       rotateX: p.rotateX + hand("rx", 0.25),
     };
   })();
-  const winOpacity = interpolate(frame, [flyStart, flyStart + 22], [0, 1], { ...clamp, easing: easeOut });
-  const winBlur = interpolate(fly, [0, 0.7], [6, 0], clamp);
+  const winOpacity = interpolate(frame, [flyStart, flyStart + 20], [0, 1], { ...clamp, easing: easeOut });
+  const winBlur = interpolate(fly, [0, 0.6], [6, 0], clamp);
   const winOn = frame >= flyStart;
 
-  // Footage: the captured click on Nox lands 30 frames after the settle.
-  const clipStart = L + 30 - CLICK_FRAME;
-  const clipF = frame - clipStart;
-  const cur = footageCursor(CLIP, clipF);
-  const curOpacity = interpolate(frame, [L - 10, L + 6], [0, 1], { ...clamp, easing: easeOut });
-  const patch = interpolate(frame, [L - 6, L + 8], [1, 0], { ...clamp, easing: easeInOut });
+  // Footage time: the page holds (cursor at rest) until the Nox card has dissolved into
+  // the footage, then the captured approach plays ~1.8x so the cursor only reaches the Nox
+  // tile (where the site starts its hover) after that, and the click follows at 1x.
+  const MOVE = 36; // scene frames for clip frames MOVE_FROM → CLICK_FRAME
+  const moveStart = landAt(2) + HAND + 4 - ((HOVER_FRAME - MOVE_FROM) * MOVE) / (CLICK_FRAME - MOVE_FROM);
+  const clickAt = moveStart + MOVE;
+  const clipF =
+    frame < moveStart
+      ? MOVE_FROM
+      : frame < clickAt
+        ? MOVE_FROM + ((frame - moveStart) * (CLICK_FRAME - MOVE_FROM)) / MOVE
+        : CLICK_FRAME + (frame - clickAt);
+  const cur = cursorLerp(clipF);
+  const curOpacity = interpolate(frame, [moveStart - 16, moveStart], [0, 1], { ...clamp, easing: easeOut });
 
-  /* ---------------------------------------------------------------- tiles */
-  const tilesOn = frame >= thirteenAt - 24 && frame < L + 14;
-  const spin = interpolate(frame, [thirteenAt - 22, allAt], [128, 24], { ...clamp, easing: Easing.bezier(0.2, 0.7, 0.25, 1) }) + interpolate(frame, [allAt, L], [0, -6], clamp);
-  const conv = (j: number) => interpolate(frame, [allAt - 8 + j * 1.6, L - 2], [0, 1], { ...clamp, easing: Easing.bezier(0.55, 0, 0.18, 1) });
-  const tileFade = interpolate(frame, [L, L + 12], [1, 0], { ...clamp, easing: easeIn });
+  /* ---------------------------------------------------------------- ring */
+  const ringIn = interpolate(frame, [thirteenAt - 20, thirteenAt + 26], [0, 1], { ...clamp, easing: easeOut });
+  const ringOp = interpolate(frame, [thirteenAt - 20, thirteenAt - 2], [0, 1], { ...clamp, easing: easeOut });
+  const ringF = Math.min(frame, release);
+  const spin = interpolate(ringF, [thirteenAt - 20, release], [250, 0], { ...clamp, easing: spinEase });
+  const ringC = {
+    x: RING.x + (1 - ringIn) * 1100,
+    y: RING.y + (1 - ringIn) * -60,
+    z: RING.z - (1 - ringIn) * 900,
+  };
+  const tilesOn = frame >= thirteenAt - 20 && frame < landAt(ON_RAIL - 1) + HAND + 2;
 
   return (
     <AbsoluteFill style={{ opacity: env.opacity, scale: env.scale, filter: env.blur > 0.01 ? `blur(${env.blur}px)` : undefined }}>
-      {/* The wall of rackets (WebGL). */}
+      {/* The line of rackets (WebGL). */}
       {wallOn && (
         <AbsoluteFill style={{ opacity: wallIn * wallDim, filter: wallBlur > 0.05 ? `blur(${wallBlur}px)` : undefined }}>
-          <RacketStage width={width} height={height} cameraPosition={[camX, camY, camZ]} cameraTarget={[camX + 0.32, camY * 0.35, WALL_Z]} fov={30}>
+          <RacketStage width={width} height={height} cameraPosition={[camX, camY, camZ]} cameraTarget={camTarget} fov={30}>
+            <fog attach="fog" args={[FOG, mix(2.15, 3.2, crane), mix(7, 9.2, crane)]} />
             {WALL.map((slug, i) => {
               const p = wallPose(i, frame);
               return <RacketModel key={slug} slug={slug} position={p.position} rotation={p.rotation} />;
@@ -217,11 +272,11 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
         </AbsoluteFill>
       )}
 
-      {/* Legibility: the dark settles behind the counter. */}
+      {/* Legibility: a little more dark behind the counter. */}
       <AbsoluteFill
         style={{
           opacity: scrim,
-          background: "radial-gradient(ellipse 980px 760px at 16% 48%, rgba(7,8,9,0.82) 0%, rgba(7,8,9,0.55) 45%, rgba(7,8,9,0) 75%)",
+          background: "radial-gradient(ellipse 900px 700px at 17% 46%, rgba(7,8,9,0.7) 0%, rgba(7,8,9,0.4) 45%, rgba(7,8,9,0) 75%)",
         }}
       />
 
@@ -231,52 +286,57 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
           <Space3D perspective={PERSP} originY={50}>
             <Browser3D {...winPose} path="/rackets" opacity={winOpacity} glare={mix(2.2, 1, fly)}>
               <Footage name={CLIP} frame={clipF} />
-              {patch > 0.001 && (
-                <PagePatch box={PAGE.marks?.rail ?? { x: 240, y: 320, w: 1440, h: 221 }} opacity={patch} />
-              )}
-              {cur && curOpacity > 0.001 && (
-                <Cursor x={cur.x} y={cur.y} down={cur.down} frame={clipF} clicks={[CLICK_FRAME]} opacity={curOpacity} />
-              )}
+              {/* Clean plate: each brand's slot shows empty until its card has landed. */}
+              {TILES.slice(0, ON_RAIL).map((slug, j) => {
+                const m = PAGE.marks?.[`card-${slug}`];
+                if (!m || frame >= landAt(j)) return null;
+                return <PlateSlot key={slug} box={m} railRight={RAIL_BOX.x + RAIL_BOX.w} />;
+              })}
+              {cur && curOpacity > 0.001 && <Cursor x={cur.x} y={cur.y} down={cur.down} frame={clipF} clicks={[CLICK_FRAME]} opacity={curOpacity} />}
             </Browser3D>
           </Space3D>
         </AbsoluteFill>
       )}
 
-      {/* The brand tiles: a carousel, then each one flies to its slot on the page. */}
+      {/* The brand cards: a carousel ring, then each one flies into its slot on the page. */}
       {tilesOn && (
         <AbsoluteFill>
           <Space3D perspective={PERSP} originY={50}>
             {TILES.map((slug, j) => {
               const info = still(`brands-tile-${slug}`);
-              const phi = (j - (TILES.length - 1) / 2) * RAIL.gap + spin;
-              const rail: P7 = {
-                x: RAIL.cx + RAIL.r * Math.sin(phi * DEG),
-                y: RAIL.cy + drift(`br-ty-${j}`, frame, 6, 0.18),
-                z: RAIL_CZ + RAIL.r * Math.cos(phi * DEG),
-                rx: drift(`br-trx-${j}`, frame, 2, 0.15),
-                ry: phi,
-                rz: 0,
-                s: RAIL.scale,
+              const ringPose = (a: number): P7 => {
+                const [x, y, z] = rotate([RING.r * Math.sin(a * DEG), 0, RING.r * Math.cos(a * DEG)], RING.tilt, 0, 0);
+                return { x: ringC.x + x, y: ringC.y + y + drift(`br-ty-${j}`, ringF, 5, 0.18), z: ringC.z + z, rx: RING.tilt, ry: a, rz: 0, s: RING.s };
               };
+              const onRail = j < ON_RAIL;
               const m = PAGE.marks?.[`card-${slug}`];
-              const slot = m ? onWindow(winPose, m.x + m.w / 2, m.y + m.h / 2) : rail;
-              const t = conv(j);
-              const p: P7 = {
-                x: mix(rail.x, slot.x, t),
-                y: mix(rail.y, slot.y, t),
-                z: mix(rail.z, slot.z, t),
-                rx: mix(rail.rx, slot.rx, t),
-                ry: mix(rail.ry, slot.ry, t),
-                rz: mix(rail.rz, slot.rz, t),
-                s: mix(rail.s, slot.s, t),
-              };
-              // On the carousel, tiles fade at the far left (the counter's side) and far right.
-              const railOp = interpolate(phi, [-48, -30, 62, 84], [0, 1, 1, 0], clamp);
-              // Slots outside the page's rail box are scrolled out of view on the site: fade them as they arrive.
-              const railBox = PAGE.marks?.rail;
-              const offRail = m && railBox ? interpolate(m.x + m.w, [railBox.x + railBox.w - 40, railBox.x + railBox.w + 40], [0, 1], clamp) : 0;
-              const op = mix(railOp, 1 - offRail, t) * tileFade;
+              // Only the cards inside the page's visible rail fly; the back of the ring (brands
+              // scrolled off the rail on the page) sinks away and dissolves as the ring unrolls.
+              const slot = m && onRail ? onWindow(winPose, m.x + m.w / 2, m.y + m.h / 2) : null;
+              const t = slot ? interpolate(frame, [flyAt(j), landAt(j)], [0, 1], { ...clamp, easing: flightEase }) : 0;
+              const sink = onRail ? 0 : interpolate(frame, [release - 8, release + 16], [0, 1], { ...clamp, easing: easeIn });
+              const a = (j - FRONT) * RING_STEP + spin;
+              const src = ringPose(slot ? nearAngle(a, slot.ry) : a);
+              let p = sink > 0 ? { ...src, z: src.z - sink * 320, y: src.y - sink * 30 } : src;
+              if (slot && t > 0) {
+                // Straight to the slot, arcing toward the lens on the way (depth), no overshoot.
+                const arc = Math.sin(t * Math.PI);
+                p = {
+                  x: mix(src.x, slot.x, t),
+                  y: mix(src.y, slot.y, t) - arc * 40,
+                  z: mix(src.z, slot.z, t) + arc * 240,
+                  rx: mix(src.rx, slot.rx, t),
+                  ry: mix(src.ry, slot.ry, t),
+                  rz: mix(src.rz, slot.rz, t),
+                  s: mix(src.s, slot.s, t),
+                };
+              }
+              // Landed cards dissolve into the footage.
+              const op = onRail ? ringOp * (1 - interpolate(frame, [landAt(j) + 2, landAt(j) + 2 + HAND], [0, 1], { ...clamp, easing: easeInOut })) : ringOp * (1 - sink);
               if (op < 0.002) return null;
+              const face = facing(p);
+              // The rail clips the last visible card (Wilson) at its right edge: match it as the card lands.
+              const cut = m ? Math.max(0, m.x + m.w - (RAIL_BOX.x + RAIL_BOX.w)) * interpolate(t, [0.55, 1], [0, 1], { ...clamp, easing: easeInOut }) : 0;
               return (
                 <div
                   key={slug}
@@ -290,12 +350,21 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
                     marginTop: -info.height / 2,
                     transform: `translate3d(${p.x}px, ${p.y}px, ${p.z}px) rotateX(${p.rx}deg) rotateY(${p.ry}deg) rotateZ(${p.rz}deg) scale(${p.s})`,
                     opacity: op,
-                    borderRadius: 14,
+                    borderRadius: 16,
                     overflow: "hidden",
-                    boxShadow: t < 0.98 ? `0 ${30 * (1 - t)}px ${60 * (1 - t)}px rgba(0,0,0,${0.55 * (1 - t)})` : undefined,
+                    clipPath: cut > 0.01 ? `inset(0 ${cut}px 0 0 round 16px ${Math.max(0, 16 - cut)}px ${Math.max(0, 16 - cut)}px 16px)` : undefined,
+                    boxShadow: t < 0.98 ? `0 ${34 * (1 - t)}px ${70 * (1 - t)}px rgba(0,0,0,${0.6 * (1 - t)})` : undefined,
                   }}
                 >
-                  <Img src={staticFile(info.file)} style={{ width: info.width, height: info.height, display: "block" }} />
+                  {face >= 0 ? (
+                    <>
+                      <Img src={staticFile(info.file)} style={{ width: info.width, height: info.height, display: "block" }} />
+                      {/* Cards turned away from the lens fall into shadow. */}
+                      {face < 0.97 && <AbsoluteFill style={{ background: "#050607", opacity: interpolate(face, [0, 0.97], [0.75, 0], clamp) * (1 - t) }} />}
+                    </>
+                  ) : (
+                    <AbsoluteFill style={{ background: C.surface, boxShadow: "inset 0 0 0 1.5px rgba(255,255,255,0.06)", opacity: 0.55 }} />
+                  )}
                 </div>
               );
             })}
@@ -308,18 +377,37 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
       <Counter value={count13} label="brands" inP={in13} outP={out13} labelP={labelB} frame={frame} seed="b" />
 
       <Sfx name="whoosh-soft" at={4} volume={0.35} />
-      <Sfx name="swipe" at={thirteenAt - 16} volume={0.4} />
+      <Sfx name="swipe" at={thirteenAt - 18} volume={0.4} />
       <Sfx name="whoosh" at={flyStart} volume={0.45} />
-      <Sfx name="pop" at={L - 2} volume={0.3} />
-      <Sfx name="click" at={clipStart + CLICK_FRAME} volume={0.55} />
+      <Sfx name="pop" at={landAt(0)} volume={0.25} />
+      <Sfx name="tick" at={landAt(3)} volume={0.2} />
+      <Sfx name="click" at={clickAt} volume={0.55} />
     </AbsoluteFill>
   );
 };
 
-/** A plain patch of the page background over the rail (the footage's own tiles). */
-const PagePatch: React.FC<{ box: { x: number; y: number; w: number; h: number }; opacity: number }> = ({ box, opacity }) => (
-  <div style={{ position: "absolute", left: box.x - 6, top: box.y - 6, width: box.w + 12, height: box.h + 12, background: PAGE_BG, opacity }} />
-);
+/** The captured cursor at a fractional clip frame (interpolated, for the sped-up approach). */
+const cursorLerp = (f: number) => {
+  const track = clip(CLIP).cursor;
+  if (!track?.length) return null;
+  const i = Math.max(0, Math.min(track.length - 1, Math.floor(f)));
+  const k = Math.min(track.length - 1, i + 1);
+  const u = Math.max(0, Math.min(1, f - i));
+  return { x: mix(track[i][0], track[k][0], u), y: mix(track[i][1], track[k][1], u), down: track[i][2] === 1 };
+};
+
+/** One card's box of the clean plate (the page with that brand's logo card hidden). */
+const PlateSlot: React.FC<{ box: { x: number; y: number; w: number; h: number }; railRight: number }> = ({ box, railRight }) => {
+  const x = Math.floor(box.x) - 1;
+  const y = Math.floor(box.y) - 1;
+  const w = Math.min(Math.ceil(box.x + box.w) + 1, railRight) - x;
+  const h = Math.ceil(box.y + box.h) + 1 - y;
+  return (
+    <div style={{ position: "absolute", left: x, top: y, width: w, height: h, overflow: "hidden" }}>
+      <Img src={staticFile(PLATE.file)} style={{ position: "absolute", left: -x, top: -y, width: PLATE.width, height: PLATE.height, display: "block" }} />
+    </div>
+  );
+};
 
 /** Big number with its label underneath, rising in and lifting out of a soft blur. */
 const Counter: React.FC<{ value: number; label: string; inP: number; outP: number; labelP: number; frame: number; seed: string }> = ({
@@ -338,8 +426,8 @@ const Counter: React.FC<{ value: number; label: string; inP: number; outP: numbe
     <div
       style={{
         position: "absolute",
-        left: 170 + drift(`br-cx-${seed}`, frame, 4, 0.1),
-        top: 250 + drift(`br-cy-${seed}`, frame, 3, 0.1),
+        left: 160 + drift(`br-cx-${seed}`, frame, 4, 0.1),
+        top: 262 + drift(`br-cy-${seed}`, frame, 3, 0.1),
         opacity: vis,
         translate: `0px ${(1 - inP) * 90 - outP * 70}px`,
         filter: inP < 0.999 || outP > 0.001 ? `blur(${(1 - inP) * 16 + outP * 12}px)` : undefined,
