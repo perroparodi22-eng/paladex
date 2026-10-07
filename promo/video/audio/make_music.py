@@ -144,19 +144,20 @@ FILLS = {
 }
 
 # Stem gains (linear) and bus sends.
-GAIN = dict(kick=0.40, sub=0.14, midbass=0.27, pad=0.85, clap=0.80, snare=0.40, tom=0.34, hat=0.32, ohat=0.14,
+GAIN = dict(kick=0.52, sub=0.14, midbass=0.21, pad=0.85, clap=0.80, snare=0.40, tom=0.34, hat=0.32, ohat=0.14,
             shaker=0.20, perc=0.30, rim=0.22, bongo=0.25, tamb=0.14, motif=0.58, bell=0.15, arp=0.24, lead=0.11,
-            stab=0.55, pulse=0.22, crash=0.08, swell=0.15, riser=0.16, impact=0.62, logo=0.15, suck=0.30,
+            stab=0.55, pulse=0.22, crash=0.08, swell=0.15, riser=0.26, impact=0.62, logo=0.15, suck=0.30,
             downl=0.10)
 # Section gain automation (dB) on the pre-master sum: an arc (the drop and the last scenes on top);
 # a (from, to) pair ramps across the scene.
-SECTION_GAIN = {"cold-open": -0.6, "problem": (-3.0, 0.0), "reveal": 1.0, "turn": 0.0, "specs": -0.3, "reviews": 0.0,
-                "pros": 0.3, "finder": 0.0, "brands": 0.6, "endcard": 0.4}
+SECTION_GAIN = {"cold-open": 0.8, "problem": (-1.6, 0.8), "reveal": 0.6, "turn": 0.0, "specs": 0.0, "reviews": 0.0,
+                "pros": -0.2, "finder": 0.0, "brands": 0.0, "endcard": -0.4}
+FINAL_BOOST_DB = 1.5  # the final hit and its tail sit a little above the end card groove
 SEND_HALL = dict(pad=0.30, motif=0.28, bell=0.55, arp=0.30, lead=0.45, clap=0.10, logo=0.9, stab=0.25, pulse=0.12,
                  swell=0.2, crash=0.2, bongo=0.10, rim=0.15, downl=0.3)
 SEND_ROOM = dict(clap=0.30, snare=0.30, tom=0.25, hat=0.10, perc=0.25, shaker=0.08, rim=0.25, bongo=0.25, tamb=0.15)
 SEND_DARK = dict(impact=0.55, riser=0.25, stab=0.08)
-SIDECHAIN = dict(sub=(0.92, 0.13), midbass=(0.55, 0.16), pad=(0.5, 0.24), arp=(0.25, 0.2), motif=(0.12, 0.18),
+SIDECHAIN = dict(sub=(0.92, 0.13), midbass=(0.7, 0.16), pad=(0.5, 0.24), arp=(0.25, 0.2), motif=(0.12, 0.18),
                  lead=(0.2, 0.2), stab=(0.25, 0.18), pulse=(0.45, 0.14), hall=(0.3, 0.25))
 # the build's closing low-pass applies to these stems (kick, sub and fx stay full range)
 FILTER_STEMS = ("hat", "ohat", "clap", "snare", "pulse", "midbass", "perc", "shaker", "tamb", "stab", "rim", "bongo")
@@ -215,6 +216,7 @@ class Song:
         self.events: list[tuple[float, str]] = []  # (seconds, label) for the report
         self.stops: list[tuple[int, int]] = []     # hard stops (sample ranges of silence before a hit)
         self.filters: list[tuple[int, int, np.ndarray]] = []  # (a, b, cutoff curve) on FILTER_STEMS
+        self.t_final: int | None = None                       # sample of the final hit
         # roles: the scene before the drop builds, the drop scene hits, the last scene ends
         self.drop = "reveal" if "reveal" in self.sc else None
         i = self.order.index(self.drop) if self.drop else -1
@@ -588,6 +590,7 @@ class Song:
         self.ev(t_hit, f"FINAL HIT (scene frame {hit_lb * 30}, first beat after the last word)")
 
     def final_hit(self, t: int) -> None:
+        self.t_final = t
         self.put("impact", kick_c(1.0, True), t, 1.0)
         self.put("impact", ins.sub_drop(2.2, 80, 32), t, 0.85)
         self.put("impact", ins.boom(1.4), t, 0.4)
@@ -663,6 +666,8 @@ class Song:
             g[a:b] = np.linspace(v[0], v[1], b - a) if isinstance(v, tuple) else v
         last = SECTION_GAIN.get(self.end_id, 0.0)
         g[self.sc[self.end_id]["end"]:] = last[1] if isinstance(last, tuple) else last
+        if self.t_final is not None:
+            g[self.t_final:] += FINAL_BOOST_DB
         # ~4 ms ramp that starts AT each scene start (causal), so the new level lands on frame 0
         k = nsamp(0.004)
         from scipy.signal import lfilter
@@ -748,7 +753,9 @@ class Song:
         # master: low cut, mono lows, gentle glue
         y = hp(y, 22)
         y = mono_below(y, 110)
-        y = compress(y, threshold_db=-20, ratio=1.8, attack=0.012, release=0.16, knee_db=8)
+        # predictable level into a gentle glue compressor (slow-ish attack keeps the kick transients)
+        y = y * undb(-20.0 - lufs_integrated(y[: self.N]))
+        y = compress(y, threshold_db=-16, ratio=1.6, attack=0.02, release=0.12, knee_db=8)
         y = y[: self.N]
         # end: the final hit's tail fades to silence by the last frame; start: no fade (hit on sample 0)
         fo = nsamp(0.6)

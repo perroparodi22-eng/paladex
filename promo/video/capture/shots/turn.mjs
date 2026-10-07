@@ -19,7 +19,7 @@ const langs = ["en"];
 
 // Words that drive the shot (same lookups as wordAt() in the scene).
 const KEYS = {
-  en: { pick: "Pick", turn: "turn", hand: "hand", front: "Front", side: "Side", back: "Back", every: "Every" },
+  en: { pick: "Grab", turn: "Spin", hand: "it", front: "Front", side: "Side", back: "Back", every: "Every" },
 };
 
 const norm = (x) => x.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
@@ -155,7 +155,8 @@ for (const lang of langs) {
   mkdirSync(dir, { recursive: true });
   console.log(lang, W, "frames", frames);
 
-  const page = await launch({ width: 1920, height: 1080, dpr: 1 });
+  // dpr 1.5: the page fills most of the frame in a 2560x1440 render.
+  const page = await launch({ width: 1920, height: 1080, dpr: 1.5 });
   await page.send("Page.addScriptToEvaluateOnNewDocument", { source: CAM_HOOK });
   await page.goto(URL_, 3000);
   await page.waitFor("document.querySelector('canvas')", 60000);
@@ -263,7 +264,7 @@ for (const lang of langs) {
         fps: 60,
         width: 1920,
         height: 1080,
-        dpr: 1,
+        dpr: 1.5,
         cursor: packCursor(track),
         events,
         // scene-specific extras
@@ -272,7 +273,7 @@ for (const lang of langs) {
       },
     },
     stills: {
-      [`turn-empty-${lang}`]: { file: emptyFile, width: 1920, height: 1080, dpr: 1 },
+      [`turn-empty-${lang}`]: { file: emptyFile, width: 1920, height: 1080, dpr: 1.5 },
     },
   });
   console.log("done", lang);

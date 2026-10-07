@@ -66,7 +66,7 @@
  ],
  "langs": {
   "en": {
-   "voice": "en-US-AndrewMultilingualNeural",
+   "voice": "kokoro:am_puck",
    "rate": "+6%",
    "pitch": "-2Hz",
    "lines": {

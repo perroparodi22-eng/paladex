@@ -5,8 +5,7 @@
  "barFrames": 120,
  "beatFrames": 30,
  "overlapFrames": 18,
- "durationInFrames": 3240,
- "estimated": true,
+ "durationInFrames": 3120,
  "scenes": [
   {
    "id": "cold-open",
@@ -16,53 +15,53 @@
     "file": "audio/vo/en/01-cold-open.wav",
     "text": "Two hundred euros. Maybe more. For one padel racket.",
     "at": 21,
-    "durationInFrames": 275,
-    "speechEnd": 282,
+    "durationInFrames": 208,
+    "speechEnd": 226,
     "words": [
      {
       "text": "Two",
-      "start": 26,
-      "end": 42
+      "start": 23,
+      "end": 35
      },
      {
       "text": "hundred",
-      "start": 43,
-      "end": 72
+      "start": 35,
+      "end": 57
      },
      {
       "text": "euros",
-      "start": 74,
-      "end": 96
+      "start": 57,
+      "end": 78
      },
      {
       "text": "Maybe",
-      "start": 132,
-      "end": 154
+      "start": 100,
+      "end": 120
      },
      {
       "text": "more",
-      "start": 155,
-      "end": 173
+      "start": 120,
+      "end": 140
      },
      {
       "text": "For",
-      "start": 205,
-      "end": 220
+      "start": 158,
+      "end": 169
      },
      {
       "text": "one",
-      "start": 221,
-      "end": 236
+      "start": 169,
+      "end": 188
      },
      {
       "text": "padel",
-      "start": 237,
-      "end": 258
+      "start": 188,
+      "end": 207
      },
      {
       "text": "racket",
-      "start": 259,
-      "end": 282
+      "start": 207,
+      "end": 226
      }
     ]
    }
@@ -70,610 +69,610 @@
   {
    "id": "problem",
    "start": 300,
-   "duration": 360,
+   "duration": 300,
    "vo": {
     "file": "audio/vo/en/02-problem.wav",
     "text": "And you're choosing it from one flat photo... and a spec sheet nobody explains.",
     "at": 306,
-    "durationInFrames": 301,
-    "speechEnd": 594,
+    "durationInFrames": 212,
+    "speechEnd": 515,
     "words": [
      {
       "text": "And",
-      "start": 311,
-      "end": 325
+      "start": 308,
+      "end": 317
      },
      {
       "text": "you're",
-      "start": 326,
-      "end": 348
+      "start": 317,
+      "end": 335
      },
      {
       "text": "choosing",
-      "start": 349,
-      "end": 377
+      "start": 335,
+      "end": 352
      },
      {
       "text": "it",
-      "start": 378,
-      "end": 389
+      "start": 352,
+      "end": 362
      },
      {
       "text": "from",
-      "start": 390,
-      "end": 407
+      "start": 362,
+      "end": 372
      },
      {
       "text": "one",
-      "start": 408,
-      "end": 422
+      "start": 372,
+      "end": 390
      },
      {
       "text": "flat",
-      "start": 423,
-      "end": 440
+      "start": 390,
+      "end": 399
      },
      {
       "text": "photo",
-      "start": 441,
-      "end": 460
+      "start": 399,
+      "end": 417
      },
      {
       "text": "and",
-      "start": 485,
-      "end": 499
+      "start": 428,
+      "end": 439
      },
      {
       "text": "a",
-      "start": 500,
-      "end": 508
+      "start": 439,
+      "end": 449
      },
      {
       "text": "spec",
-      "start": 509,
-      "end": 525
+      "start": 449,
+      "end": 460
      },
      {
       "text": "sheet",
-      "start": 526,
-      "end": 544
+      "start": 460,
+      "end": 470
      },
      {
       "text": "nobody",
-      "start": 545,
-      "end": 566
+      "start": 470,
+      "end": 497
      },
      {
       "text": "explains",
-      "start": 567,
-      "end": 594
+      "start": 497,
+      "end": 515
      }
     ]
    }
   },
   {
    "id": "reveal",
-   "start": 660,
+   "start": 600,
    "duration": 300,
    "vo": {
     "file": "audio/vo/en/03-reveal.wav",
     "text": "Not anymore. Meet Paladex. Every padel racket, in 3D.",
-    "at": 678,
-    "durationInFrames": 271,
-    "speechEnd": 935,
+    "at": 618,
+    "durationInFrames": 228,
+    "speechEnd": 843,
     "words": [
      {
       "text": "Not",
-      "start": 683,
-      "end": 698
+      "start": 620,
+      "end": 631
      },
      {
       "text": "anymore",
-      "start": 700,
-      "end": 728
+      "start": 631,
+      "end": 666
      },
      {
       "text": "Meet",
-      "start": 760,
-      "end": 779
+      "start": 682,
+      "end": 697
      },
      {
       "text": "Paladex",
-      "start": 780,
-      "end": 809
+      "start": 697,
+      "end": 734
      },
      {
       "text": "Every",
-      "start": 840,
-      "end": 860
+      "start": 749,
+      "end": 776
      },
      {
       "text": "padel",
-      "start": 861,
-      "end": 881
+      "start": 776,
+      "end": 795
      },
      {
       "text": "racket",
-      "start": 882,
-      "end": 905
+      "start": 795,
+      "end": 814
      },
      {
       "text": "in",
-      "start": 911,
-      "end": 922
+      "start": 822,
+      "end": 832
      },
      {
       "text": "3D",
-      "start": 923,
-      "end": 935
+      "start": 832,
+      "end": 843
      }
     ]
    }
   },
   {
    "id": "turn",
-   "start": 960,
+   "start": 900,
    "duration": 420,
    "vo": {
     "file": "audio/vo/en/04-turn.wav",
     "text": "Grab one. Spin it. Front. Side. Back. Every detail, up close.",
-    "at": 975,
-    "durationInFrames": 369,
-    "speechEnd": 1329,
+    "at": 915,
+    "durationInFrames": 292,
+    "speechEnd": 1204,
     "words": [
      {
       "text": "Grab",
-      "start": 980,
-      "end": 996
+      "start": 917,
+      "end": 926
      },
      {
       "text": "one",
-      "start": 997,
-      "end": 1011
+      "start": 926,
+      "end": 943
      },
      {
       "text": "Spin",
-      "start": 1019,
-      "end": 1036
+      "start": 950,
+      "end": 959
      },
      {
       "text": "it",
-      "start": 1037,
-      "end": 1048
+      "start": 959,
+      "end": 969
      },
      {
       "text": "Front",
-      "start": 1084,
-      "end": 1104
+      "start": 992,
+      "end": 1017
      },
      {
       "text": "Side",
-      "start": 1137,
-      "end": 1155
+      "start": 1036,
+      "end": 1065
      },
      {
       "text": "Back",
-      "start": 1188,
-      "end": 1205
+      "start": 1083,
+      "end": 1106
      },
      {
       "text": "Every",
-      "start": 1242,
-      "end": 1263
+      "start": 1128,
+      "end": 1153
      },
      {
       "text": "detail",
-      "start": 1264,
-      "end": 1289
+      "start": 1153,
+      "end": 1170
      },
      {
       "text": "up",
-      "start": 1295,
-      "end": 1307
+      "start": 1177,
+      "end": 1187
      },
      {
       "text": "close",
-      "start": 1308,
-      "end": 1329
+      "start": 1187,
+      "end": 1204
      }
     ]
    }
   },
   {
    "id": "specs",
-   "start": 1380,
+   "start": 1320,
    "duration": 300,
    "vo": {
     "file": "audio/vo/en/05-specs.wav",
     "text": "Every spec, translated into what it means for your game.",
-    "at": 1392,
-    "durationInFrames": 227,
-    "speechEnd": 1606,
+    "at": 1332,
+    "durationInFrames": 153,
+    "speechEnd": 1482,
     "words": [
      {
       "text": "Every",
-      "start": 1397,
-      "end": 1416
+      "start": 1334,
+      "end": 1359
      },
      {
       "text": "spec",
-      "start": 1417,
-      "end": 1433
+      "start": 1359,
+      "end": 1368
      },
      {
       "text": "translated",
-      "start": 1439,
-      "end": 1471
+      "start": 1376,
+      "end": 1400
      },
      {
       "text": "into",
-      "start": 1485,
-      "end": 1502
+      "start": 1408,
+      "end": 1423
      },
      {
       "text": "what",
-      "start": 1504,
-      "end": 1521
+      "start": 1423,
+      "end": 1432
      },
      {
       "text": "it",
-      "start": 1522,
-      "end": 1533
+      "start": 1432,
+      "end": 1441
      },
      {
       "text": "means",
-      "start": 1534,
-      "end": 1554
+      "start": 1441,
+      "end": 1449
      },
      {
       "text": "for",
-      "start": 1555,
-      "end": 1569
+      "start": 1449,
+      "end": 1458
      },
      {
       "text": "your",
-      "start": 1570,
-      "end": 1587
+      "start": 1458,
+      "end": 1466
      },
      {
       "text": "game",
-      "start": 1588,
-      "end": 1606
+      "start": 1466,
+      "end": 1482
      }
     ]
    }
   },
   {
    "id": "reviews",
-   "start": 1680,
+   "start": 1620,
    "duration": 240,
    "vo": {
     "file": "audio/vo/en/06-reviews.wav",
     "text": "What the reviewers say, summed up, with the sources.",
-    "at": 1692,
-    "durationInFrames": 213,
-    "speechEnd": 1891,
+    "at": 1632,
+    "durationInFrames": 127,
+    "speechEnd": 1756,
     "words": [
      {
       "text": "What",
-      "start": 1697,
-      "end": 1713
+      "start": 1634,
+      "end": 1643
      },
      {
       "text": "the",
-      "start": 1714,
-      "end": 1728
+      "start": 1643,
+      "end": 1652
      },
      {
       "text": "reviewers",
-      "start": 1729,
-      "end": 1759
+      "start": 1652,
+      "end": 1675
      },
      {
       "text": "say",
-      "start": 1760,
-      "end": 1774
+      "start": 1675,
+      "end": 1685
      },
      {
       "text": "summed",
-      "start": 1792,
-      "end": 1815
+      "start": 1693,
+      "end": 1708
      },
      {
       "text": "up",
-      "start": 1816,
-      "end": 1827
+      "start": 1708,
+      "end": 1717
      },
      {
       "text": "with",
-      "start": 1833,
-      "end": 1850
+      "start": 1724,
+      "end": 1733
      },
      {
       "text": "the",
-      "start": 1851,
-      "end": 1865
+      "start": 1733,
+      "end": 1741
      },
      {
       "text": "sources",
-      "start": 1866,
-      "end": 1891
+      "start": 1741,
+      "end": 1756
      }
     ]
    }
   },
   {
    "id": "pros",
-   "start": 1920,
+   "start": 1860,
    "duration": 240,
    "vo": {
     "file": "audio/vo/en/07-pros.wav",
     "text": "See what the pros actually play.",
-    "at": 1932,
-    "durationInFrames": 134,
-    "speechEnd": 2052,
+    "at": 1872,
+    "durationInFrames": 87,
+    "speechEnd": 1956,
     "words": [
      {
       "text": "See",
-      "start": 1937,
-      "end": 1951
+      "start": 1874,
+      "end": 1885
      },
      {
       "text": "what",
-      "start": 1952,
-      "end": 1970
+      "start": 1885,
+      "end": 1896
      },
      {
       "text": "the",
-      "start": 1971,
-      "end": 1985
+      "start": 1896,
+      "end": 1907
      },
      {
       "text": "pros",
-      "start": 1986,
-      "end": 2004
+      "start": 1907,
+      "end": 1918
      },
      {
       "text": "actually",
-      "start": 2005,
-      "end": 2034
+      "start": 1918,
+      "end": 1945
      },
      {
       "text": "play",
-      "start": 2035,
-      "end": 2052
+      "start": 1945,
+      "end": 1956
      }
     ]
    }
   },
   {
    "id": "finder",
-   "start": 2160,
-   "duration": 480,
+   "start": 2100,
+   "duration": 420,
    "vo": {
     "file": "audio/vo/en/08-finder.wav",
     "text": "Not sure where to start? Answer a few quick questions, and get the rackets that fit how you really play.",
-    "at": 2172,
-    "durationInFrames": 426,
-    "speechEnd": 2584,
+    "at": 2112,
+    "durationInFrames": 278,
+    "speechEnd": 2387,
     "words": [
      {
       "text": "Not",
-      "start": 2177,
-      "end": 2192
+      "start": 2114,
+      "end": 2123
      },
      {
       "text": "sure",
-      "start": 2193,
-      "end": 2210
+      "start": 2123,
+      "end": 2139
      },
      {
       "text": "where",
-      "start": 2211,
-      "end": 2232
+      "start": 2139,
+      "end": 2155
      },
      {
       "text": "to",
-      "start": 2233,
-      "end": 2245
+      "start": 2155,
+      "end": 2165
      },
      {
       "text": "start",
-      "start": 2246,
-      "end": 2267
+      "start": 2165,
+      "end": 2174
      },
      {
       "text": "Answer",
-      "start": 2297,
-      "end": 2319
+      "start": 2190,
+      "end": 2210
      },
      {
       "text": "a",
-      "start": 2320,
-      "end": 2328
+      "start": 2210,
+      "end": 2222
      },
      {
       "text": "few",
-      "start": 2329,
-      "end": 2342
+      "start": 2222,
+      "end": 2233
      },
      {
       "text": "quick",
-      "start": 2343,
-      "end": 2362
+      "start": 2233,
+      "end": 2244
      },
      {
       "text": "questions",
-      "start": 2363,
-      "end": 2393
+      "start": 2244,
+      "end": 2265
      },
      {
       "text": "and",
-      "start": 2410,
-      "end": 2424
+      "start": 2272,
+      "end": 2282
      },
      {
       "text": "get",
-      "start": 2425,
-      "end": 2439
+      "start": 2282,
+      "end": 2292
      },
      {
       "text": "the",
-      "start": 2440,
-      "end": 2454
+      "start": 2292,
+      "end": 2302
      },
      {
       "text": "rackets",
-      "start": 2456,
-      "end": 2480
+      "start": 2302,
+      "end": 2320
      },
      {
       "text": "that",
-      "start": 2482,
-      "end": 2498
+      "start": 2320,
+      "end": 2330
      },
      {
       "text": "fit",
-      "start": 2499,
-      "end": 2513
+      "start": 2330,
+      "end": 2340
      },
      {
       "text": "how",
-      "start": 2514,
-      "end": 2528
+      "start": 2340,
+      "end": 2350
      },
      {
       "text": "you",
-      "start": 2529,
-      "end": 2543
+      "start": 2350,
+      "end": 2360
      },
      {
       "text": "really",
-      "start": 2544,
-      "end": 2567
+      "start": 2360,
+      "end": 2377
      },
      {
       "text": "play",
-      "start": 2568,
-      "end": 2584
+      "start": 2377,
+      "end": 2387
      }
     ]
    }
   },
   {
    "id": "brands",
-   "start": 2640,
+   "start": 2520,
    "duration": 240,
    "vo": {
     "file": "audio/vo/en/09-brands.wav",
     "text": "All the top brands. All in one place.",
-    "at": 2652,
-    "durationInFrames": 183,
-    "speechEnd": 2821,
+    "at": 2532,
+    "durationInFrames": 120,
+    "speechEnd": 2649,
     "words": [
      {
       "text": "All",
-      "start": 2657,
-      "end": 2671
+      "start": 2534,
+      "end": 2547
      },
      {
       "text": "the",
-      "start": 2672,
-      "end": 2686
+      "start": 2547,
+      "end": 2560
      },
      {
       "text": "top",
-      "start": 2687,
-      "end": 2702
+      "start": 2560,
+      "end": 2573
      },
      {
       "text": "brands",
-      "start": 2703,
-      "end": 2725
+      "start": 2573,
+      "end": 2586
      },
      {
       "text": "All",
-      "start": 2754,
-      "end": 2769
+      "start": 2601,
+      "end": 2610
      },
      {
       "text": "in",
-      "start": 2771,
-      "end": 2783
+      "start": 2610,
+      "end": 2618
      },
      {
       "text": "one",
-      "start": 2784,
-      "end": 2799
+      "start": 2618,
+      "end": 2634
      },
      {
       "text": "place",
-      "start": 2800,
-      "end": 2821
+      "start": 2634,
+      "end": 2649
      }
     ]
    }
   },
   {
    "id": "endcard",
-   "start": 2880,
+   "start": 2760,
    "duration": 360,
    "vo": {
     "file": "audio/vo/en/10-endcard.wav",
     "text": "Paladex. See it from every side, before you buy it.",
-    "at": 2904,
-    "durationInFrames": 254,
-    "speechEnd": 3143,
+    "at": 2784,
+    "durationInFrames": 181,
+    "speechEnd": 2962,
     "words": [
      {
       "text": "Paladex",
-      "start": 2909,
-      "end": 2938
+      "start": 2786,
+      "end": 2827
      },
      {
       "text": "See",
-      "start": 2976,
-      "end": 2991
+      "start": 2849,
+      "end": 2857
      },
      {
       "text": "it",
-      "start": 2993,
-      "end": 3005
+      "start": 2857,
+      "end": 2865
      },
      {
       "text": "from",
-      "start": 3006,
-      "end": 3024
+      "start": 2865,
+      "end": 2874
      },
      {
       "text": "every",
-      "start": 3026,
-      "end": 3047
+      "start": 2874,
+      "end": 2895
      },
      {
       "text": "side",
-      "start": 3048,
-      "end": 3066
+      "start": 2895,
+      "end": 2909
      },
      {
       "text": "before",
-      "start": 3072,
-      "end": 3096
+      "start": 2917,
+      "end": 2938
      },
      {
       "text": "you",
-      "start": 3098,
-      "end": 3113
+      "start": 2938,
+      "end": 2946
      },
      {
       "text": "buy",
-      "start": 3114,
-      "end": 3129
+      "start": 2946,
+      "end": 2954
      },
      {
       "text": "it",
-      "start": 3131,
-      "end": 3143
+      "start": 2954,
+      "end": 2962
      }
     ]
    }
