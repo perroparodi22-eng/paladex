@@ -1,20 +1,17 @@
-// Scene 3, reveal: "Meet Paladex. Every padel racket, in 3D."
+// Scene 3, reveal (v2): "Not anymore. Meet Paladex. Every padel racket, in 3D."
 //
-// One camera, one 3D world. The logo lockup and the browser window live in the same
-// space and are filmed by a single orbit camera (target + yaw/pitch + dolly), so every
-// move has real parallax:
+// Fast and hit-driven. The scene opens on the impact the Problem scene collapses into.
 //
-//   0          impact: a soft light flash and shock ring bloom out of the point the
-//              Problem scene collapsed into; the mark punches in like a racket swing
-//              and the ball pops off its face. Slow push-in + orbit on the mark.
-//   "Paladex"  the wordmark rises letter by letter as the mark glides aside.
-//   "Every"    the camera cranes down and pushes forward: the lockup lifts up and past
-//              the lens (motion-blurred), and the browser window, waiting deeper and
-//              lower in the dark, rises toward us and swings round to face the camera.
-//              It shows real captured footage of the home page (the hero racket
-//              auto-turning on its stage, the site's own "Every padel racket, in 3D.").
-//   "3D"       the swing settles; the dolly and orbit keep creeping in while the
-//              captured cursor drifts to "Browse rackets", then the house exit.
+//   0          impact bloom + shock rings (no empty black frame).
+//   "Not"      "Not" slams in (flash, shake); "anymore." slams in on its word.
+//   +30        the line splits and slides apart; a thin light line draws across the
+//              dark (the horizon of the studio) and widens while the voice breathes.
+//   "Meet"     small "Meet" punches in on the light line.
+//   "Paladex"  the mark swings in with the ball pop-off (flash), wordmark letters rise.
+//   "Every"    the lockup lifts past the lens; the real home page (plus two ghosts at
+//              depth) swings in FAST on a single camera; it lands at "padel racket".
+//   "3D"       the camera pushes in and the window kicks into its final pose (impact);
+//              the captured cursor then drifts to "Browse rackets" until the exit.
 import React from "react";
 import { AbsoluteFill, Easing, interpolate, useCurrentFrame } from "remotion";
 import { Browser3D, Space3D } from "../components/Browser3D";
@@ -22,14 +19,14 @@ import { Cursor } from "../components/Cursor";
 import { Footage, clip, footageCursor } from "../components/Footage";
 import { LogoMark } from "../components/Logo";
 import { Sfx } from "../components/Sfx";
-import { clamp, drift, easeInOut, easeOut, enterExit, mix } from "../lib/motion";
+import { clamp, drift, easeIn, easeInOut, easeOut, enterExit, mix } from "../lib/motion";
 import { display } from "../theme";
 import { wordAt } from "../timeline";
 import type { SceneProps } from "./types";
 
 /** Voice words this scene syncs to, per language (fallbacks are the English frames). */
 const WORDS = {
-  en: { paladex: "Paladex", every: "Every", threeD: "3D" },
+  en: { not: "Not", anymore: "anymore", meet: "Meet", paladex: "Paladex", every: "Every", racket: "racket", threeD: "3D" },
 } as const;
 
 const CLIP = "reveal-home";
@@ -47,16 +44,16 @@ const WIN_POS = { x: 300, y: 560, z: -2300 };
 /** How far the logo lifts (up and toward the lens) when the camera passes under it. */
 const LOGO_LIFT = { y: -650, z: 350, rotateX: 22 };
 /** World scale of the window (its on-screen size at the settle also depends on the dolly). */
-const WIN_SCALE = 0.525;
+const WIN_SCALE = 0.62;
 
 const MARK = 196; // logo mark size, px
 const WORD = 152; // wordmark font size, px
 const GAP = 34;
 
 // Easing curves for the weighted camera moves.
-const travelEase = Easing.bezier(0.33, 0, 0.1, 1); // gentle lift-off, long soft landing
-const lateralEase = Easing.bezier(0.45, 0, 0.15, 1); // sideways component lags: the path arcs
-const swingEase = Easing.bezier(0.4, 0, 0.12, 1); // the window's turn lags its travel
+const travelEase = Easing.bezier(0.2, 0, 0.06, 1); // fast start, soft landing
+const lateralEase = Easing.bezier(0.3, 0, 0.1, 1); // sideways component lags a touch: the path arcs
+const swingEase = Easing.bezier(0.26, 0, 0.08, 1); // the window's turn lags its travel
 const punchEase = Easing.bezier(0.12, 0.9, 0.2, 1); // hard hit, soft settle
 const liftEase = Easing.bezier(0.5, 0, 0.8, 0.55); // accelerates away
 
@@ -92,52 +89,175 @@ const World: React.FC<{ cam: Cam; children: React.ReactNode; style?: React.CSSPr
   </AbsoluteFill>
 );
 
+/** Decaying shake after each hit: [frame, strength px]. */
+const shakeAt = (frame: number, hits: [number, number][]) => {
+  let x = 0;
+  let y = 0;
+  let r = 0;
+  for (const [at, a] of hits) {
+    const t = (frame - at) / 16;
+    if (t < 0 || t > 1) continue;
+    const k = (1 - t) ** 2.2;
+    x += Math.sin(t * 46 + at) * a * k;
+    y += Math.cos(t * 39 + at * 2) * a * 0.8 * k;
+    r += Math.sin(t * 31 + at * 3) * a * 0.012 * k;
+  }
+  return { x, y, r };
+};
+
+/** A light burst (hot core, wash, thin shock ring) that fires at `at` and fades fast. */
+const Burst: React.FC<{ frame: number; at: number; amp?: number; size?: number; ring?: boolean }> = ({ frame, at, amp = 1, size = 1, ring = true }) => {
+  const f = frame - at;
+  if (f < 0 || f > 46) return null;
+  const core = amp * 0.85 * interpolate(f, [0, 28], [1, 0], { ...clamp, easing: Easing.bezier(0.15, 0.55, 0.35, 1) });
+  const coreR = size * interpolate(f, [0, 28], [150, 1000], { ...clamp, easing: easeOut });
+  const wash = amp * 0.09 * interpolate(f, [0, 14], [1, 0], { ...clamp, easing: easeOut });
+  const rg = interpolate(f, [0, 44], [0, 1], { ...clamp, easing: easeOut });
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none" }}>
+      <AbsoluteFill style={{ backgroundColor: `rgba(236,238,241,${wash})` }} />
+      <AbsoluteFill
+        style={{
+          background: `radial-gradient(circle ${coreR}px at 50% 50%, rgba(255,255,255,${core}) 0%, rgba(236,238,241,${core * 0.45}) 22%, rgba(236,238,241,${core * 0.12}) 55%, rgba(236,238,241,0) 100%)`,
+        }}
+      />
+      {ring && (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: 1700,
+            height: 1700,
+            marginLeft: -850,
+            marginTop: -850,
+            borderRadius: "50%",
+            border: "1.5px solid rgba(236,238,241,1)",
+            scale: mix(0.05, 1, rg) * size,
+            opacity: 0.42 * amp * (1 - rg) ** 1.3,
+          }}
+        />
+      )}
+    </AbsoluteFill>
+  );
+};
+
+const TITLE = 214; // "Not anymore." font size, px
+
+/** One slammed word of the opening line. */
+const SlamWord: React.FC<{ frame: number; at: number; text: string; dir: number }> = ({ frame, at, text, dir }) => {
+  const t = interpolate(frame, [at - 2, at + 9], [0, 1], { ...clamp, easing: punchEase });
+  const settle = interpolate(frame, [at, at + 26], [0, 1], { ...clamp, easing: easeOut });
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        opacity: interpolate(frame, [at - 2, at + 2], [0, 1], clamp),
+        scale: mix(1.9, 1, t),
+        translate: `${(1 - t) * dir * 90}px 0px`,
+        rotate: `${(1 - settle) * dir * 1.6}deg`,
+        filter: t < 0.999 ? `blur(${(1 - t) * 22}px)` : undefined,
+      }}
+    >
+      {text}
+    </span>
+  );
+};
+
 export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const frame = useCurrentFrame();
   const D = timing.duration;
   const ov = timeline.overlapFrames;
   const END = D + ov;
+  const W = WORDS[lang];
 
   // Voice sync (scene-local frames).
-  const paladexAt = wordAt(timing, WORDS[lang].paladex, 54);
-  const everyAt = wordAt(timing, WORDS[lang].every, 119);
-  const threeDAt = wordAt(timing, WORDS[lang].threeD, 217);
+  const notAt = wordAt(timing, W.not, 23);
+  const anymoreAt = wordAt(timing, W.anymore, 40);
+  const meetAt = wordAt(timing, W.meet, 100);
+  const paladexAt = wordAt(timing, W.paladex, 120);
+  const everyAt = wordAt(timing, W.every, 180);
+  const racketAt = wordAt(timing, W.racket, 222);
+  const threeDAt = wordAt(timing, W.threeD, 263);
 
   const env = enterExit(frame, D, ov);
 
-  /* ---------------------------------------------------------------- camera */
-  // The swing: from just before "Every" until it settles on "3D".
+  // Beat frames derived from the words.
+  const splitAt = anymoreAt + 28; // the opening line breaks apart
+  const lineAt = splitAt + 4; // the light line starts drawing
+  const punchAt = paladexAt - 3; // the mark lands just ahead of the word
+  const wordStart = paladexAt - 1;
   const swingStart = everyAt - 6;
+  const swingEnd = Math.max(racketAt, everyAt + 38); // the window has arrived
+  const shake = shakeAt(frame, [
+    [0, 16],
+    [notAt, 12],
+    [anymoreAt, 22],
+    [punchAt, 18],
+    [threeDAt, 8],
+  ]);
+
+  /* ---------------------------------------------------------------- camera */
   const camAt = (f: number): Cam => {
-    const sp = interpolate(f, [swingStart, threeDAt], [0, 1], clamp);
+    const sp = interpolate(f, [swingStart, swingEnd], [0, 1], clamp);
     const t = travelEase(sp);
     const tl = lateralEase(sp);
-    // Hand-held float, always on (tiny, slow).
     const hand = (seed: string, amp: number) => drift(`rv-cam-${seed}`, f, amp, 0.1);
+    // After the arrival the camera swings in closer and rolls flat to face the page,
+    // landing on "3D" (a second decisive move).
+    const fin = easeOut(interpolate(f, [swingEnd - 6, threeDAt + 4], [0, 1], clamp));
     return {
-      tx: WIN_POS.x * tl + interpolate(f, [swingStart, END], [0, 70], clamp) + hand("x", 6),
+      tx: WIN_POS.x * tl + interpolate(f, [swingStart, END], [0, 60], clamp) + hand("x", 6),
       ty: WIN_POS.y * t + hand("y", 5),
       tz: WIN_POS.z * t,
-      // A slow orbit for the whole shot (never a stop).
-      yaw: interpolate(f, [0, END], [11, -6]) + hand("yaw", 0.5),
-      pitch: interpolate(f, [0, END], [2.5, -1]) + hand("pitch", 0.4),
-      roll: hand("roll", 0.25),
-      // A continuous push-in, from the impact to the last frame.
-      dolly: -130 + 2 * f,
+      yaw: interpolate(f, [0, END], [11, -4]) + hand("yaw", 0.5) - 5 * fin,
+      pitch: interpolate(f, [0, END], [2.5, -0.5]) + hand("pitch", 0.4),
+      roll: hand("roll", 0.25) + 1.4 * (1 - fin) * t,
+      dolly: -130 + 1.5 * f + 260 * fin + interpolate(f, [threeDAt, END], [0, 70], clamp),
     };
   };
   const cam = camAt(frame);
 
-  /* ------------------------------------------------------------ logo lockup */
-  const punch = interpolate(frame, [0, 24], [0, 1], { ...clamp, easing: punchEase });
-  const hit = interpolate(frame, [3, 30], [0, 1], { ...clamp, easing: easeOut });
-  const wordStart = paladexAt - 7;
-  const open = interpolate(frame, [wordStart, wordStart + 34], [0, 1], { ...clamp, easing: easeInOut });
+  /* ------------------------------------------------------------ opening line */
+  const splitP = interpolate(frame, [splitAt, splitAt + 16], [0, 1], { ...clamp, easing: easeIn });
+  const titleOn = frame < splitAt + 18;
+  const titleShift = (1 - interpolate(frame, [notAt - 2, anymoreAt - 2], [0, 1], { ...clamp, easing: easeOut })) * 0; // layout is reserved
+  const drive = interpolate(frame, [notAt, splitAt], [1, 1.08], clamp); // the line creeps toward the lens
+  const line = (clipPath: string, dx: number) => (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        clipPath,
+        translate: `${dx}px ${titleShift}px`,
+        scale: drive,
+        opacity: 1 - splitP * 0.6,
+      }}
+    >
+      <div style={{ ...display, fontSize: TITLE, whiteSpace: "nowrap", letterSpacing: "-0.04em", display: "flex", gap: 38 }}>
+        <SlamWord frame={frame} at={notAt} text="Not" dir={-1} />
+        <SlamWord frame={frame} at={anymoreAt} text="anymore." dir={1} />
+      </div>
+    </div>
+  );
 
-  // On "Every" the lockup lifts up and toward the lens while the camera passes under
-  // it: fade it by depth and blur it by its on-screen speed (a stand-in for motion
-  // blur) and its closeness.
-  const liftAt = (f: number) => interpolate(f, [swingStart - 2, swingStart + 36], [0, 1], { ...clamp, easing: liftEase });
+  // The studio horizon: a thin light line draws across the dark, then widens to a glow.
+  const lineP = interpolate(frame, [lineAt, meetAt - 2], [0, 1], { ...clamp, easing: Easing.bezier(0.5, 0, 0.1, 1) });
+  const lineOut = 1 - interpolate(frame, [punchAt, punchAt + 14], [0, 1], { ...clamp, easing: easeIn });
+  // "Meet", on the line.
+  const meetIn = interpolate(frame, [meetAt - 2, meetAt + 9], [0, 1], { ...clamp, easing: punchEase });
+  const meetOut = interpolate(frame, [punchAt - 2, punchAt + 8], [0, 1], { ...clamp, easing: easeIn });
+
+  /* ------------------------------------------------------------ logo lockup */
+  const punch = interpolate(frame, [punchAt, punchAt + 22], [0, 1], { ...clamp, easing: punchEase });
+  const hit = interpolate(frame, [punchAt + 3, punchAt + 30], [0, 1], { ...clamp, easing: easeOut });
+  const open = interpolate(frame, [wordStart, wordStart + 30], [0, 1], { ...clamp, easing: easeInOut });
+  const sweep = interpolate(frame, [wordStart + 22, wordStart + 52], [0, 1], { ...clamp, easing: easeInOut });
+
+  const liftAt = (f: number) => interpolate(f, [swingStart - 2, swingStart + 28], [0, 1], { ...clamp, easing: liftEase });
   const logoPos = (f: number) => ({ x: 0, y: LOGO_LIFT.y * liftAt(f), z: LOGO_LIFT.z * liftAt(f) });
   const lift = liftAt(frame);
   const L = project(cam, logoPos(frame));
@@ -146,37 +266,40 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const logoOpacity = interpolate(L.z, [520, 1080], [1, 0], { ...clamp, easing: Easing.bezier(0.4, 0, 0.7, 1) });
   const logoBlur = Math.min(18, logoSpeed * 0.1) + interpolate(L.z, [250, 1000], [0, 10], clamp);
   const halo = (0.05 + 0.1 * (1 - punch)) * logoOpacity;
+  const showLogo = frame >= punchAt - 1 && logoOpacity > 0.001;
 
   /* ---------------------------------------------------------------- window */
-  const sp = interpolate(frame, [swingStart, threeDAt], [0, 1], clamp);
+  const sp = interpolate(frame, [swingStart, swingEnd], [0, 1], clamp);
   const pR = swingEase(sp);
+  const kick = interpolate(frame, [threeDAt - 2, threeDAt + 4, threeDAt + 22], [0, 1, 0], { ...clamp, easing: easeOut });
   const winHand = (seed: string, amp: number) => drift(`rv-w-${seed}`, frame, amp, 0.11);
   const winPose = {
     x: WIN_POS.x + winHand("x", 4),
     y: WIN_POS.y + winHand("y", 3),
     z: WIN_POS.z,
-    // Swings round to face the camera; keeps turning a touch toward us after the settle.
     rotateX: mix(26, 1.5, pR) + winHand("rx", 0.35),
-    rotateY: mix(-44, -10, pR) + interpolate(frame, [swingStart, END], [0, 9], clamp) + winHand("ry", 0.5),
-    rotateZ: mix(-5, 0, pR),
-    scale: WIN_SCALE,
+    rotateY: mix(-44, -8, pR) + interpolate(frame, [swingStart, END], [0, 6], clamp) + winHand("ry", 0.5) + 2.5 * kick,
+    rotateZ: mix(-6, 0, pR),
+    scale: WIN_SCALE * (1 + 0.025 * kick),
   };
-  const winOpacity = interpolate(frame, [swingStart, swingStart + 22], [0, 1], { ...clamp, easing: easeOut });
-  // Rack focus: soft while deep and moving, sharp as it arrives.
-  const winBlur = interpolate(travelEase(sp), [0, 0.62], [5, 0], clamp);
+  const winOpacity = interpolate(frame, [swingStart, swingStart + 12], [0, 1], { ...clamp, easing: easeOut });
+  const winBlur = interpolate(travelEase(sp), [0, 0.6], [6, 0], clamp);
+  // Two ghost windows at depth, left and right: the catalogue stretching away.
+  const ghostOpacity = interpolate(frame, [swingStart + 8, swingStart + 34], [0, 0.5], { ...clamp, easing: easeOut });
+  const ghost = (sign: number) => ({
+    x: WIN_POS.x + sign * 1560 + winHand(`gx${sign}`, 6),
+    y: WIN_POS.y - 120 + winHand(`gy${sign}`, 5),
+    z: WIN_POS.z - 520,
+    rotateX: mix(26, 3, pR),
+    rotateY: sign * -38 + mix(-44, -8, pR) * 0.4,
+    rotateZ: sign * 3,
+    scale: WIN_SCALE,
+  });
 
   /* ------------------------------------------------------------ footage sync */
   const clipF = frame - (threeDAt - POSE_FRAME);
   const cur = footageCursor(CLIP, clipF);
   const curOpacity = interpolate(clipF, [MOVE_FRAME - 4, MOVE_FRAME + 8], [0, 1], { ...clamp, easing: easeOut });
-
-  /* ------------------------------------------------------------------ flash */
-  // A hot core blooming out of the point the Problem scene collapsed into, a brief
-  // lift of the whole frame, and one thin shock ring.
-  const core = interpolate(frame, [0, 30], [0.85, 0], { ...clamp, easing: Easing.bezier(0.15, 0.55, 0.35, 1) });
-  const coreR = interpolate(frame, [0, 30], [150, 1000], { ...clamp, easing: easeOut });
-  const wash = interpolate(frame, [0, 16], [0.09, 0], { ...clamp, easing: easeOut });
-  const ring = interpolate(frame, [0, 44], [0, 1], { ...clamp, easing: easeOut });
 
   return (
     <AbsoluteFill>
@@ -187,106 +310,174 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
           filter: env.blur > 0.01 ? `blur(${env.blur}px)` : undefined,
         }}
       >
-        {/* The browser window with the real home page, deep in the same world. */}
-        {frame >= swingStart && (
-          <World cam={cam} style={{ filter: winBlur > 0.01 ? `blur(${winBlur}px)` : undefined }}>
-            <Browser3D {...winPose} path="/" opacity={winOpacity} glare={mix(2.4, 1, pR)}>
-              <Footage name={CLIP} frame={clipF} />
-              {cur && curOpacity > 0 && <Cursor x={cur.x} y={cur.y} down={cur.down} frame={clipF} opacity={curOpacity} />}
-            </Browser3D>
-          </World>
-        )}
-
-        {/* The logo lockup, at the world origin, with its halo a little behind it. */}
-        {logoOpacity > 0.001 && (
-          <World cam={cam}>
-            <AbsoluteFill
-              style={{
-                transform: `translate3d(0px, ${LOGO_LIFT.y * lift}px, ${LOGO_LIFT.z * lift - 220}px)`,
-                background: `radial-gradient(ellipse 36% 32% at 50% 50%, rgba(236,238,241,${halo}) 0%, rgba(236,238,241,${halo * 0.3}) 45%, rgba(7,8,9,0) 75%)`,
-              }}
-            />
-            <AbsoluteFill
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transform: `translate3d(0px, ${LOGO_LIFT.y * lift}px, ${LOGO_LIFT.z * lift}px) rotateX(${LOGO_LIFT.rotateX * lift}deg)`,
-                opacity: logoOpacity,
-                filter: logoBlur > 0.05 ? `blur(${logoBlur}px)` : undefined,
-              }}
-            >
-              {/* Row = mark + word. Shifted right by (row/2 - mark/2) the mark sits dead
-                  centre; as `open` goes to 1 the row glides back to the centred lockup. */}
+        <AbsoluteFill style={{ translate: `${shake.x}px ${shake.y}px`, rotate: `${shake.r}deg` }}>
+          {/* Opening: the slammed line, then the light line. */}
+          {titleOn && (
+            <AbsoluteFill>
+              {line("inset(0 0 49.7% 0)", -splitP * 1150)}
+              {line("inset(50% 0 0 0)", splitP * 1150)}
+            </AbsoluteFill>
+          )}
+          {lineP > 0 && lineOut > 0.001 && (
+            <AbsoluteFill style={{ opacity: lineOut }}>
               <div
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  width: 1920,
+                  height: 3,
+                  marginLeft: -960,
+                  marginTop: -1.5,
+                  background: "linear-gradient(90deg, rgba(236,238,241,0) 0%, rgba(236,238,241,0.95) 50%, rgba(236,238,241,0) 100%)",
+                  boxShadow: "0 0 60px 8px rgba(236,238,241,0.3)",
+                  scale: `${mix(0.02, 1.1, lineP)} ${mix(1, 1.6, meetIn)}`,
+                  opacity: 0.4 + 0.6 * lineP,
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  width: 1500,
+                  height: 700,
+                  marginLeft: -750,
+                  marginTop: -350,
+                  background: "radial-gradient(ellipse 50% 50% at 50% 50%, rgba(236,238,241,0.13) 0%, rgba(236,238,241,0) 70%)",
+                  opacity: lineP,
+                  scale: mix(0.5, 1, lineP),
+                }}
+              />
+              {meetIn > 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingBottom: 190,
+                  }}
+                >
+                  <div
+                    style={{
+                      ...display,
+                      fontSize: 150,
+                      scale: mix(0.7, 1, meetIn) * mix(1, 1.5, meetOut),
+                      opacity: meetIn * (1 - meetOut),
+                      filter: `blur(${(1 - meetIn) * 16 + meetOut * 14}px)`,
+                    }}
+                  >
+                    Meet
+                  </div>
+                </div>
+              )}
+            </AbsoluteFill>
+          )}
+
+          {/* Ghost windows (depth). */}
+          {frame >= swingStart && (
+            <World cam={cam} style={{ filter: "blur(5px)", opacity: ghostOpacity / 0.5 }}>
+              {[-1, 1].map((sg) => (
+                <Browser3D key={sg} {...ghost(sg)} path="/" opacity={ghostOpacity} glare={0.4}>
+                  <Footage name={CLIP} frame={Math.max(0, Math.min(250, clipF + (sg < 0 ? 70 : 130)))} />
+                </Browser3D>
+              ))}
+            </World>
+          )}
+
+          {/* The browser window with the real home page, deep in the same world. */}
+          {frame >= swingStart && (
+            <World cam={cam} style={{ filter: winBlur > 0.01 ? `blur(${winBlur}px)` : undefined }}>
+              <Browser3D {...winPose} path="/" opacity={winOpacity} glare={mix(2.4, 1, pR)}>
+                <Footage name={CLIP} frame={Math.max(0, clipF)} />
+                {cur && curOpacity > 0 && <Cursor x={cur.x} y={cur.y} down={cur.down} frame={clipF} opacity={curOpacity} />}
+              </Browser3D>
+            </World>
+          )}
+
+          {/* The logo lockup, at the world origin, with its halo a little behind it. */}
+          {showLogo && (
+            <World cam={cam}>
+              <AbsoluteFill
+                style={{
+                  transform: `translate3d(0px, ${LOGO_LIFT.y * lift}px, ${LOGO_LIFT.z * lift - 220}px)`,
+                  background: `radial-gradient(ellipse 36% 32% at 50% 50%, rgba(236,238,241,${halo}) 0%, rgba(236,238,241,${halo * 0.3}) 45%, rgba(7,8,9,0) 75%)`,
+                }}
+              />
+              <AbsoluteFill
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  translate: `calc(${(1 - open) * 50}% - ${((1 - open) * MARK) / 2}px) 0px`,
+                  justifyContent: "center",
+                  transform: `translate3d(0px, ${LOGO_LIFT.y * lift}px, ${LOGO_LIFT.z * lift}px) rotateX(${LOGO_LIFT.rotateX * lift}deg)`,
+                  opacity: logoOpacity,
+                  filter: logoBlur > 0.05 ? `blur(${logoBlur}px)` : undefined,
                 }}
               >
+                {/* Row = mark + word. Shifted right by (row/2 - mark/2) the mark sits dead
+                    centre; as `open` goes to 1 the row glides back to the centred lockup. */}
                 <div
                   style={{
-                    width: MARK,
-                    height: MARK,
-                    flexShrink: 0,
-                    scale: mix(0.42, 1, punch) * mix(1.4, 1, open),
-                    rotate: `${mix(-38, 0, punch)}deg`,
-                    filter: punch < 0.999 ? `blur(${(1 - punch) * 12}px)` : undefined,
-                    opacity: interpolate(frame, [0, 3], [0, 1], clamp),
-                    translate: "0px -6px",
+                    display: "flex",
+                    alignItems: "center",
+                    translate: `calc(${(1 - open) * 50}% - ${((1 - open) * MARK) / 2}px) 0px`,
                   }}
                 >
-                  <LogoMark size={MARK} hit={hit} />
+                  <div
+                    style={{
+                      width: MARK,
+                      height: MARK,
+                      flexShrink: 0,
+                      scale: mix(0.3, 1, punch) * mix(1.4, 1, open),
+                      rotate: `${mix(-52, 0, punch)}deg`,
+                      filter: punch < 0.999 ? `blur(${(1 - punch) * 14}px)` : undefined,
+                      opacity: interpolate(frame, [punchAt, punchAt + 2], [0, 1], clamp),
+                      translate: "0px -6px",
+                    }}
+                  >
+                    <LogoMark size={MARK} hit={hit} />
+                  </div>
+                  <Word frame={frame} at={wordStart + 3} sweep={sweep} />
                 </div>
-                <Word frame={frame} at={wordStart + 3} />
-              </div>
-            </AbsoluteFill>
-          </World>
-        )}
+              </AbsoluteFill>
+            </World>
+          )}
+        </AbsoluteFill>
       </AbsoluteFill>
 
-      {/* Impact flourish, over the transition (not faded in by the envelope). */}
-      {frame < 48 && (
-        <AbsoluteFill style={{ pointerEvents: "none" }}>
-          <AbsoluteFill style={{ backgroundColor: `rgba(236,238,241,${wash})` }} />
-          <AbsoluteFill
-            style={{
-              background: `radial-gradient(circle ${coreR}px at 50% 50%, rgba(255,255,255,${core}) 0%, rgba(236,238,241,${core * 0.45}) 22%, rgba(236,238,241,${core * 0.12}) 55%, rgba(236,238,241,0) 100%)`,
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              width: 1700,
-              height: 1700,
-              marginLeft: -850,
-              marginTop: -850,
-              borderRadius: "50%",
-              border: "1.5px solid rgba(236,238,241,1)",
-              scale: mix(0.05, 1, ring),
-              opacity: 0.42 * (1 - ring) ** 1.3,
-            }}
-          />
-        </AbsoluteFill>
-      )}
+      {/* Impact flourishes, over the transition (not faded in by the envelope). */}
+      <Burst frame={frame} at={0} amp={1} />
+      <Burst frame={frame} at={notAt} amp={0.4} size={0.7} ring={false} />
+      <Burst frame={frame} at={anymoreAt} amp={0.75} size={0.9} />
+      <Burst frame={frame} at={punchAt} amp={0.9} />
+      <Burst frame={frame} at={threeDAt} amp={0.3} size={0.8} ring={false} />
 
-      <Sfx name="impact" at={0} volume={0.7} />
-      <Sfx name="shimmer" at={wordStart} volume={0.22} />
-      <Sfx name="whoosh" at={swingStart} volume={0.5} />
+      <Sfx name="impact" at={0} volume={0.85} />
+      <Sfx name="impact" at={notAt} volume={0.55} />
+      <Sfx name="impact" at={anymoreAt} volume={0.9} />
+      <Sfx name="swipe" at={splitAt} volume={0.6} />
+      <Sfx name="riser" at={lineAt} volume={0.45} />
+      <Sfx name="pop" at={meetAt} volume={0.5} />
+      <Sfx name="impact" at={punchAt} volume={0.9} />
+      <Sfx name="shimmer" at={wordStart + 22} volume={0.3} />
+      <Sfx name="whoosh" at={swingStart} volume={0.7} />
+      <Sfx name="whoosh-soft" at={swingEnd - 8} volume={0.35} />
+      <Sfx name="impact" at={threeDAt} volume={0.55} />
+      <Sfx name="tick" at={threeDAt + 40} volume={0.3} />
     </AbsoluteFill>
   );
 };
 
-/** "Paladex", letters rising out of a soft blur. */
-const Word: React.FC<{ frame: number; at: number }> = ({ frame, at }) => {
+/** "Paladex", letters rising out of a soft blur, then one light sweep across it. */
+const Word: React.FC<{ frame: number; at: number; sweep: number }> = ({ frame, at, sweep }) => {
   const letters = "Paladex".split("");
   return (
-    <div style={{ ...display, fontSize: WORD, lineHeight: 1, letterSpacing: "-0.03em", whiteSpace: "nowrap", paddingLeft: GAP }}>
+    <div style={{ ...display, fontSize: WORD, lineHeight: 1, letterSpacing: "-0.03em", whiteSpace: "nowrap", paddingLeft: GAP, position: "relative" }}>
       {letters.map((ch, i) => {
-        const t = interpolate(frame, [at + i * 2.4, at + i * 2.4 + 26], [0, 1], { ...clamp, easing: easeOut });
+        const t = interpolate(frame, [at + i * 2, at + i * 2 + 20], [0, 1], { ...clamp, easing: easeOut });
+        const glow = Math.max(0, 1 - Math.abs(sweep * (letters.length + 3) - 1.5 - i) / 1.6);
         return (
           <span
             key={i}
@@ -295,6 +486,7 @@ const Word: React.FC<{ frame: number; at: number }> = ({ frame, at }) => {
               opacity: t,
               translate: `0px ${(1 - t) * 0.42 * WORD}px`,
               filter: t < 0.999 ? `blur(${(1 - t) * 10}px)` : undefined,
+              textShadow: glow > 0.01 ? `0 0 ${26 * glow}px rgba(255,255,255,${0.7 * glow})` : undefined,
             }}
           >
             {ch}

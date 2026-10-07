@@ -17,13 +17,13 @@ import { launch, packCursor, record, sleep, writeManifest } from "../cdp.mjs";
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const CLIP = "reveal-home";
 const DIR = join(ROOT, "public", "capture", "reveal", "home");
-const FRAMES = Number(process.env.FRAMES ?? 330);
+const FRAMES = Number(process.env.FRAMES ?? 280);
 // Clip frame that lands on the word "3D" (see Reveal.tsx). The cursor move is timed from it.
 const POSE_FRAME = Number(process.env.POSE ?? 150);
 // Where the (real) mouse rests before it drifts to "Browse rackets".
 const REST = { x: 1580, y: 868 };
 
-const page = await launch({ width: 1920, height: 1080, dpr: 1 });
+const page = await launch({ width: 1920, height: 1080, dpr: Number(process.env.DPR ?? 1.5) });
 // A returning visitor: the one-time "Drag to rotate" hint has been seen, so it does not
 // cover the racket face (it is shown once per browser on the real site).
 await page.send("Page.addScriptToEvaluateOnNewDocument", { source: `try { localStorage.setItem("paladex:hint-seen", "1"); } catch {}` });
@@ -47,7 +47,8 @@ await page.freeze();
 let wasFront = await frontPressed();
 if (wasFront === null) throw new Error("no Front chip");
 let pre = 0;
-for (; pre < 4000; pre++) {
+// (The home racket now sways around the front view and the chip stays on: cap the pre-roll.)
+for (; pre < Number(process.env.PRE ?? 40); pre++) {
   await page.step(1000 / 60);
   const now = await frontPressed();
   if (now && !wasFront) break;
@@ -88,7 +89,7 @@ writeManifest("reveal", {
       fps: 60,
       width: 1920,
       height: 1080,
-      dpr: 1,
+      dpr: Number(process.env.DPR ?? 1.5),
       cursor: packCursor(track),
       events: [
         { type: "pose", frame: POSE_FRAME, x: 0, y: 0, label: "3D" },
