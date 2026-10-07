@@ -82,13 +82,13 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const lineAt = times[0];
   const ctaAt = times[times.length - 1] + 4;
   // The type block cranes up to make room for the line, settling as it starts.
-  const craneFrom = Math.max(brandAt + 30, lineAt - 30);
-  const craneTo = lineAt + 40;
+  const craneFrom = brandAt + 10;
+  const craneTo = Math.max(brandAt + 44, lineAt + 14);
 
   // --- Camera: one weighted pull-back + truck that settles as the line starts,
   // then a slow continuous pull-back to the last frame. The racket's centre is
   // held at a chosen screen point (the camera looks straight down -Z).
-  const move = interpolate(frame, [0, lineAt + 26], [0, 1], { ...clamp, easing: Easing.bezier(0.32, 0.12, 0.22, 1) });
+  const move = interpolate(frame, [0, brandAt + 36], [0, 1], { ...clamp, easing: Easing.bezier(0.2, 0.1, 0.15, 1) });
   const d = mix(1.03, 1.25, move) + 0.0003 * frame + drift("ec-cz", frame, 0.005, 0.07);
   const halfH = Math.tan((15 * Math.PI) / 180); // fov 30
   const halfW = halfH * (width / height);
@@ -106,13 +106,33 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const everyAt = wordAt(timing, "every", lineAt + 30);
   const sideEnd = wordAt(timing, "side", everyAt + 30, 0, "end");
   const spin =
-    -1.38 +
+    -2.28 +
     1.06 * (frame / span) +
+    0.9 * interpolate(frame, [4, brandAt + 56], [0, 1], { ...clamp, easing: Easing.bezier(0.25, 0.1, 0.2, 1) }) +
     0.84 * interpolate(frame, [everyAt - 60, sideEnd + 50], [0, 1], { ...clamp, easing: Easing.bezier(0.45, 0, 0.55, 1) }) +
     drift("ec-spin", frame, 0.02, 0.05);
   const lean = 0.1 + drift("ec-lean", frame, 0.012, 0.05);
   const pitch = 0.05 + drift("ec-pitch", frame, 0.015, 0.06);
   const bob = drift("ec-bob", frame, 0.004, 0.08);
+
+  // --- Depth layer: three soft rackets far behind the hero whip in from the right on
+  // the first beats and keep drifting, so the stretch before the headline is never a
+  // lone logo. They sit at the right, clear of the text column.
+  const backs = [
+    { slug: "bullpadel-elite-02-27", px: 1840, py: 700, z: -1.0, size: 1, at: 6, spin: 0.5, lean: -0.28 },
+    { slug: "babolat-technical-viper-2026", px: 1250, py: 760, z: -1.2, size: 1, at: 16, spin: -0.7, lean: 0.35 },
+    { slug: "adidas-metalbone-3-4", px: 1840, py: 230, z: -1.6, size: 1, at: 26, spin: 1.2, lean: 0.2 },
+  ].map((b, i) => {
+    const t = interpolate(frame, [b.at, b.at + 34], [0, 1], { ...clamp, easing: Easing.bezier(0.1, 0.7, 0.2, 1) });
+    const sxn = ((b.px + (1 - t) * 520 - width / 2) / (width / 2));
+    const syn = (height / 2 - (b.py + drift(`ec-b${i}y`, frame, 10, 0.07))) / (height / 2);
+    return {
+      ...b,
+      t,
+      pos: [camX + sxn * halfW * (d - b.z), camY + syn * halfH * (d - b.z), b.z] as [number, number, number],
+      rot: [0.05, b.spin + 0.9 * (1 - t) + 0.0045 * frame, 0] as [number, number, number],
+    };
+  });
 
   // --- Type block -----------------------------------------------------------
   const crane = interpolate(frame, [craneFrom, craneTo], [0, 1], { ...clamp, easing: easeInOut });
@@ -128,14 +148,18 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const swing =
     interpolate(frame, [brandAt - 16, brandAt], [-34, 0], { ...clamp, easing: easeIn }) +
     7 * Math.sin(Math.PI * interpolate(frame, [brandAt, brandAt + 40], [0, 1], { ...clamp, easing: easeInOut }));
-  const hit = interpolate(frame, [brandAt, brandAt + 24], [0, 1], { ...clamp, easing: easeOut });
+  const hit = interpolate(frame, [brandAt, brandAt + 16], [0, 1], { ...clamp, easing: easeOut });
   // Wordmark wipes in behind the ball.
-  const wipe = interpolate(frame, [brandAt + 2, brandAt + 34], [0, 1], { ...clamp, easing: easeOut });
+  const wipe = interpolate(frame, [brandAt + 2, brandAt + 22], [0, 1], { ...clamp, easing: easeOut });
 
   // CTA lands as the line ends.
-  const cta = rise(frame, ctaAt, 30);
-  const note = rise(frame, ctaAt + 10, 30);
+  const cta = rise(frame, ctaAt, 20);
+  const note = rise(frame, ctaAt + 8, 20);
   const arrow = interpolate(frame, [ctaAt + 14, ctaAt + 44], [0, 1], { ...clamp, easing: easeOut });
+
+  // Final hit: the whole lockup punches once as the CTA lands (the line has finished).
+  const finalAt = ctaAt + 26;
+  const pulse = interpolate(frame, [finalAt, finalAt + 4, finalAt + 30], [0, 1, 0], { ...clamp, easing: easeOut });
 
   // Soft light pool behind the racket so the black frame separates from the ground.
   const pool = 0.1 * rise(frame, 0, 40) * (1 + drift("ec-pool", frame, 0.12, 0.08));
@@ -150,10 +174,15 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
         }}
       />
 
-      <RacketStage width={width} height={height} cameraPosition={[camX, camY, d]} cameraTarget={[camX, camY, 0]} exposure={1.02}>
+      <RacketStage width={width} height={height} cameraPosition={[camX, camY, d]} cameraTarget={[camX, camY, 0]} exposure={1.02 + 0.2 * pulse}>
         <group rotation={[0, 0, lean]} position={[0, bob, 0]}>
           <RacketModel slug={HERO_SLUG} rotation={[pitch, spin, 0]} />
         </group>
+        {backs.map((b) => (
+          <group key={b.slug} rotation={[0, 0, b.lean]} position={b.pos}>
+            <RacketModel slug={b.slug} rotation={b.rot} opacity={Math.min(1, b.t * 1.5) * 0.7} />
+          </group>
+        ))}
       </RacketStage>
 
       {/* Type block: drifts back with the camera (a hair, so the hold never freezes) */}
@@ -168,7 +197,7 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
             display: "flex",
             alignItems: "center",
             gap: 0.26 * MARK,
-            scale: lockupScale,
+            scale: lockupScale * (1 + 0.07 * pulse),
             transformOrigin: "0% 50%",
           }}
         >
@@ -203,7 +232,7 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
               <div key={li}>
                 {line.split(" ").map((w, wi) => {
                   const at = times[offset + wi] - 4;
-                  const t = interpolate(frame, [at, at + 26], [0, 1], { ...clamp, easing: easeOut });
+                  const t = interpolate(frame, [at, at + 16], [0, 1], { ...clamp, easing: easeOut });
                   return (
                     <span key={wi} style={{ display: "inline-block", whiteSpace: "pre" }}>
                       <span
@@ -286,10 +315,16 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
       </AbsoluteFill>
 
       {/* Sound: one soft hit on the logo, a breath for the crane, a tick for the CTA. */}
-      <Sfx name="impact" at={brandAt} volume={0.3} />
+      <Sfx name="impact" at={brandAt} volume={0.6} />
       <Sfx name="pop" at={brandAt} volume={0.4} />
       <Sfx name="whoosh-soft" at={craneFrom} volume={0.18} />
-      <Sfx name="tick" at={ctaAt + 2} volume={0.25} />
+      <Sfx name="tick" at={ctaAt + 2} volume={0.35} />
+      <Sfx name="swipe" at={times[0] - 4} volume={0.4} />
+      <Sfx name="whoosh" at={4} volume={0.45} />
+      <Sfx name="swipe" at={16} volume={0.3} />
+      <Sfx name="impact" at={finalAt} volume={0.85} />
+      <Sfx name="pop" at={finalAt} volume={0.5} />
+      <Sfx name="shimmer" at={finalAt + 2} volume={0.3} />
     </AbsoluteFill>
   );
 };
