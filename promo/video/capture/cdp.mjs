@@ -125,6 +125,8 @@ export async function launch({ width = 1920, height = 1080, dpr = 1, gpu = true,
       // No GPU outside Windows (cloud containers): WebGL runs on SwiftShader.
       ...(gpu && WIN ? ["--use-angle=d3d11", "--enable-gpu-rasterization", "--ignore-gpu-blocklist"] : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]),
       ...(WIN ? [] : ["--no-sandbox", "--disable-dev-shm-usage"]),
+      // e.g. CHROME_EXTRA_ARGS="--disable-gpu-rasterization" for page stills (CPU raster).
+      ...(process.env.CHROME_EXTRA_ARGS ? process.env.CHROME_EXTRA_ARGS.split(" ") : []),
       "--hide-scrollbars",
       "--no-first-run",
       "--no-default-browser-check",
