@@ -140,18 +140,42 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
   const pPrev = deckP(frame - 1);
 
   // ---- Camera on the deck: orbit in from a three-quarter view, then square up.
-  const est = interpolate(frame, [0, c1 + 6], [0, 1], { ...clamp, easing: Easing.bezier(0.36, 0.06, 0.24, 1) });
+  // Opening: a camera that changes every beat of "Not sure where to start?":
+  // deck fans in from depth on "Not", whips to the cover on "sure", orbits the stack on "where",
+  // swings back on "start", and settles square (first answer tappable) just before "Answer".
+  const wNot = wordAt(timing, "Not", 17);
+  const wSure = wordAt(timing, "sure", 33);
+  const wWhere = wordAt(timing, "where", 51);
+  const wStart = wordAt(timing, "start", 86);
+  type CamK = { f: number; x: number; y: number; z: number; rx: number; ry: number; rz: number };
+  const camKeys: CamK[] = [
+    { f: 0, x: -460, y: 280, z: -1600, rx: -24, ry: -58, rz: 7 },
+    { f: wNot + 10, x: -200, y: 130, z: -760, rx: -13, ry: -36, rz: 3 },
+    { f: wSure + 8, x: 70, y: 25, z: -120, rx: -3, ry: 9, rz: 0 },
+    { f: wWhere + 8, x: 360, y: -100, z: -430, rx: 7, ry: 34, rz: -2.5 },
+    { f: wStart + 6, x: -150, y: 70, z: -260, rx: -7, ry: -14, rz: 1.5 },
+    { f: Math.max(wStart + 20, c1 - 4), x: 0, y: 0, z: 0, rx: -2.5, ry: 4.5, rz: 0 },
+  ];
+  const camEase = Easing.bezier(0.16, 0.85, 0.22, 1);
+  const camAt = (k: keyof Omit<CamK, "f">) => {
+    if (frame >= camKeys[camKeys.length - 1].f) return camKeys[camKeys.length - 1][k];
+    let i = 0;
+    while (i < camKeys.length - 2 && frame >= camKeys[i + 1].f) i++;
+    return interpolate(frame, [camKeys[i].f, camKeys[i + 1].f], [camKeys[i][k], camKeys[i + 1][k]], { ...clamp, easing: camEase });
+  };
+  // Cards waiting in the stack start fanned out in depth and snap into the stack by "sure".
+  const spread = interpolate(frame, [0, wSure + 6], [1, 0], { ...clamp, easing: Easing.bezier(0.2, 0.8, 0.2, 1) });
   const riffleT = interpolate(frame, [R0, R1], [0, 1], clamp);
   const surge = Math.sin(Math.PI * riffleT);
   // A quick punch-in on every tap (fast attack, soft settle).
   const punch = [c1, c2, c3, ...taps, c4].reduce((a, c) => a + (frame >= c ? 38 * Math.exp(-(frame - c) / 5) : 0), 0);
   const cam = {
-    x: mix(-260, 0, est),
-    y: mix(190, 0, est),
-    z: mix(-1050, 0, est) + Math.min(frame, S) * 0.4 + surge * 90 + punch, // plus a slow, constant dolly-in
-    rx: mix(-15, -2.5, est) + drift("fd-rx", frame, 0.9, 0.07),
-    ry: mix(-38, 4.5, est) + drift("fd-ry", frame, 1.3, 0.06) - surge * 2,
-    rz: mix(3, 0, est) + surge * 1.2 + drift("fd-rz", frame, 0.35, 0.05),
+    x: camAt("x"),
+    y: camAt("y"),
+    z: camAt("z") + Math.min(frame, S) * 0.4 + surge * 90 + punch, // plus a slow, constant dolly-in
+    rx: camAt("rx") + drift("fd-rx", frame, 0.9, 0.07),
+    ry: camAt("ry") + drift("fd-ry", frame, 1.3, 0.06) - surge * 2,
+    rz: camAt("rz") + surge * 1.2 + drift("fd-rz", frame, 0.35, 0.05),
   };
 
   // ---- Cursor (slot space).
@@ -217,6 +241,8 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
   const rOpacity = interpolate(rIn, [0, 0.22], [0, 1], clamp);
   // Lifts: the match score on "fit", the "Why it fits" reasons on "how you really play".
   // Each lift settles back into the page as the next one rises (a relay of highlights).
+  const spot =
+    interpolate(frame, [RK - 6, RK + 10], [0, 1], { ...clamp, easing: easeOut }) - interpolate(frame, [F - 10, F + 10], [0, 1], { ...clamp, easing: easeInOut });
   const badgeLift =
     interpolate(frame, [F - 4, F + 22], [0, 1], { ...clamp, easing: easeOut }) - interpolate(frame, [H - 4, H + 30], [0, 1], { ...clamp, easing: easeInOut });
   const reasonsLift =
@@ -244,6 +270,10 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
               <LiftLayer pose={rPose} opacity={rOpacity}>
                 {/* dy cancels the perspective drift of the lift (the badge sits above the vanishing point), so it
                     rises toward the lens over its own slot instead of sliding up over the "White studio" chip. */}
+                {/* Spotlight: the page dims while the two finished matches rise, so the short row reads as the focus. */}
+                {spot > 0.001 && (
+                  <div style={{ position: "absolute", left: 0, top: 0, width: 1920, height: 1080, background: `rgba(5,6,7,${0.42 * spot})`, transform: "translateZ(2px)" }} />
+                )}
                 <CropLift name="finder-badge" t={badgeLift} z={120} grow={0.16} dy={16} radius={999} />
                 {/* Lifted straight off the plate (no drop, slim margin) so it never covers the "Strengths" row below;
                     cropped to the text column so the floating card stays inside the plate. */}
@@ -257,7 +287,7 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
           {CARDS.map((def, k) => k)
             .reverse()
             .map((k) => (
-              <DeckCard key={k} id={k} def={CARDS[k]} d={k - p} dPrev={k - pPrev} hover={hoverOf(k)} selected={selectedOf(k)} camYaw={cam.ry} />
+              <DeckCard key={k} id={k} def={CARDS[k]} d={k - p} dPrev={k - pPrev} spread={spread} hover={hoverOf(k)} selected={selectedOf(k)} camYaw={cam.ry} />
             ))}
 
           {/* Cursor, glued to the front slot. */}
@@ -267,8 +297,13 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
         </div>
       </Space3D>
 
-      <Sfx name="whoosh" at={2} volume={0.45} />
-      <Sfx name="riser" at={Math.max(4, A - 40)} volume={0.3} />
+      <Sfx name="whoosh" at={2} volume={0.5} />
+      <Sfx name="swipe" at={wNot + 2} volume={0.45} />
+      <Sfx name="impact" at={wSure + 6} volume={0.6} />
+      <Sfx name="whoosh" at={wWhere} volume={0.5} />
+      <Sfx name="whoosh-soft" at={wStart} volume={0.45} />
+      <Sfx name="riser" at={Math.max(4, wStart)} volume={0.3} />
+      <Sfx name="impact" at={Math.max(wStart + 20, c1 - 4)} volume={0.55} />
       {[c1, c2, c3].map((c) => (
         <React.Fragment key={c}>
           <Sfx name="click" at={c} volume={0.8} />
@@ -296,11 +331,17 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
 // ---------------------------------------------------------------------------
 
 /** Where a card sits at relative depth `d` (0 = front slot, >0 waiting behind, <0 answered and leaving). */
-const deckPose = (def: CardDef, d: number) => {
+const deckPose = (def: CardDef, d: number, spread = 0) => {
   if (d >= 0) {
-    // Waiting in the stack: deeper, up and to the right, a touch fanned.
+    // Waiting in the stack: deeper, up and to the right, a touch fanned (wider while `spread` > 0).
     return {
-      pose: { x: d * 70, y: SLOT_Y - d * 46, z: -d * 250, rotateY: -d * 1.4, rotateZ: d * 0.55 } as Pose,
+      pose: {
+        x: d * (70 + spread * 230),
+        y: SLOT_Y - d * (46 + spread * 60),
+        z: -d * (250 + spread * 330),
+        rotateY: -d * (1.4 + spread * 9),
+        rotateZ: d * (0.55 + spread * 3),
+      } as Pose,
       opacity: interpolate(d, [4.4, 7.4], [1, 0], clamp),
       dim: interpolate(d, [0, 1, 3], [0, 0.42, 0.78], clamp),
       // Depth of field: cards behind the slot fall softly out of focus.
@@ -322,21 +363,22 @@ const deckPose = (def: CardDef, d: number) => {
 const PERSPECTIVE = 2200;
 
 /** One card of the deck. Blur = depth of field + directional motion blur from its own screen velocity. */
-const DeckCard: React.FC<{ id: number; def: CardDef; d: number; dPrev: number; hover: number; selected: number; camYaw: number }> = ({
+const DeckCard: React.FC<{ id: number; def: CardDef; d: number; dPrev: number; spread: number; hover: number; selected: number; camYaw: number }> = ({
   id,
   def,
   d,
   dPrev,
+  spread,
   hover,
   selected,
   camYaw,
 }) => {
   const { w, h } = cardSize(def);
-  const now = deckPose(def, d);
+  const now = deckPose(def, d, spread);
   if (now.opacity <= 0.001) return null;
   const { pose, opacity, dim, dof } = now;
   // Screen-space velocity (px/frame) of the card centre and of its apparent size.
-  const prev = deckPose(def, dPrev).pose;
+  const prev = deckPose(def, dPrev, spread).pose;
   const s1 = PERSPECTIVE / (PERSPECTIVE - Math.min(PERSPECTIVE - 200, pose.z ?? 0));
   const s0 = PERSPECTIVE / (PERSPECTIVE - Math.min(PERSPECTIVE - 200, prev.z ?? 0));
   const vx = ((pose.x ?? 0) - (prev.x ?? 0)) * s1;
