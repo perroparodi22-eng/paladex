@@ -1,4 +1,4 @@
-// Scene 5, "specs": "Every spec is translated into what it actually means for your game."
+// Scene 5, "specs" (v2): "Every spec, translated into what it means for your game."
 //
 // The hero racket's real page, tilted back in 3D, scrolls into its Specification
 // section (the 3D viewer stays sticky on the left, as on the site). On "translated"
@@ -23,6 +23,7 @@ import type { SceneProps } from "./types";
 
 // Words each beat syncs to (scene-local frames come from the voice timing).
 const WORDS = { spec: "spec", lift: "translated", hero: "means", end: "game" };
+const SNAP = 1.35; // the page viewer glides this much faster than captured
 
 const PAGE_W = 1920;
 const PAGE_H = 1080;
@@ -57,28 +58,28 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
 
   // --- Beats (synced to the voice) -------------------------------------------
   const A = wordAt(timing, WORDS.spec, 37);
-  const B = wordAt(timing, WORDS.lift, 81);
-  const C = wordAt(timing, WORDS.hero, 172);
-  const G = wordAt(timing, WORDS.end, 200, 0, "end");
-  const heroFrom = C - 40; // the Surface row starts its flight…
-  const heroTo = C + 6; // …and settles facing the camera on "means"
-  const rowAt = [B, Math.max(B + 8, B + (heroFrom - B) * 0.45)];
-  const sinkAt = Math.max(G + 6, C + 56); // rows return after the line
-  const clickAt = sinkAt + 44; // "Show on model" on the Sweet spot row
+  const B = wordAt(timing, WORDS.lift, 59);
+  const C = wordAt(timing, WORDS.hero, 154);
+  const G = wordAt(timing, WORDS.end, 208, 0, "end");
+  const heroFrom = C - 32; // the Surface row starts its flight…
+  const heroTo = C + 4; // …and settles facing the camera on "means"
+  const rowAt = [B, B + 9];
+  const sinkAt = Math.min(G - 14, C + 38); // rows return as the line ends
+  const clickAt = sinkAt + 26; // "Show on model" on the Sweet spot row
 
   // --- Page scroll (document y at the top of the viewport) --------------------
   // Never past S2 (marks.scroll.h): the strip ends exactly one viewport below it.
   const S2 = M.scroll.h;
-  const scroll = monotone([-12, A, B - 4, C, sinkAt, clickAt - 6, D + 60], [S0, 2870, 3270, 3290, 3300, S2 - 6, S2], frame);
+  const scroll = monotone([-12, A - 8, A + 14, B - 6, C, sinkAt, clickAt - 6, D + 60], [S0, S0 + 30, 3150, 3270, 3290, 3300, S2 - 6, S2], frame);
 
   // --- Camera on the page (Browser3D pose) -----------------------------------
   const keys: PoseKey[] = [
-    { f: -20, x: -60, y: 160, z: -520, rotateX: 32, rotateY: -30, rotateZ: 3, scale: 1 },
-    { f: A + 24, x: -350, y: 40, z: -230, rotateX: 18, rotateY: -18, rotateZ: 1.2, scale: 1 },
-    { f: B + 36, x: -380, y: 110, z: -380, rotateX: 26, rotateY: -16, rotateZ: 0.6, scale: 1 },
-    { f: C + 10, x: -360, y: 120, z: -560, rotateX: 28, rotateY: -13, rotateZ: 0, scale: 1 },
-    { f: sinkAt + 36, x: 30, y: -110, z: -200, rotateX: 10, rotateY: 8, rotateZ: -0.5, scale: 0.9 },
-    { f: clickAt + 24, x: 130, y: -100, z: -110, rotateX: 8, rotateY: 10, rotateZ: -0.6, scale: 0.92 },
+    { f: -18, x: -60, y: 160, z: -520, rotateX: 32, rotateY: -30, rotateZ: 3, scale: 1 },
+    { f: A + 8, x: -350, y: 40, z: -230, rotateX: 18, rotateY: -18, rotateZ: 1.2, scale: 1 },
+    { f: B + 24, x: -380, y: 110, z: -380, rotateX: 26, rotateY: -16, rotateZ: 0.6, scale: 1 },
+    { f: C + 6, x: -360, y: 120, z: -560, rotateX: 28, rotateY: -13, rotateZ: 0, scale: 1 },
+    { f: sinkAt + 24, x: 30, y: -110, z: -200, rotateX: 10, rotateY: 8, rotateZ: -0.5, scale: 0.9 },
+    { f: clickAt + 18, x: 130, y: -100, z: -110, rotateX: 8, rotateY: 10, rotateZ: -0.6, scale: 0.92 },
     { f: D + 18, x: 420, y: -40, z: 240, rotateX: 5, rotateY: 15, rotateZ: -1, scale: 1 },
     { f: D + 120, x: 520, y: -40, z: 420, rotateX: 4, rotateY: 16, rotateZ: -1.2, scale: 1 },
   ];
@@ -94,11 +95,11 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
   // --- Lifts -----------------------------------------------------------------
   // In-place rise for Shape and Weight; Surface flies to the hero pose.
   const riseP = (i: number) =>
-    interpolate(frame, [rowAt[i], rowAt[i] + 44], [0, 1], { ...clamp, easing: lift }) *
-    (1 - interpolate(frame, [sinkAt + 4 + i * 6, sinkAt + 38 + i * 6], [0, 1], { ...clamp, easing: sink }));
+    interpolate(frame, [rowAt[i], rowAt[i] + 30], [0, 1], { ...clamp, easing: lift }) *
+    (1 - interpolate(frame, [sinkAt + 2 + i * 4, sinkAt + 28 + i * 4], [0, 1], { ...clamp, easing: sink }));
   const heroP =
     interpolate(frame, [heroFrom, heroTo], [0, 1], { ...clamp, easing: lift }) *
-    (1 - interpolate(frame, [sinkAt, sinkAt + 40], [0, 1], { ...clamp, easing: easeInOut }));
+    (1 - interpolate(frame, [sinkAt, sinkAt + 30], [0, 1], { ...clamp, easing: easeInOut }));
   const heroOut = frame > sinkAt; // returning (affects the arc only)
   // How far the other rows step back while the hero is up.
   const heroHold = interpolate(frame, [heroFrom, heroTo], [0, 1], { ...clamp, easing: lift }) * (1 - interpolate(frame, [sinkAt - 6, sinkAt + 24], [0, 1], { ...clamp, easing: easeInOut }));
@@ -148,14 +149,14 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
         lry: -0.5 * cam.rotateY,
         ls: 1.38,
       };
-      const on = presence(rowAt[i], sinkAt + 38 + i * 6);
+      const on = presence(rowAt[i], sinkAt + 28 + i * 4);
       return { ...r, state: mixSlab(slot, up, p), p, on, focus: 1 - heroHold * 0.55, blur: heroHold * 3 };
     }
     const hero: SlabState = { P: heroPose, cx: 0, cy: 0, lz: 0, lrx: 0, lry: 0, ls: 1 };
     const st = mixSlab(slot, hero, heroP);
     // Arc: rise off the page before flying to the camera (and settle back into the slot).
     st.lz += Math.sin(Math.PI * heroP) * (heroOut ? 120 : 220);
-    return { ...r, state: st, p: heroP, on: presence(heroFrom, sinkAt + 40), focus: 1, blur: 0 };
+    return { ...r, state: st, p: heroP, on: presence(heroFrom, sinkAt + 30), focus: 1, blur: 0 };
   });
 
   // --- Page treatment ---------------------------------------------------------
@@ -167,7 +168,7 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
   // Viewer footage: the captured click lands on our click frame.
   // Before the click the viewer holds its idle hero pose (capture frames 0–39 are
   // identical); the first 6 are skipped as a warm-up in case a re-capture differs.
-  const viewerFrame = Math.max(7, frame - clickAt + clipClick);
+  const viewerFrame = Math.max(7, clipClick + (frame - clickAt) * (frame > clickAt ? SNAP : 1));
 
   // Cursor (page px, glued to the page).
   const btn = M.sweetBtn;
@@ -175,7 +176,7 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
   const by = btn.y - scroll + btn.h / 2 + 3;
   const cur = cursorAt(
     [
-      { f: sinkAt + 6, x: 1770, y: 1010 },
+      { f: sinkAt + 4, x: 1770, y: 1010 },
       { f: clickAt - 3, x: bx, y: by },
       { f: clickAt, x: bx, y: by, down: true },
       { f: clickAt + 6, x: bx, y: by },
@@ -183,7 +184,7 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
     ],
     frame,
   );
-  const curOpacity = interpolate(frame, [sinkAt + 6, sinkAt + 18], [0, 1], clamp);
+  const curOpacity = interpolate(frame, [sinkAt + 4, sinkAt + 12], [0, 1], clamp);
   const hoverOn = interpolate(frame, [clickAt - 9, clickAt - 5], [0, 1], clamp);
 
   return (
@@ -283,13 +284,17 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
         })}
       </Space3D>
 
-      <Sfx name="whoosh-soft" at={0} volume={0.3} />
-      <Sfx name="tick" at={rowAt[0] + 4} volume={0.3} />
-      <Sfx name="tick" at={rowAt[1] + 4} volume={0.26} />
-      <Sfx name="swipe" at={heroFrom + 6} volume={0.4} />
-      <Sfx name="whoosh-soft" at={sinkAt + 2} volume={0.25} />
-      <Sfx name="click" at={clickAt} volume={0.55} />
-      <Sfx name="shimmer" at={clickAt + 8} volume={0.3} />
+      <Sfx name="whoosh" at={0} volume={0.5} />
+      <Sfx name="swipe" at={A + 4} volume={0.35} />
+      <Sfx name="tick" at={rowAt[0] + 3} volume={0.4} />
+      <Sfx name="tick" at={rowAt[1] + 3} volume={0.36} />
+      <Sfx name="whoosh-soft" at={heroFrom - 2} volume={0.45} />
+      <Sfx name="impact" at={heroTo} volume={0.6} />
+      <Sfx name="shimmer" at={heroTo + 8} volume={0.3} />
+      <Sfx name="swipe" at={sinkAt + 2} volume={0.4} />
+      <Sfx name="click" at={clickAt} volume={0.6} />
+      <Sfx name="pop" at={clickAt + 6} volume={0.4} />
+      <Sfx name="whoosh-soft" at={clickAt + 14} volume={0.3} />
     </AbsoluteFill>
   );
 };

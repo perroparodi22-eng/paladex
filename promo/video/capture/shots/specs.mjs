@@ -10,7 +10,7 @@
 //   specs-page    the page between S0 and S2+1080 with the header and the sticky
 //                 viewer hidden (dpr 2, stitched from viewport tiles, no layout change)
 //   specs-header  the sticky site header (dpr 2)
-//   specs-viewer  the sticky viewer card as a 60 fps clip (dpr 1.5): the racket in
+//   specs-viewer  the sticky viewer card as a 60 fps clip (dpr 2): the racket in
 //                 its hero pose, then "Show on model" on the Sweet spot row is clicked
 //                 and the viewer flies to the front view with the sweet-spot overlay
 //   specs-row-*   dpr 3 crops of the rows that lift out of the page
@@ -43,7 +43,7 @@ const PADY = 8;
 // pose until the click: with auto-rotate on, the site keeps turning after
 // "Show on model" and the sweet-spot overlay spins edge-on, so it stays off.
 const CLICK = 40;
-const CLIP_FRAMES = CLICK + 160;
+const CLIP_FRAMES = CLICK + 130;
 
 const what = process.argv[2] ?? "all";
 mkdirSync(OUT, { recursive: true });
@@ -212,7 +212,7 @@ im.save(out, quality=92)
 }
 
 async function viewerClip() {
-  const dpr = 1.5;
+  const dpr = 2;
   const page = await open(dpr);
   await page.scrollTo(S2);
   await sleep(800);
