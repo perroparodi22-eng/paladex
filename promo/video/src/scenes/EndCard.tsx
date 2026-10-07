@@ -82,13 +82,13 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const lineAt = times[0];
   const ctaAt = times[times.length - 1] + 4;
   // The type block cranes up to make room for the line, settling as it starts.
-  const craneFrom = Math.max(brandAt + 30, lineAt - 30);
-  const craneTo = lineAt + 40;
+  const craneFrom = brandAt + 10;
+  const craneTo = Math.max(brandAt + 44, lineAt + 14);
 
   // --- Camera: one weighted pull-back + truck that settles as the line starts,
   // then a slow continuous pull-back to the last frame. The racket's centre is
   // held at a chosen screen point (the camera looks straight down -Z).
-  const move = interpolate(frame, [0, lineAt + 26], [0, 1], { ...clamp, easing: Easing.bezier(0.32, 0.12, 0.22, 1) });
+  const move = interpolate(frame, [0, brandAt + 36], [0, 1], { ...clamp, easing: Easing.bezier(0.2, 0.1, 0.15, 1) });
   const d = mix(1.03, 1.25, move) + 0.0003 * frame + drift("ec-cz", frame, 0.005, 0.07);
   const halfH = Math.tan((15 * Math.PI) / 180); // fov 30
   const halfW = halfH * (width / height);
@@ -128,14 +128,18 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const swing =
     interpolate(frame, [brandAt - 16, brandAt], [-34, 0], { ...clamp, easing: easeIn }) +
     7 * Math.sin(Math.PI * interpolate(frame, [brandAt, brandAt + 40], [0, 1], { ...clamp, easing: easeInOut }));
-  const hit = interpolate(frame, [brandAt, brandAt + 24], [0, 1], { ...clamp, easing: easeOut });
+  const hit = interpolate(frame, [brandAt, brandAt + 16], [0, 1], { ...clamp, easing: easeOut });
   // Wordmark wipes in behind the ball.
-  const wipe = interpolate(frame, [brandAt + 2, brandAt + 34], [0, 1], { ...clamp, easing: easeOut });
+  const wipe = interpolate(frame, [brandAt + 2, brandAt + 22], [0, 1], { ...clamp, easing: easeOut });
 
   // CTA lands as the line ends.
-  const cta = rise(frame, ctaAt, 30);
-  const note = rise(frame, ctaAt + 10, 30);
+  const cta = rise(frame, ctaAt, 20);
+  const note = rise(frame, ctaAt + 8, 20);
   const arrow = interpolate(frame, [ctaAt + 14, ctaAt + 44], [0, 1], { ...clamp, easing: easeOut });
+
+  // Final hit: the whole lockup punches once as the CTA lands (the line has finished).
+  const finalAt = ctaAt + 26;
+  const pulse = interpolate(frame, [finalAt, finalAt + 4, finalAt + 30], [0, 1, 0], { ...clamp, easing: easeOut });
 
   // Soft light pool behind the racket so the black frame separates from the ground.
   const pool = 0.1 * rise(frame, 0, 40) * (1 + drift("ec-pool", frame, 0.12, 0.08));
@@ -150,7 +154,7 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
         }}
       />
 
-      <RacketStage width={width} height={height} cameraPosition={[camX, camY, d]} cameraTarget={[camX, camY, 0]} exposure={1.02}>
+      <RacketStage width={width} height={height} cameraPosition={[camX, camY, d]} cameraTarget={[camX, camY, 0]} exposure={1.02 + 0.2 * pulse}>
         <group rotation={[0, 0, lean]} position={[0, bob, 0]}>
           <RacketModel slug={HERO_SLUG} rotation={[pitch, spin, 0]} />
         </group>
@@ -168,7 +172,7 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
             display: "flex",
             alignItems: "center",
             gap: 0.26 * MARK,
-            scale: lockupScale,
+            scale: lockupScale * (1 + 0.07 * pulse),
             transformOrigin: "0% 50%",
           }}
         >
@@ -203,7 +207,7 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
               <div key={li}>
                 {line.split(" ").map((w, wi) => {
                   const at = times[offset + wi] - 4;
-                  const t = interpolate(frame, [at, at + 26], [0, 1], { ...clamp, easing: easeOut });
+                  const t = interpolate(frame, [at, at + 16], [0, 1], { ...clamp, easing: easeOut });
                   return (
                     <span key={wi} style={{ display: "inline-block", whiteSpace: "pre" }}>
                       <span
@@ -286,10 +290,14 @@ export const EndCard: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
       </AbsoluteFill>
 
       {/* Sound: one soft hit on the logo, a breath for the crane, a tick for the CTA. */}
-      <Sfx name="impact" at={brandAt} volume={0.3} />
+      <Sfx name="impact" at={brandAt} volume={0.6} />
       <Sfx name="pop" at={brandAt} volume={0.4} />
       <Sfx name="whoosh-soft" at={craneFrom} volume={0.18} />
-      <Sfx name="tick" at={ctaAt + 2} volume={0.25} />
+      <Sfx name="tick" at={ctaAt + 2} volume={0.35} />
+      <Sfx name="swipe" at={times[0] - 4} volume={0.4} />
+      <Sfx name="impact" at={finalAt} volume={0.85} />
+      <Sfx name="pop" at={finalAt} volume={0.5} />
+      <Sfx name="shimmer" at={finalAt + 2} volume={0.3} />
     </AbsoluteFill>
   );
 };
