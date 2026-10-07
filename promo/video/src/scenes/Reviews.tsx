@@ -55,12 +55,15 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
 
   // --- Beats (voice) ----------------------------------------------------------
   const wWhat = wordAt(timing, "What", 17);
-  const wReviewers = wordAt(timing, "reviewers", 49);
-  const wSay = wordAt(timing, "say", 80);
-  const wSummed = wordAt(timing, "summed", 112);
-  const wUp = wordAt(timing, "up", 136);
-  const wWith = wordAt(timing, "with", 153);
-  const wSources = wordAt(timing, "sources", 186, 0, "end");
+  // Each lift needs ~half a second: a fast read can put these words closer than that, so the
+  // beats follow the voice but never bunch up (keeps every interpolate range increasing).
+  const GAP = 30;
+  const wReviewers = Math.max(wordAt(timing, "reviewers", 49), wWhat + GAP);
+  const wSay = Math.max(wordAt(timing, "say", 80), wReviewers + GAP);
+  const wSummed = Math.max(wordAt(timing, "summed", 112), wSay + GAP);
+  const wUp = Math.max(wordAt(timing, "up", 136), wSummed + 12);
+  const wWith = Math.max(wordAt(timing, "with", 153), wSummed + GAP);
+  const wSources = Math.max(wordAt(timing, "sources", 186, 0, "end"), wWith + 24);
 
   const pieces: Piece[] = [
     { key: "title", still: "reviews-crop-title", take: wWhat - 14, land: wWhat + 4, back: wReviewers - 16, home: wReviewers + 6, scale: 2.75, rotY: -7, rotX: 3, y: -90 },
