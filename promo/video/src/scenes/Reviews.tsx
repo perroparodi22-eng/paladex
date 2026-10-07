@@ -69,8 +69,8 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
   const wBack = Math.max(wordAt(timing, "back", 214), wSources + 20);
 
   const pieces: Piece[] = [
-    { key: "summary", still: "reviews-crop-summary", take: wWhat - 6, land: wWhat + 14, back: wGood - 22, home: wGood - 4, scale: 2.6, rotY: 6, rotX: 2, y: -40 },
-    { key: "lists", still: "reviews-crop-lists", take: wGood - 20, land: wGood + 2, back: wWith - 12, home: wWith + 6, scale: 2.55, rotY: -6, rotX: 3, y: -30 },
+    { key: "summary", still: "reviews-crop-summary", take: wWhat - 6, land: wWhat + 14, back: wGood - 36, home: wGood - 20, scale: 2.6, rotY: 6, rotX: 2, y: -40 },
+    { key: "lists", still: "reviews-crop-lists", take: wGood - 14, land: wGood + 4, back: wWith - 12, home: wWith + 6, scale: 2.55, rotY: -6, rotX: 3, y: -30 },
     { key: "sources", still: "reviews-crop-sources", take: wWith - 8, land: wWith + 14, back: D + 200, home: D + 220, scale: 3.9, rotY: -4, rotX: 2, y: 20 },
   ];
   const crops = pieces.map((p) => {
@@ -241,7 +241,7 @@ export const Reviews: React.FC<SceneProps> = ({ timing, timeline }) => {
                 {s.key === "lists" && (
                   <>
                     <div style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", background: "#0a0b0d", opacity: interpolate(frame, [wBad - 6, wBad + 6], [0, 0.62], clamp) }} />
-                    <div style={{ position: "absolute", right: 0, top: 0, width: "50%", height: "100%", background: "#0a0b0d", opacity: interpolate(frame, [wGood - 20, wGood - 6], [0, 0.62], clamp) * interpolate(frame, [wBad - 8, wBad + 2], [1, 0], clamp) }} />
+                    <div style={{ position: "absolute", right: 0, top: 0, width: "50%", height: "100%", background: "#0a0b0d", opacity: interpolate(frame, [wGood - 14, wGood - 2], [0, 0.62], clamp) * interpolate(frame, [wBad - 8, wBad + 2], [1, 0], clamp) }} />
                   </>
                 )}
                 {isSrc && (
