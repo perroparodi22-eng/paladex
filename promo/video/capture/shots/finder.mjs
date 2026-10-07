@@ -177,7 +177,8 @@ async function stills() {
 }
 
 async function footage() {
-  const page = await launch({ width: 1920, height: 1080, dpr: 1 });
+  const CLIP_DPR = Number(process.env.CLIP_DPR ?? 1.5);
+  const page = await launch({ width: 1920, height: 1080, dpr: CLIP_DPR });
   await page.goto(`${BASE}/`, 1500);
   // The gesture hint is shown once per browser: mark it seen, like a returning visitor.
   await page.eval(`localStorage.setItem("paladex:hint-seen", "1"), true`);
@@ -221,8 +222,8 @@ async function footage() {
   await record(page, { dir, frames: FR, quality: 90 });
   // marks are document px; the clip shows the page scrolled by SCROLL.
   writeManifest(SCENE, {
-    clips: { [name]: { dir: `capture/${SCENE}/results`, frames: FR, fps: 60, width: 1920, height: 1080, dpr: 1 } },
-    stills: { [`${SCENE}-results-marks`]: { file: `capture/${SCENE}/results/f00000.jpg`, width: 1920, height: 1080, dpr: 1, marks: Object.fromEntries(Object.entries(marks).map(([k, b]) => [k, { ...b, y: b.y - SCROLL }])) } },
+    clips: { [name]: { dir: `capture/${SCENE}/results`, frames: FR, fps: 60, width: 1920, height: 1080, dpr: CLIP_DPR } },
+    stills: { [`${SCENE}-results-marks`]: { file: `capture/${SCENE}/results/f00000.jpg`, width: 1920, height: 1080, dpr: CLIP_DPR, marks: Object.fromEntries(Object.entries(marks).map(([k, b]) => [k, { ...b, y: b.y - SCROLL }])) } },
   });
   console.log("marks", marks, "scroll", SCROLL);
   console.log(page.logs.slice(0, 8).join("\n"));
