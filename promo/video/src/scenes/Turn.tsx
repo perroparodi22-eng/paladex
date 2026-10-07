@@ -9,7 +9,7 @@
 // click nudges the camera. On "Every detail, up close" the racket BREAKS OUT of the
 // screen: during "Back"'s glide the captured racket is invisibly replaced pixel for
 // pixel (same place, size, view angle, perspective and tone, from the site camera
-// recorded during capture) by the WebGL hero racket; on "Every" the window tilts back
+// recorded during capture) by the WebGL hero racket; on "detail" the window tilts back
 // and falls away under it while the racket lifts off and lands huge (whole head in
 // frame) on "up close"; then the camera cranes and pushes into a macro glide across the
 // face texture toward the frame edge, a strip light sweeps the face and a faint
@@ -172,10 +172,12 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     grab: ev.find((e) => e.type === "grab")?.frame ?? 82,
     release: ev.find((e) => e.type === "release")?.frame ?? 128,
     clicks: ev.filter((e) => e.type === "click").map((e) => e.frame),
-    // The hand-off is invisible (same racket, same tone), so it runs under "Back"'s
-    // glide; the window then falls away on "Every" and the racket is out by "up close".
-    B: every - 14,
-    BO: every - 14 + GLUE - 2,
+    // The hand-off is invisible (same racket, same tone) and runs under the end of
+    // "Back"'s glide, while the racket is nearly face-on: at more oblique angles the
+    // site's render reads ~6 levels lighter than ours (measured), so don't start it
+    // earlier. The window then falls away on "detail"; the racket lands on "up close".
+    B: every - 8,
+    BO: every - 8 + GLUE - 2,
     END,
   };
   const { B, BO } = m;
