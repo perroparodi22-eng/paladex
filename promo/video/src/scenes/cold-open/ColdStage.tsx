@@ -41,6 +41,17 @@ const Exposure: React.FC<{ value: number }> = ({ value }) => {
   return null;
 };
 
+/** Frame-driven fog: far rackets sink into the black, which reads as depth. */
+const SceneFog: React.FC<{ range: [number, number] | null }> = ({ range }) => {
+  const scene = useThree((s) => s.scene);
+  const near = range?.[0];
+  const far = range?.[1];
+  useLayoutEffect(() => {
+    scene.fog = near !== undefined && far !== undefined ? new THREE.Fog(0x050607, near, far) : null;
+  }, [scene, near, far]);
+  return null;
+};
+
 const CameraRig: React.FC<{ position: Vec3; target: Vec3; fov: number; roll: number }> = ({ position, target, fov, roll }) => {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   useLayoutEffect(() => {
@@ -71,8 +82,10 @@ export const ColdStage: React.FC<{
   height: number;
   camera: { position: Vec3; target: Vec3; fov: number; roll: number };
   rig: LightRig;
+  /** Linear depth fog toward black [near, far] (world units from the camera), or null. */
+  fog?: [number, number] | null;
   children: React.ReactNode;
-}> = ({ width, height, camera, rig, children }) => {
+}> = ({ width, height, camera, rig, fog = null, children }) => {
   if (isAudioOnly()) return null;
   const { rim, rimEnv, rimTravel, camAz, key, fill, back, sweepX, sweep, exposure } = rig;
   // Rim lights start high above the head and travel down both sides, so the
@@ -98,6 +111,7 @@ export const ColdStage: React.FC<{
       }}
     >
       <Exposure value={exposure} />
+      <SceneFog range={fog} />
       <CameraRig {...camera} />
       {/* Reflections (re-captured every frame because the children change). */}
       <Environment resolution={256} frames={1}>

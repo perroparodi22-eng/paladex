@@ -1,4 +1,4 @@
-// Scene 2, "problem": "…based on one flat photo, and a spec sheet nobody explains."
+// Scene 2, "problem": "And you're choosing it from one flat photo... and a spec sheet nobody explains."
 //
 // One shared 3D world for CSS and WebGL. The CSS perspective is set to the WebGL
 // camera's distance in px (fov 30, z 1.4), so a point placed at the same world px
@@ -8,13 +8,17 @@
 // behind it with real parallax.
 //
 // Beats (scene-local frames, derived from the voice's word timings):
-//   0 → flat      the hero racket turns in the studio light (slow push-in)
-//   flat          it is pressed paper-flat, turns front-on, the light goes dull and
-//                 a dull grey listing card forms around it; a shutter blink on "photo"
-//   and → spec    lateral track starts; spec chips emerge from depth in waves on
-//                 "spec", "sheet", "nobody" (depth of field, parallax)
-//   explains      everything is pulled into one point (swirl, accelerating) that
-//                 flares as the scene hands over to the reveal's impact.
+//   0          macro: the camera slides across the hero's face (gold glints)
+//   choosing   cut: the hero turns between two other rackets (the choice)
+//   from       cut: push in on the hero alone; a punch on "one"
+//   flat       it is pressed paper-flat, turns front-on, the light goes dull and
+//              a dull grey listing card forms around it
+//   photo      shutter blink, then the card multiplies into a cold grid of identical
+//              flat listings as the camera pulls back
+//   and        the grid recedes, a lateral track starts; spec chips burst from depth
+//              in waves on "spec", "sheet", "nobody", "explains" (depth of field)
+//   end − ~50  everything is pulled into one point (swirl, accelerating) that
+//              flares as the scene hands over to the reveal's impact.
 import { useThree } from "@react-three/fiber";
 import React, { useLayoutEffect, useMemo } from "react";
 import { AbsoluteFill, Easing, interpolate, random, useCurrentFrame, useVideoConfig } from "remotion";
@@ -47,18 +51,38 @@ const ramp = (f: number, a: number, b: number, easing: (t: number) => number = e
 // ---------------------------------------------------------------------------
 // Timing (scene-local frames from the voice).
 // ---------------------------------------------------------------------------
-type Marks = { flat: number; photo: number; and: number; spec: number; sheet: number; nobody: number; col: number; end: number };
+type Marks = {
+  choosing: number;
+  from: number;
+  one: number;
+  flat: number;
+  photo: number;
+  and: number;
+  spec: number;
+  sheet: number;
+  nobody: number;
+  explains: number;
+  col: number;
+  end: number;
+};
 
 const marks = (timing: SceneTiming): Marks => {
   const end = timing.duration;
+  const explains = wordAt(timing, "explains", 267);
   return {
-    flat: wordAt(timing, "flat", 50),
-    photo: wordAt(timing, "photo", 68),
-    and: wordAt(timing, "and", 128),
-    spec: wordAt(timing, "spec", 158),
-    sheet: wordAt(timing, "sheet", 174),
-    nobody: wordAt(timing, "nobody", 195),
-    col: Math.min(wordAt(timing, "explains", 217), end - 60),
+    choosing: wordAt(timing, "choosing", 49),
+    from: wordAt(timing, "from", 90),
+    one: wordAt(timing, "one", 108),
+    flat: wordAt(timing, "flat", 123),
+    photo: wordAt(timing, "photo", 141),
+    // The second "and" (the first opens the line).
+    and: wordAt(timing, "and", 185, 1),
+    spec: wordAt(timing, "spec", 209),
+    sheet: wordAt(timing, "sheet", 226),
+    nobody: wordAt(timing, "nobody", 245),
+    explains,
+    // The storm peaks on "explains", then the collapse lands on the cut.
+    col: Math.max(explains + 14, end - 52),
     end,
   };
 };
@@ -68,12 +92,14 @@ const marks = (timing: SceneTiming): Marks => {
 // ---------------------------------------------------------------------------
 type Cam = { x: number; y: number; z: number };
 const camAt = (f: number, T: Marks): Cam => ({
-  x: 1050 * ramp(f, T.and - 36, T.end + 40, SMOOTH) + drift("pb-cam-x", f, 14, 0.07),
+  x: 760 * ramp(f, T.and - 16, T.end + 40, SMOOTH) + drift("pb-cam-x", f, 14, 0.07),
   y: drift("pb-cam-y", f, 10, 0.06) - 24 * ramp(f, T.and, T.end, SMOOTH),
   z:
-    -70 +
-    110 * ramp(f, -20, T.flat + 40, Easing.bezier(0.3, 0, 0.5, 1)) +
-    110 * ramp(f, T.flat + 10, T.col + 10, SMOOTH) +
+    -40 +
+    60 * ramp(f, T.flat - 20, T.flat + 20, SMOOTH) +
+    // The pull-back that reveals the grid of identical listings.
+    820 * ramp(f, T.photo + 6, T.photo + 40, Easing.bezier(0.5, 0, 0.15, 1)) -
+    180 * ramp(f, T.and - 6, T.col + 10, SMOOTH) +
     170 * ramp(f, T.col - 10, T.end + 30, Easing.bezier(0.5, 0, 0.8, 0.6)),
 });
 const camCss = (c: Cam) => `translate3d(${-c.x}px, ${-c.y}px, ${-c.z}px)`;
@@ -113,7 +139,7 @@ type CardPose = { x: number; y: number; z: number; ry: number; rx: number; rz: n
 
 const cardAt = (f: number, T: Marks, cam: Cam, P: { x: number; y: number; z: number }): CardPose => {
   const appear = ramp(f, T.flat + 4, T.flat + 28, Easing.bezier(0.3, 0, 0.2, 1));
-  const recede = ramp(f, T.and - 16, T.sheet + 50, SMOOTH);
+  const recede = ramp(f, T.and - 16, T.nobody + 30, SMOOTH);
   const base = {
     x: cam.x * 0.85 + drift("pb-card-x", f, 8, 0.07),
     y: CARD_Y + drift("pb-card-y", f, 7, 0.09),
@@ -125,8 +151,8 @@ const cardAt = (f: number, T: Marks, cam: Cam, P: { x: number; y: number; z: num
     x: p.x,
     y: p.y,
     z: p.z,
-    ry: -17 * ramp(f, T.flat + 8, T.and + 36, SMOOTH) + 24 * ramp(f, T.and + 10, T.end, SMOOTH) + drift("pb-card-ry", f, 1.6, 0.1),
-    rx: 3 * ramp(f, T.flat, T.sheet, SMOOTH) + 14 * ramp(f, T.col - 6, T.end, Easing.bezier(0.4, 0, 0.7, 1)) + drift("pb-card-rx", f, 1.4, 0.08),
+    ry: -10 * ramp(f, T.flat + 8, T.photo + 30, SMOOTH) + 22 * ramp(f, T.and - 10, T.end, SMOOTH) + drift("pb-card-ry", f, 1.6, 0.1),
+    rx: 4 * ramp(f, T.flat, T.photo + 30, SMOOTH) + 10 * ramp(f, T.and, T.end, SMOOTH) + drift("pb-card-rx", f, 1.4, 0.08),
     rz: drift("pb-card-rz", f, 0.8, 0.06) + p.th / DEG,
     s: mix(1.07, 1, appear) * (1 - 0.9 * c),
     opacity: appear * (1 - interpolate(c, [0.72, 1], [0, 1], clamp)),
@@ -142,14 +168,45 @@ const SWING = Easing.bezier(0.45, 0, 0.12, 1); // the pressed sheet swings round
  * WHILE still at a three-quarter angle (so the thickness visibly collapses), and only
  * then swings front-on into the listing photo.
  */
+/** Before "flat": three quick shots of the hero (macro, the choice, the push-in). */
+const heroPre = (f: number, T: Marks) => {
+  if (f < T.choosing) {
+    const t = ramp(f, -20, T.choosing + 6, Easing.bezier(0.25, 0.3, 0.5, 1));
+    return { x: mix(-185, -120, t), y: 150, z: 1430, rx: 0.06, ry: mix(-0.62, -0.3, t), rz: mix(-0.2, -0.12, t) };
+  }
+  if (f < T.from) {
+    const t = ramp(f, T.choosing - 2, T.from + 10, Easing.bezier(0.15, 0.7, 0.3, 1));
+    return { x: 0, y: 10, z: mix(260, 380, t), rx: 0.12, ry: mix(-1.5, -0.75, t), rz: -0.05 };
+  }
+  const push = ramp(f, T.from - 2, T.from + 22, Easing.bezier(0.1, 0.8, 0.25, 1));
+  const punch = ramp(f, T.one - 2, T.one + 12, Easing.bezier(0.1, 0.8, 0.25, 1));
+  return { x: 12, y: 6, z: 260 + 130 * push + 80 * punch, rx: 0.14, ry: -1.28 + f * 0.0058, rz: -0.12 };
+};
+
+/** The two other rackets the hero is weighed against on "choosing" (world px). */
+const RIVALS = [
+  { slug: "head-radical-pro-2026", x: -600, y: 10, z: -420, ry: 0.75 },
+  { slug: "bullpadel-vertex-05-27", x: 610, y: 0, z: -460, ry: -0.7 },
+] as const;
+/** Dim rackets deep behind the hero before it goes flat (continuity with the cold open). */
+const FAR = [
+  { slug: "babolat-technical-viper-2026", x: -1700, y: -450, z: -2600 },
+  { slug: "adidas-metalbone-hrd-plus-2026", x: 1800, y: -380, z: -2900 },
+  { slug: "wilson-defy-pro-v1", x: -1300, y: 560, z: -2400 },
+  { slug: "siux-electra-pro-shadow-red-2026", x: 1450, y: 520, z: -2500 },
+  { slug: "head-speed-pro-2025", x: -350, y: -700, z: -3200 },
+  { slug: "bullpadel-hack-04-2026", x: 520, y: 700, z: -3000 },
+] as const;
+
 const racketAt = (f: number, T: Marks): { pos: V3; rot: V3; scale: V3 } => {
   const sq = ramp(f, T.flat - 5, T.flat + 7, PRESS);
   const b = ramp(f, T.flat + 1, T.flat + 27, SWING);
-  const hero = { x: 12, y: 6, z: 340 };
+  const hp = heroPre(f, T);
+  const hero = { x: hp.x, y: hp.y, z: hp.z };
   const flat = { x: 0, y: PHOTO_CY, z: 2 };
-  const ry = -1.28 + f * 0.0058 + drift("pb-rk-ry", f, 0.05, 0.1);
-  const rx = 0.14 + drift("pb-rk-rx", f, 0.04, 0.1);
-  const rz = -0.12 + drift("pb-rk-rz", f, 0.03, 0.08);
+  const ry = hp.ry + drift("pb-rk-ry", f, 0.05, 0.1);
+  const rx = hp.rx + drift("pb-rk-rx", f, 0.04, 0.1);
+  const rz = hp.rz + drift("pb-rk-rz", f, 0.03, 0.08);
   // Pressed things spread a little; the spread eases out as it lands in the photo.
   const spread = 1 + 0.035 * sq * (1 - b);
   const s = mix(RK_HERO, RK_FLAT, b) * spread;
@@ -202,8 +259,18 @@ const PILLS: readonly (readonly [string, string?])[] = [
   ["Thickness", "38 mm"],
   ["Anti-vibration"],
   ["Hole pattern", "54"],
+  ["Core", "Black EVA"],
+  ["Inertia", "High"],
+  ["Face", "Carbon 24K"],
+  ["Frame", "Tubular"],
+  ["Rough", "Sand finish"],
+  ["Grip", "Ø 24 mm"],
+  ["Density", "High"],
+  ["Bridge", "Open"],
+  ["Power", "8.5"],
+  ["Control", "7.5"],
 ];
-const QUESTIONS = ["Teardrop?", "Diamond?", "Round?", "Soft or hard?", "Power or control?"];
+const QUESTIONS = ["Teardrop?", "Diamond?", "Round?", "Soft or hard?", "Power or control?", "Head-heavy?", "Which core?"];
 const ROWS: readonly { head: string; rows: readonly (readonly [string, string])[] }[] = [
   { head: "SPECIFICATIONS", rows: [["Shape", "Hybrid"], ["Core", "Black EVA"], ["Balance", "Medium-high"], ["Weight", "355–370 g"]] },
   { head: "TECHNICAL DATA", rows: [["Surface", "3D sand"], ["Frame", "100% carbon"], ["Swingweight", "158–166"], ["Thickness", "38 mm"]] },
@@ -215,7 +282,7 @@ const ROWS: readonly { head: string; rows: readonly (readonly [string, string])[
 // at which depth, in which wave (0: "and", 1: "spec", 2: "sheet", 3: "nobody").
 // ---------------------------------------------------------------------------
 type Kind = "p" | "q" | "r";
-type ChipSpec = { k: Kind; i: number; w: 0 | 1 | 2 | 3; sx: number; sy: number; z: number };
+type ChipSpec = { k: Kind; i: number; w: 0 | 1 | 2 | 3 | 4; sx: number; sy: number; z: number };
 const SPECS: ChipSpec[] = [
   // wave 0: far, faint, the cloud starts to form
   { k: "p", i: 12, w: 0, sx: 560, sy: -380, z: -1700 },
@@ -251,17 +318,36 @@ const SPECS: ChipSpec[] = [
   { k: "p", i: 17, w: 3, sx: -250, sy: -450, z: -900 },
   { k: "p", i: 19, w: 3, sx: 1150, sy: -390, z: 400 },
   { k: "p", i: 21, w: 3, sx: 1020, sy: -150, z: 900 },
+  // wave 4, "explains": the storm peaks, chips right in front of the lens
+  { k: "p", i: 22, w: 4, sx: -300, sy: 60, z: 950 },
+  { k: "p", i: 23, w: 4, sx: 340, sy: -260, z: 1050 },
+  { k: "q", i: 5, w: 4, sx: -60, sy: -280, z: 700 },
+  { k: "q", i: 6, w: 4, sx: 120, sy: 300, z: 800 },
+  { k: "p", i: 24, w: 4, sx: -820, sy: -40, z: 600 },
+  { k: "p", i: 25, w: 4, sx: 760, sy: 40, z: 750 },
+  { k: "p", i: 26, w: 4, sx: -560, sy: 360, z: 1100 },
+  { k: "p", i: 27, w: 4, sx: 460, sy: 420, z: 300 },
+  { k: "p", i: 28, w: 4, sx: -700, sy: -400, z: 450 },
+  { k: "p", i: 29, w: 4, sx: 900, sy: -420, z: 200 },
+  { k: "p", i: 30, w: 4, sx: 40, sy: -470, z: -300 },
+  { k: "p", i: 31, w: 4, sx: -1000, sy: 200, z: -200 },
 ];
 
 type Chip = ChipSpec & { id: number; appear: number; x: number; y: number; swirl: number; ry0: number; rz0: number; j1: number; j2: number };
 
-const waveAt = (T: Marks, w: number) => [T.and + 10, T.spec - 10, T.sheet - 8, T.nobody - 10][w];
+const waveAt = (T: Marks, w: number) => [T.and - 6, T.spec - 6, T.sheet - 6, T.nobody - 6, T.explains - 6][w];
+
+/** A second, mirrored layer for every wave from "spec" on, with different copy: twice the storm. */
+const ALL_SPECS: ChipSpec[] = [
+  ...SPECS,
+  ...SPECS.filter((c) => c.w >= 1 && c.k === "p").map((c, n) => ({ ...c, i: (c.i + 11 + n) % PILLS.length, sx: -c.sx * 0.82 + 60, sy: -c.sy * 0.9 - 30, z: c.z - 260 })),
+];
 
 const buildChips = (T: Marks): Chip[] =>
-  SPECS.map((c, id) => {
+  ALL_SPECS.map((c, id) => {
     const j1 = random(`pb-j1-${id}`);
     const j2 = random(`pb-j2-${id}`);
-    const appear = waveAt(T, c.w) + Math.round(j1 * 12);
+    const appear = waveAt(T, c.w) + Math.round(j1 * 8);
     const cm = camAt(appear, T);
     const s = PERSP / (PERSP - (c.z - cm.z));
     return {
@@ -272,6 +358,8 @@ const buildChips = (T: Marks): Chip[] =>
       appear,
       x: cm.x + c.sx / s,
       y: cm.y + c.sy / s,
+      // Depth is relative to the camera at entry (the camera has pulled back for the grid).
+      z: c.z + cm.z,
       swirl: 0.75 + random(`pb-sw-${id}`) * 0.6,
       ry0: -c.sx * 0.011 + (random(`pb-ry-${id}`) - 0.5) * 10,
       rz0: (random(`pb-rz-${id}`) - 0.5) * 6,
@@ -288,7 +376,7 @@ const GHOSTS = [
 type ChipState = { x: number; y: number; z: number; ry: number; rz: number; s: number; opacity: number; blur: number; c: number };
 
 const chipAt = (ch: Chip, f: number, T: Marks, P: { x: number; y: number; z: number }, focusZ: number): ChipState | null => {
-  const e = ramp(f, ch.appear, ch.appear + 40, EMERGE);
+  const e = ramp(f, ch.appear, ch.appear + 22, EMERGE);
   if (e <= 0) return null;
   const base = {
     x: ch.x + drift(`pb-cx-${ch.id}`, f, 10, 0.1),
@@ -327,15 +415,15 @@ const Pill: React.FC<{ l: string; v?: string }> = ({ l, v }) => (
       display: "flex",
       alignItems: "center",
       gap: 16,
-      height: 76,
-      padding: "0 34px",
+      height: 84,
+      padding: "0 38px",
       borderRadius: 999,
-      background: "rgba(19,21,25,0.94)",
+      background: "rgba(26,29,34,0.96)",
       boxShadow: glass,
       fontFamily: FONT,
-      fontSize: 34,
+      fontSize: 38,
       fontWeight: 500,
-      color: C.ink3,
+      color: C.ink2,
       letterSpacing: "-0.005em",
     }}
   >
@@ -343,7 +431,7 @@ const Pill: React.FC<{ l: string; v?: string }> = ({ l, v }) => (
     {v && (
       <>
         <span style={{ width: 5, height: 5, borderRadius: 3, background: C.mist }} />
-        <span style={{ color: C.ink2, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{v}</span>
+        <span style={{ color: C.ink, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{v}</span>
       </>
     )}
   </div>
@@ -359,9 +447,10 @@ const Question: React.FC<{ q: string }> = ({ q }) => (
       height: 92,
       padding: "0 40px",
       borderRadius: 999,
-      border: "2px dashed rgba(135,141,152,0.5)",
-      fontSize: 48,
-      color: C.ink3,
+      border: "2px dashed rgba(169,174,184,0.6)",
+      background: "rgba(10,11,13,0.6)",
+      fontSize: 54,
+      color: C.ink2,
     }}
   >
     {q}
@@ -412,20 +501,42 @@ const ChipNode: React.FC<{ ch: Chip; st: ChipState }> = ({ ch, st }) => (
   </div>
 );
 
-/** The generic, dull "product listing" the racket gets pressed into. */
-const ListingCard: React.FC<{ pose: CardPose; title: string; counter: number; flash: number }> = ({ pose, title, counter, flash }) => (
+/** The grid of identical listings the card multiplies into on "photo" (card-local px offsets). */
+const GX = CARD_W + 48;
+const GY = CARD_H + 48;
+type Cell = { ox: number; oy: number; delay: number };
+const GRID: Cell[] = [];
+for (let r = -1; r <= 1; r++) {
+  for (let c = -3; c <= 4; c++) {
+    if (r === 0 && c === 0) continue;
+    GRID.push({ ox: c * GX, oy: r * GY, delay: (Math.abs(c) + Math.abs(r)) * 2.5 + (c < 0 ? 1 : 0) });
+  }
+}
+/** 0..1 pop-in of a grid cell. */
+const cellIn = (f: number, T: Marks, cell: Cell) => ramp(f, T.photo + 10 + cell.delay, T.photo + 18 + cell.delay, easeOut);
+
+/** One dull "product listing" face (card-local, centred on ox/oy). */
+const CardFace: React.FC<{ ox: number; oy: number; title: string; counter: number; flash: number; opacity?: number; scale?: number }> = ({
+  ox,
+  oy,
+  title,
+  counter,
+  flash,
+  opacity = 1,
+  scale = 1,
+}) => (
   <div
     style={{
       position: "absolute",
-      left: -CARD_W / 2,
-      top: -CARD_H / 2,
+      left: ox - CARD_W / 2,
+      top: oy - CARD_H / 2,
       width: CARD_W,
       height: CARD_H,
       borderRadius: 22,
       background: "#26292e",
       boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06), 0 50px 110px rgba(0,0,0,0.6)",
-      transform: `translate3d(${pose.x}px, ${pose.y}px, ${pose.z}px) rotateY(${pose.ry}deg) rotateX(${pose.rx}deg) rotateZ(${pose.rz}deg) scale(${pose.s})`,
-      opacity: pose.opacity,
+      opacity,
+      scale,
       fontFamily: "Arial, Helvetica, sans-serif",
     }}
   >
@@ -455,6 +566,28 @@ const ListingCard: React.FC<{ pose: CardPose; title: string; counter: number; fl
   </div>
 );
 
+/** The generic, dull "product listing" the racket gets pressed into, and its identical copies. */
+const ListingCard: React.FC<{ pose: CardPose; title: string; counter: number; flash: number; frame: number; T: Marks; dim?: number }> = ({ pose, title, counter, flash, frame, T, dim = 1 }) => (
+  <div
+    style={{
+      position: "absolute",
+      left: 0,
+      top: 0,
+      width: 0,
+      height: 0,
+      transform: `translate3d(${pose.x}px, ${pose.y}px, ${pose.z}px) rotateY(${pose.ry}deg) rotateX(${pose.rx}deg) rotateZ(${pose.rz}deg) scale(${pose.s})`,
+      opacity: pose.opacity,
+      filter: dim < 0.999 ? `brightness(${dim})` : undefined,
+    }}
+  >
+    {GRID.map((cell, i) => {
+      const t = cellIn(frame, T, cell);
+      return t > 0.001 ? <CardFace key={i} ox={cell.ox} oy={cell.oy} title={title} counter={counter} flash={0} opacity={Math.min(1, t * 2)} scale={mix(0.86, 1, t)} /> : null;
+    })}
+    <CardFace ox={0} oy={0} title={title} counter={counter} flash={flash} />
+  </div>
+);
+
 // ---------------------------------------------------------------------------
 // Scene.
 // ---------------------------------------------------------------------------
@@ -481,20 +614,20 @@ export const Problem: React.FC<SceneProps> = ({ timing, timeline }) => {
   type Item = { key: string; ch: Chip; st: ChipState };
   const items: Item[] = [];
   for (const ch of chips) {
-    const st = chipAt(ch, frame, T, P, card.z);
+    const st = chipAt(ch, frame, T, P, cam.z - 380);
     if (!st) continue;
-    const prev = chipAt(ch, frame - 1, T, P, card.z);
+    const prev = chipAt(ch, frame - 1, T, P, cam.z - 380);
     const speed = Math.min(1, Math.max(0, st.c - (prev?.c ?? st.c)) * 16);
     if (speed > 0.02) {
       for (const g of GHOSTS) {
-        const gs = chipAt(ch, frame - g.d, T, P, card.z);
+        const gs = chipAt(ch, frame - g.d, T, P, cam.z - 380);
         if (gs) items.push({ key: `${ch.id}-g${g.d}`, ch, st: { ...gs, opacity: gs.opacity * g.o * speed } });
       }
     }
     items.push({ key: `${ch.id}`, ch, st });
   }
-  const back = items.filter((it) => it.ch.z <= 0);
-  const front = items.filter((it) => it.ch.z > 0);
+  const back = items.filter((it) => it.st.z <= card.z + 60);
+  const front = items.filter((it) => it.st.z > card.z + 60);
   const cardSpeed = Math.min(1, Math.max(0, card.c - cardAt(frame - 1, T, camAt(frame - 1, T), P).c) * 16);
   const cardGhosts =
     cardSpeed > 0.02
@@ -509,6 +642,8 @@ export const Problem: React.FC<SceneProps> = ({ timing, timeline }) => {
   // The point everything collapses into flares just before the cut.
   const glow = interpolate(frame, [T.end - 40, T.end - 2, T.end + 8, T.end + 18], [0, 1, 0.7, 0], { ...clamp, easing: Easing.bezier(0.5, 0, 0.5, 1) });
 
+  // The grid steps back into the dark so the spec storm owns the frame.
+  const gridDim = mix(1, 0.24, ramp(frame, T.and - 6, T.spec + 4, SMOOTH));
   const camT = camCss(cam);
   const camGroupPos: V3 = [-cam.x / K, cam.y / K, -cam.z / K];
   const rkOpacity = interpolate(card.c, [0.72, 1], [1, 0], clamp);
@@ -522,28 +657,54 @@ export const Problem: React.FC<SceneProps> = ({ timing, timeline }) => {
             <ChipNode key={key} ch={ch} st={st} />
           ))}
           {cardGhosts.map(({ d, pose }) => (
-            <ListingCard key={d} pose={pose} title={TITLE} counter={counter} flash={0} />
+            <ListingCard key={d} pose={pose} title={TITLE} counter={counter} flash={0} frame={frame - d} T={T} dim={gridDim} />
           ))}
-          <ListingCard pose={card} title={TITLE} counter={counter} flash={flash} />
+          <ListingCard pose={card} title={TITLE} counter={counter} flash={flash} frame={frame} T={T} dim={gridDim} />
         </div>
       </Space3D>
 
       {/* The real hero racket, in the same world. */}
       <AbsoluteFill
         style={{
-          filter: `saturate(${mix(1, 0.2, L)}) contrast(${mix(1, 0.8, L)}) brightness(${mix(1, 1.1, L) + 0.55 * flash}) blur(${(0.55 * L).toFixed(2)}px)`,
+          filter: `saturate(${mix(1, 0.2, L)}) contrast(${mix(1, 0.8, L)}) brightness(${(mix(1, 1.1, L) + 0.55 * flash) * gridDim}) blur(${(0.55 * L).toFixed(2)}px)`,
         }}
       >
         <RacketStage width={width} height={height} cameraPosition={[0, 0, CAM_D]} fov={FOV}>
           <FlatLight dir={mix(1, 0.28, L)} env={mix(1, 0.45, L)} />
           <ambientLight intensity={mix(0, 1.7, L)} />
+          {frame < T.flat + 8 && <fog attach="fog" args={["#050607", 1.6, 4.6]} />}
           <group position={camGroupPos}>
+            {/* The choice ("choosing"): two other rackets either side of the hero. */}
+            {frame >= T.choosing &&
+              frame < T.from &&
+              RIVALS.map((r) => (
+                <RacketModel key={r.slug} slug={r.slug} position={[r.x / K, -r.y / K, r.z / K]} rotation={[0.08, r.ry + 0.004 * (frame - T.choosing), 0.03]} />
+              ))}
+            {/* Dim rackets deep behind until the hero goes flat. */}
+            {frame < T.flat + 2 &&
+              FAR.map((r, i) => (
+                <RacketModel key={r.slug} slug={r.slug} position={[r.x / K, -r.y / K, r.z / K]} rotation={[0.05, 0.6 * Math.sin(i * 2.1) + 0.006 * frame, 0.1 * Math.cos(i)]} />
+              ))}
             <group position={[card.x / K, -card.y / K, card.z / K]}>
               <group rotation={[0, card.ry * DEG, 0]}>
                 <group rotation={[-card.rx * DEG, 0, 0]}>
                   <group rotation={[0, 0, -card.rz * DEG]}>
                     <group scale={card.s}>
                       <RacketModel slug={HERO_SLUG} position={rk.pos} rotation={rk.rot} scale={rk.scale} opacity={rkOpacity} />
+                      {GRID.map((cell, i) => {
+                        const t = cellIn(frame, T, cell);
+                        if (t <= 0.001) return null;
+                        const sc = RK_FLAT * mix(0.86, 1, t);
+                        return (
+                          <RacketModel
+                            key={`g${i}`}
+                            slug={HERO_SLUG}
+                            position={[cell.ox / K, -(cell.oy + PHOTO_CY * mix(0.86, 1, t)) / K, 2 / K]}
+                            scale={[sc, sc, sc * 0.02]}
+                            opacity={rkOpacity}
+                          />
+                        );
+                      })}
                     </group>
                   </group>
                 </group>
@@ -599,11 +760,24 @@ export const Problem: React.FC<SceneProps> = ({ timing, timeline }) => {
         style={{ background: "radial-gradient(ellipse 70% 62% at 50% 46%, rgba(7,8,9,0) 40%, rgba(4,5,6,0.78) 100%)", opacity: tension * 0.85, pointerEvents: "none" }}
       />
 
-      {/* The music bed already ticks on 8ths here, so no word ticks; the riser (2 s) ends exactly on the cut, with the music's. */}
-      <Sfx name="whoosh-soft" at={T.flat - 8} volume={0.45} />
-      <Sfx name="click" at={T.photo} volume={0.35} />
-      <Sfx name="swipe" at={T.and - 14} volume={0.3} />
-      <Sfx name="riser" at={T.end - 2 * fps} volume={0.4} />
+      {/* Sound: every cut, press, shutter, multiplication and chip wave has its hit; the riser (2 s) lands on the cut. */}
+      <Sfx name="swipe" at={T.choosing - 2} volume={0.55} />
+      <Sfx name="whoosh-soft" at={T.from - 3} volume={0.5} />
+      <Sfx name="pop" at={T.one} volume={0.45} />
+      <Sfx name="whoosh-soft" at={T.flat - 8} volume={0.5} />
+      <Sfx name="impact" at={T.flat} volume={0.35} />
+      <Sfx name="click" at={T.photo} volume={0.7} />
+      <Sfx name="tick" at={T.photo + 10} volume={0.45} />
+      <Sfx name="tick" at={T.photo + 15} volume={0.4} />
+      <Sfx name="tick" at={T.photo + 20} volume={0.35} />
+      <Sfx name="whoosh" at={T.photo + 4} volume={0.45} />
+      <Sfx name="swipe" at={T.and - 8} volume={0.45} />
+      <Sfx name="pop" at={T.spec - 4} volume={0.5} />
+      <Sfx name="pop" at={T.sheet - 4} volume={0.5} />
+      <Sfx name="pop" at={T.nobody - 4} volume={0.55} />
+      <Sfx name="pop" at={T.explains - 4} volume={0.6} />
+      <Sfx name="whoosh" at={T.col} volume={0.55} />
+      <Sfx name="riser" at={T.end - 2 * fps} volume={0.45} />
     </AbsoluteFill>
   );
 };
