@@ -17,34 +17,82 @@ def _t(n):
 # ------------------------------------------------------------------ drums
 
 def kick(vel: float = 1.0, long: bool = False) -> np.ndarray:
-    """Punchy, round kick tuned to A (55 Hz)."""
-    n = nsamp(0.9 if long else 0.42)
+    """Punchy, tight kick tuned to A (55 Hz): fast pitch drop, driven body, crisp beater click."""
+    n = nsamp(0.9 if long else 0.36)
     t = _t(n)
-    f = 55 + 175 * np.exp(-t / 0.028) + 40 * np.exp(-t / 0.006)
+    f = 55 + 150 * np.exp(-t / 0.026) + 90 * np.exp(-t / 0.0035)
     ph = 2 * np.pi * np.cumsum(f) / SR
-    amp = (1 - np.exp(-t / 0.0008)) * np.exp(-t / (0.32 if long else 0.13))
+    amp = (1 - np.exp(-t / 0.0005)) * np.exp(-t / (0.32 if long else 0.12))
     body = np.sin(ph) * amp
-    body = np.tanh(body * 1.8) / np.tanh(1.8)
-    click = bp(noise(n), 3200, 0.9) * np.exp(-t / 0.0018) * 0.22
-    x = body + click
-    x = lp(x, 9000)
+    body = np.tanh(body * 2.3) / np.tanh(2.3)
+    click = bp(noise(n), 4200, 0.8) * np.exp(-t / 0.0014) * 0.32
+    knock = np.sin(2 * np.pi * 1250 * t) * np.exp(-t / 0.0022) * 0.07
+    x = body + click + knock
+    x = lp(x, 11000)
     return fade(x, 0.0, 0.02) * vel
 
 
 def clap(vel: float = 1.0) -> np.ndarray:
-    """Soft clap: a few noise bursts + short body (mono, reverb added by the bus)."""
-    n = nsamp(0.32)
+    """Tight modern clap: three fast bursts + a short body (mono, reverb added by the bus)."""
+    n = nsamp(0.26)
     t = _t(n)
     x = np.zeros(n)
-    nz = bp(noise(n), 1350, 0.9) + 0.35 * bp(noise(n), 2600, 1.2)
-    for k, dt in enumerate((0.0, 0.0095, 0.0195, 0.027)):
+    nz = bp(noise(n), 1450, 0.8) + 0.45 * bp(noise(n), 2900, 1.1)
+    for k, dt in enumerate((0.0, 0.0085, 0.0170, 0.024)):
         i = nsamp(dt)
         e = np.zeros(n)
-        e[i:] = np.exp(-(t[: n - i]) / (0.0045 if k < 3 else 0.11))
-        x += nz * e * (0.85 if k < 3 else 0.55)
-    x = hp(x, 600)
-    x = lp(x, 7000)
+        e[i:] = np.exp(-(t[: n - i]) / (0.0038 if k < 3 else 0.075))
+        x += nz * e * (0.9 if k < 3 else 0.6)
+    body = np.sin(2 * np.pi * (210 + 60 * np.exp(-t / 0.006)) * t) * np.exp(-t / 0.03) * 0.25
+    x = hp(x + body, 450)
+    x = lp(x, 9000)
     return fade(x, 0.0003, 0.03) * vel
+
+
+def snare(vel: float = 1.0) -> np.ndarray:
+    """Punchy electronic snare (layered under the clap on drops): tuned body + bright wires."""
+    n = nsamp(0.28)
+    t = _t(n)
+    tone = np.sin(2 * np.pi * np.cumsum(185 + 70 * np.exp(-t / 0.007)) / SR) * np.exp(-t / 0.055) * 0.7
+    tone += np.sin(2 * np.pi * 330 * t) * np.exp(-t / 0.025) * 0.25
+    wires = bp(noise(n), 4800, 0.6) * np.exp(-t / 0.085) + hp(noise(n), 2200) * np.exp(-t / 0.025) * 0.6
+    x = hp(tone + wires * 0.75, 130)
+    x = np.tanh(x * 1.6) / np.tanh(1.6)
+    return fade(x, 0.0002, 0.03) * vel
+
+
+def rim(vel: float = 1.0, pitch: float = 1.0) -> np.ndarray:
+    """Short woody rim/clave click for the extra percussion layer."""
+    n = nsamp(0.06)
+    t = _t(n)
+    x = np.sin(2 * np.pi * 1700 * pitch * t) * np.exp(-t / 0.006) * 0.6
+    x += np.sin(2 * np.pi * 540 * pitch * t) * np.exp(-t / 0.011) * 0.45
+    x += bp(noise(n), 3600, 1.4) * np.exp(-t / 0.0014) * 0.6
+    x = hp(x, 300)
+    return fade(x, 0.0, 0.01) * vel
+
+
+def bongo(vel: float, f0: float) -> np.ndarray:
+    """Tuned hand-perc hit (bongo/conga-ish): pitched skin with a quick slap."""
+    n = nsamp(0.22)
+    t = _t(n)
+    f = f0 * (1 + 0.35 * np.exp(-t / 0.012))
+    x = np.sin(2 * np.pi * np.cumsum(f) / SR) * (1 - np.exp(-t / 0.0006)) * np.exp(-t / 0.065)
+    x += bp(noise(n), f0 * 5, 1.5) * np.exp(-t / 0.003) * 0.35
+    return fade(x, 0.0, 0.02) * vel
+
+
+def tamb(vel: float = 1.0) -> np.ndarray:
+    """Tambourine jingle: metallic partials + bright noise, short."""
+    n = nsamp(0.16)
+    t = _t(n)
+    metal = np.zeros(n)
+    for f in (5300.0, 6650.0, 7900.0, 9100.0, 11200.0):
+        metal += np.sin(2 * np.pi * f * (1 + _rng.normal(0, 0.004)) * t + _rng.random() * 6)
+    x = metal * 0.25 + hp(noise(n), 7000) * 0.7
+    env = (1 - np.exp(-t / 0.0025)) * np.exp(-t / 0.042)
+    x = hp(x * env, 5200)
+    return fade(x, 0.0, 0.015) * vel
 
 
 def snare_roll_hit(vel: float = 1.0) -> np.ndarray:
@@ -159,6 +207,32 @@ def pluck(m: float, n: int, vel: float = 1.0, bright: float = 1.0) -> np.ndarray
     x = x * env[:, None]
     x = peak(x, 2600, -4.0, 0.9)
     return x * vel * 0.8
+
+
+def stab(midis: tuple, dur: float = 0.2, vel: float = 1.0, bright: float = 1.0, release: float = 0.18) -> np.ndarray:
+    """Short wide chord stab (stereo): detuned saws through a fast filter envelope."""
+    total = nsamp(dur + release + 0.05)
+    t = _t(total)
+    y = np.zeros((total, 2))
+    for i, m in enumerate(midis):
+        y += supersaw(midi_hz(m), total, voices=5, detune_cents=13, spread=0.9) * (1.0 if i == 0 else 0.8)
+    cut = 450 + bright * 5200 * np.exp(-t / 0.045) + 700 * np.exp(-t / 0.3)
+    y = sweep(y, cut, "lp", q=1.1, block=32)
+    env = adsr(total, 0.0015, 0.16, 0.3, release, gate=dur, curve=4.0)
+    return y * env[:, None] / max(1, len(midis)) * 1.7 * vel
+
+
+def pulse(m: float, n: int, vel: float = 1.0, bright: float = 1.0) -> np.ndarray:
+    """16th-note sequencer pluck (mono): two detuned saws, resonant snappy filter."""
+    f = midi_hz(m)
+    total = n + nsamp(0.07)
+    t = _t(total)
+    x = 0.6 * saw(f * 1.004, total) + 0.6 * saw(f * 0.996, total) + 0.35 * square(f, total, pw=0.35)
+    cut = 320 + bright * 2900 * np.exp(-t / 0.032)
+    y = sweep(x, cut, "lp", q=1.6, block=32)
+    env = adsr(total, 0.0015, 0.07, 0.28, 0.05, gate=n / SR, curve=4.0)
+    y = np.tanh(y * env * 1.5) / np.tanh(1.5)
+    return y * vel * 0.8
 
 
 def bell(m: float, n: int, vel: float = 1.0, ring: float = 1.4) -> np.ndarray:
@@ -294,6 +368,35 @@ def sub_drop(seconds: float = 1.6, f0: float = 90.0, f1: float = 30.0) -> np.nda
     x = np.sin(2 * np.pi * np.cumsum(f) / SR) * (1 - np.exp(-t / 0.003)) * np.exp(-t / 0.55)
     x = np.tanh(x * 1.5) / np.tanh(1.5)
     return fade(x, 0.0, 0.2)
+
+
+def downlifter(seconds: float = 1.4, f0: float = 9000.0, f1: float = 180.0) -> np.ndarray:
+    """Falling filtered noise after a drop (stereo): the air rushing out."""
+    n = nsamp(seconds)
+    t = _t(n)
+    u = t / t[-1]
+    fc = f0 * (f1 / f0) ** (u ** 0.55)
+    l = sweep(noise(n), fc, "bp", q=1.1, block=64)
+    r = sweep(noise(n), fc * 1.04, "bp", q=1.1, block=64)
+    env = (1 - np.exp(-t / 0.004)) * (1 - u) ** 2.0
+    return fade(np.stack([l, r], axis=1) * env[:, None], 0.0, 0.05)
+
+
+def suck(seconds: float, ir: np.ndarray) -> np.ndarray:
+    """Reverse low hit + reverb ('suck-in') that ends on the drop (stereo, normalised)."""
+    n = nsamp(seconds)
+    from dsp import convolve
+    hitlen = nsamp(0.25)
+    tt = _t(hitlen)
+    h = np.sin(2 * np.pi * np.cumsum(60 + 120 * np.exp(-tt / 0.02)) / SR) * np.exp(-tt / 0.08)
+    h = h + lp(noise(hitlen), 2500) * np.exp(-tt / 0.03) * 0.6
+    src = np.zeros(n + nsamp(0.1))
+    src[:hitlen] = h
+    wet = convolve(src, ir)[:n] + stereo(src[:n]) * 0.3
+    y = wet[::-1].copy()
+    y *= (np.linspace(0, 1, n) ** 2.2)[:, None]
+    y = fade(y, 0.01, 0.003)
+    return y / (np.max(np.abs(y)) + 1e-9)
 
 
 def boom(seconds: float = 1.2) -> np.ndarray:
