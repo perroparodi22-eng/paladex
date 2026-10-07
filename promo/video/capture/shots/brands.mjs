@@ -30,7 +30,7 @@ const URL_ = "http://localhost:3100/rackets";
 const CLIP = "brands-rail";
 const DIR = join(ROOT, "public", "capture", "brands", "rail");
 const TILES_DIR = join(ROOT, "public", "capture", "brands", "tiles");
-const FRAMES = Number(process.env.FRAMES ?? 210);
+const FRAMES = Number(process.env.FRAMES ?? 180);
 const CLICK = 84; // clip frame of the click on Nox
 
 const RAIL = "[role=radiogroup][aria-label=Brands]";
@@ -58,6 +58,18 @@ const tileInfo = (page) =>
     });
   })()`);
 
+// No counts in the ad (the catalogue changes every year): blank the page's own count line
+// ("62 rackets") and any other element that prints a catalogue number next to the grid.
+const HIDE_COUNTS = `(() => {
+  const p = [...document.querySelectorAll('p')].find((el) => el.querySelector('.num') && /rackets?/i.test(el.textContent));
+  if (p) p.style.visibility = 'hidden';
+  // Every catalogue number (rail counts, filter chip facets) stays invisible, also after re-renders.
+  const st = document.createElement('style');
+  st.textContent = '.num { visibility: hidden !important; }';
+  document.head.appendChild(st);
+  return true;
+})()`;
+
 const slugOf = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 const PARTS = new Set((process.env.PARTS ?? "tiles,clip,plate").split(","));
@@ -65,18 +77,19 @@ const PARTS = new Set((process.env.PARTS ?? "tiles,clip,plate").split(","));
 // ---------------------------------------------------------------------------------
 // 0) Clean plate: the page at scroll 0 with the rail's tiles hidden.
 if (PARTS.has("plate")) {
-  const page = await launch({ width: 1920, height: 1080, dpr: 1 });
+  const page = await launch({ width: 1920, height: 1080, dpr: 1.5 });
   await page.goto(URL_, 5000);
   await page.waitFor(`document.querySelectorAll('${RAIL} > *').length > 5`, 60000);
   await page.mouse("mouseMoved", 1012, 168);
   await sleep(2500);
+  await page.eval(HIDE_COUNTS);
   // Hide only the brands' logo cards: the tiles' frames, names and counts and the
   // "All" tile stay, so the cards land into their own empty slots.
   await page.eval(`(() => { [...document.querySelector(${JSON.stringify(RAIL)}).children].slice(1).forEach((el) => { const c = el.querySelector('.card-sky'); if (c) c.style.visibility = 'hidden'; }); return true; })()`);
   await sleep(800);
   const file = join(ROOT, "public", "capture", "brands", "plate.jpg");
   await page.screenshot(file, { quality: 95 });
-  writeManifest("brands", { stills: { "brands-plate": { file: "capture/brands/plate.jpg", width: 1920, height: 1080, dpr: 1 } } });
+  writeManifest("brands", { stills: { "brands-plate": { file: "capture/brands/plate.jpg", width: 1920, height: 1080, dpr: 1.5 } } });
   console.log("plate", file);
   await page.close();
 }
@@ -117,9 +130,10 @@ if (PARTS.has("tiles")) {
 // ---------------------------------------------------------------------------------
 // 2) The page clip.
 if (PARTS.has("clip")) {
-  const page = await launch({ width: 1920, height: 1080, dpr: 1 });
+  const page = await launch({ width: 1920, height: 1080, dpr: 1.5 });
   await page.goto(URL_, 5000);
   await page.waitFor(`document.querySelectorAll('${RAIL} > *').length > 5`, 60000);
+  await page.eval(HIDE_COUNTS);
   const REST = { x: 1012, y: 168 };
   await page.mouse("mouseMoved", REST.x, REST.y);
   await sleep(1200);
@@ -206,8 +220,8 @@ if (PARTS.has("clip")) {
   });
 
   writeManifest("brands", {
-    clips: { [CLIP]: { dir: "capture/brands/rail", frames: FRAMES, fps: 60, width: 1920, height: 1080, dpr: 1, cursor: packCursor(track), events } },
-    stills: { "brands-page": { file: "capture/brands/rail/f00000.jpg", width: 1920, height: 1080, dpr: 1, marks } },
+    clips: { [CLIP]: { dir: "capture/brands/rail", frames: FRAMES, fps: 60, width: 1920, height: 1080, dpr: 1.5, cursor: packCursor(track), events } },
+    stills: { "brands-page": { file: "capture/brands/rail/f00000.jpg", width: 1920, height: 1080, dpr: 1.5, marks } },
   });
   console.log(page.logs.slice(0, 10).join("\n"));
   await page.close();
