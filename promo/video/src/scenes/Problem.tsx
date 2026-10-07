@@ -17,7 +17,9 @@
 //              flat listings as the camera pulls back
 //   and        the grid recedes, a lateral track starts; spec chips burst from depth
 //              in waves on "spec", "sheet", "nobody", "explains" (depth of field)
-//   end − ~50  everything is pulled into one point (swirl, accelerating) that
+//   Pure       the numbers on every chip scramble like a slot machine
+//   guesswork  a huge "?" lands on the storm
+//   end − ~40  everything is pulled into one point (swirl, accelerating) that
 //              flares as the scene hands over to the reveal's impact.
 import { useThree } from "@react-three/fiber";
 import React, { useLayoutEffect, useMemo } from "react";
@@ -62,6 +64,8 @@ type Marks = {
   sheet: number;
   nobody: number;
   explains: number;
+  pure: number;
+  guess: number;
   col: number;
   end: number;
 };
@@ -81,8 +85,11 @@ const marks = (timing: SceneTiming): Marks => {
     sheet: wordAt(timing, "sheet", 226),
     nobody: wordAt(timing, "nobody", 245),
     explains,
-    // The storm peaks on "explains", then the collapse lands on the cut.
-    col: Math.max(explains + 14, end - 52),
+    // "Pure guesswork": the numbers scramble on "Pure", a big "?" lands on "guesswork".
+    pure: wordAt(timing, "Pure", 240),
+    guess: wordAt(timing, "guesswork", 263),
+    // The storm peaks on "explains", holds through "Pure", then the collapse lands on the cut.
+    col: Math.max(explains + 14, end - 38),
     end,
   };
 };
@@ -138,7 +145,7 @@ const RK_HERO = 0.84;
 type CardPose = { x: number; y: number; z: number; ry: number; rx: number; rz: number; s: number; opacity: number; c: number };
 
 const cardAt = (f: number, T: Marks, cam: Cam, P: { x: number; y: number; z: number }): CardPose => {
-  const appear = ramp(f, T.flat + 4, T.flat + 28, Easing.bezier(0.3, 0, 0.2, 1));
+  const appear = ramp(f, T.one - 8, T.one + 14, Easing.bezier(0.3, 0, 0.2, 1));
   const recede = ramp(f, T.and - 16, T.nobody + 30, SMOOTH);
   const base = {
     x: cam.x * 0.85 + drift("pb-card-x", f, 8, 0.07),
@@ -408,6 +415,10 @@ const chipAt = (ch: Chip, f: number, T: Marks, P: { x: number; y: number; z: num
 const centred: React.CSSProperties = { position: "absolute", left: 0, top: 0, transform: "translate(-50%, -50%)", whiteSpace: "nowrap" };
 const glass = "inset 0 0 0 1.5px rgba(255,255,255,0.08), 0 24px 48px rgba(0,0,0,0.35)";
 
+/** Slot-machine flicker: every digit replaced by a fresh random one every 3 frames. */
+const scramble = (v: string, frame: number, seed: number) =>
+  v.replace(/\d/g, (_, i: number) => String(Math.floor(random(`pb-sc-${seed}-${i}-${Math.floor(frame / 3)}`) * 10)));
+
 const Pill: React.FC<{ l: string; v?: string }> = ({ l, v }) => (
   <div
     style={{
@@ -479,14 +490,14 @@ const Rows: React.FC<{ head: string; rows: readonly (readonly [string, string])[
   </div>
 );
 
-const ChipBody: React.FC<{ ch: Chip }> = ({ ch }) => {
+const ChipBody: React.FC<{ ch: Chip; frame: number; scr: boolean }> = ({ ch, frame, scr }) => {
   if (ch.k === "q") return <Question q={QUESTIONS[ch.i]} />;
   if (ch.k === "r") return <Rows head={ROWS[ch.i].head} rows={ROWS[ch.i].rows} />;
   const [l, v] = PILLS[ch.i];
-  return <Pill l={l} v={v} />;
+  return <Pill l={l} v={v && scr ? scramble(v, frame, ch.id) : v} />;
 };
 
-const ChipNode: React.FC<{ ch: Chip; st: ChipState }> = ({ ch, st }) => (
+const ChipNode: React.FC<{ ch: Chip; st: ChipState; frame: number; scr: boolean }> = ({ ch, st, frame, scr }) => (
   <div
     style={{
       position: "absolute",
@@ -497,7 +508,7 @@ const ChipNode: React.FC<{ ch: Chip; st: ChipState }> = ({ ch, st }) => (
       filter: st.blur > 0.25 ? `blur(${st.blur.toFixed(2)}px)` : undefined,
     }}
   >
-    <ChipBody ch={ch} />
+    <ChipBody ch={ch} frame={frame} scr={scr} />
   </div>
 );
 
@@ -654,7 +665,7 @@ export const Problem: React.FC<SceneProps> = ({ timing, timeline }) => {
       <Space3D perspective={PERSP} originX={50} originY={50}>
         <div style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0, transformStyle: "preserve-3d", transform: camT }}>
           {back.map(({ key, ch, st }) => (
-            <ChipNode key={key} ch={ch} st={st} />
+            <ChipNode key={key} ch={ch} st={st} frame={frame} scr={frame >= T.pure} />
           ))}
           {cardGhosts.map(({ d, pose }) => (
             <ListingCard key={d} pose={pose} title={TITLE} counter={counter} flash={0} frame={frame - d} T={T} dim={gridDim} />
@@ -676,9 +687,15 @@ export const Problem: React.FC<SceneProps> = ({ timing, timeline }) => {
           <group position={camGroupPos}>
             {/* The choice ("choosing"): two other rackets either side of the hero. */}
             {frame >= T.choosing &&
-              frame < T.from &&
+              frame < T.flat + 10 &&
               RIVALS.map((r) => (
-                <RacketModel key={r.slug} slug={r.slug} position={[r.x / K, -r.y / K, r.z / K]} rotation={[0.08, r.ry + 0.004 * (frame - T.choosing), 0.03]} />
+                <RacketModel
+                  key={r.slug}
+                  slug={r.slug}
+                  position={[r.x / K, -r.y / K, r.z / K]}
+                  rotation={[0.08, r.ry + 0.004 * (frame - T.choosing), 0.03]}
+                  opacity={1 - ramp(frame, T.flat - 6, T.flat + 8, SMOOTH)}
+                />
               ))}
             {/* Dim rackets deep behind until the hero goes flat. */}
             {frame < T.flat + 2 &&
@@ -718,7 +735,7 @@ export const Problem: React.FC<SceneProps> = ({ timing, timeline }) => {
       <Space3D perspective={PERSP} originX={50} originY={50}>
         <div style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0, transformStyle: "preserve-3d", transform: camT }}>
           {front.map(({ key, ch, st }) => (
-            <ChipNode key={key} ch={ch} st={st} />
+            <ChipNode key={key} ch={ch} st={st} frame={frame} scr={frame >= T.pure} />
           ))}
           {glow > 0.001 && (
             <div style={{ position: "absolute", left: 0, top: 0, transform: `translate3d(${P.x}px, ${P.y}px, ${P.z}px)` }}>
@@ -753,6 +770,27 @@ export const Problem: React.FC<SceneProps> = ({ timing, timeline }) => {
         </div>
       </Space3D>
 
+      {/* "Guesswork": a huge "?" lands on the storm and is swallowed by the collapse. */}
+      {frame >= T.guess - 2 && (
+        <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          <div
+            style={{
+              ...display,
+              fontSize: 760,
+              lineHeight: 1,
+              color: C.ink,
+              opacity: ramp(frame, T.guess - 2, T.guess + 8, easeOut) * (1 - ramp(frame, T.col + 6, T.end - 4, PULL)),
+              scale: mix(1.7, 1, ramp(frame, T.guess - 2, T.guess + 12, Easing.bezier(0.1, 0.9, 0.2, 1))) * (1 - 0.85 * ramp(frame, T.col + 6, T.end - 4, PULL)),
+              rotate: `${mix(-10, 4, ramp(frame, T.guess - 2, T.end, SMOOTH))}deg`,
+              filter: `blur(${((1 - ramp(frame, T.guess - 2, T.guess + 8, easeOut)) * 20).toFixed(1)}px)`,
+              textShadow: "0 0 80px rgba(236,238,241,0.3), 0 20px 60px rgba(0,0,0,0.6)",
+            }}
+          >
+            ?
+          </div>
+        </AbsoluteFill>
+      )}
+
       {/* Shutter blink across the frame on "photo". */}
       <AbsoluteFill style={{ background: "radial-gradient(ellipse 60% 60% at 50% 45%, rgba(236,238,241,0.16), rgba(236,238,241,0) 70%)", opacity: flash, pointerEvents: "none" }} />
       {/* Tension vignette. */}
@@ -776,6 +814,10 @@ export const Problem: React.FC<SceneProps> = ({ timing, timeline }) => {
       <Sfx name="pop" at={T.sheet - 4} volume={0.5} />
       <Sfx name="pop" at={T.nobody - 4} volume={0.55} />
       <Sfx name="pop" at={T.explains - 4} volume={0.6} />
+      <Sfx name="tick" at={T.pure} volume={0.5} />
+      <Sfx name="tick" at={T.pure + 6} volume={0.4} />
+      <Sfx name="tick" at={T.pure + 12} volume={0.4} />
+      <Sfx name="impact" at={T.guess} volume={0.6} />
       <Sfx name="whoosh" at={T.col} volume={0.55} />
       <Sfx name="riser" at={T.end - 2 * fps} volume={0.45} />
     </AbsoluteFill>
