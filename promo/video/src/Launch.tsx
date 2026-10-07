@@ -45,7 +45,7 @@ export type LaunchProps = {
 /** Music volume: full between lines, ducked under the voice. */
 const musicVolume = (t: Timeline, f: number) => {
   const BASE = 0.62;
-  const DUCK = 0.3;
+  const DUCK = 0.13;
   let v = BASE;
   for (const s of t.scenes) {
     const a = s.vo.at;
