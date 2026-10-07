@@ -4,6 +4,10 @@ Reads  src/data/script.json
 Writes public/audio/vo/<lang>/<nn>-<scene>.wav
        src/data/timeline.<lang>.json   (absolute frame numbers for scenes, lines and words)
 
+Two engines: Microsoft neural voices through edge-tts (voice like "en-US-AndrewMultilingualNeural",
+needs speech.platform.bing.com), or Kokoro, an open model that runs locally (voice like
+"kokoro:am_michael"; weights downloaded once from GitHub into audio/models/, git-ignored).
+
 A line is a list of phrases, each voiced separately with its own rate / pitch / volume and
 followed by `gap` seconds of silence, so the delivery can change tone from phrase to phrase
 (edge-tts takes no SSML styles). A plain string is one phrase.
@@ -70,7 +74,78 @@ def silence(seconds: float) -> bytes:
     return b"\x00\x00" * round(seconds * SR)
 
 
+KOKORO = None
+KOKORO_FILES = {
+    "kokoro-v1.0.onnx": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx",
+    "voices-v1.0.bin": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin",
+}
+
+
+def kokoro():
+    global KOKORO
+    if KOKORO is None:
+        from kokoro_onnx import Kokoro
+
+        d = ROOT / "audio" / "models"
+        d.mkdir(parents=True, exist_ok=True)
+        for name, url in KOKORO_FILES.items():
+            if not (d / name).exists():
+                print(f"downloading {name}")
+                subprocess.run(["curl", "-sS", "-L", "-o", str(d / name), url], check=True)
+        KOKORO = Kokoro(str(d / "kokoro-v1.0.onnx"), str(d / "voices-v1.0.bin"))
+    return KOKORO
+
+
+def pct(v: str) -> float:
+    m = re.match(r"([+-]?\d+(?:\.\d+)?)%", v or "")
+    return float(m.group(1)) / 100 if m else 0.0
+
+
+def synth_kokoro(p, voice):
+    """Kokoro has no pitch/volume controls and no word timings: speed from `rate`, pitch shifted
+    with rubberband (Hz offsets relative to a ~110 Hz male voice), gain from `volume`; word timings
+    spread over the detected speech by syllable weight (each phrase is voiced on its own, so the
+    phrase boundaries, where the key sync points are, are exact)."""
+    import numpy as np
+
+    speed = min(2.0, max(0.5, 1 + pct(p["rate"])))
+    y, sr = kokoro().create(p["text"], voice=voice, speed=speed, lang="en-us")
+    y = np.asarray(y, dtype=np.float32)
+    if sr != SR:
+        raise SystemExit(f"kokoro sample rate {sr} != {SR}")
+    m = re.match(r"([+-]?\d+(?:\.\d+)?)Hz", p["pitch"] or "")
+    ratio = (110 + float(m.group(1))) / 110 if m else 1.0
+    if abs(ratio - 1) > 1e-3:
+        y = np.frombuffer(
+            subprocess.run(
+                ["ffmpeg", "-loglevel", "error", "-f", "f32le", "-ar", str(SR), "-ac", "1", "-i", "pipe:0",
+                 "-af", f"rubberband=pitch={ratio:.5f}:formant=preserved", "-f", "f32le", "pipe:1"],
+                input=y.tobytes(), capture_output=True, check=True,
+            ).stdout, dtype=np.float32)
+    y = y * (1 + pct(p["volume"]))
+    # Trim to the speech (keep 40 ms either side) and find where it starts/ends.
+    env = np.convolve(np.abs(y), np.ones(240) / 240, mode="same")
+    on = np.flatnonzero(env > 0.02 * env.max()) if len(y) else np.array([0])
+    a, b = max(0, on[0] - 960), min(len(y), on[-1] + 960)
+    y = y[a:b]
+    s0, s1 = (on[0] - a) / SR, (on[-1] - a) / SR
+    words = [w for w in p["text"].split()]
+    weight = [max(1, len(re.findall(r"[aeiouy]+", re.sub(r"[^a-z]", "", w.lower())))) + 0.3 for w in words]
+    gaps = [0.12 if re.search(r"[.?!,]$", w) else 0.0 for w in words]
+    span = max(0.05, s1 - s0 - sum(gaps[:-1]))
+    t = s0
+    out = []
+    for w, k, g in zip(words, weight, gaps):
+        d = span * k / sum(weight)
+        out.append({"text": re.sub(r"[^\w'-]", "", w), "start": t, "end": t + d})
+        t += d + g
+    raw = (np.clip(y, -1, 1) * 32767).astype("<i2").tobytes()
+    return raw, len(y) / SR, out
+
+
 async def synth(p, voice):
+    if voice.startswith("kokoro:"):
+        return synth_kokoro(p, voice.split(":", 1)[1])
     com = edge().Communicate(p["text"], voice, rate=p["rate"], pitch=p["pitch"], volume=p["volume"], boundary="WordBoundary")
     audio = bytearray()
     words = []
@@ -191,10 +266,11 @@ async def audition(voices, lang="en"):
     cfg = SCRIPT["langs"][lang]
     for voice in voices:
         out = bytearray()
+        print(f"audition {voice}")
         for sid in ("cold-open", "problem", "reveal", "turn"):
             raw, *_ = await voice_line(cfg["lines"][sid], cfg, voice, False)
             out += raw + silence(0.6)
-        path = ROOT / "out" / "voices" / f"{voice}.wav"
+        path = ROOT / "out" / "voices" / f"{voice.replace(':', '-')}.wav"
         write_wav(path, bytes(out))
         print(f"audition -> {path}")
 

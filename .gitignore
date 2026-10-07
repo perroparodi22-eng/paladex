@@ -42,3 +42,7 @@ promo/video/out/
 .env*
 !.env.example
 
+
+# Local TTS model weights (downloaded by audio/make_vo.py)
+promo/video/audio/models/
+promo/video/out/voices/
