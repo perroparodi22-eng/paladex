@@ -18,6 +18,7 @@ import { Cursor } from "../components/Cursor";
 import { Footage, clip, still } from "../components/Footage";
 import { RacketModel, RacketStage } from "../components/Racket3D";
 import { Sfx } from "../components/Sfx";
+import { C, FONT } from "../theme";
 import { clamp, drift, easeIn, easeInOut, easeOut, enterExit, mix } from "../lib/motion";
 import { wordAt } from "../timeline";
 import type { SceneProps } from "./types";
@@ -166,6 +167,11 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
   const topAt = wordAt(timing, "top", 47);
   const brandsAt = wordAt(timing, "brands", 63);
   const inAt = wordAt(timing, "in", 131);
+  const side1 = wordAt(timing, "side", 62);
+  const side2 = wordAt(timing, "side", 91, 1);
+  const updAt = wordAt(timing, "updated", 180);
+  const everyAt = wordAt(timing, "every", 203);
+  const seasonAt = wordAt(timing, "season", 226);
   const allAt = inAt - 17;
 
   const env = enterExit(frame, D, ov);
@@ -198,8 +204,10 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
   const ROW_STEP = 158 * ROW_SCALE + 64;
   const t1 = topAt - 8;
   const rowBase =
-    frame < t1 ? mix(1500, -300, rowEase(clamp01(frame / t1))) : mix(-300, -4600, whipEase(clamp01((frame - t1) / 17)));
-  const rowsOn = frame < topAt + 12;
+    frame < t1 ? mix(1500, -300, rowEase(clamp01(frame / t1))) : mix(-300, -4600, whipEase(clamp01((frame - t1) / 13)));
+  // Rows are fully gone before the ring appears (no double exposure).
+  const rowsOn = frame < t1 + 14;
+  const rowFade = 1;
   const rowPunch = punch(frame, allAt0, 7);
 
   /* --------------------------------------------------------------- window */
@@ -239,13 +247,13 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
   const curOpacity = interpolate(frame, [moveStart - 14, moveStart], [0, 1], { ...clamp, easing: easeOut });
 
   /* ---------------------------------------------------------------- ring */
-  const RING_FROM = topAt - 12;
+  const RING_FROM = t1 + 12;
   const ringIn = interpolate(frame, [RING_FROM, RING_FROM + 26], [0, 1], { ...clamp, easing: easeOut });
   const ringOp = interpolate(frame, [RING_FROM, RING_FROM + 8], [0, 1], clamp);
   const ringF = Math.min(frame, release);
   // Spins in fast and glides to rest at the release; then keeps a slow turn while it unrolls.
   const spin = interpolate(ringF, [RING_FROM, release], [330, 0], { ...clamp, easing: spinEase }) - Math.max(0, frame - release) * 0.12;
-  const bPunch = punch(frame, brandsAt, 6);
+  const bPunch = Math.max(punch(frame, brandsAt, 6), 0.7 * punch(frame, side1, 6), 0.7 * punch(frame, side2, 6));
   const ringTilt = RING.tilt + interpolate(frame, [brandsAt + 14, release], [0, 9], { ...clamp, easing: easeInOut });
   const ringScale = RING.s * (1 + 0.1 * bPunch) * mix(1, 1.08, interpolate(frame, [brandsAt, release], [0, 1], clamp));
   const ringC = {
@@ -320,7 +328,7 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
                 const x = base + (j - 5.5 + row.off) * step;
                 const ry = -clamp11(x / 1500) * 62;
                 const z = row.z - Math.abs(x) * 0.28 + (r === 0 ? rowPunch * 90 : 0);
-                const op = row.op * interpolate(Math.abs(x), [1500, 2100], [1, 0], clamp);
+                const op = rowFade * row.op * interpolate(Math.abs(x), [1500, 2100], [1, 0], clamp);
                 if (op < 0.01) return null;
                 const pose: P7 = { x, y: row.y + Math.sin(frame * 0.05 + j) * 6, z, rx: 6, ry, rz: 0, s: row.s * (1 + 0.06 * rowPunch) };
                 return card(slug, `r${r}-${slug}`, pose, op);
@@ -342,6 +350,10 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
                 if (!m || frame >= landAt(j)) return null;
                 return <PlateSlot key={slug} box={m} railRight={RAIL_BOX.x + RAIL_BOX.w} />;
               })}
+              {/* "updated every season": the site's own "New" badges on the fresh rackets light up in turn. */}
+              {[updAt, everyAt, seasonAt].map((at, k) => (
+                <SeasonTag key={k} frame={frame} at={at} x={601 + k * 355 + 238} y={840} />
+              ))}
               {cur && curOpacity > 0.001 && <Cursor x={cur.x} y={cur.y} down={cur.down} frame={clipF} clicks={[CLICK_FRAME]} opacity={curOpacity} />}
             </Browser3D>
           </Space3D>
@@ -433,3 +445,34 @@ const PlateSlot: React.FC<{ box: { x: number; y: number; w: number; h: number };
   );
 };
 
+
+/** A "New 2026" pill that pops over a card's "New" badge, with a ring that pulses outward. */
+const SeasonTag: React.FC<{ frame: number; at: number; x: number; y: number }> = ({ frame, at, x, y }) => {
+  const t = interpolate(frame, [at - 4, at + 10], [0, 1], { ...clamp, easing: Easing.bezier(0.2, 1.4, 0.3, 1) });
+  if (t <= 0) return null;
+  const ring = interpolate(frame, [at, at + 26], [0, 1], clamp);
+  const glow = 0.5 + 0.5 * Math.sin((frame - at) * 0.12);
+  return (
+    <div style={{ position: "absolute", left: x, top: y, width: 96, height: 40, scale: String(t), transformOrigin: "100% 0%" }}>
+      <div style={{ position: "absolute", inset: -ring * 22, borderRadius: 999, border: "2px solid rgba(255,255,255,0.8)", opacity: (1 - ring) * 0.9 }} />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: 999,
+          background: C.court,
+          color: C.onCourt,
+          fontFamily: FONT,
+          fontWeight: 620,
+          fontSize: 19,
+          display: "grid",
+          placeItems: "center",
+          whiteSpace: "nowrap",
+          boxShadow: `0 0 ${14 + 12 * glow}px rgba(255,255,255,0.35), 0 6px 18px rgba(0,0,0,0.5)`,
+        }}
+      >
+        New 2026
+      </div>
+    </div>
+  );
+};

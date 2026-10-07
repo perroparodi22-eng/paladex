@@ -98,7 +98,7 @@ if (PARTS.has("plate")) {
 // 1) Tile crops at dpr 2.
 if (PARTS.has("tiles")) {
   mkdirSync(TILES_DIR, { recursive: true });
-  const page = await launch({ width: 1920, height: 1080, dpr: 2 });
+  const page = await launch({ width: 1920, height: 1080, dpr: 4 });
   await page.goto(URL_, 5000);
   await page.waitFor(`document.querySelectorAll('${RAIL} > *').length > 5`, 60000);
   await page.mouse("mouseMoved", 1700, 200);
@@ -117,8 +117,8 @@ if (PARTS.has("tiles")) {
       const c = t.card;
       if (c.x < railBox.x - 0.5 || c.x + c.w > railBox.x + railBox.w + 0.5) continue;
       const file = join(TILES_DIR, `${slug}.jpg`);
-      await page.screenshot(file, { quality: 94, clip: { x: c.x, y: c.y, width: c.w, height: c.h } });
-      stills[`brands-tile-${slug}`] = { file: `capture/brands/tiles/${slug}.jpg`, width: Math.round(c.w), height: Math.round(c.h), dpr: 2 };
+      await page.screenshot(file, { quality: 95, clip: { x: c.x, y: c.y, width: c.w, height: c.h } });
+      stills[`brands-tile-${slug}`] = { file: `capture/brands/tiles/${slug}.jpg`, width: Math.round(c.w), height: Math.round(c.h), dpr: 4 };
       console.log("tile", slug, t.count);
     }
   }
