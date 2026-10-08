@@ -1,7 +1,8 @@
 # Paladex: handoff report
 
-**Last updated:** 6 October 2026 (session 3, after the polish pass in section 5b)
-**Project folder:** `C:\Users\diego\Downloads\paladex` (the `casa-parodi` folder is a different project and was never touched). Not a git repository.
+**Last updated:** 8 October 2026 (cloud session, section 5f)
+**Project folder:** `C:\Users\diego\Downloads\paladex` (the `casa-parodi` folder is a different project and was never touched).
+**GitHub:** `perroparodi22-eng/paladex`. The 8 Oct cloud session worked on branch `claude/site-section6` (from `claude/jolly-einstein-55kcst`, the 7 Oct PC upload plus the promo video). Section 5e exists only in the PC copy of this file; merge it in when the PC copy is pushed.
 
 Upload this file at the start of the next session, together with your original brief ("THE ULTIMATE 3D PADEL RACKET DATABASE", sections 1–42). The brief is the source of truth for scope; your later redirects (section 2) override it where they conflict. This file is the source of truth for what already exists and what to do next.
 
@@ -102,13 +103,13 @@ npm run dev          # http://localhost:3000
 | Racket page `/rackets/[slug]` (3D viewer, specs explained, scores, where to buy, review, photos, model info, similar rackets) | ✅ | `components/racket/RacketDetail.tsx` |
 | 3D viewer (simplified): drag to rotate, turn left/right, Front/Side/Back, slow auto-turn, reset, full screen, Details (hotspots) and White/Black studio switches | ✅ | `components/three/Racket3DViewer.tsx`, `SimpleControls.tsx`, `scene/*` |
 | Showroom `/showroom` | ✅ | `components/showroom/ShowroomExperience.tsx` |
-| Finder `/finder` | 🟡 (question screen checked; results not re-checked in dark) | `components/finder/FinderQuiz.tsx` |
-| Admin panel (rackets list and editor with live 3D preview, draft preview, brands, retailers, insights) | 🟡 (built; full click-through test still to do) | `src/app/admin/*`, `components/admin/*` |
-| Guides, collections, legal, about, contact | 🟡 (return 200; not re-checked visually in dark) | `content/*`, `app/(site)/*` |
+| Finder `/finder` | ✅ (results checked 8 Oct, desktop and phone) | `components/finder/FinderQuiz.tsx` |
+| Admin panel (rackets list and editor with live 3D preview, draft preview, brands, retailers, insights) | ✅ (click-through test passed 8 Oct, after fixes) | `src/app/admin/*`, `components/admin/*` |
+| Guides, collections, legal, about, contact | ✅ (checked in dark 8 Oct) | `content/*`, `app/(site)/*` |
 | Affiliate redirect, analytics, SEO, security headers, photo → 3D pipeline | ✅ (unchanged since session 2) | see section 8 |
 | Lint, typecheck, build | ✅ | |
-| Docs (README, 3D pipeline, architecture, deployment, security) | ⬜ | `docs/` doesn't exist yet |
-| `DESIGN.md` and the impeccable finish review | ⬜ | |
+| Docs (README, 3D pipeline, architecture, deployment, security) | ✅ (8 Oct) | `README.md`, `docs/` |
+| `DESIGN.md` | ✅ (8 Oct); the interactive finish review is still to do | `DESIGN.md` |
 
 ---
 
@@ -273,7 +274,48 @@ All 62 rackets were researched against published reviews and retailer listings. 
 - **Remaining spec gaps:** mostly the balance point in mm and hardness. They stay "—" rather than guessed.
 - **Admin:** the admin form does not edit `roundup` yet. Edit the research file and reseed.
 
+## 5f. Cloud session (8 Oct 2026): QA, admin test, tests, docs
+
+Worked in a cloud container on branch `claude/site-section6`, so nothing here has touched the PC folder yet. Pull the branch on the PC (or merge it) before carrying on there. `promo/` and `casa-parodi` were not touched.
+
+**Bugs found and fixed:**
+
+- **"Best for …" sorts were upside down.** `applyFilters` sorted ascending, so "Highest platform score", "Best for power/control" and "Best value" started with the weakest rackets. The guides' "top rated" blocks were affected the same way.
+- **The admin couldn't save any racket.** Hotspot u/v/w inputs had `step=0.01`, but all 62 rackets' hotspots (and new ones from the specs) use three decimals. The browser's form check silently blocked the submit. They now take any value.
+- **Offer ids changed on every save.** Offers added in the editor never learned their new ids, so each later save deleted and recreated them, breaking `/go/<id>` links on cached pages. The save now returns the ids and the form adopts them.
+- The save bar said "Unsaved changes" right after a successful save, and "All changes saved" on a racket that was never saved.
+- A live affiliate link outside the retailer's allowed domains is now refused when saving, instead of being saved and then quietly failing in `/go`.
+- Successful sign-ins counted toward the 5-per-15-minutes lockout. Now only wrong passwords do.
+- **Share images** (site and racket OpenGraph) and the web manifest still used the rejected golden-hour/court-blue look. They are now Black studio. Racket share images now say the power/control figures are sample platform scores.
+- The **favicon** was still the navy "Court at Night" mark; it now matches the logo.
+- The guides' **shape diagram** used the old blue/orange and left an empty band. It now uses the tokens and draws the shared handle and butt cap.
+- **Unknown URLs** showed a bare 404 with no header or footer. A catch-all `(site)/[...missing]` now sends them to the full site 404.
+- The model **provenance badge** was unreadable on the White studio stage; it now has a dark backing there.
+- Racket cards embedded in guides picked up `.prose` link underlines and margins. Prose rules now skip `.not-prose`.
+- Admin rackets list: names no longer wrap over four lines. New rackets default to a neutral accent instead of the old blue.
+
+**Added:**
+
+- `scripts/optimize-model.ts` (`npm run models:optimize`): see 6.3.
+- Unit tests: `src/lib/catalog/filters.test.ts` and `src/lib/recommend/engine.test.ts` (19 tests, `npm test`). Fixtures are in `src/test/fixtures.ts`. The `test` script now quotes its glob so Node expands it on every shell.
+- `README.md`, `docs/3D-PIPELINE.md`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`, `docs/SECURITY.md`, `DESIGN.md`.
+- `src/lib/og.ts`: Black studio values for the generated share images.
+
+**Checked and fine:** the Finder results (desktop and phone), guides, collections, legal, about, contact, the "link not active yet" page, tablet width (768 px), and all admin pages in dark. `npx impeccable@4.1.0 detect --json src` reports no findings.
+
+**Status:** typecheck clean, lint 0 errors and 29 warnings (was 30), 19/19 tests pass, production build passes.
+
+**Tooling note:** screenshots in this session came from Playwright with SwiftShader (`--use-angle=swiftshader`), because `.tmp/shoot.mjs` lives only on the PC (`.tmp/` is git-ignored).
+
 ## 6. Remaining work, in order
+
+**6.1–6.5 were done on 8 Oct (section 5f).** What is left from them:
+
+- The impeccable "finish review" (the interactive skill pass on the homepage, racket page, rackets browser and mobile drawer) still needs the impeccable skill, which is installed on the PC only. The detector itself is clean.
+- The Netlify preview hasn't been redeployed with these changes. See `docs/DEPLOYMENT.md` for the clean-copy steps.
+- Still open from earlier: the Bergamini (Tactical El Jefe) racket needs confirmed specs and a photo, and the photo licences are pending.
+
+The original task lists are kept below for reference.
 
 ### 6.1 Visual QA of the remaining pages in dark
 
@@ -367,10 +409,12 @@ For each racket (slug like `brand-model-year`):
 
 1. Mobile Lighthouse LCP is still about 4 s (simulated slow 4G with a 4× slower CPU). The hero photo and the 3D engine download are what remain. Desktop is about 0.8 s.
 2. Console warning: `THREE.Clock` is deprecated, from R3F internals (harmless).
-3. `npm run models:optimize` has no script, and `npm run test` has no tests (6.3).
+3. ~~`npm run models:optimize` has no script, and `npm run test` has no tests~~ (done 8 Oct).
 4. The rate limiter is in memory (one server). Use Redis/Upstash for several instances.
 5. Parked compare code (`src/components/compare/*`) still triggers a few lint warnings. Delete the folder if you decide compare is gone for good.
-6. Lint shows 30 warnings, none blocking. Most are React Compiler hints about state set inside effects.
+6. Lint shows 29 warnings, none blocking. Most are React Compiler hints about state set inside effects.
+8. Admin sessions are stateless signed tokens: signing out deletes the cookie, but a copied token stays valid for up to 12 hours. Change `ADMIN_SESSION_SECRET` to end every session (docs/SECURITY.md).
+9. The overall sign-in limit (30 attempts per 15 minutes) means someone could keep the owner locked out. If that ever happens, put `/admin` behind a host-level gate.
 7. `scene/pmrem-warmup.ts` uses three.js private fields (`PMREMGenerator._setSize`, `_allocateTargets`, `_ggxMaterial`). It is guarded and falls back to normal behaviour if they change. After a three.js upgrade, re-run `node .tmp/shaders.mjs http://localhost:3100/` and check the "total blocking" figure stays under ~100 ms.
 
 ---
@@ -469,13 +513,14 @@ PRODUCT.md  HANDOFF.md  .impeccable/ (design contract + review screenshots)  .en
 
 | Variable | Purpose / value |
 |---|---|
-| `SITE_URL` | public URL; used for canonical URLs, Open Graph and the sitemap |
-| `ALLOW_INDEXING` | `false` until launch; robots blocks everything |
+| `NEXT_PUBLIC_SITE_URL` | public URL; used for canonical URLs, Open Graph and the sitemap |
+| `NEXT_PUBLIC_ALLOW_INDEXING` | `false` until launch; robots blocks everything |
 | `DATABASE_URL` / `DATABASE_AUTH_TOKEN` | `file:./data/paladex.db` locally, or `libsql://…turso.io` |
+| `DATABASE_TEMPLATE` | serverless only: the bundled database file to copy into the temp folder |
 | `ADMIN_PASSWORD_HASH` | made by `npm run admin:hash` |
 | `ADMIN_SESSION_SECRET` | 32+ characters |
 | `ASSET_STORAGE` | `local` or `s3` |
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`, `S3_PUBLIC_BASE_URL` | R2/S3 storage |
 | `ALLOW_LOCAL_UPLOADS` | only for a server with a persistent disk |
 | `ASSET_ORIGINS` | external hosts allowed to serve models and images (feeds the CSP and next/image) |
-| `NEXT_PUBLIC_ANALYTICS_PROVIDER` | `none`, `console`, `first-party` or `plausible`, plus the Plausible variables |
+| `NEXT_PUBLIC_ANALYTICS_PROVIDER` | `none`, `console`, `first-party` or `plausible`, plus `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` and `NEXT_PUBLIC_ANALYTICS_SCRIPT_ORIGIN` |
