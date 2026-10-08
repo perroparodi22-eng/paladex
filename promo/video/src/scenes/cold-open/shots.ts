@@ -84,38 +84,23 @@ const pick = (i: number) => MONTAGE[((i % MONTAGE.length) + MONTAGE.length) % MO
 // ---------------------------------------------------------------- timing
 export type Cuts = ReturnType<typeof cuts>;
 export const cuts = (timing: SceneTiming) => {
-  const two = wordAt(timing, "Two", 26);
-  const hundred = wordAt(timing, "hundred", 43);
-  const euros = wordAt(timing, "euros", 74);
-  const maybe = wordAt(timing, "Maybe", 132);
-  const more = wordAt(timing, "more", 155);
-  const forW = wordAt(timing, "For", 205);
-  const one = wordAt(timing, "one", 221);
-  const padel = wordAt(timing, "padel", 237);
-  const racket = wordAt(timing, "racket", 259);
-  const would = wordAt(timing, "Would", 227);
-  const buy = wordAt(timing, "buy", 249);
-  const it = wordAt(timing, "it", 261);
-  const blind = wordAt(timing, "blind", 272);
+  const two = wordAt(timing, "two", 71);
+  const hundred = wordAt(timing, "hundred", 84);
+  const euros = wordAt(timing, "euros", 104);
+  const padel = wordAt(timing, "padel", 140);
+  const racket = wordAt(timing, "racket", 168);
   return {
-    would,
-    buy,
-    it,
-    blind,
     two,
     hundred,
     euros,
-    maybe,
-    more,
-    forW,
-    one,
     padel,
     racket,
-    // Flash cuts before the slam, and mid-phrase cuts halfway between words.
+    // The hero spins in during "euros" and lands on "padel".
+    forW: padel - 22,
+    land: padel,
+    // Flash cuts before the slam.
     flash1: Math.round(two * 0.4),
     flash2: Math.round(two * 0.72),
-    mid1: Math.round((euros + maybe) / 2),
-    mid2: Math.round((more + forW) / 2),
     end: timing.duration,
   };
 };
@@ -217,7 +202,7 @@ export const buildShots = (T: Cuts, overlap: number): Shot[] => [
   {
     id: "carousel",
     from: T.euros,
-    to: T.mid1,
+    to: T.forW,
     at: (lt, len, f) => {
       const p = (t: number) => ramp(t, -2, len + 20, Easing.bezier(0.1, 0.7, 0.3, 1));
       const t = p(lt);
@@ -240,123 +225,13 @@ export const buildShots = (T: Cuts, overlap: number): Shot[] => [
       };
     },
   },
-  // 6. Macro: up the face of one racket while another drifts by out of focus behind.
-  {
-    id: "macro-rise",
-    from: T.mid1,
-    to: T.maybe,
-    at: (lt, len) => {
-      const p = (t: number) => ramp(t, -3, len + 6, Easing.bezier(0.15, 0.6, 0.35, 1));
-      const t = p(lt);
-      const q = ramp(lt, 0, len, Easing.linear);
-      return {
-        cam: orbit([mix(-0.02, 0.03, t), mix(-0.02, 0.15, t), 0], 0.38, mix(-0.12, 0.05, t), 0.6, 30, 0.1),
-        items: [
-          { key: "m3", slug: "siux-electra-pro-shadow-red-2026", pos: [0, 0, 0], rot: [0.04, 0.12, 0.08] },
-          { key: "m3b", slug: pick(21), pos: [mix(-0.55, -0.35, q), 0.08, -0.9], rot: [0.1, 0.9 + q * 0.4, -0.2] },
-        ],
-        blur: [0, Math.min(26, 120 * speed(p, lt))],
-        sweepX: mix(-1.8, 1.6, t),
-        sweep: 2.6,
-        fog: [1.0, 2.6],
-        pool: { x: 62, y: 36, a: 0.9 },
-      };
-    },
-  },
-  // 7. Wall ("Maybe"): a whole wall of different rackets, the camera trucks across it.
-  {
-    id: "wall",
-    from: T.maybe,
-    to: T.more,
-    at: (lt, len, f) => {
-      const p = (t: number) => ramp(t, -2, len + 10, Easing.bezier(0.1, 0.7, 0.3, 1));
-      const t = p(lt);
-      const items: Inst[] = [];
-      const cols = 6;
-      for (let r = 0; r < 4; r++) {
-        for (let c = 0; c < cols; c++) {
-          const i = r * cols + c;
-          items.push({
-            key: `g${i}`,
-            slug: pick(i * 5 + 1),
-            pos: [(c - (cols - 1) / 2) * 0.34, (1.5 - r) * 0.52, 0],
-            rot: [0, 0.2 * Math.sin(i * 1.9 + lt * 0.05), 0.04 * Math.cos(i * 2.7)],
-          });
-        }
-      }
-      return {
-        cam: orbit([mix(-0.55, 0.15, t), mix(0.35, 0.05, t), 0], mix(-0.62, -0.45, t), mix(0.1, 0.02, t), mix(1.55, 1.7, t), 30, mix(0.03, 0.01, t)),
-        items,
-        blur: [Math.min(30, 180 * speed(p, lt)), Math.min(16, 90 * speed(p, lt))],
-        sweepX: mix(-2, 2, ramp(lt, 0, len, Easing.linear)),
-        sweep: 1.4,
-        fog: [1.1, 3.0],
-        pool: { x: 46, y: 44, a: 1 },
-      };
-    },
-  },
-  // 8. Wave ("more"): a line of rackets flips over one after another.
-  {
-    id: "wave",
-    from: T.more,
-    to: T.mid2,
-    at: (lt, len, f) => {
-      const p = (t: number) => ramp(t, -2, len + 8, Easing.bezier(0.1, 0.7, 0.3, 1));
-      const t = p(lt);
-      const items: Inst[] = [];
-      for (let i = 0; i < 12; i++) {
-        const flip = ramp(lt, i * 1.6 - 2, i * 1.6 + 10, Easing.bezier(0.3, 0, 0.2, 1));
-        items.push({ key: `v${i}`, slug: pick(i * 3 + 7), pos: [(i - 5.5) * 0.3, 0, 0], rot: [0.05, 0.5 + Math.PI * flip, 0] });
-      }
-      return {
-        cam: orbit([mix(-0.3, 0.2, t), 0.03, 0], mix(-0.42, -0.3, t), mix(0.12, 0.05, t), mix(1.15, 1.0, t), 30, -0.03),
-        items,
-        blur: [Math.min(16, 100 * speed(p, lt)), 0],
-        sweepX: mix(-1.6, 1.6, ramp(lt, 0, len, Easing.linear)),
-        sweep: 2,
-        fog: [0.9, 2.6],
-        pool: { x: 50, y: 46, a: 1 },
-      };
-    },
-  },
-  // 9. Corridor: the camera flies forward between two lines of rackets.
-  {
-    id: "corridor",
-    from: T.mid2,
-    to: T.forW,
-    at: (lt, len, f) => {
-      const p = (t: number) => ramp(t, -6, len + 2, Easing.bezier(0.3, 0.1, 0.8, 0.7));
-      const t = p(lt);
-      const items: Inst[] = [];
-      for (let j = 0; j < 9; j++) {
-        for (const s of [-1, 1]) {
-          items.push({
-            key: `t${j}${s}`,
-            slug: pick(j * 2 + (s > 0 ? 9 : 22)),
-            pos: [s * 0.36, s * 0.04 * Math.sin(j), 0.4 - j * 0.5],
-            rot: [0, -s * 0.85 + 0.002 * lt, s * 0.04],
-          });
-        }
-      }
-      const z = mix(1.6, -0.9, t);
-      return {
-        cam: { position: [0.02, 0.0, z], target: [0, 0.0, z - 2], fov: 34, roll: mix(0, 0.12, t) },
-        items,
-        blur: [Math.min(20, 90 * speed(p, lt)), 0],
-        sweepX: 0,
-        sweep: 0,
-        fog: [0.6, 3.2],
-        pool: { x: 50, y: 45, a: 1.1 },
-      };
-    },
-  },
   // 10. The hero ("For one padel racket"): it spins in from deep in the dark and lands.
   {
     id: "hero",
     from: T.forW,
     to: T.end + overlap + 1,
     at: (lt, len, f) => {
-      const landAt = T.racket - T.forW;
+      const landAt = T.land - T.forW;
       const arrive = (t: number) => ramp(t, 0, landAt, Easing.bezier(0.1, 0.75, 0.25, 1));
       const a = arrive(lt);
       const spinOf = (t: number) => -Math.PI * 4 * (1 - arrive(t));

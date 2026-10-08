@@ -1,4 +1,4 @@
-// Scene 2, "problem": "And you're choosing it from one flat photo... and a spec sheet nobody explains."
+// Scene 2, "problem": "...based on one flat photo, and a spec sheet nobody explains."
 //
 // One shared 3D world for CSS and WebGL. The CSS perspective is set to the WebGL
 // camera's distance in px (fov 30, z 1.4), so a point placed at the same world px
@@ -72,22 +72,21 @@ type Marks = {
 
 const marks = (timing: SceneTiming): Marks => {
   const end = timing.duration;
-  const explains = wordAt(timing, "explains", 267);
+  const explains = wordAt(timing, "explains", 227);
   return {
-    choosing: wordAt(timing, "choosing", 49),
-    from: wordAt(timing, "from", 90),
-    one: wordAt(timing, "one", 108),
-    flat: wordAt(timing, "flat", 123),
-    photo: wordAt(timing, "photo", 141),
-    // The second "and" (the first opens the line).
-    and: wordAt(timing, "and", 185, 1),
-    spec: wordAt(timing, "spec", 209),
-    sheet: wordAt(timing, "sheet", 226),
-    nobody: wordAt(timing, "nobody", 245),
+    choosing: wordAt(timing, "based", 13),
+    from: wordAt(timing, "on", 27),
+    one: wordAt(timing, "one", 39),
+    flat: wordAt(timing, "flat", 60),
+    photo: wordAt(timing, "photo", 79),
+    and: wordAt(timing, "and", 132),
+    spec: wordAt(timing, "spec", 164),
+    sheet: wordAt(timing, "sheet", 181),
+    nobody: wordAt(timing, "nobody", 203),
     explains,
-    // "Pure guesswork": the numbers scramble on "Pure", a big "?" lands on "guesswork".
-    pure: wordAt(timing, "Pure", 240),
-    guess: wordAt(timing, "guesswork", 263),
+    // "nobody explains": the numbers scramble on "nobody", a big "?" lands on "explains".
+    pure: wordAt(timing, "nobody", 203),
+    guess: wordAt(timing, "explains", 227),
     // The storm peaks on "explains", holds through "Pure", then the collapse lands on the cut.
     col: Math.max(explains + 14, end - 38),
     end,
