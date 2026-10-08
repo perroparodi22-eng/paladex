@@ -57,37 +57,71 @@
    "voice": "takes:v1",
    "lines": {
     "cold-open": [
-     "You're about to spend two hundred euros on a padel racket..."
+     {
+      "text": "You're about to spend two hundred euros on a padel racket..."
+     }
     ],
     "problem": [
-     "based on one flat photo,",
-     "and a spec sheet nobody explains."
+     {
+      "text": "based on one flat photo,"
+     },
+     {
+      "text": "and a spec sheet nobody explains."
+     }
     ],
     "reveal": [
-     "Meet Paladex.",
-     "Every padel racket, in 3D."
+     {
+      "text": "Meet Paladex."
+     },
+     {
+      "text": "Every padel racket, in 3D."
+     }
     ],
     "turn": [
-     "Pick any racket and turn it in your hand.",
-     "Front.",
-     "Side.",
-     "Back.",
-     "Every detail, up close."
+     {
+      "text": "Pick any racket and turn it in your hand."
+     },
+     {
+      "text": "Front."
+     },
+     {
+      "text": "Side."
+     },
+     {
+      "text": "Back."
+     },
+     {
+      "text": "Every detail, up close."
+     }
     ],
     "specs": [
-     "Every spec is translated into what it actually means for your game."
+     {
+      "text": "Every spec is translated into what it actually means for your game."
+     }
     ],
     "finder": [
-     "Not sure where to start?",
-     "Answer a few quick questions,",
-     "and see the rackets that fit how you really play."
+     {
+      "text": "Not sure where to start?"
+     },
+     {
+      "text": "Answer a few quick questions,"
+     },
+     {
+      "text": "and see the rackets that fit how you really play."
+     }
     ],
     "brands": [
-     "All in one place."
+     {
+      "text": "All in one place."
+     }
     ],
     "endcard": [
-     "Paladex.",
-     "See it from every side, before you buy it."
+     {
+      "text": "Paladex."
+     },
+     {
+      "text": "See it from every side, before you buy it."
+     }
     ]
    },
    "note": "v3 short cut: the v1 narrator (Andrew) from recorded takes in audio/takes-v1, built by audio/make_vo_takes.py (6% slower, pauses inside a line capped at 0.3 s). Lines below are the caption text of those takes. make_vo.py is the synthesis path used by v2/v2.1.",
