@@ -1,4 +1,4 @@
-// Scene 3, reveal (v2): "Not anymore. Meet Paladex. Every padel racket, in 3D."
+// Scene 3, reveal (v3): "Meet Paladex. Every padel racket, in 3D."
 //
 // Fast and hit-driven. The scene opens on the impact the Problem scene collapses into.
 //
@@ -26,7 +26,7 @@ import type { SceneProps } from "./types";
 
 /** Voice words this scene syncs to, per language (fallbacks are the English frames). */
 const WORDS = {
-  en: { not: "Not", anymore: "anymore", meet: "Meet", paladex: "Paladex", every: "Every", racket: "racket", threeD: "3D" },
+  en: { meet: "Meet", paladex: "Paladex", every: "Every", racket: "racket", threeD: "3D" },
 } as const;
 
 const CLIP = "reveal-home";
@@ -238,28 +238,22 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const W = WORDS[lang];
 
   // Voice sync (scene-local frames).
-  const notAt = wordAt(timing, W.not, 23) - 7; // lands on the beat just ahead of the voice
-  const anymoreAt = wordAt(timing, W.anymore, 40);
-  const meetAt = wordAt(timing, W.meet, 100);
-  const paladexAt = wordAt(timing, W.paladex, 120);
-  const everyAt = wordAt(timing, W.every, 180);
-  const racketAt = wordAt(timing, W.racket, 222);
-  const threeDAt = wordAt(timing, W.threeD, 263);
-  const browserAt = wordAt(timing, "browser", 290);
+  const meetAt = wordAt(timing, W.meet, 19);
+  const paladexAt = wordAt(timing, W.paladex, 32);
+  const everyAt = wordAt(timing, W.every, 98);
+  const racketAt = wordAt(timing, W.racket, 144);
+  const threeDAt = wordAt(timing, W.threeD, 199);
 
   const env = enterExit(frame, D, ov);
 
   // Beat frames derived from the words.
-  const splitAt = anymoreAt + 28; // the opening line breaks apart
-  const lineAt = splitAt + 4; // the light line starts drawing
+  const lineAt = 2; // the light line starts drawing straight out of the impact bloom
   const punchAt = paladexAt - 3; // the mark lands just ahead of the word
   const wordStart = paladexAt - 1;
   const swingStart = everyAt - 6;
   const swingEnd = Math.max(racketAt, everyAt + 38); // the window has arrived
   const shake = shakeAt(frame, [
     [0, 16],
-    [notAt, 12],
-    [anymoreAt, 22],
     [punchAt, 18],
     [threeDAt, 8],
   ]);
@@ -275,7 +269,7 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     const fin = easeOut(interpolate(f, [swingEnd - 6, threeDAt + 4], [0, 1], clamp));
     // "right in your browser": pull back and orbit so the whole window, chrome and address
     // bar included, shows the racket turning live in it; it rises clear of the subtitle.
-    const post = easeInOut(interpolate(f, [threeDAt + 6, END - 20], [0, 1], clamp));
+    const post = easeInOut(interpolate(f, [threeDAt + 6, END - 14], [0, 1], clamp));
     return {
       tx: WIN_POS.x * tl + interpolate(f, [swingStart, END], [0, 60], clamp) + hand("x", 6),
       ty: WIN_POS.y * t + 75 * post + hand("y", 5),
@@ -287,32 +281,6 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     };
   };
   const cam = camAt(frame);
-
-  /* ------------------------------------------------------------ opening line */
-  const splitP = interpolate(frame, [splitAt, splitAt + 16], [0, 1], { ...clamp, easing: easeIn });
-  const titleOn = frame < splitAt + 18;
-  const titleShift = (1 - interpolate(frame, [notAt - 2, anymoreAt - 2], [0, 1], { ...clamp, easing: easeOut })) * 0; // layout is reserved
-  const drive = interpolate(frame, [notAt, splitAt], [1, 1.08], clamp); // the line creeps toward the lens
-  const line = (clipPath: string, dx: number) => (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        clipPath,
-        translate: `${dx}px ${titleShift}px`,
-        scale: drive,
-        opacity: 1 - splitP * 0.6,
-      }}
-    >
-      <div style={{ ...display, fontSize: TITLE, whiteSpace: "nowrap", letterSpacing: "-0.04em", display: "flex", gap: 64 }}>
-        <SlamWord frame={frame} at={notAt} text="Not" dir={-1} />
-        <SlamWord frame={frame} at={anymoreAt} text="anymore." dir={1} />
-      </div>
-    </div>
-  );
 
   // The studio horizon: a thin light line draws across the dark, then widens to a glow.
   const lineP = interpolate(frame, [lineAt, meetAt - 2], [0, 1], { ...clamp, easing: Easing.bezier(0.5, 0, 0.1, 1) });
@@ -382,12 +350,6 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
       >
         <AbsoluteFill style={{ translate: `${shake.x}px ${shake.y}px`, rotate: `${shake.r}deg` }}>
           {/* Opening: the slammed line, then the light line. */}
-          {titleOn && (
-            <AbsoluteFill>
-              {line("inset(0 0 49.7% 0)", -splitP * 1150)}
-              {line("inset(50% 0 0 0)", splitP * 1150)}
-            </AbsoluteFill>
-          )}
           {lineP > 0 && lineOut > 0.001 && (
             <AbsoluteFill style={{ opacity: lineOut }}>
               <div
@@ -520,15 +482,10 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
       {/* Impact flourishes, over the transition (not faded in by the envelope). */}
       <Streaks frame={frame} />
       <Burst frame={frame} at={0} amp={1.35} size={1.3} />
-      <Burst frame={frame} at={notAt} amp={0.4} size={0.7} ring={false} />
-      <Burst frame={frame} at={anymoreAt} amp={0.75} size={0.9} />
       <Burst frame={frame} at={punchAt} amp={0.9} />
       <Burst frame={frame} at={threeDAt} amp={0.3} size={0.8} ring={false} />
 
       <Sfx name="impact" at={0} volume={0.85} />
-      <Sfx name="impact" at={notAt} volume={0.55} />
-      <Sfx name="impact" at={anymoreAt} volume={0.9} />
-      <Sfx name="swipe" at={splitAt} volume={0.6} />
       <Sfx name="riser" at={lineAt} volume={0.45} />
       <Sfx name="pop" at={meetAt} volume={0.5} />
       <Sfx name="impact" at={punchAt} volume={0.9} />
@@ -536,8 +493,7 @@ export const Reveal: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
       <Sfx name="whoosh" at={swingStart} volume={0.7} />
       <Sfx name="whoosh-soft" at={swingEnd - 8} volume={0.35} />
       <Sfx name="impact" at={threeDAt} volume={0.55} />
-      <Sfx name="whoosh-soft" at={browserAt - 40} volume={0.35} />
-      <Sfx name="tick" at={browserAt} volume={0.3} />
+      <Sfx name="whoosh-soft" at={threeDAt + 20} volume={0.35} />
     </AbsoluteFill>
   );
 };
