@@ -18,7 +18,7 @@ const serveUrl = await bundle({ entryPoint: join(root, "src/index.ts"), rootDir:
 try {
   // audioOnly: the 3D layers render nothing (sound never depends on them), so this is fast.
   // VO_OFFSET=<frames> shifts only the narrator (+ = later) to fine-tune lip-sync feel against the picture.
-  const inputProps = { audioOnly: true, voOffset: Number(process.env.VO_OFFSET ?? 0) };
+  const inputProps = { audioOnly: true, ...(process.env.VO_OFFSET ? { voOffset: Number(process.env.VO_OFFSET) } : {}) };
   const composition = await selectComposition({ serveUrl, id: "PaladexLaunch", inputProps, browserExecutable, chromiumOptions });
   await renderMedia({ composition, serveUrl, codec: "wav", outputLocation: output, inputProps, browserExecutable, chromiumOptions });
   console.log(`audio -> ${output}`);

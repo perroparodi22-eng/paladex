@@ -42,9 +42,10 @@ export type LaunchProps = {
   music: boolean;
 };
 
-/** Frames to shift the narrator against the picture (+ = later); music and SFX stay on the visual hits.
+/** Frames to shift the narrator against the picture (+ = later, default VO_OFFSET_DEFAULT); music and SFX stay on the visual hits.
  *  Set per render with the `voOffset` input prop (scripts/render-audio.mjs reads VO_OFFSET). */
-const voOffset = () => Number((getInputProps() as { voOffset?: number }).voOffset ?? 0);
+const VO_OFFSET_DEFAULT = -12; // the owner judged v3 in sync with the voice 0.2 s earlier
+const voOffset = () => Number((getInputProps() as { voOffset?: number }).voOffset ?? VO_OFFSET_DEFAULT);
 
 /** Music volume: full between lines, ducked under the voice. */
 const musicVolume = (t: Timeline, f: number) => {
