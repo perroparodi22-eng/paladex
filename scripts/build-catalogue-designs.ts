@@ -47,6 +47,25 @@ function dominant(colors: RGB[], count: number): RGB[] {
   return picked;
 }
 
+/**
+ * Rackets from the first sample catalogue whose real photos were found and traced later
+ * (RACKETS_WITHOUT_DESIGN.md). Only the fields the design needs: shape and profile.
+ */
+const SAMPLE_TRACED: Array<Pick<CatalogueRacket, "slug" | "shape" | "profileMm">> = [
+  { slug: "nox-ml10-pro-cup-rough-surface", shape: "Round", profileMm: 38 },
+  { slug: "bullpadel-vertex-05", shape: "Diamond", profileMm: 38 },
+  { slug: "bullpadel-neuron-02-2026", shape: "Hybrid", profileMm: 38 },
+  { slug: "head-extreme-pro-2025", shape: "Diamond", profileMm: 38 },
+  { slug: "wilson-bela-pro-v3", shape: "Teardrop", profileMm: 38 },
+  { slug: "siux-electra-st4-pro", shape: "Hybrid", profileMm: 38 },
+  { slug: "starvie-triton-pro-2025", shape: "Teardrop", profileMm: 38 },
+  { slug: "head-vibe-2026", shape: "Teardrop", profileMm: 38 },
+  { slug: "adidas-drive-black-2026", shape: "Round", profileMm: 38 },
+  { slug: "head-evo-speed", shape: "Teardrop", profileMm: 38 },
+  { slug: "babolat-technical-veron-3-0-2026", shape: "Diamond", profileMm: 38 },
+  { slug: "babolat-technical-viper-soft-3-0-2026", shape: "Diamond", profileMm: 38 },
+];
+
 const ident = (slug: string) => "t_" + slug.replace(/[^a-z0-9]/g, "_");
 
 /**
@@ -57,7 +76,7 @@ const OVERRIDES: Record<string, string> = {
   "adidas-metalbone-hrd-plus-2026": `screws: { y: [0.2445, 0.2585], ring: "#9aa0a6" },`,
 };
 
-function sweetSpotFor(r: CatalogueRacket): number {
+function sweetSpotFor(r: Pick<CatalogueRacket, "shape">): number {
   const s = (r.shape ?? "").toLowerCase();
   if (s.includes("round")) return 0.62;
   if (s.includes("diamond") || s.includes("geometric")) return 0.72;
@@ -69,7 +88,10 @@ async function main() {
   const designs: string[] = [];
   const imports: string[] = [];
   const visuals: Record<string, unknown> = {};
-  for (const r of [...brandCatalogue, ...proRackets]) {
+  const seen = new Set<string>();
+  for (const r of [...SAMPLE_TRACED, ...brandCatalogue, ...proRackets]) {
+    if (seen.has(r.slug)) continue;
+    seen.add(r.slug);
     const front = `assets/reference/${r.slug}/front.png`;
     const tracePath = `src/data/designs/${r.slug}.trace.json`;
     if (!existsSync(front) || !existsSync(tracePath)) continue;

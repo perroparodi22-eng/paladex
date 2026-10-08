@@ -294,13 +294,49 @@ function convert(r: CatalogueRacket, existing: SeedRacket | undefined): SeedRack
   };
 }
 
+/**
+ * Rackets from the first sample catalogue whose real photos were found later
+ * (RACKETS_WITHOUT_DESIGN.md): the shop each photo set came from.
+ */
+const SAMPLE_PHOTO_SITES: Record<string, string> = {
+  "nox-ml10-pro-cup-rough-surface": "padelproshop.com",
+  "bullpadel-vertex-05": "padelmarket.com",
+  "bullpadel-neuron-02-2026": "padelkiwi.com",
+  "head-extreme-pro-2025": "padelkiwi.com",
+  "siux-electra-st4-pro": "padelkiwi.com",
+  "starvie-triton-pro-2025": "padelmarket.com",
+  "head-vibe-2026": "padelkiwi.com",
+  "adidas-drive-black-2026": "padelkiwi.com",
+  "head-evo-speed": "padelkiwi.com",
+};
+
+/** Real photos and photo-sampled colours for those sample rackets. */
+function withSamplePhotos(r: SeedRacket): SeedRacket {
+  const site = SAMPLE_PHOTO_SITES[r.slug];
+  const list = (photos as Record<string, Array<{ url: string; view: "front" | "other" }>>)[r.slug];
+  if (!site || !list?.length) return r;
+  const brand = BRAND_NAMES[r.brand as CatalogueRacket["brand"]] ?? ({ starvie: "StarVie" } as Record<string, string>)[r.brand] ?? r.brand;
+  const name = `${brand} ${r.name}`;
+  const sampled = catalogueVisuals[r.slug];
+  return {
+    ...r,
+    images: list.map((p, i) => ({
+      url: p.url,
+      alt: p.view === "front" ? `${name}, front view` : `${name}, product photo from another angle`,
+      kind: (p.view === "front" ? "front" : i === 1 ? "angle" : "detail") as "front" | "angle" | "detail",
+    })),
+    imageSource: `Retailer product photo (${site})`,
+    visual: sampled ? { ...r.visual, face: sampled.face, frame: sampled.frame, accent: sampled.accent, accent2: sampled.accent2, grip: sampled.grip } : r.visual,
+  };
+}
+
 /** The base seed with the brand catalogue merged in (existing slugs updated, new ones appended). */
 export function withBrandCatalogue(base: SeedRacket[]): SeedRacket[] {
   const catalogue = [...brandCatalogue, ...proRackets];
   const bySlug = new Map(base.map((r) => [r.slug, r]));
   const updated = base.map((r) => {
     const c = catalogue.find((x) => x.slug === r.slug);
-    return c ? convert(c, r) : r;
+    return c ? convert(c, r) : withSamplePhotos(r);
   });
   const added = catalogue.filter((c) => !bySlug.has(c.slug)).map((c) => convert(c, undefined));
   // Touring pros who play each racket.

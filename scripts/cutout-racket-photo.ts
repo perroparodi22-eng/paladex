@@ -8,8 +8,13 @@
  *
  * Options:
  *   --tolerance 16   colour distance that still counts as background
+ *   --hole-tolerance <n>  separate (looser) distance for through-holes, when hole walls shade the background seen through them
  *   --shadow         also remove a soft grey cast shadow touching the background
  *   --close <px>     fill notches up to this size in the outer outline (pale frames on pale backgrounds)
+ *   --mask-contrast <gain>  find the background on a contrast-stretched copy (white frames against white backgrounds); colours are kept
+ *   --cut "x,y;x,y;…"   always remove this polygon (a throat slot the colours can't separate)
+ *   --cut-mirror <x>     also remove the polygon mirrored about this vertical line
+ *   --keep x0,y0,x1,y1  always keep this pixel rectangle (e.g. a white grip on a white background)
  *
  * Holes count only when they are background-coloured, enclosed by the racket
  * and roughly round (or, for the throat, sit below the face), so light prints
@@ -31,9 +36,13 @@ async function main() {
     process.exit(1);
   }
   const tolerance = Number(arg("tolerance", "16"));
+  const holeTolerance = Number(arg("hole-tolerance", String(tolerance)));
   const shadow = process.argv.includes("--shadow");
 
   const { data, info } = await sharp(input).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  // Optional contrast stretch towards white, used only to decide what is background.
+  const gain = Number(arg("mask-contrast", "1"));
+  const maskData = gain === 1 ? data : Buffer.from(data.map((v, i) => (i % 4 === 3 ? v : Math.max(0, Math.min(255, Math.round(255 - (255 - v) * gain))))));
   const W = info.width;
   const H = info.height;
   const N = W * H;
@@ -49,15 +58,16 @@ async function main() {
     const border: number[][] = [];
     for (let x = 0; x < W; x += 2) border.push([x, 0], [x, H - 1]);
     for (let y = 0; y < H; y += 2) border.push([0, y], [W - 1, y]);
-    const ch = (c: number) => border.map(([x, y]) => data[(y * W + x) * 4 + c]).sort((a, b) => a - b)[border.length >> 1];
+    const ch = (c: number) => border.map(([x, y]) => maskData[(y * W + x) * 4 + c]).sort((a, b) => a - b)[border.length >> 1];
     const bg = [ch(0), ch(1), ch(2)];
     const bgL = (bg[0] + bg[1] + bg[2]) / 3;
     const dist = new Float32Array(N);
     const bgLike = new Uint8Array(N);
+    const holeBg = new Uint8Array(N);
     for (let i = 0; i < N; i++) {
-      const r = data[i * 4];
-      const g = data[i * 4 + 1];
-      const b = data[i * 4 + 2];
+      const r = maskData[i * 4];
+      const g = maskData[i * 4 + 1];
+      const b = maskData[i * 4 + 2];
       dist[i] = Math.hypot(r - bg[0], g - bg[1], b - bg[2]);
       let isBg = dist[i] < tolerance;
       if (!isBg && shadow) {
@@ -67,6 +77,7 @@ async function main() {
         isBg = sat < 14 && L > bgL - 75 && L < bgL - 3; // never brighter than the background (keeps white grips)
       }
       bgLike[i] = isBg ? 1 : 0;
+      holeBg[i] = isBg || dist[i] < holeTolerance ? 1 : 0;
     }
     const outside = borderConnected(bgLike, W, H, 1);
 
@@ -83,7 +94,7 @@ async function main() {
 
     // Enclosed background-coloured regions: through-holes and the throat opening.
     const enclosed = new Uint8Array(N);
-    for (let i = 0; i < N; i++) enclosed[i] = bgLike[i] && !outside[i] ? 1 : 0;
+    for (let i = 0; i < N; i++) enclosed[i] = holeBg[i] && !outside[i] ? 1 : 0;
     const { labels, sizes } = label(enclosed, W, H, 1);
     const boxes = sizes.map(() => ({ x0: W, y0: H, x1: 0, y1: 0 }));
     for (let i = 0; i < N; i++) {
@@ -112,6 +123,33 @@ async function main() {
 
     // A clean cut is enough: the 3D frame covers the photo's outer edge.
     for (let i = 0; i < N; i++) alpha[i] = outside[i] || (labels[i] && isHole[labels[i]]) ? 0 : 255;
+  }
+
+  const keep = arg("keep")?.split(",").map(Number);
+  if (keep?.length === 4) {
+    const [kx0, ky0, kx1, ky1] = keep;
+    for (let y = Math.max(0, ky0); y <= Math.min(H - 1, ky1); y++) for (let x = Math.max(0, kx0); x <= Math.min(W - 1, kx1); x++) alpha[y * W + x] = 255;
+  }
+
+  const cut = arg("cut")?.split(";").map((p) => p.split(",").map(Number) as [number, number]);
+  if (cut && cut.length >= 3) {
+    const mirror = arg("cut-mirror");
+    const polys = [cut, ...(mirror ? [cut.map(([x, y]) => [2 * Number(mirror) - x, y] as [number, number])] : [])];
+    const inside = (poly: Array<[number, number]>, x: number, y: number) => {
+      let c = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i];
+        const [xj, yj] = poly[j];
+        if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+      }
+      return c;
+    };
+    for (const poly of polys) {
+      const ys = poly.map((p) => p[1]);
+      const xs = poly.map((p) => p[0]);
+      for (let y = Math.max(0, Math.floor(Math.min(...ys))); y <= Math.min(H - 1, Math.ceil(Math.max(...ys))); y++)
+        for (let x = Math.max(0, Math.floor(Math.min(...xs))); x <= Math.min(W - 1, Math.ceil(Math.max(...xs))); x++) if (inside(poly, x, y)) alpha[y * W + x] = 0;
+    }
   }
 
   const close = Number(arg("close", "0"));

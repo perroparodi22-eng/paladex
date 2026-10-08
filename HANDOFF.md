@@ -65,7 +65,7 @@ npm run dev          # http://localhost:3000
 **Dev server notes**
 
 - **Netlify preview:** https://paladex-preview.netlify.app. It requires a Netlify login (team protection) and has no admin secrets, so `/admin` is locked.
-  - Deploy from a clean copy that excludes `.env.local`, `node_modules`, `.next`, `data/*.db` and `assets/reference`, because the Netlify uploader ignores `.gitignore`.
+  - Deploy from a clean copy that excludes `.env.local`, `node_modules`, `.next`, `data/*.db` and `assets/reference`, because the Netlify uploader ignores `.gitignore`. Since 8 Oct, also exclude `promo/` (4 GB promo video project) and `.git/`: with them included the upload fails with a 500 error.
   - The build seeds the SQLite file, and `next.config.ts` bundles it with the server code. On the server, `src/server/db/connection.ts` copies it to the temp folder on first use, because the bundle is read-only.
   - `/api/health` returns `{ ok, rackets }`, or the database error. Check it first if pages show "error".
 - **Performance checks:** see section 5b for the scripts in `.tmp/` (site check, menu check, scroll trace, shader timing). Measure performance on a production build; the dev server is much slower.
@@ -272,6 +272,34 @@ All 62 rackets were researched against published reviews and retailer listings. 
   - "Our take" (sample editorial) now only renders when a racket has one.
 - **Remaining spec gaps:** mostly the balance point in mm and hardness. They stay "—" rather than guessed.
 - **Admin:** the admin form does not edit `roundup` yet. Edit the research file and reseed.
+
+## 5e. Real designs for the sample rackets (8 Oct 2026)
+
+13 of the 14 rackets that still had a generic placeholder model (listed in `RACKETS_WITHOUT_DESIGN.md`) now have models traced from real shop photos. Only the Black Crown Piton 5.0 is left (it's discontinued and no photo was found). The database now has 61 platform models and 1 placeholder.
+
+- **Photos:** stored in `assets/reference/<slug>/a..d`.
+  - Published as `public/images/rackets/<slug>/front.webp` and `view-*.webp`, and listed in `catalogue-photos.generated.json`.
+  - The sample rackets get their photos, shop credit and sampled colours through `withSamplePhotos()` in `brand-catalogue-convert.ts` (`SAMPLE_PHOTO_SITES`).
+  - Babolat and Wilson have `photosFrom: "padelkiwi.com"`.
+- **Designs:** `SAMPLE_TRACED` in `scripts/build-catalogue-designs.ts` gives the shape of the sample rackets, which aren't in the brand catalogue.
+- **New cut-out options** (`scripts/cutout-racket-photo.ts`):
+  - `--keep x0,y0,x1,y1` keeps a white grip on a white background.
+  - `--hole-tolerance` sets a looser colour distance for holes only.
+  - `--mask-contrast <gain>` finds the background on a contrast-stretched copy, for white frames on white.
+  - `--cut "x,y;…"` with `--cut-mirror <x>` cuts throat slots by hand.
+- **New tracer options** (`scripts/trace-racket-photo.ts`):
+  - `--smooth <n>` sets the outline smoothing.
+  - `--mirror-outline right|left` rebuilds a symmetric outline from one clean half.
+- **Lesson learned:**
+  - Do not use `--close` of 6 or more on the front cut-out. Spiky outlines can make the inset face polygon self-intersect: triangles go missing and the back print shows through.
+  - Use `--smooth 4–12` on the trace instead.
+  - Always check new models in `.tmp/model-check.html`, served with `python -m http.server 3300` from the project root, with `?m=/public/models/platform/<slug>.glb&v=front`.
+- **Spec fixes:**
+  - HEAD Vibe and Evo Speed are teardrops (they were listed as round), with HEAD's weight and balance.
+  - The Nox ML10 Pro Cup has an even balance.
+  - The Babolat Technical Veron 3.0 is a diamond (shop-sourced).
+  - The Kuikma frame material is filled in.
+  - The adidas Drive Black's `noModel` flag was removed.
 
 ## 6. Remaining work, in order
 

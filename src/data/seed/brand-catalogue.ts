@@ -821,6 +821,7 @@ export const brandCatalogue: CatalogueRacket[] = [
     weight: "~365 g",
     surface: "3K Soft Carbon",
     images: [],
+    photosFrom: "padelkiwi.com",
     productUrl: "https://www.babolat.com/gb/technical-viper-soft-3.0/150179.html",
   },
   {
@@ -831,9 +832,13 @@ export const brandCatalogue: CatalogueRacket[] = [
     collection: "Veron",
     year: 2026,
     description: "Versatile racket with controlled responsiveness and a forgiving feel.",
+    // Babolat's page leaves the shape out; Padel Market, Padelful and Tennis Nuts list a diamond head.
+    shape: "Diamond",
     weight: "~360 g",
     surface: "Carbonflex",
     images: [],
+    photosFrom: "padelkiwi.com",
+    specsFrom: "padelmarket.com",
     productUrl: "https://www.babolat.com/gb/technical-veron-3.0/150183.html",
   },
 
@@ -871,7 +876,9 @@ export const brandCatalogue: CatalogueRacket[] = [
     year: 2025,
     description: "Racket made with Fernando Belasteguin for advanced players who want to attack and control the game.",
     level: "Advanced / attacking",
+    // The wilson.com photo is angled and can't be traced; the 3D model uses Padel Kiwi's straight-on photos.
     images: ["https://www.wilson.com/en-us/media/catalog/product/article_images/WR186411U_/WR186411U__3c1d2efb6003fe75d54ea1fcd67dfdb3.png"],
+    photosFrom: "padelkiwi.com",
     productUrl: "https://www.wilson.com/en-us/product/bela-pro-v3-padel-wr18640",
   },
 ];

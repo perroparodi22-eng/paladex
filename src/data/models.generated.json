@@ -22,26 +22,26 @@
   "generatedAt": "2026-10-06T06:33:46.137Z"
  },
  "bullpadel-vertex-05": {
-  "kind": "placeholder",
-  "url": "/models/placeholders/bullpadel-vertex-05.glb?v=1.0.0-3grg",
-  "previewUrl": "/models/placeholders/bullpadel-vertex-05.preview.glb?v=1.0.0-3grg",
-  "bytes": 161692,
-  "previewBytes": 78416,
-  "triangles": 27985,
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-vertex-05.glb?v=1.0.0-7jhg",
+  "previewUrl": "/models/platform/bullpadel-vertex-05.preview.glb?v=1.0.0-7jhg",
+  "bytes": 351844,
+  "previewBytes": 195444,
+  "triangles": 42708,
   "bbox": {
    "min": [
-    -0.1316,
+    -0.1301,
     0,
-    -0.0202
+    -0.019
    ],
    "max": [
-    0.1316,
-    0.4566,
-    0.0202
+    0.1301,
+    0.455,
+    0.019
    ]
   },
-  "version": "1.0.0-3grg",
-  "generatedAt": "2026-10-06T06:33:46.280Z"
+  "version": "1.0.0-7jhg",
+  "generatedAt": "2026-10-08T09:42:54.624Z"
  },
  "nox-at10-luxury-genius-18k-alum": {
   "kind": "platform",
@@ -66,26 +66,26 @@
   "generatedAt": "2026-10-06T06:33:46.884Z"
  },
  "nox-ml10-pro-cup-rough-surface": {
-  "kind": "placeholder",
-  "url": "/models/placeholders/nox-ml10-pro-cup-rough-surface.glb?v=1.0.0-3ozc",
-  "previewUrl": "/models/placeholders/nox-ml10-pro-cup-rough-surface.preview.glb?v=1.0.0-3ozc",
-  "bytes": 172344,
-  "previewBytes": 83876,
-  "triangles": 33380,
+  "kind": "platform",
+  "url": "/models/platform/nox-ml10-pro-cup-rough-surface.glb?v=1.0.0-673s",
+  "previewUrl": "/models/platform/nox-ml10-pro-cup-rough-surface.preview.glb?v=1.0.0-673s",
+  "bytes": 289144,
+  "previewBytes": 165236,
+  "triangles": 38774,
   "bbox": {
    "min": [
-    -0.13,
+    -0.1287,
     0,
-    -0.0202
+    -0.019
    ],
    "max": [
-    0.13,
-    0.4566,
-    0.0202
+    0.1282,
+    0.4548,
+    0.019
    ]
   },
-  "version": "1.0.0-3ozc",
-  "generatedAt": "2026-10-06T06:33:47.001Z"
+  "version": "1.0.0-673s",
+  "generatedAt": "2026-10-08T10:02:19.228Z"
  },
  "babolat-technical-viper-2026": {
   "kind": "platform",
@@ -110,26 +110,26 @@
   "generatedAt": "2026-10-06T06:33:47.596Z"
  },
  "bullpadel-neuron-02-2026": {
-  "kind": "placeholder",
-  "url": "/models/placeholders/bullpadel-neuron-02-2026.glb?v=1.0.0-36ck",
-  "previewUrl": "/models/placeholders/bullpadel-neuron-02-2026.preview.glb?v=1.0.0-36ck",
-  "bytes": 148196,
-  "previewBytes": 76328,
-  "triangles": 27354,
+  "kind": "platform",
+  "url": "/models/platform/bullpadel-neuron-02-2026.glb?v=1.0.0-cfbg",
+  "previewUrl": "/models/platform/bullpadel-neuron-02-2026.preview.glb?v=1.0.0-cfbg",
+  "bytes": 579724,
+  "previewBytes": 307388,
+  "triangles": 57194,
   "bbox": {
    "min": [
-    -0.1316,
+    -0.1274,
     0,
-    -0.0202
+    -0.019
    ],
    "max": [
-    0.1316,
-    0.4566,
-    0.0202
+    0.1273,
+    0.4548,
+    0.019
    ]
   },
-  "version": "1.0.0-36ck",
-  "generatedAt": "2026-10-06T06:33:47.697Z"
+  "version": "1.0.0-cfbg",
+  "generatedAt": "2026-10-08T09:42:57.292Z"
  },
  "head-speed-pro-2025": {
   "kind": "platform",
@@ -154,48 +154,48 @@
   "generatedAt": "2026-10-06T06:33:48.041Z"
  },
  "head-extreme-pro-2025": {
-  "kind": "placeholder",
-  "url": "/models/placeholders/head-extreme-pro-2025.glb?v=1.0.0-3fdw",
-  "previewUrl": "/models/placeholders/head-extreme-pro-2025.preview.glb?v=1.0.0-3fdw",
-  "bytes": 159908,
-  "previewBytes": 79652,
-  "triangles": 28826,
+  "kind": "platform",
+  "url": "/models/platform/head-extreme-pro-2025.glb?v=1.0.0-6m14",
+  "previewUrl": "/models/platform/head-extreme-pro-2025.preview.glb?v=1.0.0-6m14",
+  "bytes": 308488,
+  "previewBytes": 175160,
+  "triangles": 39528,
   "bbox": {
    "min": [
-    -0.1316,
+    -0.1293,
     0,
-    -0.0202
+    -0.019
    ],
    "max": [
-    0.1316,
-    0.4566,
-    0.0202
+    0.1293,
+    0.4549,
+    0.019
    ]
   },
-  "version": "1.0.0-3fdw",
-  "generatedAt": "2026-10-06T06:33:48.141Z"
+  "version": "1.0.0-6m14",
+  "generatedAt": "2026-10-08T09:42:59.657Z"
  },
  "wilson-bela-pro-v3": {
-  "kind": "placeholder",
-  "url": "/models/placeholders/wilson-bela-pro-v3.glb?v=1.0.0-402g",
-  "previewUrl": "/models/placeholders/wilson-bela-pro-v3.preview.glb?v=1.0.0-402g",
-  "bytes": 186712,
-  "previewBytes": 86196,
-  "triangles": 33132,
+  "kind": "platform",
+  "url": "/models/platform/wilson-bela-pro-v3.glb?v=1.0.0-9y1o",
+  "previewUrl": "/models/platform/wilson-bela-pro-v3.preview.glb?v=1.0.0-9y1o",
+  "bytes": 464028,
+  "previewBytes": 266632,
+  "triangles": 58584,
   "bbox": {
    "min": [
-    -0.1315,
+    -0.1274,
     0,
-    -0.0202
+    -0.019
    ],
    "max": [
-    0.1315,
-    0.4566,
-    0.0202
+    0.1274,
+    0.4543,
+    0.019
    ]
   },
-  "version": "1.0.0-402g",
-  "generatedAt": "2026-10-06T06:33:48.241Z"
+  "version": "1.0.0-9y1o",
+  "generatedAt": "2026-10-08T10:03:50.447Z"
  },
  "bullpadel-hack-04-2026": {
   "kind": "platform",
@@ -220,48 +220,48 @@
   "generatedAt": "2026-10-06T07:32:28.346Z"
  },
  "siux-electra-st4-pro": {
-  "kind": "placeholder",
-  "url": "/models/placeholders/siux-electra-st4-pro.glb?v=1.0.0-3alk",
-  "previewUrl": "/models/placeholders/siux-electra-st4-pro.preview.glb?v=1.0.0-3alk",
-  "bytes": 153704,
-  "previewBytes": 77360,
-  "triangles": 27586,
+  "kind": "platform",
+  "url": "/models/platform/siux-electra-st4-pro.glb?v=1.0.0-8vik",
+  "previewUrl": "/models/platform/siux-electra-st4-pro.preview.glb?v=1.0.0-8vik",
+  "bytes": 414092,
+  "previewBytes": 232840,
+  "triangles": 47344,
   "bbox": {
    "min": [
-    -0.1316,
+    -0.1286,
     0,
-    -0.0202
+    -0.019
    ],
    "max": [
-    0.1316,
-    0.4566,
-    0.0202
+    0.1286,
+    0.4548,
+    0.019
    ]
   },
-  "version": "1.0.0-3alk",
-  "generatedAt": "2026-10-06T06:33:48.409Z"
+  "version": "1.0.0-8vik",
+  "generatedAt": "2026-10-08T09:43:04.952Z"
  },
  "starvie-triton-pro-2025": {
-  "kind": "placeholder",
-  "url": "/models/placeholders/starvie-triton-pro-2025.glb?v=1.0.0-3a8k",
-  "previewUrl": "/models/placeholders/starvie-triton-pro-2025.preview.glb?v=1.0.0-3a8k",
-  "bytes": 153236,
-  "previewBytes": 78100,
-  "triangles": 28874,
+  "kind": "platform",
+  "url": "/models/platform/starvie-triton-pro-2025.glb?v=1.0.0-7wfc",
+  "previewUrl": "/models/platform/starvie-triton-pro-2025.preview.glb?v=1.0.0-7wfc",
+  "bytes": 368616,
+  "previewBytes": 204492,
+  "triangles": 41428,
   "bbox": {
    "min": [
-    -0.1315,
+    -0.1281,
     0,
-    -0.0202
+    -0.019
    ],
    "max": [
-    0.1315,
-    0.4566,
-    0.0202
+    0.1284,
+    0.4552,
+    0.019
    ]
   },
-  "version": "1.0.0-3a8k",
-  "generatedAt": "2026-10-06T06:33:48.509Z"
+  "version": "1.0.0-7wfc",
+  "generatedAt": "2026-10-08T09:43:07.425Z"
  },
  "black-crown-piton-5": {
   "kind": "placeholder",
@@ -286,48 +286,48 @@
   "generatedAt": "2026-10-06T06:33:48.596Z"
  },
  "head-vibe-2026": {
-  "kind": "placeholder",
-  "url": "/models/placeholders/head-vibe-2026.glb?v=1.0.0-3d6g",
-  "previewUrl": "/models/placeholders/head-vibe-2026.preview.glb?v=1.0.0-3d6g",
-  "bytes": 157048,
-  "previewBytes": 76156,
-  "triangles": 26848,
+  "kind": "platform",
+  "url": "/models/platform/head-vibe-2026.glb?v=1.0.0-7by4",
+  "previewUrl": "/models/platform/head-vibe-2026.preview.glb?v=1.0.0-7by4",
+  "bytes": 342076,
+  "previewBytes": 192492,
+  "triangles": 39684,
   "bbox": {
    "min": [
-    -0.13,
+    -0.1297,
     0,
-    -0.0202
+    -0.019
    ],
    "max": [
-    0.13,
-    0.4566,
-    0.0202
+    0.1296,
+    0.4549,
+    0.019
    ]
   },
-  "version": "1.0.0-3d6g",
-  "generatedAt": "2026-10-06T06:33:48.671Z"
+  "version": "1.0.0-7by4",
+  "generatedAt": "2026-10-08T09:43:09.836Z"
  },
  "head-evo-speed": {
-  "kind": "placeholder",
-  "url": "/models/placeholders/head-evo-speed.glb?v=1.0.0-3bp4",
-  "previewUrl": "/models/placeholders/head-evo-speed.preview.glb?v=1.0.0-3bp4",
-  "bytes": 155128,
-  "previewBytes": 78416,
-  "triangles": 29420,
+  "kind": "platform",
+  "url": "/models/platform/head-evo-speed.glb?v=1.0.0-a13s",
+  "previewUrl": "/models/platform/head-evo-speed.preview.glb?v=1.0.0-a13s",
+  "bytes": 467992,
+  "previewBytes": 286836,
+  "triangles": 66008,
   "bbox": {
    "min": [
-    -0.13,
+    -0.1288,
     0,
-    -0.0202
+    -0.019
    ],
    "max": [
-    0.13,
-    0.4566,
-    0.0202
+    0.1288,
+    0.4547,
+    0.019
    ]
   },
-  "version": "1.0.0-3bp4",
-  "generatedAt": "2026-10-06T06:33:48.760Z"
+  "version": "1.0.0-a13s",
+  "generatedAt": "2026-10-08T10:02:10.647Z"
  },
  "bullpadel-xplo-27": {
   "kind": "platform",
@@ -1012,48 +1012,48 @@
   "generatedAt": "2026-10-06T06:34:05.126Z"
  },
  "babolat-technical-viper-soft-3-0-2026": {
-  "kind": "placeholder",
-  "url": "/models/placeholders/babolat-technical-viper-soft-3-0-2026.glb?v=1.0.0-3cy0",
-  "previewUrl": "/models/placeholders/babolat-technical-viper-soft-3-0-2026.preview.glb?v=1.0.0-3cy0",
-  "bytes": 156744,
-  "previewBytes": 76416,
-  "triangles": 26486,
+  "kind": "platform",
+  "url": "/models/platform/babolat-technical-viper-soft-3-0-2026.glb?v=1.0.0-a5tk",
+  "previewUrl": "/models/platform/babolat-technical-viper-soft-3-0-2026.preview.glb?v=1.0.0-a5tk",
+  "bytes": 474104,
+  "previewBytes": 278292,
+  "triangles": 60100,
   "bbox": {
    "min": [
-    -0.1316,
+    -0.1292,
     0,
-    -0.0202
+    -0.019
    ],
    "max": [
-    0.1316,
-    0.4566,
-    0.0202
+    0.1292,
+    0.4547,
+    0.019
    ]
   },
-  "version": "1.0.0-3cy0",
-  "generatedAt": "2026-10-06T06:34:05.222Z"
+  "version": "1.0.0-a5tk",
+  "generatedAt": "2026-10-08T10:04:04.749Z"
  },
  "babolat-technical-veron-3-0-2026": {
-  "kind": "placeholder",
-  "url": "/models/placeholders/babolat-technical-veron-3-0-2026.glb?v=1.0.0-3bgk",
-  "previewUrl": "/models/placeholders/babolat-technical-veron-3-0-2026.preview.glb?v=1.0.0-3bgk",
-  "bytes": 154820,
-  "previewBytes": 75956,
-  "triangles": 26614,
+  "kind": "platform",
+  "url": "/models/platform/babolat-technical-veron-3-0-2026.glb?v=1.0.0-alf0",
+  "previewUrl": "/models/platform/babolat-technical-veron-3-0-2026.preview.glb?v=1.0.0-alf0",
+  "bytes": 494316,
+  "previewBytes": 287272,
+  "triangles": 60142,
   "bbox": {
    "min": [
-    -0.1315,
+    -0.13,
     0,
-    -0.0202
+    -0.019
    ],
    "max": [
-    0.1315,
-    0.4566,
-    0.0202
+    0.13,
+    0.455,
+    0.019
    ]
   },
-  "version": "1.0.0-3bgk",
-  "generatedAt": "2026-10-06T06:34:05.313Z"
+  "version": "1.0.0-alf0",
+  "generatedAt": "2026-10-08T09:47:50.048Z"
  },
  "adidas-metalbone-team-2026": {
   "kind": "platform",
@@ -1188,26 +1188,26 @@
   "generatedAt": "2026-10-06T07:32:31.735Z"
  },
  "kuikma-hybrid-pro-coki-nieto": {
-  "kind": "placeholder",
-  "url": "/models/placeholders/kuikma-hybrid-pro-coki-nieto.glb?v=1.0.0-3fes",
-  "previewUrl": "/models/placeholders/kuikma-hybrid-pro-coki-nieto.preview.glb?v=1.0.0-3fes",
-  "bytes": 159940,
-  "previewBytes": 77188,
-  "triangles": 27514,
+  "kind": "platform",
+  "url": "/models/platform/kuikma-hybrid-pro-coki-nieto.glb?v=1.0.0-9g9w",
+  "previewUrl": "/models/platform/kuikma-hybrid-pro-coki-nieto.preview.glb?v=1.0.0-9g9w",
+  "bytes": 440996,
+  "previewBytes": 251232,
+  "triangles": 55664,
   "bbox": {
    "min": [
-    -0.1316,
+    -0.129,
     0,
-    -0.0202
+    -0.019
    ],
    "max": [
-    0.1316,
-    0.4566,
-    0.0202
+    0.129,
+    0.4525,
+    0.019
    ]
   },
-  "version": "1.0.0-3fes",
-  "generatedAt": "2026-10-06T07:32:34.572Z"
+  "version": "1.0.0-9g9w",
+  "generatedAt": "2026-10-08T10:00:04.741Z"
  },
  "siux-fenix-pro-2026": {
   "kind": "platform",
@@ -1340,5 +1340,27 @@
   },
   "version": "1.0.0-9mso",
   "generatedAt": "2026-10-06T07:41:57.173Z"
+ },
+ "adidas-drive-black-2026": {
+  "kind": "platform",
+  "url": "/models/platform/adidas-drive-black-2026.glb?v=1.0.0-93mk",
+  "previewUrl": "/models/platform/adidas-drive-black-2026.preview.glb?v=1.0.0-93mk",
+  "bytes": 424604,
+  "previewBytes": 243544,
+  "triangles": 50730,
+  "bbox": {
+   "min": [
+    -0.1325,
+    0,
+    -0.019
+   ],
+   "max": [
+    0.1325,
+    0.4549,
+    0.019
+   ]
+  },
+  "version": "1.0.0-93mk",
+  "generatedAt": "2026-10-08T09:44:24.341Z"
  }
 }

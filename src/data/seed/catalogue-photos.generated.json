@@ -557,6 +557,14 @@
   {
    "url": "/images/rackets/wilson-bela-pro-v3/front.webp",
    "view": "front"
+  },
+  {
+   "url": "/images/rackets/wilson-bela-pro-v3/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/wilson-bela-pro-v3/view-c.webp",
+   "view": "other"
   }
  ],
  "head-coello-pro-2026": [
@@ -724,6 +732,190 @@
   },
   {
    "url": "/images/rackets/head-extreme-motion-2026/view-c.webp",
+   "view": "other"
+  }
+ ],
+ "nox-ml10-pro-cup-rough-surface": [
+  {
+   "url": "/images/rackets/nox-ml10-pro-cup-rough-surface/front.webp",
+   "view": "front"
+  },
+  {
+   "url": "/images/rackets/nox-ml10-pro-cup-rough-surface/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/nox-ml10-pro-cup-rough-surface/view-c.webp",
+   "view": "other"
+  }
+ ],
+ "bullpadel-vertex-05": [
+  {
+   "url": "/images/rackets/bullpadel-vertex-05/front.webp",
+   "view": "front"
+  },
+  {
+   "url": "/images/rackets/bullpadel-vertex-05/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/bullpadel-vertex-05/view-c.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/bullpadel-vertex-05/view-d.webp",
+   "view": "other"
+  }
+ ],
+ "bullpadel-neuron-02-2026": [
+  {
+   "url": "/images/rackets/bullpadel-neuron-02-2026/front.webp",
+   "view": "front"
+  },
+  {
+   "url": "/images/rackets/bullpadel-neuron-02-2026/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/bullpadel-neuron-02-2026/view-c.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/bullpadel-neuron-02-2026/view-d.webp",
+   "view": "other"
+  }
+ ],
+ "head-extreme-pro-2025": [
+  {
+   "url": "/images/rackets/head-extreme-pro-2025/front.webp",
+   "view": "front"
+  },
+  {
+   "url": "/images/rackets/head-extreme-pro-2025/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/head-extreme-pro-2025/view-c.webp",
+   "view": "other"
+  }
+ ],
+ "siux-electra-st4-pro": [
+  {
+   "url": "/images/rackets/siux-electra-st4-pro/front.webp",
+   "view": "front"
+  },
+  {
+   "url": "/images/rackets/siux-electra-st4-pro/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/siux-electra-st4-pro/view-c.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/siux-electra-st4-pro/view-d.webp",
+   "view": "other"
+  }
+ ],
+ "starvie-triton-pro-2025": [
+  {
+   "url": "/images/rackets/starvie-triton-pro-2025/front.webp",
+   "view": "front"
+  },
+  {
+   "url": "/images/rackets/starvie-triton-pro-2025/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/starvie-triton-pro-2025/view-c.webp",
+   "view": "other"
+  }
+ ],
+ "head-vibe-2026": [
+  {
+   "url": "/images/rackets/head-vibe-2026/front.webp",
+   "view": "front"
+  },
+  {
+   "url": "/images/rackets/head-vibe-2026/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/head-vibe-2026/view-c.webp",
+   "view": "other"
+  }
+ ],
+ "adidas-drive-black-2026": [
+  {
+   "url": "/images/rackets/adidas-drive-black-2026/front.webp",
+   "view": "front"
+  },
+  {
+   "url": "/images/rackets/adidas-drive-black-2026/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/adidas-drive-black-2026/view-c.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/adidas-drive-black-2026/view-d.webp",
+   "view": "other"
+  }
+ ],
+ "head-evo-speed": [
+  {
+   "url": "/images/rackets/head-evo-speed/front.webp",
+   "view": "front"
+  },
+  {
+   "url": "/images/rackets/head-evo-speed/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/head-evo-speed/view-c.webp",
+   "view": "other"
+  }
+ ],
+ "babolat-technical-viper-soft-3-0-2026": [
+  {
+   "url": "/images/rackets/babolat-technical-viper-soft-3-0-2026/front.webp",
+   "view": "front"
+  },
+  {
+   "url": "/images/rackets/babolat-technical-viper-soft-3-0-2026/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/babolat-technical-viper-soft-3-0-2026/view-c.webp",
+   "view": "other"
+  }
+ ],
+ "babolat-technical-veron-3-0-2026": [
+  {
+   "url": "/images/rackets/babolat-technical-veron-3-0-2026/front.webp",
+   "view": "front"
+  },
+  {
+   "url": "/images/rackets/babolat-technical-veron-3-0-2026/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/babolat-technical-veron-3-0-2026/view-c.webp",
+   "view": "other"
+  }
+ ],
+ "kuikma-hybrid-pro-coki-nieto": [
+  {
+   "url": "/images/rackets/kuikma-hybrid-pro-coki-nieto/front.webp",
+   "view": "front"
+  },
+  {
+   "url": "/images/rackets/kuikma-hybrid-pro-coki-nieto/view-b.webp",
+   "view": "other"
+  },
+  {
+   "url": "/images/rackets/kuikma-hybrid-pro-coki-nieto/view-c.webp",
    "view": "other"
   }
  ]

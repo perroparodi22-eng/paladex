@@ -11,6 +11,8 @@
  *   --rotate <deg>       force a rotation; by default small tilts are measured and removed
  *   --neck-y <px>        override where the frame ends and the handle starts
  *   --face-inset-mm 8.5  width of the frame rim around the face
+ *   --smooth 1           outline smoothing radius in points (raise for noisy edges)
+ *   --mirror-outline right|left  rebuild the outline from one clean half
  *
  * Writes src/data/designs/<slug>.trace.json and a debug overlay in .tmp/.
  * Photo requirements: straight-on front view, racket vertical, transparent
@@ -200,7 +202,22 @@ async function main() {
     else field[i] = near[i] ? A[i] : 0;
   }
   const outerLoops = marchingSquares(field, W, H, 127.5, { x0: minX - 3, y0: top - 3, x1: maxX + 3, y1: neckY + 3 });
-  const outerPx = smoothLoop(simplifyLoop(outerLoops[0], 0.35), 1);
+  // --smooth: heavier smoothing for noisy outlines (pale frames on pale backgrounds); spikes would make the face polygon self-intersect.
+  let outerPx = smoothLoop(simplifyLoop(outerLoops[0], 0.35), Number(arg("smooth", "1")));
+  // --mirror-outline right|left: rebuild the outline from its clean half (photos taken slightly off-axis).
+  const mirrorSide = arg("mirror-outline");
+  if (mirrorSide === "right" || mirrorSide === "left") {
+    const keep = (p: P) => (mirrorSide === "right" ? p[0] >= headAxis : p[0] <= headAxis);
+    const n = outerPx.length;
+    const start = outerPx.findIndex((p, i) => keep(p) && !keep(outerPx[(i - 1 + n) % n]));
+    const arc: P[] = [];
+    for (let k = 0; k < n; k++) {
+      const p = outerPx[(start + k) % n];
+      if (!keep(p)) break;
+      arc.push(p);
+    }
+    outerPx = [...arc, ...arc.slice().reverse().map(([x, y]) => [2 * headAxis - x, y] as P)];
+  }
 
   let throatPx: P[] = [];
   if (throat) {

@@ -6,6 +6,18 @@
  * you also stop regenerating.
  */
 import type { PhotoDesign, RacketTrace } from "./types";
+import t_nox_ml10_pro_cup_rough_surface from "./nox-ml10-pro-cup-rough-surface.trace.json";
+import t_bullpadel_vertex_05 from "./bullpadel-vertex-05.trace.json";
+import t_bullpadel_neuron_02_2026 from "./bullpadel-neuron-02-2026.trace.json";
+import t_head_extreme_pro_2025 from "./head-extreme-pro-2025.trace.json";
+import t_wilson_bela_pro_v3 from "./wilson-bela-pro-v3.trace.json";
+import t_siux_electra_st4_pro from "./siux-electra-st4-pro.trace.json";
+import t_starvie_triton_pro_2025 from "./starvie-triton-pro-2025.trace.json";
+import t_head_vibe_2026 from "./head-vibe-2026.trace.json";
+import t_adidas_drive_black_2026 from "./adidas-drive-black-2026.trace.json";
+import t_head_evo_speed from "./head-evo-speed.trace.json";
+import t_babolat_technical_veron_3_0_2026 from "./babolat-technical-veron-3-0-2026.trace.json";
+import t_babolat_technical_viper_soft_3_0_2026 from "./babolat-technical-viper-soft-3-0-2026.trace.json";
 import t_bullpadel_xplo_27 from "./bullpadel-xplo-27.trace.json";
 import t_bullpadel_xplo_comfort_27 from "./bullpadel-xplo-comfort-27.trace.json";
 import t_bullpadel_wonder_27 from "./bullpadel-wonder-27.trace.json";
@@ -47,6 +59,7 @@ import t_babolat_viper_juan_lebron_3_0_2026 from "./babolat-viper-juan-lebron-3-
 import t_siux_electra_pro_shadow_red_2026 from "./siux-electra-pro-shadow-red-2026.trace.json";
 import t_bullpadel_hack_04_2026 from "./bullpadel-hack-04-2026.trace.json";
 import t_lok_maxx_hype_gen_2_yanguas_2026 from "./lok-maxx-hype-gen-2-yanguas-2026.trace.json";
+import t_kuikma_hybrid_pro_coki_nieto from "./kuikma-hybrid-pro-coki-nieto.trace.json";
 import t_siux_fenix_pro_2026 from "./siux-fenix-pro-2026.trace.json";
 import t_drop_shot_axion_attack_1_5_2025 from "./drop-shot-axion-attack-1-5-2025.trace.json";
 import t_wilson_endure_pro_v1_2026 from "./wilson-endure-pro-v1-2026.trace.json";
@@ -55,6 +68,162 @@ import t_adidas_arrow_hit_pro_edt_2026 from "./adidas-arrow-hit-pro-edt-2026.tra
 import t_head_extreme_motion_2026 from "./head-extreme-motion-2026.trace.json";
 
 export const catalogueDesigns: Record<string, PhotoDesign> = {
+  "nox-ml10-pro-cup-rough-surface": {
+    slug: "nox-ml10-pro-cup-rough-surface",
+    frontImage: "assets/reference/nox-ml10-pro-cup-rough-surface/front.png",
+    trace: t_nox_ml10_pro_cup_rough_surface as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.1923, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#030206", faceEdge: "#020205", core: "#26292e", grip: "#333239", gripDots: "#c9ced3", collar: "#26262b" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.62,
+    mirrorBack: true,
+  },
+  "bullpadel-vertex-05": {
+    slug: "bullpadel-vertex-05",
+    frontImage: "assets/reference/bullpadel-vertex-05/front.png",
+    trace: t_bullpadel_vertex_05 as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.1952, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#d9dad7", faceEdge: "#aeaeac", core: "#26292e", grip: "#0d0e0b", gripDots: "#c9ced3", collar: "#0a0b08" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.72,
+    mirrorBack: true,
+  },
+  "bullpadel-neuron-02-2026": {
+    slug: "bullpadel-neuron-02-2026",
+    frontImage: "assets/reference/bullpadel-neuron-02-2026/front.png",
+    trace: t_bullpadel_neuron_02_2026 as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.1920, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#212224", faceEdge: "#1a1b1d", core: "#26292e", grip: "#222222", gripDots: "#c9ced3", collar: "#1a1a1a" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.68,
+    mirrorBack: true,
+  },
+  "head-extreme-pro-2025": {
+    slug: "head-extreme-pro-2025",
+    frontImage: "assets/reference/head-extreme-pro-2025/front.png",
+    trace: t_head_extreme_pro_2025 as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.2099, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#4d5c69", faceEdge: "#3e4a54", core: "#26292e", grip: "#222321", gripDots: "#c9ced3", collar: "#1a1a19" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.72,
+    mirrorBack: true,
+  },
+  "wilson-bela-pro-v3": {
+    slug: "wilson-bela-pro-v3",
+    frontImage: "assets/reference/wilson-bela-pro-v3/front.png",
+    trace: t_wilson_bela_pro_v3 as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.2109, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#595355", faceEdge: "#474244", core: "#26292e", grip: "#323135", gripDots: "#c9ced3", collar: "#262528" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.67,
+    mirrorBack: true,
+  },
+  "siux-electra-st4-pro": {
+    slug: "siux-electra-st4-pro",
+    frontImage: "assets/reference/siux-electra-st4-pro/front.png",
+    trace: t_siux_electra_st4_pro as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.2068, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#3d3727", faceEdge: "#312c1f", core: "#26292e", grip: "#2d2d30", gripDots: "#c9ced3", collar: "#222224" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.68,
+    mirrorBack: true,
+  },
+  "starvie-triton-pro-2025": {
+    slug: "starvie-triton-pro-2025",
+    frontImage: "assets/reference/starvie-triton-pro-2025/front.png",
+    trace: t_starvie_triton_pro_2025 as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.2046, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#8798a0", faceEdge: "#6c7a80", core: "#26292e", grip: "#322e2d", gripDots: "#c9ced3", collar: "#262322" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.67,
+    mirrorBack: true,
+  },
+  "head-vibe-2026": {
+    slug: "head-vibe-2026",
+    frontImage: "assets/reference/head-vibe-2026/front.png",
+    trace: t_head_vibe_2026 as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.1814, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#81939e", faceEdge: "#67767e", core: "#26292e", grip: "#252523", gripDots: "#c9ced3", collar: "#1c1c1a" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.67,
+    mirrorBack: true,
+  },
+  "adidas-drive-black-2026": {
+    slug: "adidas-drive-black-2026",
+    frontImage: "assets/reference/adidas-drive-black-2026/front.png",
+    trace: t_adidas_drive_black_2026 as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.1960, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#0c0b07", faceEdge: "#0a0906", core: "#26292e", grip: "#edece4", gripDots: "#2a2c30", collar: "#b2b1ab" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.62,
+    mirrorBack: true,
+  },
+  "head-evo-speed": {
+    slug: "head-evo-speed",
+    frontImage: "assets/reference/head-evo-speed/front.png",
+    trace: t_head_evo_speed as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.1919, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#dce0d4", faceEdge: "#b0b3aa", core: "#26292e", grip: "#292b2a", gripDots: "#c9ced3", collar: "#1f2020" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.67,
+    mirrorBack: true,
+  },
+  "babolat-technical-veron-3-0-2026": {
+    slug: "babolat-technical-veron-3-0-2026",
+    frontImage: "assets/reference/babolat-technical-veron-3-0-2026/front.png",
+    trace: t_babolat_technical_veron_3_0_2026 as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.2133, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#2d2535", faceEdge: "#241e2a", core: "#26292e", grip: "#3b3c4f", gripDots: "#c9ced3", collar: "#2c2d3b" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.72,
+    mirrorBack: true,
+  },
+  "babolat-technical-viper-soft-3-0-2026": {
+    slug: "babolat-technical-viper-soft-3-0-2026",
+    frontImage: "assets/reference/babolat-technical-viper-soft-3-0-2026/front.png",
+    trace: t_babolat_technical_viper_soft_3_0_2026 as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.2143, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#3d3243", faceEdge: "#312836", core: "#26292e", grip: "#363947", gripDots: "#c9ced3", collar: "#292b35" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.72,
+    mirrorBack: true,
+  },
   "bullpadel-xplo-27": {
     slug: "bullpadel-xplo-27",
     frontImage: "assets/reference/bullpadel-xplo-27/front.png",
@@ -589,6 +758,19 @@ export const catalogueDesigns: Record<string, PhotoDesign> = {
     sweetSpotV: 0.72,
     mirrorBack: true,
   },
+  "kuikma-hybrid-pro-coki-nieto": {
+    slug: "kuikma-hybrid-pro-coki-nieto",
+    frontImage: "assets/reference/kuikma-hybrid-pro-coki-nieto/front.png",
+    trace: t_kuikma_hybrid_pro_coki_nieto as unknown as RacketTrace,
+    thicknessMm: 38,
+    faceThicknessMm: 34,
+    faceBottom: { centerY: 0.2076, slope: 0.24 },
+    frameBevelSegments: 3,
+    colors: { frame: "#343439", faceEdge: "#2a2a2e", core: "#26292e", grip: "#eeeeee", gripDots: "#2a2c30", collar: "#b3b3b3" },
+    frameRoughness: 0.3,
+    sweetSpotV: 0.68,
+    mirrorBack: true,
+  },
   "siux-fenix-pro-2026": {
     slug: "siux-fenix-pro-2026",
     frontImage: "assets/reference/siux-fenix-pro-2026/front.png",
@@ -671,6 +853,90 @@ export const catalogueDesigns: Record<string, PhotoDesign> = {
 
 /** Poster colours sampled from the photos (used where a drawing stands in for the photo). */
 export const catalogueVisuals: Record<string, { face: string; frame: string; accent: string; accent2: string; grip: string }> = {
+  "nox-ml10-pro-cup-rough-surface": {
+    "face": "#e8aa55",
+    "frame": "#030206",
+    "accent": "#576677",
+    "accent2": "#030304",
+    "grip": "#333239"
+  },
+  "bullpadel-vertex-05": {
+    "face": "#e2e6e7",
+    "frame": "#d9dad7",
+    "accent": "#171817",
+    "accent2": "#b9b7b5",
+    "grip": "#0d0e0b"
+  },
+  "bullpadel-neuron-02-2026": {
+    "face": "#383839",
+    "frame": "#212224",
+    "accent": "#f8f7ea",
+    "accent2": "#070707",
+    "grip": "#222222"
+  },
+  "head-extreme-pro-2025": {
+    "face": "#334754",
+    "frame": "#4d5c69",
+    "accent": "#d6e1be",
+    "accent2": "#04141d",
+    "grip": "#222321"
+  },
+  "wilson-bela-pro-v3": {
+    "face": "#36373a",
+    "frame": "#595355",
+    "accent": "#666769",
+    "accent2": "#b81935",
+    "grip": "#323135"
+  },
+  "siux-electra-st4-pro": {
+    "face": "#393829",
+    "frame": "#3d3727",
+    "accent": "#c9a637",
+    "accent2": "#766739",
+    "grip": "#2d2d30"
+  },
+  "starvie-triton-pro-2025": {
+    "face": "#060606",
+    "frame": "#8798a0",
+    "accent": "#393835",
+    "accent2": "#87989b",
+    "grip": "#322e2d"
+  },
+  "head-vibe-2026": {
+    "face": "#5b747a",
+    "frame": "#81939e",
+    "accent": "#c8d7ab",
+    "accent2": "#2a4a5b",
+    "grip": "#252523"
+  },
+  "adidas-drive-black-2026": {
+    "face": "#282724",
+    "frame": "#0c0b07",
+    "accent": "#e2e3de",
+    "accent2": "#bab9b6",
+    "grip": "#edece4"
+  },
+  "head-evo-speed": {
+    "face": "#b6b8aa",
+    "frame": "#dce0d4",
+    "accent": "#272928",
+    "accent2": "#faf9f9",
+    "grip": "#292b2a"
+  },
+  "babolat-technical-veron-3-0-2026": {
+    "face": "#262838",
+    "frame": "#2d2535",
+    "accent": "#d9dbe3",
+    "accent2": "#575968",
+    "grip": "#3b3c4f"
+  },
+  "babolat-technical-viper-soft-3-0-2026": {
+    "face": "#252737",
+    "frame": "#3d3243",
+    "accent": "#d30115",
+    "accent2": "#f8f9fc",
+    "grip": "#363947"
+  },
   "bullpadel-xplo-27": {
     "face": "#99cac4",
     "frame": "#8ec5c4",
@@ -957,6 +1223,13 @@ export const catalogueVisuals: Record<string, { face: string; frame: string; acc
     "accent": "#696866",
     "accent2": "#98042a",
     "grip": "#2b2f33"
+  },
+  "kuikma-hybrid-pro-coki-nieto": {
+    "face": "#383737",
+    "frame": "#343439",
+    "accent": "#777778",
+    "accent2": "#fefefc",
+    "grip": "#eeeeee"
   },
   "siux-fenix-pro-2026": {
     "face": "#464749",
