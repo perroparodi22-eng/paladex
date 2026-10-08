@@ -3,6 +3,7 @@ import { getRacket } from "@/server/repositories/rackets";
 import { racketSvgDataUri } from "@/lib/racket-svg";
 import { SHAPE_INFO } from "@/domain/vocab";
 import { siteConfig } from "@/config/site";
+import { OG } from "@/lib/og";
 
 export const alt = "Padel racket in 3D";
 export const size = { width: 1200, height: 630 };
@@ -29,31 +30,37 @@ export default async function Image({ params }: { params: Promise<{ slug: string
           width: "100%",
           height: "100%",
           display: "flex",
-          background: "linear-gradient(180deg, #a6b0ea 0%, #efb5b3 42%, #ffd1a6 66%, #ffe2c4 70%, #4d6be3 71%, #2343d6 100%)",
-          color: "#11163a",
+          backgroundColor: OG.ground,
+          backgroundImage: OG.stage("82%"),
+          color: OG.ink,
           padding: 56,
           fontFamily: "sans-serif",
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", flex: 1 }}>
-          <div style={{ display: "flex", fontSize: 26, letterSpacing: 4, textTransform: "", color: "#9ba5b0" }}>{siteConfig.name} · 3D padel racket database</div>
+          <div style={{ display: "flex", fontSize: 26, letterSpacing: 4, color: OG.ink3 }}>{siteConfig.name} · 3D padel racket database</div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ fontSize: 34, color: "#9ba5b0" }}>{brand}</div>
-            <div style={{ fontSize: 96, fontWeight: 800, lineHeight: 0.95, textTransform: "" }}>{name}</div>
+            <div style={{ fontSize: 34, color: OG.ink2 }}>{brand}</div>
+            <div style={{ fontSize: 96, fontWeight: 800, lineHeight: 0.95, letterSpacing: -3 }}>{name}</div>
             <div style={{ display: "flex", gap: 28, marginTop: 28 }}>
               {facts.map(([k, v]) => (
-                <div key={k} style={{ display: "flex", flexDirection: "column", borderTop: "2px solid rgba(238,241,236,0.3)", paddingTop: 10, minWidth: 150 }}>
-                  <div style={{ fontSize: 20, color: "#9ba5b0", textTransform: "", letterSpacing: 2 }}>{k}</div>
+                <div key={k} style={{ display: "flex", flexDirection: "column", borderTop: `2px solid ${OG.rule}`, paddingTop: 10, minWidth: 150 }}>
+                  <div style={{ fontSize: 20, color: OG.ink3, letterSpacing: 2 }}>{k}</div>
                   <div style={{ fontSize: 36, fontWeight: 700 }}>{v}</div>
                 </div>
               ))}
             </div>
           </div>
-          <div style={{ display: "flex", fontSize: 24, color: "#ffffff" }}>Turn it in 3D. Find your match.</div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {r?.evaluation && <div style={{ display: "flex", fontSize: 18, color: OG.ink3, marginBottom: 10 }}>Power and control: Paladex platform scores (sample), not manufacturer data.</div>}
+            <div style={{ display: "flex", fontSize: 24, color: OG.ink2 }}>Turn it in 3D. Find your match.</div>
+          </div>
         </div>
         {src && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} width={300} height={514} alt="" style={{ marginLeft: 40 }} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", marginLeft: 40 }}>
+            <img src={src} width={300} height={514} alt="" />
+            <div style={{ display: "flex", ...OG.shadow, marginTop: -6 }} />
+          </div>
         )}
       </div>
     ),

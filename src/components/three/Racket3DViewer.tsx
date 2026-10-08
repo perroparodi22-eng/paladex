@@ -632,7 +632,10 @@ export function Racket3DViewer({
         className="pointer-events-none absolute inset-x-3 top-3 z-30 flex items-start justify-between gap-2 sm:inset-x-4 sm:top-4 [&_*]:pointer-events-auto"
         style={chromeTop !== undefined ? { top: chromeTop } : undefined}
       >
-        <ProvenanceBadge status={status} />
+        {/* The badge tints are translucent, made for the black stage: back them on the white one. */}
+        <span className={cn("flex rounded-full", lighting === "light" && "bg-surface")}>
+          <ProvenanceBadge status={status} />
+        </span>
         {showChrome && variant !== "compare" && variant !== "hero" && (
           <div className="flex flex-wrap justify-end gap-1.5">
             {hotspots.length > 0 && <ViewerToggle icon="info" label="Details" on={hotspotsOn} onClick={() => setHotspotsOn((x) => !x)} />}
