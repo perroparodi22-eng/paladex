@@ -1,16 +1,12 @@
-// Scene 9, brands: "All the top brands. All in one place."  (no counts: the catalogue grows)
+// Scene 7, brands: "All in one place."  (no counts: the catalogue grows)
 //
-//   "All the top brands"  the site's real brand cards (dpr 2 crops of the /rackets rail) sweep
-//                         past in 3D: a long row whips across on "All" (turning as it passes
-//                         the lens), whips out on "top" as a carousel ring spins in, punches
-//                         on "brands" and keeps turning while the camera pushes. A line of
-//                         real racket models (WebGL) streams behind it all.
-//   "All in one place"    a browser window rises from depth with the real /rackets page; the
-//                         ring unrolls: the seven cards the page's rail shows at scroll 0 fly
-//                         into their exact slots, where a clean plate of the page shows the
-//                         slots empty until each card lands, then hand over to the footage;
-//                         the captured cursor picks Nox on "place" and the grid filters
-//                         (finished rackets only) while the camera keeps pushing in.
+//   "All"       a carousel ring of the site's real brand cards (dpr 2 crops of the /rackets rail)
+//               spins in over a line of real racket models (WebGL) and punches.
+//   "in one place"  a browser window rises from depth with the real /rackets page; the ring
+//               unrolls: the seven cards the rail shows at scroll 0 fly into their exact slots
+//               (a clean plate shows each empty until its card lands), then hand over to the
+//               footage; the captured cursor picks Nox and the grid filters while the camera
+//               keeps pushing in.
 import React from "react";
 import { AbsoluteFill, Easing, Img, interpolate, random, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { Browser3D, CHROME_H, Space3D, type Pose } from "../components/Browser3D";
@@ -162,56 +158,36 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
   const ov = timeline.overlapFrames;
   const END = D + ov;
 
-  // Voice sync: "All the top brands. All in one place."
-  const allAt0 = wordAt(timing, "All", 17);
-  const topAt = wordAt(timing, "top", 47);
-  const brandsAt = wordAt(timing, "brands", 63);
-  const inAt = wordAt(timing, "in", 131);
-  const side1 = wordAt(timing, "side", 62);
-  const side2 = wordAt(timing, "side", 91, 1);
-  const updAt = wordAt(timing, "updated", 180);
-  const everyAt = wordAt(timing, "every", 203);
-  const seasonAt = wordAt(timing, "season", 226);
-  const allAt = inAt - 17;
+  // Voice sync: "All in one place."  (All 16, in 22, one 28, place 36 → 69)
+  const allAt0 = wordAt(timing, "All", 16);
+  const placeAt = wordAt(timing, "place", 36);
 
   const env = enterExit(frame, D, ov);
 
   /* ------------------------------------------------------- landing plan */
   // Cards land left to right a beat apart; each hands over to the footage right after.
-  const FLIGHT = 32;
-  const landAt = (j: number) => allAt + 33 + j * 2.4;
+  const FLIGHT = 20;
+  const landAt = (j: number) => placeAt + 2 + j * 2.4;
   const flyAt = (j: number) => landAt(j) - FLIGHT;
   const HAND = 10; // frames for a landed card to dissolve into the footage
-  const release = flyAt(0);
+  const release = Math.max(flyAt(0), 12);
 
   /* ------------------------------------------------------------- the wall */
   // A fast dolly along the line (decelerating), then a crane up and back.
   const track = interpolate(frame, [0, release], [0, 1], { ...clamp, easing: Easing.bezier(0.2, 0.5, 0.3, 1) });
-  const crane = interpolate(frame, [topAt - 12, release], [0, 1], { ...clamp, easing: easeInOut });
+  const crane = interpolate(frame, [2, release], [0, 1], { ...clamp, easing: easeInOut });
   const camX = mix(0.4, -2.75, track) - interpolate(frame, [release, END], [0, 0.3], clamp);
   const camY = mix(0.08, 1.1, crane) + drift("br-cy", frame, 0.01, 0.1);
   const camZ = mix(1.55, 2.9, crane);
   const look = mix(3.75, 5, crane);
   const camTarget: V3 = [camX - look, mix(0, 0.2, crane), 0];
   const wallIn = interpolate(frame, [0, 8], [0, 1], { ...clamp, easing: easeOut });
-  const wallDim = interpolate(frame, [0, topAt, brandsAt + 20, release + 6, release + 26], [0.9, 0.7, 0.55, 0.3, 0], clamp);
-  const wallBlur = interpolate(frame, [topAt - 10, brandsAt + 10], [0, 4], clamp);
+  const wallDim = interpolate(frame, [0, allAt0, release + 6, release + 26], [0.9, 0.7, 0.3, 0], clamp);
+  const wallBlur = interpolate(frame, [allAt0 - 8, release], [0, 3], clamp);
   const wallOn = frame < release + 28;
 
-  /* ------------------------------------------------------------ brand rows */
-  // Three rows of the real brand cards sweep across and turn as they pass the lens.
-  const ROW_SCALE = 1.9;
-  const ROW_STEP = 158 * ROW_SCALE + 64;
-  const t1 = topAt - 8;
-  const rowBase =
-    frame < t1 ? mix(1500, -300, rowEase(clamp01(frame / t1))) : mix(-300, -4600, whipEase(clamp01((frame - t1) / 13)));
-  // Rows are fully gone before the ring appears (no double exposure).
-  const rowsOn = frame < t1 + 14;
-  const rowFade = 1;
-  const rowPunch = punch(frame, allAt0, 7);
-
   /* --------------------------------------------------------------- window */
-  const MOVE = 30; // scene frames for clip frames MOVE_FROM → CLICK_FRAME
+  const MOVE = 24; // scene frames for clip frames MOVE_FROM → CLICK_FRAME
   const moveStart = landAt(2) + HAND - 2 - ((HOVER_FRAME - MOVE_FROM) * MOVE) / (CLICK_FRAME - MOVE_FROM);
   const clickAt = moveStart + MOVE;
   const flyStart = release - 8;
@@ -222,11 +198,11 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
     const p = mixPose(WIN_FAR, WIN_REST, fly);
     return {
       ...p,
-      x: p.x + hand("x", 3) + interpolate(frame, [settle, END], [0, -16], clamp),
+      x: p.x + hand("x", 3) + interpolate(frame, [settle, END], [0, -40], clamp),
       y: p.y + hand("y", 2.5),
       // After the settle the camera keeps pushing in on the rail and the click (never stops).
-      z: p.z + interpolate(frame, [settle, END], [0, 200], { ...clamp, easing: pushEase }) + 140 * interpolate(frame, [clickAt, clickAt + 14], [0, 1], { ...clamp, easing: easeOut }),
-      rotateY: p.rotateY + hand("ry", 0.35) + interpolate(frame, [settle, END], [0, 3], clamp),
+      z: p.z + interpolate(frame, [settle, END], [0, 380], { ...clamp, easing: pushEase }) + 140 * interpolate(frame, [clickAt, clickAt + 14], [0, 1], { ...clamp, easing: easeOut }),
+      rotateY: p.rotateY + hand("ry", 0.35) + interpolate(frame, [settle, END], [0, 6], clamp),
       rotateX: p.rotateX + hand("rx", 0.25),
     };
   })();
@@ -247,15 +223,15 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
   const curOpacity = interpolate(frame, [moveStart - 14, moveStart], [0, 1], { ...clamp, easing: easeOut });
 
   /* ---------------------------------------------------------------- ring */
-  const RING_FROM = t1 + 12;
-  const ringIn = interpolate(frame, [RING_FROM, RING_FROM + 26], [0, 1], { ...clamp, easing: easeOut });
-  const ringOp = interpolate(frame, [RING_FROM, RING_FROM + 8], [0, 1], clamp);
+  const RING_FROM = 0;
+  const ringIn = interpolate(frame, [RING_FROM, RING_FROM + 14], [0, 1], { ...clamp, easing: easeOut });
+  const ringOp = interpolate(frame, [RING_FROM, RING_FROM + 5], [0, 1], clamp);
   const ringF = Math.min(frame, release);
   // Spins in fast and glides to rest at the release; then keeps a slow turn while it unrolls.
-  const spin = interpolate(ringF, [RING_FROM, release], [330, 0], { ...clamp, easing: spinEase }) - Math.max(0, frame - release) * 0.12;
-  const bPunch = Math.max(punch(frame, brandsAt, 6), 0.7 * punch(frame, side1, 6), 0.7 * punch(frame, side2, 6));
-  const ringTilt = RING.tilt + interpolate(frame, [brandsAt + 14, release], [0, 9], { ...clamp, easing: easeInOut });
-  const ringScale = RING.s * (1 + 0.1 * bPunch) * mix(1, 1.08, interpolate(frame, [brandsAt, release], [0, 1], clamp));
+  const spin = interpolate(ringF, [RING_FROM, release], [170, 0], { ...clamp, easing: spinEase }) - Math.max(0, frame - release) * 0.12;
+  const bPunch = punch(frame, allAt0, 6);
+  const ringTilt = RING.tilt + interpolate(frame, [allAt0, release + 10], [0, 9], { ...clamp, easing: easeInOut });
+  const ringScale = RING.s * (1 + 0.1 * bPunch) * mix(1, 1.08, interpolate(frame, [allAt0, release + 10], [0, 1], clamp));
   const ringC = {
     x: RING.x + (1 - ringIn) * 1500,
     y: RING.y + (1 - ringIn) * -80,
@@ -296,12 +272,6 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
     );
   };
 
-  const ROWS = [
-    { y: -30, s: ROW_SCALE, dir: 1, off: 0, z: 0, op: 1 },
-    { y: -400, s: 1.25, dir: -1, off: 1.5, z: -520, op: 0.6 },
-    { y: 330, s: 1.25, dir: -1, off: 4.5, z: -520, op: 0.6 },
-  ];
-
   return (
     <AbsoluteFill style={{ opacity: env.opacity, scale: env.scale, filter: env.blur > 0.01 ? `blur(${env.blur}px)` : undefined }}>
       {/* The line of rackets (WebGL), behind everything. */}
@@ -317,27 +287,6 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
         </AbsoluteFill>
       )}
 
-      {/* "All the top brands": rows of real brand cards whipping across, turning in 3D. */}
-      {rowsOn && (
-        <AbsoluteFill>
-          <Space3D perspective={PERSP} originY={50}>
-            {ROWS.map((row, r) => {
-              const step = ROW_STEP * (row.s / ROW_SCALE);
-              const base = row.dir * rowBase * (r === 0 ? 1 : 0.7);
-              return TILES.map((slug, j) => {
-                const x = base + (j - 5.5 + row.off) * step;
-                const ry = -clamp11(x / 1500) * 62;
-                const z = row.z - Math.abs(x) * 0.28 + (r === 0 ? rowPunch * 90 : 0);
-                const op = rowFade * row.op * interpolate(Math.abs(x), [1500, 2100], [1, 0], clamp);
-                if (op < 0.01) return null;
-                const pose: P7 = { x, y: row.y + Math.sin(frame * 0.05 + j) * 6, z, rx: 6, ry, rz: 0, s: row.s * (1 + 0.06 * rowPunch) };
-                return card(slug, `r${r}-${slug}`, pose, op);
-              });
-            })}
-          </Space3D>
-        </AbsoluteFill>
-      )}
-
       {/* The browser window with the real /rackets page. */}
       {winOn && (
         <AbsoluteFill style={{ filter: winBlur > 0.05 ? `blur(${winBlur}px)` : undefined }}>
@@ -350,10 +299,6 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
                 if (!m || frame >= landAt(j)) return null;
                 return <PlateSlot key={slug} box={m} railRight={RAIL_BOX.x + RAIL_BOX.w} />;
               })}
-              {/* "updated every season": the site's own "New" badges on the fresh rackets light up in turn. */}
-              {[updAt, everyAt, seasonAt].map((at, k) => (
-                <SeasonTag key={k} frame={frame} at={at} x={601 + k * 355 + 238} y={840} />
-              ))}
               {cur && curOpacity > 0.001 && <Cursor x={cur.x} y={cur.y} down={cur.down} frame={clipF} clicks={[CLICK_FRAME]} opacity={curOpacity} />}
             </Browser3D>
           </Space3D>
@@ -407,10 +352,7 @@ export const Brands: React.FC<SceneProps> = ({ timing, timeline }) => {
       )}
 
       <Sfx name="whoosh" at={2} volume={0.5} />
-      <Sfx name="impact" at={allAt0} volume={0.55} />
-      <Sfx name="swipe" at={topAt - 8} volume={0.6} />
-      <Sfx name="impact" at={brandsAt} volume={0.8} />
-      <Sfx name="swipe" at={brandsAt + 20} volume={0.4} />
+      <Sfx name="impact" at={allAt0} volume={0.6} />
       <Sfx name="whoosh" at={flyStart} volume={0.55} />
       {Array.from({ length: ON_RAIL }, (_, j) => (
         <Sfx key={j} name={j % 2 ? "tick" : "pop"} at={Math.round(landAt(j))} volume={j === 0 ? 0.5 : 0.3} />
@@ -441,38 +383,6 @@ const PlateSlot: React.FC<{ box: { x: number; y: number; w: number; h: number };
   return (
     <div style={{ position: "absolute", left: x, top: y, width: w, height: h, overflow: "hidden" }}>
       <Img src={staticFile(PLATE.file)} style={{ position: "absolute", left: -x, top: -y, width: PLATE.width, height: PLATE.height, display: "block" }} />
-    </div>
-  );
-};
-
-
-/** A "New 2026" pill that pops over a card's "New" badge, with a ring that pulses outward. */
-const SeasonTag: React.FC<{ frame: number; at: number; x: number; y: number }> = ({ frame, at, x, y }) => {
-  const t = interpolate(frame, [at - 4, at + 10], [0, 1], { ...clamp, easing: Easing.bezier(0.2, 1.4, 0.3, 1) });
-  if (t <= 0) return null;
-  const ring = interpolate(frame, [at, at + 26], [0, 1], clamp);
-  const glow = 0.5 + 0.5 * Math.sin((frame - at) * 0.12);
-  return (
-    <div style={{ position: "absolute", left: x, top: y, width: 96, height: 40, scale: String(t), transformOrigin: "100% 0%" }}>
-      <div style={{ position: "absolute", inset: -ring * 22, borderRadius: 999, border: "2px solid rgba(255,255,255,0.8)", opacity: (1 - ring) * 0.9 }} />
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          borderRadius: 999,
-          background: C.court,
-          color: C.onCourt,
-          fontFamily: FONT,
-          fontWeight: 620,
-          fontSize: 19,
-          display: "grid",
-          placeItems: "center",
-          whiteSpace: "nowrap",
-          boxShadow: `0 0 ${14 + 12 * glow}px rgba(255,255,255,0.35), 0 6px 18px rgba(0,0,0,0.5)`,
-        }}
-      >
-        New 2026
-      </div>
     </div>
   );
 };
