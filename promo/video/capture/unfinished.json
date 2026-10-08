@@ -1,0 +1,35 @@
+{
+ "note": "Rackets without a finished 3D design (placeholder or missing model, not 'platform' traced models). Never show them in the ad; capture scripts hide them with hideUnfinished(). Regenerate from the site database if the catalogue changes.",
+ "slugs": [
+  "adidas-drive-black-2026",
+  "babolat-technical-veron-3-0-2026",
+  "babolat-technical-viper-soft-3-0-2026",
+  "black-crown-piton-5",
+  "bullpadel-neuron-02-2026",
+  "bullpadel-vertex-05",
+  "head-evo-speed",
+  "head-extreme-pro-2025",
+  "head-vibe-2026",
+  "kuikma-hybrid-pro-coki-nieto",
+  "nox-ml10-pro-cup-rough-surface",
+  "siux-electra-st4-pro",
+  "starvie-triton-pro-2025",
+  "wilson-bela-pro-v3"
+ ],
+ "names": [
+  "Drive Black",
+  "Technical Veron 3.0",
+  "Technical Viper Soft 3.0",
+  "Piton 5.0",
+  "Neuron 02",
+  "Vertex 05",
+  "Evo Speed",
+  "Extreme Pro",
+  "Vibe",
+  "Hybrid Pro Coki Nieto",
+  "ML10 Pro Cup Rough Surface",
+  "Electra ST4 Pro",
+  "Triton Pro",
+  "Bela Pro V3"
+ ]
+}

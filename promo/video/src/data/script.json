@@ -1,0 +1,136 @@
+{
+ "fps": 60,
+ "bpm": 120,
+ "overlapFrames": 18,
+ "scenes": [
+  {
+   "id": "cold-open",
+   "seconds": 3,
+   "voAt": 0.25,
+   "tail": 0.3
+  },
+  {
+   "id": "problem",
+   "seconds": 3,
+   "voAt": 0.15,
+   "tail": 0.3
+  },
+  {
+   "id": "reveal",
+   "seconds": 3,
+   "voAt": 0.25,
+   "tail": 0.3
+  },
+  {
+   "id": "turn",
+   "seconds": 3,
+   "voAt": 0.25,
+   "tail": 0.35
+  },
+  {
+   "id": "specs",
+   "seconds": 3,
+   "voAt": 0.2,
+   "tail": 0.25
+  },
+  {
+   "id": "finder",
+   "seconds": 3,
+   "voAt": 0.2,
+   "tail": 0.35
+  },
+  {
+   "id": "brands",
+   "seconds": 2.5,
+   "voAt": 0.2,
+   "tail": 0.35
+  },
+  {
+   "id": "endcard",
+   "seconds": 3,
+   "voAt": 0.3,
+   "tail": 1.2
+  }
+ ],
+ "langs": {
+  "en": {
+   "voice": "takes:v1",
+   "lines": {
+    "cold-open": [
+     {
+      "text": "You're about to spend two hundred euros on a padel racket..."
+     }
+    ],
+    "problem": [
+     {
+      "text": "based on one flat photo,"
+     },
+     {
+      "text": "and a spec sheet nobody explains."
+     }
+    ],
+    "reveal": [
+     {
+      "text": "Meet Paladex."
+     },
+     {
+      "text": "Every padel racket, in 3D."
+     }
+    ],
+    "turn": [
+     {
+      "text": "Pick any racket and turn it in your hand."
+     },
+     {
+      "text": "Front."
+     },
+     {
+      "text": "Side."
+     },
+     {
+      "text": "Back."
+     },
+     {
+      "text": "Every detail, up close."
+     }
+    ],
+    "specs": [
+     {
+      "text": "Every spec is translated into what it actually means for your game."
+     }
+    ],
+    "finder": [
+     {
+      "text": "Not sure where to start?"
+     },
+     {
+      "text": "Answer a few quick questions,"
+     },
+     {
+      "text": "and see the rackets that fit how you really play."
+     }
+    ],
+    "brands": [
+     {
+      "text": "All in one place."
+     }
+    ],
+    "endcard": [
+     {
+      "text": "Paladex."
+     },
+     {
+      "text": "See it from every side, before you buy it."
+     }
+    ]
+   },
+   "note": "v3 short cut: the v1 narrator (Andrew) from recorded takes in audio/takes-v1, built by audio/make_vo_takes.py (6% slower, pauses inside a line capped at 0.3 s). Lines below are the caption text of those takes. make_vo.py is the synthesis path used by v2/v2.1.",
+   "takes": {
+    "brands": {
+     "fromWord": "All"
+    }
+   }
+  }
+ },
+ "quantumBeats": 1
+}
