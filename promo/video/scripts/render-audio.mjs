@@ -1,7 +1,7 @@
 // Render only the soundtrack (voice, ducked music, SFX) of the full ad to a WAV file.
 // The CLI can't do this with remotion.config.ts (its video settings, like CRF, are
 // rejected for audio codecs), so it goes through the renderer API.
-//   node scripts/render-audio.mjs [out/audio.wav]
+//   [VO_OFFSET=12] node scripts/render-audio.mjs [out/audio.wav]
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { rmSync } from "node:fs";
@@ -17,7 +17,8 @@ const chromiumOptions = { gl: win ? "angle" : "swangle" };
 const serveUrl = await bundle({ entryPoint: join(root, "src/index.ts"), rootDir: root, publicDir: join(root, "public") });
 try {
   // audioOnly: the 3D layers render nothing (sound never depends on them), so this is fast.
-  const inputProps = { audioOnly: true };
+  // VO_OFFSET=<frames> shifts only the narrator (+ = later) to fine-tune lip-sync feel against the picture.
+  const inputProps = { audioOnly: true, voOffset: Number(process.env.VO_OFFSET ?? 0) };
   const composition = await selectComposition({ serveUrl, id: "PaladexLaunch", inputProps, browserExecutable, chromiumOptions });
   await renderMedia({ composition, serveUrl, codec: "wav", outputLocation: output, inputProps, browserExecutable, chromiumOptions });
   console.log(`audio -> ${output}`);

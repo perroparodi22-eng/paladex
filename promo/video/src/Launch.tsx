@@ -2,7 +2,7 @@
 // scene, a music bed ducked under the voice, sound effects and subtitles.
 import { Audio } from "@remotion/media";
 import React from "react";
-import { AbsoluteFill, Sequence, interpolate, staticFile, useVideoConfig } from "remotion";
+import { AbsoluteFill, Sequence, getInputProps, interpolate, staticFile, useVideoConfig } from "remotion";
 import { Backdrop } from "./components/Backdrop";
 import { isAudioOnly } from "./components/Racket3D";
 import { Captions } from "./components/Captions";
@@ -42,14 +42,18 @@ export type LaunchProps = {
   music: boolean;
 };
 
+/** Frames to shift the narrator against the picture (+ = later); music and SFX stay on the visual hits.
+ *  Set per render with the `voOffset` input prop (scripts/render-audio.mjs reads VO_OFFSET). */
+const voOffset = () => Number((getInputProps() as { voOffset?: number }).voOffset ?? 0);
+
 /** Music volume: full between lines, ducked under the voice. */
 const musicVolume = (t: Timeline, f: number) => {
   const BASE = 0.62;
   const DUCK = 0.24;
   let v = BASE;
   for (const s of t.scenes) {
-    const a = s.vo.at;
-    const b = s.vo.speechEnd;
+    const a = s.vo.at + voOffset();
+    const b = s.vo.speechEnd + voOffset();
     const d = interpolate(f, [a - 10, a, b, b + 14], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
     v = Math.min(v, BASE - (BASE - DUCK) * d);
   }
@@ -83,7 +87,7 @@ export const Launch: React.FC<LaunchProps> = ({ lang, subtitles, music }) => {
       </AbsoluteFill>
 
       {t.scenes.map((sc) => (
-        <Audio key={sc.id} name={`Voice: ${sc.id}`} src={staticFile(sc.vo.file)} from={sc.vo.at} premountFor={fps} volume={1} />
+        <Audio key={sc.id} name={`Voice: ${sc.id}`} src={staticFile(sc.vo.file)} from={sc.vo.at + voOffset()} premountFor={fps} volume={1} />
       ))}
       {music && <Audio name="Music" src={staticFile(`audio/music.${lang}.wav`)} premountFor={fps} volume={(f) => musicVolume(t, f)} />}
     </AbsoluteFill>
