@@ -1,22 +1,8 @@
-// Scene 1, cold open: "Two hundred euros. Maybe more. For one padel racket."
+// Scene 1, cold open: "You're about to spend two hundred euros on a padel racket..."
 //
-// A rhythmic montage of real, finished racket models (one WebGL stage; each shot is
-// a pure function in cold-open/shots.ts and a cut is the next shot taking over).
-// Beats (scene-local frames, all derived from the voice):
-//   0        macro: the camera slides across a racket face as a strip light glints
-//   flash1   whip: a racket swings through frame (motion blur), others cross behind
-//   flash2   macro: a frame edge turns toward the lens
-//   Two      SLAM: "€200" hits huge over a row of rackets the camera snaps along
-//   euros    cut: a ring of rackets wheels past a low camera (price punches)
-//   mid1     cut: macro up a racket face
-//   Maybe    the price rolls up to €250; a whole wall of rackets, camera trucks
-//   more     €300; a line of rackets flips over one after another
-//   mid2     the camera flies forward down a corridor of rackets
-//   For      the price whips away; the hero spins in from deep in the dark…
-//   racket   …and lands centre (impact, glint) and keeps pushing in and turning
-//   Would    …the question lands: the hero starts to lose focus and light
-//   buy it   a blindfold band wipes across the racket
-//   blind    the band closes in over the blurred hero with a "?"; then the house exit.
+// A fast montage of finished racket models (one WebGL stage; each shot is a pure
+// function in cold-open/shots.ts). The price odometer lands on €200 on "two hundred
+// euros"; the hero spins in during "euros" and lands on "padel", then keeps pushing in.
 import React, { useMemo } from "react";
 import { AbsoluteFill, Easing, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { RacketModel } from "../components/Racket3D";
@@ -25,7 +11,6 @@ import { clamp, drift, enterExit, mix } from "../lib/motion";
 import { ColdStage, type LightRig } from "./cold-open/ColdStage";
 import { Price } from "./cold-open/Price";
 import { buildShots, cuts, ramp, shotAt } from "./cold-open/shots";
-import { C, display } from "../theme";
 import type { SceneProps } from "./types";
 
 const hit = Easing.bezier(0.1, 0.85, 0.2, 1);
@@ -63,7 +48,7 @@ export const ColdOpen: React.FC<SceneProps> = ({ timing, timeline }) => {
 
   // ---------- Light rig: the site's studio, rims pushed so black frames read on black ----------
   const az = Math.atan2(S.cam.position[0] - S.cam.target[0], S.cam.position[2] - S.cam.target[2]);
-  const land = pulse(frame, T.racket, 26);
+  const land = pulse(frame, T.land, 26);
   const rig: LightRig = {
     rim: 1.6 + 0.8 * land,
     rimEnv: 1.25,
@@ -77,28 +62,18 @@ export const ColdOpen: React.FC<SceneProps> = ({ timing, timeline }) => {
     exposure: 1.08 + 0.25 * land,
   };
 
-  // ---------- "Would you buy it blind?" ----------
-  const wouldF = T.would;
-  const buyF = T.buy;
-  const blindF = T.blind;
-  const fade = ramp(frame, buyF - 6, blindF + 6, Easing.bezier(0.4, 0, 0.3, 1));
-  const band = ramp(frame, buyF - 2, T.it + 6, Easing.bezier(0.2, 0.8, 0.2, 1));
-  const bandClose = ramp(frame, blindF - 2, blindF + 12, Easing.bezier(0.1, 0.8, 0.2, 1));
-  const qMark = ramp(frame, blindF - 1, blindF + 14, Easing.bezier(0.1, 0.9, 0.2, 1));
-  const blindBlur = 7 * fade;
-
   // ---------- Price ----------
   const slam = ramp(frame, T.two, T.two + 8, hit);
   const priceIn = interpolate(frame, [T.two - 1, T.two + 2], [0, 1], clamp);
-  const priceOut = ramp(frame, T.forW - 2, T.forW + 9, Easing.bezier(0.6, 0, 0.9, 0.5));
-  const bump = 0.05 * pulse(frame, T.hundred, 10) + 0.06 * pulse(frame, T.euros, 12) + 0.07 * pulse(frame, T.maybe, 12) + 0.08 * pulse(frame, T.more, 12);
-  const priceScale = mix(1.9, 1, slam) * (1 + bump) * mix(1, 1.07, ramp(frame, T.two, T.forW, Easing.linear));
+  const priceOut = ramp(frame, T.forW + 2, T.forW + 13, Easing.bezier(0.6, 0, 0.9, 0.5));
+  const bump = 0.05 * pulse(frame, T.hundred, 10) + 0.06 * pulse(frame, T.euros, 12);
+  const priceScale = mix(1.9, 1, slam) * (1 + bump) * mix(1, 1.07, ramp(frame, T.two, T.forW + 13, Easing.linear));
   const shake = 10 * pulse(frame, T.two, 12);
   const showPrice = frame >= T.two - 1 && priceOut < 1;
 
   // Flashes: the slam, the flicks, the landing.
-  const flash = 0.55 * pulse(frame, T.two, 14) + 0.16 * pulse(frame, T.maybe, 8) + 0.2 * pulse(frame, T.more, 8) + 0.38 * pulse(frame, T.racket, 18);
-  const streak = Math.max(pulse(frame, T.two, 20), 0.8 * pulse(frame, T.racket, 24));
+  const flash = 0.55 * pulse(frame, T.two, 14) + 0.38 * pulse(frame, T.land, 18);
+  const streak = Math.max(pulse(frame, T.two, 20), 0.8 * pulse(frame, T.land, 24));
 
   // The light pool behind the rackets lifts the black, moving with the shot.
   const poolA = 0.12 * S.pool.a * (1 + 0.6 * land);
@@ -127,7 +102,7 @@ export const ColdOpen: React.FC<SceneProps> = ({ timing, timeline }) => {
       <AbsoluteFill
         style={{
           scale: 1 + 0.045 * punch,
-          filter: [bx + by > 0.4 ? "url(#co-mb)" : "", fade > 0.01 ? `blur(${blindBlur.toFixed(2)}px) brightness(${mix(1, 0.8, fade).toFixed(3)})` : ""].filter(Boolean).join(" ") || undefined,
+          filter: bx + by > 0.4 ? "url(#co-mb)" : undefined,
         }}
       >
         <ColdStage width={width} height={height} camera={S.cam} rig={rig} fog={S.fog}>
@@ -145,7 +120,7 @@ export const ColdOpen: React.FC<SceneProps> = ({ timing, timeline }) => {
               position: "absolute",
               left: 0,
               right: 0,
-              top: frame >= T.racket ? height * 0.43 : height * 0.5,
+              top: frame >= T.land ? height * 0.43 : height * 0.5,
               height: 3,
               background: "linear-gradient(90deg, rgba(236,238,241,0) 0%, rgba(236,238,241,0.7) 50%, rgba(236,238,241,0) 100%)",
               opacity: streak,
@@ -180,47 +155,11 @@ export const ColdOpen: React.FC<SceneProps> = ({ timing, timeline }) => {
             <Price
               frame={frame}
               size={430}
-              hundreds={[[T.more, "3"]]}
-              tens={[
-                [T.maybe, "5"],
-                [T.more, "0"],
-              ]}
+              firstHundreds="1"
+              firstTens="5"
+              hundreds={[[T.two, "2"]]}
+              tens={[[T.hundred, "0"]]}
             />
-            </div>
-          </div>
-        </AbsoluteFill>
-      )}
-
-      {/* The blindfold: a dark band wipes across the racket on "buy it", then closes in on "blind". */}
-      {band > 0.001 && (
-        <AbsoluteFill style={{ pointerEvents: "none", alignItems: "center", justifyContent: "center" }}>
-          <div
-            style={{
-              width: width * 1.25,
-              height: height * mix(0.15, 0.22, bandClose),
-              rotate: `${-3.5 + drift("co-bd", frame, 0.5, 0.08)}deg`,
-              translate: `${mix(-width * 1.3, 0, band) + drift("co-bx", frame, 14, 0.07)}px ${-height * 0.04 + drift("co-by", frame, 8, 0.09)}px`,
-              background: "linear-gradient(180deg, rgba(4,5,6,0) 0%, rgba(4,5,6,0.88) 14%, rgba(5,6,7,0.92) 50%, rgba(4,5,6,0.88) 86%, rgba(4,5,6,0) 100%)",
-              boxShadow: "0 0 60px 20px rgba(4,5,6,0.4)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <div
-              style={{
-                ...display,
-                fontSize: height * 0.26,
-                lineHeight: 1,
-                color: C.ink,
-                opacity: qMark,
-                scale: mix(1.5, 1, qMark),
-                filter: `blur(${((1 - qMark) * 18).toFixed(1)}px)`,
-                translate: `0px ${drift("co-qy", frame, 6, 0.1)}px`,
-                textShadow: "0 0 60px rgba(236,238,241,0.35)",
-              }}
-            >
-              ?
             </div>
           </div>
         </AbsoluteFill>
@@ -236,20 +175,10 @@ export const ColdOpen: React.FC<SceneProps> = ({ timing, timeline }) => {
       <Sfx name="impact" at={T.two} volume={0.9} />
       <Sfx name="whoosh" at={T.two - 3} volume={0.5} />
       <Sfx name="tick" at={T.hundred} volume={0.4} />
-      <Sfx name="swipe" at={T.euros - 2} volume={0.55} />
-      <Sfx name="whoosh-soft" at={T.mid1 - 2} volume={0.45} />
-      <Sfx name="pop" at={T.maybe} volume={0.6} />
-      <Sfx name="tick" at={T.maybe + 2} volume={0.5} />
-      <Sfx name="swipe" at={T.maybe - 2} volume={0.5} />
-      <Sfx name="pop" at={T.more} volume={0.7} />
-      <Sfx name="tick" at={T.more + 2} volume={0.55} />
-      <Sfx name="whoosh" at={T.mid2 - 4} volume={0.6} />
-      <Sfx name="swipe" at={T.forW - 3} volume={0.65} />
-      <Sfx name="riser" at={T.racket - 2 * fps} volume={0.3} />
-      <Sfx name="impact" at={T.racket} volume={0.8} />
-      <Sfx name="shimmer" at={T.racket + 2} volume={0.5} />
-      <Sfx name="swipe" at={T.buy - 2} volume={0.55} />
-      <Sfx name="impact" at={T.blind} volume={0.7} />
+            <Sfx name="swipe" at={T.forW - 3} volume={0.65} />
+      <Sfx name="riser" at={T.land - 40} volume={0.3} />
+      <Sfx name="impact" at={T.land} volume={0.8} />
+      <Sfx name="shimmer" at={T.land + 2} volume={0.5} />
       <Sfx name="whoosh" at={dur - 10} volume={0.5} />
     </AbsoluteFill>
   );

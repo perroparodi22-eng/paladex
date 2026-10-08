@@ -38,12 +38,14 @@ export const Price: React.FC<{
   /** Hundreds and tens digit changes. */
   hundreds: readonly (readonly [number, string])[];
   tens: readonly (readonly [number, string])[];
+  firstHundreds?: string;
+  firstTens?: string;
   style?: React.CSSProperties;
-}> = ({ frame, size, hundreds, tens, style }) => (
+}> = ({ frame, size, hundreds, tens, firstHundreds = "2", firstTens = "0", style }) => (
   <div style={{ ...display, display: "flex", alignItems: "flex-start", fontSize: size, lineHeight: 1, color: C.ink, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", ...style }}>
     <span style={{ fontSize: size * 0.44, marginTop: size * 0.1, marginRight: size * 0.04, color: C.ink2 }}>€</span>
-    <Digit frame={frame} first="2" steps={hundreds} size={size} dur={10} />
-    <Digit frame={frame} first="0" steps={tens} size={size} dur={10} />
+    <Digit frame={frame} first={firstHundreds} steps={hundreds} size={size} dur={10} />
+    <Digit frame={frame} first={firstTens} steps={tens} size={size} dur={10} />
     <span>0</span>
   </div>
 );
