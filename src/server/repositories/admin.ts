@@ -8,7 +8,7 @@ import { and, desc, eq, inArray, like, ne, notInArray, or, sql } from "drizzle-o
 import { getDb, schema } from "@/server/db";
 import type { RacketInput } from "@/server/validation/admin";
 import { modelDefaults } from "@/lib/model-defaults";
-import { isPlaceholderLink } from "@/lib/urls";
+import { hostMatches, isPlaceholderLink } from "@/lib/urls";
 import { siteConfig } from "@/config/site";
 import { photoDesigns } from "@/data/designs";
 import generatedModels from "@/data/models.generated.json";
@@ -63,7 +63,7 @@ export async function adminOptions() {
 const DEFAULT_VISUAL: RacketVisual = {
   face: "#1b232d",
   frame: "#0e1116",
-  accent: "#2343d6",
+  accent: "#8f9bb3",
   accent2: "#f3f4f9",
   grip: "#111214",
   pattern: "sweep",
@@ -352,7 +352,14 @@ function firstDuplicate<T>(items: T[], key: (t: T) => string | number): string |
   return null;
 }
 
-export async function adminSaveRacket(input: RacketInput): Promise<{ id: number; slug: string; previousSlug: string | null }> {
+/**
+ * Saves a racket. Returns the offers' ids by retailer (one offer per retailer)
+ * so the editor can adopt the ids of offers it just created: otherwise the next
+ * save would recreate them and break /go/<id> links already on pages.
+ */
+export async function adminSaveRacket(
+  input: RacketInput,
+): Promise<{ id: number; slug: string; previousSlug: string | null; offerIds: Record<number, number> }> {
   const db = await getDb();
   const b = input.basics;
 
@@ -370,6 +377,20 @@ export async function adminSaveRacket(input: RacketInput): Promise<{ id: number;
   const dupOverlay = firstDuplicate(input.overlays, (o) => o.kind);
   if (dupOverlay !== null) throw new SaveError(`The "${dupOverlay}" overlay is listed twice.`);
   if (firstDuplicate(input.offers, (o) => o.retailerId) !== null) throw new SaveError("A retailer can only have one offer per racket.");
+  // Same rule as the /go redirect: a live link must stay on the retailer's allowed domains.
+  const linked = input.offers.filter((o) => !isPlaceholderLink(o.affiliateUrl));
+  if (linked.length) {
+    const rows = await db
+      .select({ id: schema.retailers.id, name: schema.retailers.name, allowedDomains: schema.retailers.allowedDomains })
+      .from(schema.retailers)
+      .where(inArray(schema.retailers.id, linked.map((o) => o.retailerId)));
+    for (const o of linked) {
+      const r = rows.find((x) => x.id === o.retailerId);
+      if (r && r.allowedDomains.length && !hostMatches(o.affiliateUrl!, r.allowedDomains)) {
+        throw new SaveError(`The ${r.name} affiliate link isn't on its allowed domains (${r.allowedDomains.join(", ")}). Fix the link, or add the domain to the retailer first.`);
+      }
+    }
+  }
   if (input.model.status !== "unavailable" && !input.model.url) {
     throw new SaveError('Add a model file or URL, or set the model status to "No model yet".');
   }
@@ -525,7 +546,9 @@ export async function adminSaveRacket(input: RacketInput): Promise<{ id: number;
       await tx.delete(schema.editorialReviews).where(eq(schema.editorialReviews.productId, productId));
     }
 
-    return { id: productId, slug: b.slug, previousSlug };
+    const savedOffers = await tx.select({ id: schema.offers.id, retailerId: schema.offers.retailerId }).from(schema.offers).where(eq(schema.offers.productId, productId));
+    const offerIds = Object.fromEntries(savedOffers.map((o) => [o.retailerId, o.id]));
+    return { id: productId, slug: b.slug, previousSlug, offerIds };
   });
 }
 

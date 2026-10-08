@@ -6,7 +6,7 @@
  * validates everything again and writes it in one transaction.
  */
 import Link from "next/link";
-import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import type { RacketInput } from "@/server/validation/admin";
 import { deleteRacket, deriveAnnotations, saveRacket, type FormState } from "@/app/admin/actions";
 import {
@@ -96,23 +96,31 @@ export function RacketForm({
   const [slugTouched, setSlugTouched] = useState(!!initial.id);
   const [deriving, startDerive] = useTransition();
   const [deriveMsg, setDeriveMsg] = useState<string | null>(null);
-  const savedJson = useRef(JSON.stringify(initial));
-  const submitted = useRef<string | null>(null);
+  const [savedJson, setSavedJson] = useState(() => JSON.stringify(initial));
+  const [submitted, setSubmitted] = useState<string | null>(null);
+  const [seenState, setSeenState] = useState(state);
   const json = JSON.stringify(d);
-  const dirty = json !== savedJson.current;
+  // A successful save makes the submitted draft the new clean state. Done during
+  // render so the save message and the clean state show in the same frame.
+  if (state !== seenState) {
+    setSeenState(state);
+    if (state?.ok && submitted) {
+      // Offers added in this session adopt their new ids, so the next save
+      // updates them instead of recreating them (their /go/<id> links stay valid).
+      const ids = state.offerIds ?? {};
+      const withIds = (x: Draft): Draft => ({ ...x, offers: x.offers.map((o) => (o.id ? o : { ...o, id: ids[o.retailerId] })) });
+      setSavedJson(JSON.stringify(withIds(JSON.parse(submitted) as Draft)));
+      setD(withIds);
+    }
+  }
+  const dirty = json !== savedJson;
 
-  // A successful save makes the submitted draft the new clean state.
   useEffect(() => {
-    if (state?.ok && submitted.current) savedJson.current = submitted.current;
-  }, [state]);
-
-  useEffect(() => {
-    const warn = (e: BeforeUnloadEvent) => {
-      if (json !== savedJson.current) e.preventDefault();
-    };
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [json]);
+  }, [dirty]);
 
   const patch = <K extends keyof Draft>(k: K, p: Partial<NonNullable<Draft[K]>>) => setD((x) => ({ ...x, [k]: { ...(x[k] as object), ...p } }));
   const list = <K extends ListKey>(k: K) => d[k] as Draft[K];
@@ -205,9 +213,7 @@ export function RacketForm({
     <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
       <form
         action={action}
-        onSubmit={() => {
-          submitted.current = json;
-        }}
+        onSubmit={() => setSubmitted(json)}
         className="min-w-0 space-y-5 pb-28"
       >
         <input type="hidden" name="payload" value={json} />
@@ -377,9 +383,9 @@ export function RacketForm({
                   <TextInput label="Key" value={h.key} onChange={(v) => updateAt("hotspots", i, { key: slugify(v) })} />
                   <Select label="Camera view" value={h.view} onChange={(v) => v && updateAt("hotspots", i, { view: v })} options={opts(CAMERA_VIEWS, (v) => VIEW_INFO[v].label)} />
                   <Select label="Basis" value={h.basis} onChange={(v) => v && updateAt("hotspots", i, { basis: v })} options={opts(BASES, (v) => BASIS_INFO[v].label)} />
-                  <NumberInput label="u (across)" value={h.u} onChange={(v) => updateAt("hotspots", i, { u: v ?? 0.5 })} step={0.01} min={-0.5} max={1.5} />
-                  <NumberInput label="v (butt → tip)" value={h.v} onChange={(v) => updateAt("hotspots", i, { v: v ?? 0.5 })} step={0.01} min={-0.5} max={1.5} />
-                  <NumberInput label="w (back → front)" value={h.w} onChange={(v) => updateAt("hotspots", i, { w: v ?? 1 })} step={0.01} min={-0.5} max={1.5} />
+                  <NumberInput label="u (across)" value={h.u} onChange={(v) => updateAt("hotspots", i, { u: v ?? 0.5 })} step="any" min={-0.5} max={1.5} />
+                  <NumberInput label="v (butt → tip)" value={h.v} onChange={(v) => updateAt("hotspots", i, { v: v ?? 0.5 })} step="any" min={-0.5} max={1.5} />
+                  <NumberInput label="w (back → front)" value={h.w} onChange={(v) => updateAt("hotspots", i, { w: v ?? 1 })} step="any" min={-0.5} max={1.5} />
                   <Select label="Spec it explains" value={h.specKey} onChange={(v) => updateAt("hotspots", i, { specKey: v })} options={opts(SPEC_KEYS, (v) => v)} allowNone="None" />
                   <TextArea className="sm:col-span-2 lg:col-span-4" label="Text" value={h.body} onChange={(v) => updateAt("hotspots", i, { body: v })} rows={2} maxLength={800} />
                 </div>
@@ -578,7 +584,7 @@ export function RacketForm({
         <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3 lg:left-[232px]">
           <div className="plate mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3 rounded-full px-4 py-2.5 shadow-lift">
             <p role="status" aria-live="polite" className={cn("min-w-0 truncate text-sm", state && !state.ok ? "text-danger" : state?.ok && !dirty ? "text-ok" : "text-ink-2")}>
-              {state && (!dirty || !state.ok) ? state.message : dirty ? "Unsaved changes" : "All changes saved"}
+              {state && (!dirty || !state.ok) ? state.message : dirty ? "Unsaved changes" : initial.id ? "All changes saved" : "Not saved yet"}
             </p>
             <div className="flex items-center gap-2">
               {d.id && (

@@ -89,7 +89,8 @@ export function NumberInput({
   hint?: ReactNode;
   min?: number;
   max?: number;
-  step?: number;
+  /** "any" for computed values (e.g. hotspot positions) that a fixed step would reject. */
+  step?: number | "any";
   className?: string;
   suffix?: string;
 }) {

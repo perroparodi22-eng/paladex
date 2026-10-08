@@ -52,7 +52,7 @@ export default async function AdminRackets({ searchParams }: { searchParams: Pro
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-b border-ink/6 last:border-0">
-                <td className="px-4 py-3">
+                <td className="min-w-64 px-4 py-3">
                   <Link href={`/admin/rackets/${r.id}`} className="font-semibold text-ink hover:underline">
                     {r.brand} {r.name}
                   </Link>
@@ -62,17 +62,17 @@ export default async function AdminRackets({ searchParams }: { searchParams: Pro
                     {r.featured ? " · featured" : ""}
                   </p>
                 </td>
-                <td className="px-4 py-3">
+                <td className="whitespace-nowrap px-4 py-3">
                   <span className={r.status === "published" ? "badge bg-ok/15 text-ok" : "badge"}>{r.status === "published" ? "Published" : "Draft"}</span>
                 </td>
-                <td className="px-4 py-3">
+                <td className="whitespace-nowrap px-4 py-3">
                   <ProvenanceBadge status={r.modelStatus} />
                 </td>
-                <td className="px-4 py-3">
+                <td className="whitespace-nowrap px-4 py-3">
                   <span className="num">{r.offers}</span>
                   {r.placeholderLinks > 0 && <span className="badge badge-warn ml-2">{r.placeholderLinks} without link</span>}
                 </td>
-                <td className="num px-4 py-3 text-ink-2">{new Date(r.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</td>
+                <td className="num whitespace-nowrap px-4 py-3 text-ink-2">{new Date(r.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-1">
                     <Link href={`/admin/rackets/${r.id}`} className="btn btn-ghost btn-sm">

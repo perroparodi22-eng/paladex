@@ -18,6 +18,11 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
   return b.count <= limit;
 }
 
+/** Forget a key's attempts, e.g. after a successful sign-in. */
+export function resetRateLimit(key: string): void {
+  buckets.delete(key);
+}
+
 /** Client key for rate limiting: the nearest proxy-reported address, never stored. */
 export function clientKey(req: Request): string {
   const fwd = req.headers.get("x-forwarded-for");

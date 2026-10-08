@@ -11,7 +11,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/server/auth/guard";
 import { adminConfigured, createSessionToken, SESSION_COOKIE, sessionCookieOptions } from "@/server/auth/session";
 import { verifyPassword } from "@/server/auth/password";
-import { rateLimit } from "@/server/rate-limit";
+import { rateLimit, resetRateLimit } from "@/server/rate-limit";
 import { CATALOG_TAG } from "@/server/repositories/rackets";
 import {
   adminDeleteBrand,
@@ -27,7 +27,13 @@ import {
 import { brandInputSchema, firstError, racketInputSchema, retailerInputSchema } from "@/server/validation/admin";
 import { MODEL_STATUSES } from "@/domain/types";
 
-export type FormState = { ok: boolean; message: string; at: number } | null;
+export type FormState = {
+  ok: boolean;
+  message: string;
+  at: number;
+  /** saveRacket only: offer id by retailer id after the save. */
+  offerIds?: Record<number, number>;
+} | null;
 
 const fail = (message: string): FormState => ({ ok: false, message, at: Date.now() });
 const done = (message: string): FormState => ({ ok: true, message, at: Date.now() });
@@ -65,6 +71,8 @@ export async function login(_prev: FormState, formData: FormData): Promise<FormS
   if (typeof password !== "string" || password.length < 1 || password.length > 256) return fail("Enter the admin password.");
   const ok = await verifyPassword(password, process.env.ADMIN_PASSWORD_HASH!.trim());
   if (!ok) return fail("That password is not correct.");
+  // Only wrong guesses should count: signing in again later must not lock the owner out.
+  resetRateLimit(`login:${key}`);
   const token = createSessionToken();
   if (!token) return fail("ADMIN_SESSION_SECRET must be at least 32 characters.");
   const jar = await cookies();
@@ -101,7 +109,8 @@ export async function saveRacket(_prev: FormState, formData: FormData): Promise<
   }
   refreshCatalog();
   if (!parsed.data.id) redirect(`/admin/rackets/${result.id}?created=1`);
-  return done(parsed.data.basics.status === "published" ? "Saved. The public page is updated." : "Saved as a draft. It is not public.");
+  const message = parsed.data.basics.status === "published" ? "Saved. The public page is updated." : "Saved as a draft. It is not public.";
+  return { ok: true, message, at: Date.now(), offerIds: result.offerIds };
 }
 
 export async function deleteRacket(formData: FormData) {
