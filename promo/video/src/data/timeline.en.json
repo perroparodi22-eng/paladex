@@ -84,7 +84,7 @@
     "file": "audio/vo/en/02-problem.wav",
     "text": "based on one flat photo, and a spec sheet nobody explains.",
     "at": 249,
-    "durationInFrames": 282,
+    "durationInFrames": 283,
     "speechEnd": 515,
     "words": [
      {
@@ -202,7 +202,7 @@
     "file": "audio/vo/en/04-turn.wav",
     "text": "Pick any racket and turn it in your hand. Front. Side. Back. Every detail, up close.",
     "at": 825,
-    "durationInFrames": 370,
+    "durationInFrames": 371,
     "speechEnd": 1179,
     "words": [
      {
@@ -370,7 +370,7 @@
     "file": "audio/vo/en/06-finder.wav",
     "text": "Not sure where to start? Answer a few quick questions, and see the rackets that fit how you really play.",
     "at": 1452,
-    "durationInFrames": 370,
+    "durationInFrames": 371,
     "speechEnd": 1806,
     "words": [
      {
@@ -518,7 +518,7 @@
     "file": "audio/vo/en/08-endcard.wav",
     "text": "Paladex. See it from every side, before you buy it.",
     "at": 1998,
-    "durationInFrames": 206,
+    "durationInFrames": 207,
     "speechEnd": 2188,
     "words": [
      {
