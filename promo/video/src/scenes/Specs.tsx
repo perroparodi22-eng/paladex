@@ -28,7 +28,7 @@ import { mixSlab, monotone, poseAt, slabTransform, type FullPose, type PoseKey, 
 import type { SceneProps } from "./types";
 
 // Words each beat syncs to (scene-local frames come from the voice timing).
-const WORDS = { spec: "spec", lift: "translated", hero: "means", end: "game", no: "No", jargon: "jargon", just: "Just" };
+const WORDS = { spec: "spec", lift: "translated", hero: "means", end: "game" };
 const SNAP = 1.5; // the page viewer glides this much faster than captured
 
 const PAGE_W = 1920;
@@ -87,17 +87,13 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
   const B = wordAt(timing, WORDS.lift, 57);
   const C = wordAt(timing, WORDS.hero, 123);
   const G = wordAt(timing, WORDS.end, 164, 0, "end");
-  const N = wordAt(timing, WORDS.no, 182);
-  const J = wordAt(timing, WORDS.jargon, 199);
-  const JT = wordAt(timing, WORDS.just, 243);
   const heroFrom = C - 50; // the Surface row starts its flight…
   const heroTo = C + 4; // …and settles facing the camera on "means"
   const rowAt = [B, B + 9];
-  const sinkAt = G - 4; // Surface and Weight return as "game" ends; Shape takes the stage
-  const hlStep = 8; // one explanation line lights up every 8 frames, from "Just"
-  const retStart = JT + 7 * hlStep + 2; // Shape returns to its row
+  const sinkAt = D + 40; // the Surface row stays up to the end of the scene (no return)
+  const retStart = D + 200; // (unused tail of the old cut: Shape never returns)
   const retEnd = retStart + 30;
-  const clickAt = retEnd - 4; // "Show on model" on the Sweet spot row
+  const clickAt = D + 500; // (no click in v3)
 
   // --- Page scroll (document y at the top of the viewport) --------------------
   // The clean list is one viewport tall: the scroll only drifts. Never past the strip's end.
@@ -111,12 +107,8 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
     { f: B + 24, x: -380, y: 110, z: -380, rotateX: 26, rotateY: -16, rotateZ: 0.6, scale: 1 },
     { f: B + 52, x: -300, y: 70, z: -260, rotateX: 20, rotateY: -6, rotateZ: -0.8, scale: 1 },
     { f: C + 6, x: -360, y: 120, z: -560, rotateX: 28, rotateY: -13, rotateZ: 0, scale: 1 },
-    { f: N + 10, x: -230, y: 60, z: -470, rotateX: 22, rotateY: -8, rotateZ: 0.4, scale: 1 },
-    { f: JT + 20, x: -120, y: 20, z: -380, rotateX: 16, rotateY: 0, rotateZ: -0.3, scale: 1 },
-    { f: retEnd - 6, x: 30, y: -110, z: -200, rotateX: 10, rotateY: 8, rotateZ: -0.5, scale: 0.9 },
-    { f: clickAt + 18, x: 130, y: -100, z: -110, rotateX: 8, rotateY: 10, rotateZ: -0.6, scale: 0.92 },
-    { f: D + 18, x: 420, y: -40, z: 240, rotateX: 5, rotateY: 15, rotateZ: -1, scale: 1 },
-    { f: D + 120, x: 520, y: -40, z: 420, rotateX: 4, rotateY: 16, rotateZ: -1.2, scale: 1 },
+    { f: D + 18, x: -300, y: 90, z: -480, rotateX: 25, rotateY: -10, rotateZ: -0.2, scale: 1 },
+    { f: D + 120, x: -260, y: 80, z: -440, rotateX: 24, rotateY: -8, rotateZ: -0.3, scale: 1 },
   ];
   const base = poseAt(keys, frame);
   const cam: FullPose = {
@@ -141,7 +133,7 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
   // How far the other rows step back while the hero is up.
   const heroHold = interpolate(frame, [heroFrom, heroTo], [0, 1], { ...clamp, easing: lift }) * (1 - interpolate(frame, [sinkAt - 6, sinkAt + 24], [0, 1], { ...clamp, easing: easeInOut }));
   // Shape on centre stage.
-  const focusIn = interpolate(frame, [sinkAt - 6, N + 22], [0, 1], { ...clamp, easing: lift });
+  const focusIn = 0; // (no centre-stage Shape beat in v3)
   const focusHold = focusIn * (1 - retP);
 
   const slotState = (crop: Rect): SlabState => ({
@@ -171,11 +163,11 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
   const focusPose: FullPose = {
     x: drift("sp-fx", frame, 10, 0.1),
     y: -30 + drift("sp-fy", frame, 6, 0.1),
-    z: interpolate(frame, [N, retStart], [-20, 90], clamp),
+    z: 0,
     rotateX: 2 + drift("sp-frx", frame, 0.8, 0.08),
-    rotateY: interpolate(frame, [N, retStart], [-7, 5], clamp),
+    rotateY: 0,
     rotateZ: drift("sp-frz", frame, 0.3, 0.08),
-    scale: interpolate(frame, [N, retStart], [2.15, 2.4], clamp),
+    scale: 2.2,
   };
 
   // A slab only appears or disappears while it sits exactly on its own row: it
@@ -218,15 +210,11 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
   // --- Shape row: the term dims, the explanation lights up line by line ----------
   // glide to centre: all explanation lines dimmed, the term bright; on "jargon" the term
   // dims and each line lights up in turn; from "Just" a band of light walks down the lines.
-  const glideDim = interpolate(frame, [sinkAt, N + 12], [0, 1], clamp);
-  const termDim = 0.55 * interpolate(frame, [J, J + 16], [0, 1], clamp);
+  const glideDim = 0;
+  const termDim = 0;
   const lineDim = SHAPE_LINES.map((_, i) => {
-    const reveal = interpolate(frame, [J + 4 + i * 6, J + 18 + i * 6], [0, 1], clamp);
-    const dim = 0.62 * glideDim * (1 - reveal);
-    const t = JT + i * hlStep;
-    const near = clamp01(1 - Math.abs(frame - t - 2) / 13);
-    const hl = 0.4 * interpolate(frame, [JT - 8, JT + 2], [0, 1], clamp) * (1 - near * near * (3 - 2 * near));
-    return Math.max(dim, hl) * (1 - retP);
+    void i;
+    return glideDim;
   });
 
   // --- Page treatment ---------------------------------------------------------
@@ -378,16 +366,6 @@ export const Specs: React.FC<SceneProps> = ({ timing, timeline }) => {
       <Sfx name="whoosh-soft" at={heroFrom - 2} volume={0.45} />
       <Sfx name="impact" at={heroTo} volume={0.6} />
       <Sfx name="shimmer" at={heroTo + 8} volume={0.3} />
-      <Sfx name="swipe" at={sinkAt + 2} volume={0.4} />
-      <Sfx name="whoosh-soft" at={N - 2} volume={0.35} />
-      <Sfx name="pop" at={J} volume={0.45} />
-      {SHAPE_LINES.map((_, i) => (
-        <Sfx key={i} name="tick" at={JT + i * hlStep} volume={0.22} />
-      ))}
-      <Sfx name="swipe" at={retStart + 2} volume={0.35} />
-      <Sfx name="click" at={clickAt} volume={0.6} />
-      <Sfx name="pop" at={clickAt + 6} volume={0.4} />
-      <Sfx name="whoosh-soft" at={clickAt + 14} volume={0.3} />
     </AbsoluteFill>
   );
 };

@@ -29,7 +29,7 @@ import type { SceneProps } from "./types";
 
 // ---------------------------------------------------------------------------
 // Voice anchors (scene-local frames come from the word timings).
-const WORDS = { answer: "Answer", see: "get", rackets: "rackets", fit: "fit", how: "how", play: "play", your: "Your", match: "match", seconds: "seconds" } as const;
+const WORDS = { answer: "Answer", see: "see", rackets: "rackets", fit: "fit", how: "how", play: "play", your: "Your", match: "match", seconds: "seconds" } as const;
 /** The racket that lands at the end: the quiz's best match, a real traced model. */
 const MATCH_SLUG = "head-radical-team-2026";
 /** Regions of the results page (CSS px) lifted straight from the footage. */
@@ -122,9 +122,10 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
   const F = wordAt(timing, w.fit, 233);
   const H = wordAt(timing, w.how, 243);
   const P = wordAt(timing, w.play, 282);
-  const Y = wordAt(timing, w.your, 309); // "Your match, in seconds": the finale
-  const M = wordAt(timing, w.match, 321);
-  const SEC = wordAt(timing, w.seconds, 351);
+  // Finale (v3): the result racket lands spinning on "rackets that fit" and holds, gently swaying, to the end.
+  const Y = RK;
+  const M = F - 6; // name slides in just before "fit"
+  const SEC = F + 8; // the spin settles (and the light flares) on "fit"
   const c1 = A + 4; // Intermediate (home card)
   const gap = Math.round(Math.max(16, Math.min(22, (S - c1 - 60) / 2)));
   const c2 = c1 + gap; // Balanced
@@ -253,12 +254,9 @@ export const Finder: React.FC<SceneProps> = ({ timing, timeline }) => {
   const rOpacity = interpolate(rIn, [0, 0.22], [0, 1], clamp);
   // Lifts: the racket viewer on "rackets", the name on "fit", the "Why it fits" reasons on "how you really play".
   // Each lift settles back into the page as the next one rises (a relay of highlights).
-  const viewerLift =
-    interpolate(frame, [RK - 6, RK + 16], [0, 1], { ...clamp, easing: easeOut }) - interpolate(frame, [F + 4, F + 30], [0, 1], { ...clamp, easing: easeInOut });
-  const nameLift =
-    interpolate(frame, [F - 6, F + 16], [0, 1], { ...clamp, easing: easeOut }) - interpolate(frame, [H + 8, H + 36], [0, 1], { ...clamp, easing: easeInOut });
-  const reasonsLift =
-    interpolate(frame, [H - 6, H + 26], [0, 1], { ...clamp, easing: easeOut }) - interpolate(frame, [P - 10, P + 22], [0, 1], { ...clamp, easing: easeInOut });
+  const viewerLift = 0; // (relay of page highlights dropped in v3: the racket takes over on "rackets")
+  const nameLift = 0; // (relay of page highlights dropped in v3: the racket takes over on "rackets")
+  const reasonsLift = 0; // (relay of page highlights dropped in v3: the racket takes over on "rackets")
   // Finale: the page falls back (dim + soft blur) while the racket spins in.
   const pageBlur = back * 7;
   const pageDim = back * 0.6;
