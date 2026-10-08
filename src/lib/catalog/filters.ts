@@ -237,8 +237,9 @@ export function applyFilters(all: RacketSummary[], f: CatalogFilters, popularity
     if (f.model === "none" && r.modelStatus !== "unavailable") continue;
     scored.push({ r, s });
   }
+  /** dir -1 = highest first (the default), 1 = lowest first. */
   const by = (fn: (r: RacketSummary) => number, dir: 1 | -1 = -1) => (a: { r: RacketSummary }, b: { r: RacketSummary }) =>
-    (fn(a.r) - fn(b.r)) * -dir;
+    (fn(a.r) - fn(b.r)) * dir;
   const sorters: Record<SortKey, (a: { r: RacketSummary; s: number }, b: { r: RacketSummary; s: number }) => number> = {
     popular: (a, b) =>
       (popularity[b.r.slug] ?? 0) - (popularity[a.r.slug] ?? 0) || Number(b.r.featured) - Number(a.r.featured) || (b.r.scores?.overall ?? 0) - (a.r.scores?.overall ?? 0),

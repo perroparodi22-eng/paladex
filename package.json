@@ -21,7 +21,7 @@
     "models:optimize": "tsx scripts/optimize-model.ts",
     "assets:decoders": "tsx scripts/copy-decoders.ts",
     "admin:hash": "tsx scripts/hash-admin-password.ts",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "postinstall": "tsx scripts/copy-decoders.ts",
     "models:trace": "tsx scripts/trace-racket-photo.ts",
     "models:build": "tsx scripts/generate-models.ts"
