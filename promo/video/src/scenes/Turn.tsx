@@ -1,4 +1,4 @@
-// Scene 4, turn: "Grab one. Spin it. Front. Side. Back. Every detail, up close."
+// Scene 4, turn (v3): "Pick any racket and turn it in your hand. Front. Side. Back. Every detail, up close."
 //
 // v2: faster. The captured clip (recorded to the v1 voice) is played through a
 // piecewise time remap (cm) whose anchors are the clip's own events (grab, release,
@@ -31,7 +31,7 @@ import { browserPose, bump, hermite, mix, projectPage, smooth, type OrbitPose } 
 
 /** Voice words this scene syncs to, per language (fallbacks are the English frames). */
 const WORDS = {
-  en: { grab: "Grab", spin: "Spin", it: "it", front: "Front", side: "Side", back: "Back", every: "Every", detail: "detail", up: "up", close: "close", face: "face", frame: "frame", finish: "finish" },
+  en: { grab: "turn", spin: "hand", it: "it", front: "Front", side: "Side", back: "Back", every: "Every", detail: "detail", up: "up", close: "close" },
 } as const;
 
 const PATH = "/rackets/nox-at10-luxury-genius-18k-alum";
@@ -87,8 +87,8 @@ const swapEase = Easing.bezier(0.45, 0, 0.55, 1); // an even dissolve, not a 3-f
  *  the camera is still gliding (~20 % of its peak speed) into the cut instead of parking. */
 const MACRO_TAIL = 45;
 /** Break-out durations (frames): window falls away / racket comes up huge. */
-const FALL = 50;
-const EMERGE = 52;
+const FALL = 46;
+const EMERGE = 46;
 /** Hand-off: hero dissolve frames, and frames the hero stays glued to the captured racket. */
 const H = 10;
 const GLUE = H + 5;
@@ -173,12 +173,12 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
   const cams = info.cam ?? [[Math.PI, Math.PI / 2, 659, 570, 1284]];
   const ev = info.events ?? [];
 
-  const every = wordAt(timing, W.every, 282);
-  const grabF = wordAt(timing, W.grab, 20) + 8;
+  const every = wordAt(timing, W.every, 278);
+  const grabF = wordAt(timing, W.grab, 84) - 6; // "turn": the drag starts on it, the spin runs through "in your hand"
   const relF = grabF + 22; // the drag is short; the racket then keeps spinning on its own through "Spin it"
-  const front = wordAt(timing, W.front, 124);
-  const side = wordAt(timing, W.side, 177);
-  const back = wordAt(timing, W.back, 228);
+  const front = wordAt(timing, W.front, 156);
+  const side = wordAt(timing, W.side, 195);
+  const back = wordAt(timing, W.back, 240);
   // Captured events (clip frames) -> the words (scene frames).
   const evGrab = ev.find((e) => e.type === "grab")?.frame ?? 82;
   const evRel = ev.find((e) => e.type === "release")?.frame ?? 128;
@@ -214,12 +214,13 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     side,
     back,
     every,
-    detail: wordAt(timing, W.detail, 304),
-    up: wordAt(timing, W.up, 335),
-    close: wordAt(timing, W.close, 348),
-    face: wordAt(timing, W.face, 324),
-    frameW: wordAt(timing, W.frame, 351),
-    finish: wordAt(timing, W.finish, 379),
+    detail: wordAt(timing, W.detail, 291),
+    up: wordAt(timing, W.up, 322),
+    close: wordAt(timing, W.close, 327),
+    // The three macro beats play under "up close" (no words of their own any more).
+    face: wordAt(timing, W.close, 327) + 16,
+    frameW: wordAt(timing, W.close, 327) + 38,
+    finish: wordAt(timing, W.close, 327) + 60,
     grab: grabF,
     release: relF,
     clicks: clickAt,
@@ -229,8 +230,8 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
     // "Back"'s glide, while the racket is nearly face-on: at more oblique angles the
     // site's render reads ~6 levels lighter than ours (measured), so don't start it
     // earlier. The window then falls away on "Every detail"; the racket lands on "up".
-    B: every - 8,
-    BO: every - 8 + GLUE - 2,
+    B: every - 14,
+    BO: every - 14 + GLUE - 2,
     END,
   };
   const { B, BO } = m;
@@ -391,7 +392,7 @@ export const Turn: React.FC<SceneProps> = ({ timing, timeline, lang }) => {
 
       <Sfx name="whoosh-soft" at={m.grab - 10} volume={0.35} />
       <Sfx name="pop" at={m.grab} volume={0.45} />
-      <Sfx name="swipe" at={wordAt(timing, W.spin, 59)} volume={0.5} />
+      <Sfx name="swipe" at={wordAt(timing, W.spin, 110)} volume={0.5} />
       <Sfx name="tick" at={m.release} volume={0.3} />
       {m.clicks.map((c) => (
         <Sfx key={c} name="click" at={c} volume={0.7} />
