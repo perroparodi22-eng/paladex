@@ -5,339 +5,98 @@
  "scenes": [
   {
    "id": "cold-open",
-   "seconds": 5,
-   "voAt": 0.3,
-   "tail": 0.2
+   "seconds": 3,
+   "voAt": 0.25,
+   "tail": 0.3
   },
   {
    "id": "problem",
-   "seconds": 5,
-   "voAt": 0.1,
-   "tail": 0.15
+   "seconds": 3,
+   "voAt": 0.15,
+   "tail": 0.3
   },
   {
    "id": "reveal",
-   "seconds": 6,
-   "voAt": 0.3,
-   "tail": 0.35
+   "seconds": 3,
+   "voAt": 0.25,
+   "tail": 0.3
   },
   {
    "id": "turn",
-   "seconds": 7,
+   "seconds": 3,
    "voAt": 0.25,
-   "tail": 0.4
+   "tail": 0.35
   },
   {
    "id": "specs",
-   "seconds": 6,
+   "seconds": 3,
    "voAt": 0.2,
-   "tail": 0.35
-  },
-  {
-   "id": "reviews",
-   "seconds": 5,
-   "voAt": 0.2,
-   "tail": 0.35
-  },
-  {
-   "id": "pros",
-   "seconds": 4,
-   "voAt": 0.2,
-   "tail": 0.4
+   "tail": 0.25
   },
   {
    "id": "finder",
-   "seconds": 7,
+   "seconds": 3,
    "voAt": 0.2,
-   "tail": 0.4
+   "tail": 0.35
   },
   {
    "id": "brands",
-   "seconds": 5,
+   "seconds": 2.5,
    "voAt": 0.2,
-   "tail": 0.4
+   "tail": 0.35
   },
   {
    "id": "endcard",
-   "seconds": 6,
+   "seconds": 3,
    "voAt": 0.3,
    "tail": 1.2
   }
  ],
  "langs": {
   "en": {
-   "voice": "kokoro:am_puck",
-   "rate": "+4%",
-   "pitch": "-2Hz",
+   "voice": "takes:v1",
    "lines": {
     "cold-open": [
-     {
-      "text": "Two hundred euros.",
-      "rate": "-2%",
-      "pitch": "-5Hz",
-      "volume": "+5%",
-      "gap": 0.2
-     },
-     {
-      "text": "Maybe more.",
-      "rate": "+4%",
-      "pitch": "+7Hz",
-      "volume": "+0%",
-      "gap": 0.14
-     },
-     {
-      "text": "For one padel racket.",
-      "rate": "+6%",
-      "pitch": "-3Hz",
-      "volume": "+5%",
-      "gap": 0.16
-     },
-     {
-      "text": "Would you buy it blind?",
-      "rate": "+4%",
-      "pitch": "+9Hz",
-      "volume": "+8%",
-      "gap": 0.0
-     }
+     "You're about to spend two hundred euros on a padel racket..."
     ],
     "problem": [
-     {
-      "text": "And you're choosing it from one flat photo...",
-      "rate": "+10%",
-      "pitch": "+4Hz",
-      "volume": "+5%",
-      "gap": 0.12
-     },
-     {
-      "text": "and a spec sheet nobody explains.",
-      "rate": "+14%",
-      "pitch": "+9Hz",
-      "volume": "+8%",
-      "gap": 0.2
-     },
-     {
-      "text": "Pure guesswork.",
-      "rate": "-2%",
-      "pitch": "-6Hz",
-      "volume": "+5%",
-      "gap": 0.0
-     }
+     "based on one flat photo,",
+     "and a spec sheet nobody explains."
     ],
     "reveal": [
-     {
-      "text": "Not anymore.",
-      "rate": "+2%",
-      "pitch": "-7Hz",
-      "volume": "+8%",
-      "gap": 0.22
-     },
-     {
-      "text": "Meet Paladex.",
-      "rate": "-2%",
-      "pitch": "+10Hz",
-      "volume": "+15%",
-      "gap": 0.18
-     },
-     {
-      "text": "Every padel racket, in 3D,",
-      "rate": "+8%",
-      "pitch": "+4Hz",
-      "volume": "+8%",
-      "gap": 0.06
-     },
-     {
-      "text": "right in your browser.",
-      "rate": "+8%",
-      "pitch": "+7Hz",
-      "volume": "+8%",
-      "gap": 0.0
-     }
+     "Meet Paladex.",
+     "Every padel racket, in 3D."
     ],
     "turn": [
-     {
-      "text": "Grab one. Spin it.",
-      "rate": "+12%",
-      "pitch": "+6Hz",
-      "volume": "+8%",
-      "gap": 0.28
-     },
-     {
-      "text": "Front.",
-      "rate": "+6%",
-      "pitch": "+2Hz",
-      "volume": "+5%",
-      "gap": 0.22
-     },
-     {
-      "text": "Side.",
-      "rate": "+6%",
-      "pitch": "+4Hz",
-      "volume": "+5%",
-      "gap": 0.22
-     },
-     {
-      "text": "Back.",
-      "rate": "+6%",
-      "pitch": "+6Hz",
-      "volume": "+5%",
-      "gap": 0.28
-     },
-     {
-      "text": "Every detail, up close:",
-      "rate": "+4%",
-      "pitch": "-3Hz",
-      "volume": "+0%",
-      "gap": 0.08
-     },
-     {
-      "text": "the face, the frame, the finish.",
-      "rate": "+8%",
-      "pitch": "+5Hz",
-      "volume": "+6%",
-      "gap": 0.0
-     }
+     "Pick any racket and turn it in your hand.",
+     "Front.",
+     "Side.",
+     "Back.",
+     "Every detail, up close."
     ],
     "specs": [
-     {
-      "text": "Every spec, translated",
-      "rate": "+12%",
-      "pitch": "+4Hz",
-      "volume": "+6%",
-      "gap": 0.06
-     },
-     {
-      "text": "into what it means for your game.",
-      "rate": "+10%",
-      "pitch": "+7Hz",
-      "volume": "+8%",
-      "gap": 0.22
-     },
-     {
-      "text": "No jargon.",
-      "rate": "+0%",
-      "pitch": "-5Hz",
-      "volume": "+6%",
-      "gap": 0.14
-     },
-     {
-      "text": "Just how it feels on court.",
-      "rate": "+8%",
-      "pitch": "+6Hz",
-      "volume": "+8%",
-      "gap": 0.0
-     }
-    ],
-    "reviews": [
-     {
-      "text": "What the reviewers say, summed up.",
-      "rate": "+12%",
-      "pitch": "+3Hz",
-      "volume": "+5%",
-      "gap": 0.18
-     },
-     {
-      "text": "The good, the bad,",
-      "rate": "+6%",
-      "pitch": "+7Hz",
-      "volume": "+6%",
-      "gap": 0.06
-     },
-     {
-      "text": "with the sources to back it.",
-      "rate": "+10%",
-      "pitch": "-1Hz",
-      "volume": "+5%",
-      "gap": 0.0
-     }
-    ],
-    "pros": [
-     {
-      "text": "See what the pros actually play on tour,",
-      "rate": "+8%",
-      "pitch": "+8Hz",
-      "volume": "+10%",
-      "gap": 0.06
-     },
-     {
-      "text": "and the rackets behind their game.",
-      "rate": "+8%",
-      "pitch": "+3Hz",
-      "volume": "+6%",
-      "gap": 0.0
-     }
+     "Every spec is translated into what it actually means for your game."
     ],
     "finder": [
-     {
-      "text": "Not sure where to start?",
-      "rate": "+6%",
-      "pitch": "+7Hz",
-      "volume": "+5%",
-      "gap": 0.2
-     },
-     {
-      "text": "Answer a few quick questions,",
-      "rate": "+14%",
-      "pitch": "+3Hz",
-      "volume": "+5%",
-      "gap": 0.05
-     },
-     {
-      "text": "and get the rackets that fit how you really play.",
-      "rate": "+10%",
-      "pitch": "+5Hz",
-      "volume": "+8%",
-      "gap": 0.22
-     },
-     {
-      "text": "Your match, in seconds.",
-      "rate": "+2%",
-      "pitch": "+9Hz",
-      "volume": "+10%",
-      "gap": 0.0
-     }
+     "Not sure where to start?",
+     "Answer a few quick questions,",
+     "and see the rackets that fit how you really play."
     ],
     "brands": [
-     {
-      "text": "All the top brands, side by side.",
-      "rate": "+10%",
-      "pitch": "+6Hz",
-      "volume": "+8%",
-      "gap": 0.18
-     },
-     {
-      "text": "All in one place,",
-      "rate": "+4%",
-      "pitch": "-2Hz",
-      "volume": "+8%",
-      "gap": 0.06
-     },
-     {
-      "text": "updated every season.",
-      "rate": "+6%",
-      "pitch": "+4Hz",
-      "volume": "+6%",
-      "gap": 0.0
-     }
+     "All in one place."
     ],
     "endcard": [
-     {
-      "text": "Paladex.",
-      "rate": "-4%",
-      "pitch": "+5Hz",
-      "volume": "+10%",
-      "gap": 0.3
-     },
-     {
-      "text": "See it from every side, before you buy it.",
-      "rate": "+2%",
-      "pitch": "-2Hz",
-      "volume": "+5%",
-      "gap": 0.0
-     }
+     "Paladex.",
+     "See it from every side, before you buy it."
     ]
    },
-   "note": "Each line is a list of phrases voiced separately, so the tone can change from phrase to phrase (rate / pitch / volume per phrase, `gap` = seconds of silence after it). A plain string also works."
+   "note": "v3 short cut: the v1 narrator (Andrew) from recorded takes in audio/takes-v1, built by audio/make_vo_takes.py (6% slower, pauses inside a line capped at 0.3 s). Lines below are the caption text of those takes. make_vo.py is the synthesis path used by v2/v2.1.",
+   "takes": {
+    "brands": {
+     "fromWord": "All"
+    }
+   }
   }
  },
- "quantumBeats": 2
+ "quantumBeats": 1
 }

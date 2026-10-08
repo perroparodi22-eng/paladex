@@ -1,4 +1,4 @@
-// The Paladex launch ad: eight scenes on the 120 BPM beat grid, voiceover per
+// The Paladex launch ad: the timeline's scenes on the 120 BPM beat grid, voiceover per
 // scene, a music bed ducked under the voice, sound effects and subtitles.
 import { Audio } from "@remotion/media";
 import React from "react";
@@ -61,15 +61,17 @@ export const Launch: React.FC<LaunchProps> = ({ lang, subtitles, music }) => {
   const t = TIMELINES[lang];
   const ov = t.overlapFrames;
   const s = (id: SceneId) => scene(t, id);
+  // A cut can leave scenes out (the short v3 drops reviews and pros): play only those in the timeline.
+  const playing = SCENES.filter(([id]) => t.scenes.some((x) => x.id === id));
   return (
     <AbsoluteFill style={{ backgroundColor: "#070809" }}>
       {/* Soundtrack-only renders (scripts/render-audio.mjs) hide the picture so the
           browser paints nothing; the scenes still mount, so their SFX still play. */}
       <AbsoluteFill style={isAudioOnly() ? { display: "none" } : undefined}>
         <Backdrop />
-        {SCENES.map(([id, Scene], i) => {
+        {playing.map(([id, Scene], i) => {
           const sc = s(id);
-          const last = i === SCENES.length - 1;
+          const last = i === playing.length - 1;
           return (
             <Sequence key={id} name={`${i + 1} ${id}`} from={sc.start} durationInFrames={sc.duration + (last ? 0 : ov)} premountFor={fps}>
               <Scene timing={sc} timeline={t} lang={lang} />
