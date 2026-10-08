@@ -37,9 +37,17 @@ def decode(path: Path) -> np.ndarray:
     return np.frombuffer(raw, dtype=np.float32).copy()
 
 
+# Slow-down method. "atempo" (WSOLA) keeps a speaking voice more natural than rubberband, which
+# left a phasey, robotic edge on these takes. POLISH warms the TTS voice a little (body, softer
+# highs) and adds a very small room so it sits like a voice recorded in a space, not a dry synth.
+STRETCH = "atempo"
+POLISH = "equalizer=f=170:t=q:w=1:g=2.5,equalizer=f=3200:t=q:w=1.4:g=-1.5,highshelf=f=9000:g=-2,aecho=0.9:0.5:18|31:0.10|0.06"
+
+
 def stretch(x: np.ndarray) -> np.ndarray:
+    slow = f"atempo={TEMPO}" if STRETCH == "atempo" else f"rubberband=tempo={TEMPO}:pitch=1:transients=smooth:formant=preserved"
     out = subprocess.run(["ffmpeg", "-v", "error", "-f", "f32le", "-ar", str(SR), "-ac", "1", "-i", "-",
-                          "-af", f"rubberband=tempo={TEMPO}:pitch=1:transients=smooth:formant=preserved",
+                          "-af", ",".join(f for f in (slow, POLISH) if f),
                           "-f", "f32le", "-"], input=x.tobytes(), check=True, capture_output=True).stdout
     return np.frombuffer(out, dtype=np.float32).copy()
 
