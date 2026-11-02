@@ -360,7 +360,7 @@ def test_countries_list_headline_metrics(api, db):
 def test_country_profile_assembly(api, db):
     comtrade = make_source(db, "un_comtrade_t")
     fao = make_source(db, "faostat_t", "production")
-    nass = make_source(db, "nass_t", "production", country="USA")
+    make_source(db, "nass_t", "production", country="USA")
     usda = make_source(db, "usda_prices_t", "prices", country="USA")
     eu = make_source(db, "eurostat_prices_t", "prices")
     news_src = make_source(db, "news_t", "news", reliability="trade_press")

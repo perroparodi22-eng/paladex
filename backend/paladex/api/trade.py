@@ -28,9 +28,9 @@ Data rules enforced here (docs/DEVELOPING.md):
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
-from typing import Iterable, Literal
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, case, distinct, extract, func, select
@@ -53,6 +53,8 @@ AGGREGATE_REPORTERS = frozenset({"EU27", "EU28"})
 # Frequencies used for annual figures and time series. Weekly surveillance data (TAXUD) is
 # provisional and covers extra-EU imports only, so it is not used to build annual totals.
 TOTAL_FREQS = ("A", "M")
+# Global datasets of declared customs flows (named first in "expected source" notes).
+DECLARED_SOURCES = ("un_comtrade", "eurostat_comext")
 # Tie-break only (after completeness, World row and reliability): broadest consistent coverage first.
 SOURCE_PREFERENCE = ("un_comtrade", "eurostat_comext", "usda_fas_gats")
 RELIABILITY_ORDER = ("official", "industry", "trade_press", "aggregator", "user", "ai", "demo")
@@ -66,10 +68,6 @@ DISCREPANCY_THRESHOLD = 0.10
 UNALLOCATED_MIN_SHARE = 0.005
 # When a source declares no rhythm, judge freshness by the data's frequency.
 FREQ_MAX_AGE_DAYS = {"A": 550, "M": 75, "W": 21}
-
-Flow = Literal["import", "export"]
-Metric = Literal["volume", "value"]
-
 
 # ---------------------------------------------------------------------------
 # Aggregates
@@ -170,7 +168,7 @@ def most_cautious(statuses: Iterable[str | None]) -> str | None:
     for s in STATUS_CAUTION:
         if s in found:
             return s
-    return sorted(found)[0]
+    return min(found)
 
 
 def _usd_expr():
@@ -530,9 +528,7 @@ def sources_used(ctx: Ctx, rows: Iterable[dict]) -> list[dict]:
     return out
 
 
-def _flow(value: str | None, *, required: bool = True) -> str | None:
-    if value is None and not required:
-        return None
+def _flow(value: str | None) -> str:
     v = (value or "").lower()
     if v not in FLOWS:
         raise HTTPException(422, "flow must be 'import' or 'export'")
@@ -652,7 +648,7 @@ def trade_facets(db: Session = Depends(get_db)):
         "months": month_list,
         "default_year": {f: totals.default_year(f) for f in FLOWS},
         "sources": sorted(sources, key=lambda s: -s["rows"]),
-        "providers": ctx.providers(),
+        "providers": ctx.providers(prefer=DECLARED_SOURCES),
     }
 
 
@@ -686,7 +682,7 @@ def trade_leaders(
     out = {
         "flow": flow, "basis": basis, "metric": metric, "year": year, "default_year": default_year,
         "available_years": years, "rows": [], "incomplete": [], "count": 0, "sources": [],
-        "mixed_sources": False, "providers": ctx.providers(),
+        "mixed_sources": False, "providers": ctx.providers(prefer=DECLARED_SOURCES),
     }
     if year is None:
         return out
@@ -1094,6 +1090,17 @@ def mirror_declarations(ctx: Ctx, iso3: str, flow: str, limit: int = 10) -> dict
 
 
 __all__ = [
-    "router", "Ctx", "Totals", "Candidate", "Agg", "candidate_total", "partner_breakdown", "build_series",
-    "latest_totals", "mirror_declarations", "sources_used", "item_freshness", "PSEUDO_AREAS",
+    "PSEUDO_AREAS",
+    "Agg",
+    "Candidate",
+    "Ctx",
+    "Totals",
+    "build_series",
+    "candidate_total",
+    "item_freshness",
+    "latest_totals",
+    "mirror_declarations",
+    "partner_breakdown",
+    "router",
+    "sources_used",
 ]

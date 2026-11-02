@@ -43,6 +43,7 @@ export default {
     'col.country': 'Paese',
     'col.region': 'Area',
     'col.data': 'Dati disponibili',
+    'col.news': 'Notizie 30 gg',
     summed: 'Σ = somma dei paesi partner',
 
     'region.South America': 'Sud America',
@@ -65,7 +66,9 @@ export default {
     'kpi.imports': 'Importazioni',
     'kpi.news': 'Notizie (30 giorni)',
     'kpi.mirror': 'secondo {n} paesi importatori',
+    'kpi.mirror1': 'secondo 1 paese importatore',
     'kpi.mirrorImp': 'secondo {n} paesi esportatori',
+    'kpi.mirrorImp1': 'secondo 1 paese esportatore',
     'kpi.year': 'anno {y}',
     'kpi.newsSub': 'articoli che citano il paese',
     'kpi.prices': '{n} serie di prezzi',
@@ -83,7 +86,7 @@ export default {
     'prod.col.source': 'Fonte',
     'prod.oneSource': 'Una serie per fonte e unità: i valori di fonti diverse non vengono mai uniti.',
     'prod.flag': 'Codice fonte: {f}',
-    'prod.fallback': 'FAOSTAT (FAO), statistiche nazionali (es. USDA NASS per gli USA)',
+    'prod.fallback': 'FAOSTAT (FAO) e statistiche nazionali',
 
     'trade.title': 'Commercio estero',
     'trade.eyebrow': 'Dichiarazioni doganali · miele HS 0409',
@@ -196,6 +199,7 @@ export default {
     'col.country': 'Country',
     'col.region': 'Region',
     'col.data': 'Available data',
+    'col.news': 'News 30 d',
     summed: 'Σ = sum of partner countries',
 
     'region.South America': 'South America',
@@ -217,7 +221,9 @@ export default {
     'kpi.imports': 'Imports',
     'kpi.news': 'News (30 days)',
     'kpi.mirror': 'according to {n} importing countries',
+    'kpi.mirror1': 'according to 1 importing country',
     'kpi.mirrorImp': 'according to {n} exporting countries',
+    'kpi.mirrorImp1': 'according to 1 exporting country',
     'kpi.year': 'year {y}',
     'kpi.newsSub': 'articles mentioning the country',
     'kpi.prices': '{n} price series',
@@ -235,7 +241,7 @@ export default {
     'prod.col.source': 'Source',
     'prod.oneSource': 'One series per source and unit: values from different sources are never merged.',
     'prod.flag': 'Source flag: {f}',
-    'prod.fallback': 'FAOSTAT (FAO), national statistics (e.g. USDA NASS for the USA)',
+    'prod.fallback': 'FAOSTAT (FAO) and national statistics',
 
     'trade.title': 'Foreign trade',
     'trade.eyebrow': 'Customs declarations · honey HS 0409',

@@ -69,8 +69,21 @@ export default function Trade() {
       {facets.isLoading ? <Loading /> : facets.error ? <ErrorBlock error={facets.error} onRetry={() => facets.refetch()} /> : !hasData ? (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px] items-start">
           <Panel>
-            <DataMissing title={t('trade.empty.title')} what={t('trade.empty.hint', { sources: t('trade.empty.fallbackSources') })}
+            <DataMissing title={t('trade.empty.title')} what={t('trade.empty.hint')}
               providers={f?.providers ?? []} fallback={t('trade.empty.fallbackSources')} />
+            {(f?.providers.length ?? 0) > 0 && (
+              <div className="mt-2 border-t border-line-soft pt-3 px-2">
+                <div className="eyebrow mb-1.5">{t('trade.empty.schedule')}</div>
+                <ul className="flex flex-col gap-1.5 text-[0.88rem]">
+                  {f!.providers.map((p) => (
+                    <li key={p.key}>
+                      <span className="text-charcoal-soft font-medium">{p.publisher || p.name}</span>
+                      {p.expected_update && <span className="text-muted"> — {p.expected_update}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </Panel>
           {f && <TradeNotes facets={f} />}
         </div>

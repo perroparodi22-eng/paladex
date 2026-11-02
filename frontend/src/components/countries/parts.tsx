@@ -32,14 +32,14 @@ export function AvailabilityIcons({ a, className, keys = AVAIL_KEYS, size = 'md'
 }) {
   const { t } = useI18n()
   return (
-    <div className={clsx('flex items-center', size === 'sm' ? 'gap-0.5' : 'gap-1', className)}>
+    <div className={clsx('flex items-center', size === 'sm' ? 'gap-px' : 'gap-1', className)}>
       {keys.map((k) => {
         const s = state(a, k)
         return (
           <span
             key={k}
             title={`${t(`countries.avail.${k}`)}: ${t(`countries.avail.${s === 'yes' ? 'yes' : s === 'mirror' ? 'mirror' : 'no'}`)}`}
-            className={clsx('inline-flex items-center justify-center rounded-sm border', size === 'sm' ? 'h-[19px] w-[19px] [&>svg]:h-[13px] [&>svg]:w-[13px]' : 'h-[22px] w-[22px]',
+            className={clsx('inline-flex items-center justify-center rounded-sm border', size === 'sm' ? 'h-[17px] w-[17px] [&>svg]:h-[12px] [&>svg]:w-[12px]' : 'h-[22px] w-[22px]',
               s === 'yes' ? 'border-forest-100 bg-forest-50 text-forest-700'
                 : s === 'mirror' ? 'border-dashed border-gold-light text-gold-dark'
                   : 'border-transparent text-line')}

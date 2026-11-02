@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import { DemoBadge, Panel } from '@/components/ui'
 import { DataMissing, SourcesFooter } from '@/components/trade/bits'
 import { useI18n } from '@/i18n'
-import { fmtNumber } from '@/lib/format'
 import { colorFor, NO_DATA, quantileClasses } from './choropleth'
 import { fmtBound, fmtMetric, metricSource, metricValue, metricYear } from './metrics'
 import { countryName, useRegion } from './parts'
@@ -84,7 +83,7 @@ export function MapPanel({ data, metric }: { data: CountriesResponse; metric: Ma
           </ul>
         </div>
         {values.length === 0 && (
-          <div className="absolute inset-x-0 top-6 z-[500] flex justify-center px-6">
+          <div className="absolute inset-x-0 top-5 z-[500] flex justify-center pl-16 pr-6">
             <div className="max-w-xl rounded-sm border border-line bg-white/95 px-4 shadow-panel">
               <DataMissing compact what={t('countries.mapEmpty')} providers={meta.providers}
                 fallback={metric === 'production' ? t('countries.prod.fallback') : metric === 'news' ? t('countries.news.fallback') : t('countries.trade.fallback')} />
@@ -94,8 +93,4 @@ export function MapPanel({ data, metric }: { data: CountriesResponse; metric: Ma
       </div>
     </Panel>
   )
-}
-
-export function fmtCount(n: number, lang: 'it' | 'en') {
-  return fmtNumber(n, lang)
 }

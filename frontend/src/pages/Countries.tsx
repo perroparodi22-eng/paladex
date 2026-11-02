@@ -47,10 +47,12 @@ export default function Countries() {
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px] items-start">
             <div className="min-w-0 flex flex-col gap-5">
               <MapPanel data={q.data} metric={metric} />
-              <OtherCountries data={q.data} metric={metric} />
+              <div className="hidden xl:block"><OtherCountries data={q.data} metric={metric} /></div>
             </div>
             <PriorityList data={q.data} metric={metric} />
           </div>
+          {/* below the priority list on narrower screens */}
+          <div className="mt-5 xl:hidden"><OtherCountries data={q.data} metric={metric} /></div>
         </>
       ) : null}
     </div>

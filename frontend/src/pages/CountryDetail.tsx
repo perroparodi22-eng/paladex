@@ -9,7 +9,7 @@ import { ProfileProduction } from '@/components/countries/ProfileProduction'
 import { ProfileContext, ProfileMissing, ProfileNews, ProfilePrices, ProfileRegulations } from '@/components/countries/ProfileSections'
 import { ProfileTrade } from '@/components/countries/ProfileTrade'
 import type { CountryProfile, TradeFlowSection } from '@/components/countries/types'
-import { fmtT, SourcesFooter } from '@/components/trade/bits'
+import { fmtT, SourcesFooter, useProviderText } from '@/components/trade/bits'
 import { useI18n } from '@/i18n'
 import { ApiError, api } from '@/lib/api'
 import { fmtNumber } from '@/lib/format'
@@ -85,6 +85,7 @@ function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
 
 function KpiRow({ p }: { p: CountryProfile }) {
   const { t, lang } = useI18n()
+  const providerText = useProviderText()
   const prodMetric = p.production.metrics.find((m) => m.metric === 'production')
   const prod = prodMetric?.series[0]?.latest
   const prodSeries = prodMetric?.series[0]
@@ -108,7 +109,7 @@ function KpiRow({ p }: { p: CountryProfile }) {
       <StatTile
         label={label}
         value={<span className="text-muted">—</span>}
-        sub={s.mirror ? t(mirrorKey, { n: s.mirror.count }) : t('ui.noData')}
+        sub={s.mirror ? t(s.mirror.count === 1 ? `${mirrorKey}1` : mirrorKey, { n: s.mirror.count }) : t('ui.noData')}
         footer={<span className="text-[0.78rem] text-muted">{s.mirror ? t('countries.missing.partial') : t('countries.trade.noDeclared')}</span>}
       />
     )
@@ -126,7 +127,7 @@ function KpiRow({ p }: { p: CountryProfile }) {
         />
       ) : (
         <StatTile label={t('countries.kpi.production')} value={<span className="text-muted">—</span>} sub={t('ui.noData')}
-          footer={<span className="text-[0.78rem] text-muted">{t('countries.prod.fallback')}</span>} />
+          footer={<span className="text-[0.78rem] text-muted">{t('countries.missing.from', { s: providerText(p.production.providers, t('countries.prod.fallback'), 2) })}</span>} />
       )}
       {tradeTile(p.trade.export, t('countries.kpi.exports'), 'countries.kpi.mirror')}
       {tradeTile(p.trade.import, t('countries.kpi.imports'), 'countries.kpi.mirrorImp')}

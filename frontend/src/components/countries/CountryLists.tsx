@@ -45,7 +45,7 @@ export function PriorityList({ data, metric }: { data: CountriesResponse; metric
           return (
             <li key={c.iso3} className="border-b border-line-soft last:border-0">
               <Link to={`/paesi/${c.iso3}`} title={title}
-                className="grid grid-cols-[1.3rem_minmax(0,1fr)_auto_6.4rem] items-center gap-x-2 px-4 py-[0.38rem] hover:bg-ivory/60 group">
+                className="grid grid-cols-[1.2rem_minmax(0,1fr)_auto_5.4rem] items-center gap-x-1.5 px-4 py-[0.38rem] hover:bg-ivory/60 group">
                 <span className="num text-[0.75rem] text-muted">{i + 1}</span>
                 <span className="truncate text-[0.97rem] text-charcoal group-hover:text-forest-800">{countryName(c, lang)}</span>
                 <AvailabilityIcons a={c.available} keys={LIST_KEYS} size="sm" />
@@ -88,10 +88,10 @@ export function OtherCountries({ data, metric }: { data: CountriesResponse; metr
         <thead>
           <tr>
             <th>{t('countries.col.country')}</th>
-            <th className="!text-right">{t('countries.metric.exports')} (t)</th>
-            <th className="!text-right">{t('countries.metric.imports')} (t)</th>
-            <th className="!text-right">{t('countries.metric.production')} (t)</th>
-            <th className="!text-right">{t('countries.metric.news')}</th>
+            <th className="!text-right whitespace-nowrap">{t('countries.metric.exports')} t</th>
+            <th className="!text-right whitespace-nowrap">{t('countries.metric.imports')} t</th>
+            <th className="!text-right whitespace-nowrap">{t('countries.metric.production')} t</th>
+            <th className="!text-right whitespace-nowrap">{t('countries.col.news')}</th>
             <th>{t('countries.col.data')}</th>
           </tr>
         </thead>
@@ -100,7 +100,7 @@ export function OtherCountries({ data, metric }: { data: CountriesResponse; metr
             const m = c.metrics
             return (
               <tr key={c.iso3}>
-                <td>
+                <td className="whitespace-nowrap">
                   <Link to={`/paesi/${c.iso3}`} className="link no-underline hover:underline">{countryName(c, lang)}</Link>
                   <div className="text-[0.75rem] text-muted">{region(c.region)}</div>
                 </td>

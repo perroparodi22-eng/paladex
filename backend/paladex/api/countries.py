@@ -25,9 +25,17 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..enums import PriceType
-from ..models import Country, NewsArticle, PriceObservation, ProductionStat, RegulationItem, TradeFlowObservation, utcnow
+from ..models import (
+    Country,
+    NewsArticle,
+    PriceObservation,
+    ProductionStat,
+    RegulationItem,
+    TradeFlowObservation,
+    utcnow,
+)
 from ..reference.countries import PRIORITY_ISO3
-from .common import demo_clause, iso, source_brief
+from .common import demo_clause, iso
 from .trade import (
     FLOWS,
     PSEUDO_AREAS,
@@ -417,8 +425,10 @@ def list_countries(db: Session = Depends(get_db)):
         "countries": out,
         "priority": PRIORITY_ISO3,
         "metrics": {
-            "exports": {**meta(list(exports.values())), "unit": "kg", "providers": ctx.providers("trade")},
-            "imports": {**meta(list(imports.values())), "unit": "kg", "providers": ctx.providers("trade")},
+            "exports": {**meta(list(exports.values())), "unit": "kg",
+                        "providers": ctx.providers("trade", prefer=DECLARED_TRADE_SOURCES)},
+            "imports": {**meta(list(imports.values())), "unit": "kg",
+                        "providers": ctx.providers("trade", prefer=DECLARED_TRADE_SOURCES)},
             "production": {**meta(list(production.values())), "unit": "t", "providers": ctx.providers("production")},
             "news": {"countries": sum(1 for v in news_30d.values() if v), "days": NEWS_DAYS, "is_demo": news_demo,
                      "sources": [], "years": [], "providers": ctx.providers("news")},

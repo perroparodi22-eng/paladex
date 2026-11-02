@@ -97,7 +97,7 @@ export function ShareBar({ pct, tone = 'gold', className }: { pct: number | null
 /** Short, de-duplicated source names ("UN Comtrade — commercio…" -> "UN Comtrade"). */
 export function providerNames(providers: Provider[], max = 3): { names: string[]; more: number } {
   const short = (p: Provider) => {
-    const n = p.name.split(/\s+[—–:·-]\s+|:\s/)[0].trim()
+    const n = p.name.replace(/\s*\(.*?\)/g, '').split(/\s+[—–:·-]\s+|:\s/)[0].trim()
     return n.length > 2 && n.length <= 40 ? n : (p.publisher || p.name).replace(/\s*\(.*?\)/g, '').split(',')[0].trim()
   }
   const names = Array.from(new Set(providers.filter((p) => p.enabled).map(short)))
