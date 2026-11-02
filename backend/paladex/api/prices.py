@@ -1,0 +1,925 @@
+"""Price intelligence API (/api/prices/...).
+
+Rules enforced here (see docs/DEVELOPING.md):
+
+* Only current revisions (`is_current`) and real rows unless demo display is on (`demo_clause`).
+* One price type per chart request: `series`, `latest` and `compare` require a single
+  `price_type`; wholesale quotes, producer prices, customs unit values and retail prices are
+  never merged.
+* Currency conversion uses the per-kg normalised columns stored at ingest
+  (`price_per_kg`, `usd_per_kg`, `eur_per_kg`); no exchange rate is guessed here. A row
+  without a stored conversion has `value = null` in that currency and keeps its original.
+* Quarterly/annual aggregation is a simple average of the months that exist, with the
+  number of months reported. Gaps are never filled, changes are never extrapolated.
+* Disagreement between sources (>10% for the same origin/variety/type/market/period) is
+  reported, not resolved.
+"""
+from __future__ import annotations
+
+import calendar
+import csv
+import hashlib
+import io
+import math
+import re
+from collections import defaultdict
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import date, datetime
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session
+
+from ..db import get_db
+from ..enums import DataStatus, PriceType
+from ..models import Country, PriceObservation, Source
+from ..reference.countries import PRIORITY_ISO3
+from ..reference.varieties import LABELS as VARIETY_LABELS
+from .common import demo_clause, get_setting, iso, source_brief
+
+router = APIRouter(prefix="/prices", tags=["prices"])
+
+M = PriceObservation
+NONE_TOKEN = "_none"                     # filter/facet token for "not specified" (NULL)
+DISCREPANCY_THRESHOLD = 0.10             # 10 % between sources
+DEFAULT_COMPARE_WINDOW = 3               # months
+MAX_CSV_ROWS = 100_000
+
+# Fallback publication rhythm (days) when a source has no `expected_max_age_days`.
+DEFAULT_CADENCE_DAYS = {"D": 7, "W": 14, "irregular": 45, "M": 45, "Q": 120, "A": 400}
+# Granularity rank: finer -> coarser. "irregular" dated quotes are bucketed by month.
+FREQ_RANK = {"D": 0, "W": 1, "irregular": 1, "M": 2, "Q": 3, "A": 4}
+RANK_FREQ = {2: "M", 3: "Q", 4: "A"}
+# Most cautious status wins when an aggregated point mixes statuses.
+STATUS_CAUTION = [
+    DataStatus.DEMO, DataStatus.AI_ASSESSMENT, DataStatus.FORECAST, DataStatus.ESTIMATE,
+    DataStatus.PROVISIONAL, DataStatus.USER_ENTERED, DataStatus.PUBLISHED, DataStatus.LIVE,
+]
+PRICE_TYPES = [p.value for p in PriceType]
+
+Currency = Literal["USD", "EUR", "ORIGINAL"]
+
+
+# ---------------------------------------------------------------------------
+# Filters
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PriceFilters:
+    price_type: str | None
+    origins: list[str]
+    varieties: list[str]
+    markets: list[str]
+    sources: list[str]
+    color_grades: list[str]
+    date_from: date | None
+    date_to: date | None
+
+
+def _split(values: list[str] | None) -> list[str]:
+    """Accept both repeated params (?origin=ARG&origin=UKR) and comma lists (?origin=ARG,UKR)."""
+    out: list[str] = []
+    for v in values or []:
+        out.extend(x.strip() for x in v.split(",") if x.strip())
+    return out
+
+
+def _month_end(y: int, m: int) -> date:
+    return date(y, m, calendar.monthrange(y, m)[1])
+
+
+def parse_period_bound(value: str | None, *, end: bool) -> date | None:
+    """'2026', '2026-09', '2026-Q3' or '2026-09-15' -> first (or last) day of that period."""
+    if not value:
+        return None
+    s = value.strip()
+    try:
+        if re.fullmatch(r"\d{4}", s):
+            y = int(s)
+            return date(y, 12, 31) if end else date(y, 1, 1)
+        if mm := re.fullmatch(r"(\d{4})-(\d{1,2})", s):
+            y, m = int(mm[1]), int(mm[2])
+            return _month_end(y, m) if end else date(y, m, 1)
+        if mq := re.fullmatch(r"(\d{4})-?Q([1-4])", s, re.IGNORECASE):
+            y, q = int(mq[1]), int(mq[2])
+            return _month_end(y, q * 3) if end else date(y, q * 3 - 2, 1)
+        return date.fromisoformat(s)
+    except ValueError as exc:
+        raise HTTPException(422, f"Invalid period '{value}'. Use YYYY, YYYY-MM, YYYY-Qn or YYYY-MM-DD.") from exc
+
+
+def price_filters(
+    price_type: str | None = Query(None, description="One PriceType value"),
+    origin: list[str] | None = Query(None, description="ISO3 of the honey's origin (repeatable). '_none' = not specified"),
+    variety: list[str] | None = Query(None),
+    market: list[str] | None = Query(None, description="ISO3 of the market where the price is observed"),
+    source: list[str] | None = Query(None, description="Source key"),
+    color_grade: list[str] | None = Query(None),
+    date_from: str | None = Query(None, alias="from", description="YYYY, YYYY-MM, YYYY-Qn or ISO date"),
+    date_to: str | None = Query(None, alias="to"),
+) -> PriceFilters:
+    if price_type is not None and price_type not in PRICE_TYPES:
+        raise HTTPException(422, f"Unknown price_type '{price_type}'. Allowed: {', '.join(PRICE_TYPES)}")
+    return PriceFilters(
+        price_type=price_type,
+        origins=[o.upper() if o != NONE_TOKEN else o for o in _split(origin)],
+        varieties=_split(variety),
+        markets=[o.upper() if o != NONE_TOKEN else o for o in _split(market)],
+        sources=_split(source),
+        color_grades=_split(color_grade),
+        date_from=parse_period_bound(date_from, end=False),
+        date_to=parse_period_bound(date_to, end=True),
+    )
+
+
+def _require_type(f: PriceFilters) -> str:
+    if not f.price_type:
+        raise HTTPException(422, "price_type is required: different kinds of price are never mixed in one series.")
+    return f.price_type
+
+
+def _in_or_null(col, values: list[str]):
+    real = [v for v in values if v != NONE_TOKEN]
+    conds = []
+    if real:
+        conds.append(col.in_(real))
+    if NONE_TOKEN in values:
+        conds.append(col.is_(None))
+    return or_(*conds)
+
+
+def _source_ids(db: Session, keys: list[str]) -> list[int]:
+    if not keys:
+        return []
+    return list(db.scalars(select(Source.id).where(Source.key.in_(keys))))
+
+
+def apply_filters(q, f: PriceFilters, db: Session, *, skip: Iterable[str] = (), use_from: bool = True):
+    """Current, demo-aware rows matching `f`. `skip` drops dimensions (used for facet counts)."""
+    skip = set(skip)
+    q = q.where(M.is_current.is_(True), demo_clause(M, db))
+    if f.price_type and "price_type" not in skip:
+        q = q.where(M.price_type == f.price_type)
+    if f.origins and "origin" not in skip:
+        q = q.where(_in_or_null(M.origin_iso3, f.origins))
+    if f.varieties and "variety" not in skip:
+        q = q.where(M.variety.in_(f.varieties))
+    if f.markets and "market" not in skip:
+        q = q.where(_in_or_null(M.market_iso3, f.markets))
+    if f.sources and "source" not in skip:
+        q = q.where(M.source_id.in_(_source_ids(db, f.sources)))
+    if f.color_grades and "color_grade" not in skip:
+        q = q.where(_in_or_null(M.color_grade, f.color_grades))
+    if "period" not in skip:
+        # A row belongs to the window when its period overlaps it.
+        if f.date_from and use_from:
+            q = q.where(M.period_end >= f.date_from)
+        if f.date_to:
+            q = q.where(M.period_start <= f.date_to)
+    return q
+
+
+def _currency(value: str | None) -> Currency:
+    v = (value or "USD").upper()
+    if v not in ("USD", "EUR", "ORIGINAL"):
+        raise HTTPException(422, "currency must be USD, EUR or original")
+    return v  # type: ignore[return-value]
+
+
+def _freq(value: str | None) -> str:
+    v = (value or "M").upper()
+    if v not in ("M", "Q", "A"):
+        raise HTTPException(422, "freq must be M, Q or A")
+    return v
+
+
+# ---------------------------------------------------------------------------
+# Periods
+# ---------------------------------------------------------------------------
+
+
+def bucket(d: date, freq: str) -> tuple[str, date, date]:
+    """(label, start, end) of the period of frequency `freq` containing `d`."""
+    if freq == "A":
+        return str(d.year), date(d.year, 1, 1), date(d.year, 12, 31)
+    if freq == "Q":
+        q = (d.month - 1) // 3 + 1
+        return f"{d.year}-Q{q}", date(d.year, q * 3 - 2, 1), _month_end(d.year, q * 3)
+    return f"{d.year}-{d.month:02d}", date(d.year, d.month, 1), _month_end(d.year, d.month)
+
+
+def shift_label(label: str, freq: str, steps: int) -> str:
+    """Move a bucket label by `steps` periods of `freq` ('2026-01', M, -1 -> '2025-12')."""
+    if freq == "A":
+        return str(int(label) + steps)
+    if freq == "Q":
+        y, q = int(label[:4]), int(label[-1])
+        idx = y * 4 + (q - 1) + steps
+        return f"{idx // 4}-Q{idx % 4 + 1}"
+    y, m = int(label[:4]), int(label[5:7])
+    idx = y * 12 + (m - 1) + steps
+    return f"{idx // 12}-{idx % 12 + 1:02d}"
+
+
+PERIODS_PER_YEAR = {"M": 12, "Q": 4, "A": 1}
+
+
+# ---------------------------------------------------------------------------
+# Conversion & series building
+# ---------------------------------------------------------------------------
+
+
+def _r(v: float | None, n: int = 4) -> float | None:
+    return None if v is None or (isinstance(v, float) and math.isnan(v)) else round(v, n)
+
+
+def convert_row(r: PriceObservation, currency: Currency) -> dict:
+    """Per-kg value/low/high of a row in `currency`, from the stored normalised fields.
+
+    `price_per_kg` is the per-kg price in the source currency; `usd_per_kg`/`eur_per_kg` are
+    the FX-normalised versions written at ingest. Low/high are scaled by the same factor
+    (stored per-kg value / published value), so the unit and the FX rate are applied exactly
+    as they were for the main value.
+    """
+    if currency == "ORIGINAL" or r.currency == currency:
+        base, ccy = r.price_per_kg, r.currency
+    else:
+        base, ccy = (r.usd_per_kg if currency == "USD" else r.eur_per_kg), currency
+    if base is None:
+        return {"value": None, "low": None, "high": None, "currency": ccy, "fx_missing": True}
+    factor = base / r.price_value if r.price_value else None
+    low = r.price_low * factor if (factor is not None and r.price_low is not None) else None
+    high = r.price_high * factor if (factor is not None and r.price_high is not None) else None
+    return {"value": base, "low": low, "high": high, "currency": ccy, "fx_missing": False}
+
+
+def _most_cautious(statuses: Iterable[str]) -> str | None:
+    st = set(statuses)
+    for s in STATUS_CAUTION:
+        if s.value in st:
+            return s.value
+    return next(iter(st), None)
+
+
+def _mean(vals: list[float]) -> float | None:
+    return sum(vals) / len(vals) if vals else None
+
+
+def _combine(items: list[dict], label: str, start: date, end: date, expected: int | None) -> dict:
+    """Simple average of `items` (already converted). Low/high only when every item has them."""
+    have = [i for i in items if i["value"] is not None]
+    lows = [i["low"] for i in have if i["low"] is not None]
+    highs = [i["high"] for i in have if i["high"] is not None]
+    origs = [i["original"] for i in items if i.get("original")]
+    original = None
+    if origs and len({(o["currency"], o["unit"]) for o in origs}) == 1:
+        ol = [o["low"] for o in origs if o["low"] is not None]
+        oh = [o["high"] for o in origs if o["high"] is not None]
+        original = {
+            "value": _r(_mean([o["value"] for o in origs])),
+            "low": _r(_mean(ol)) if len(ol) == len(origs) else None,
+            "high": _r(_mean(oh)) if len(oh) == len(origs) else None,
+            "currency": origs[0]["currency"], "unit": origs[0]["unit"],
+        }
+    latest = max(items, key=lambda i: (i["period_start"], i["published_at"] or "", i["collected_at"] or ""))
+    pubs = [i["published_at"] for i in items if i["published_at"]]
+    cols = [i["collected_at"] for i in items if i["collected_at"]]
+    return {
+        "period_label": label,
+        "period_start": start.isoformat(),
+        "period_end": end.isoformat(),
+        "value": _r(_mean([i["value"] for i in have])),
+        "low": _r(_mean(lows)) if have and len(lows) == len(have) else None,
+        "high": _r(_mean(highs)) if have and len(highs) == len(have) else None,
+        "original": original,
+        "n_points": len(have),
+        "expected_points": expected,
+        "periods": sorted({p for i in items for p in i.get("periods", [i["period_label"]])}),
+        "fx_missing": len(items) - len(have),
+        "published_at": max(pubs) if pubs else None,
+        "collected_at": max(cols) if cols else None,
+        "source_url": latest["source_url"],
+        "fx_date": latest.get("fx_date"),
+        "data_status": _most_cautious(i["data_status"] for i in items),
+        "is_demo": any(i["is_demo"] for i in items),
+    }
+
+
+def _row_item(r: PriceObservation, currency: Currency) -> dict:
+    c = convert_row(r, currency)
+    return {
+        "period_label": r.period_label,
+        "period_start": r.period_start,
+        "value": c["value"], "low": c["low"], "high": c["high"], "currency": c["currency"],
+        "original": {"value": r.price_value, "low": r.price_low, "high": r.price_high,
+                     "currency": r.currency, "unit": r.unit},
+        "published_at": iso(r.published_at), "collected_at": iso(r.collected_at),
+        "source_url": r.source_url, "fx_date": iso(r.fx_date),
+        "data_status": r.data_status, "is_demo": r.is_demo,
+    }
+
+
+def series_key(r: PriceObservation, currency: Currency) -> tuple:
+    key = (r.source_id, r.price_type, r.origin_iso3, r.market_iso3, r.variety, r.color_grade, r.terms, bool(r.organic))
+    return key + ((r.currency,) if currency == "ORIGINAL" else ())
+
+
+def series_id(key: tuple) -> str:
+    return hashlib.sha1("|".join("" if k is None else str(k) for k in key).encode()).hexdigest()[:12]
+
+
+def native_freq(rows: list[PriceObservation]) -> str:
+    return max((r.frequency for r in rows), key=lambda f: FREQ_RANK.get(f, 2))
+
+
+def build_points(rows: list[PriceObservation], currency: Currency, freq: str) -> tuple[list[dict], str]:
+    """Rows of one series -> points at `freq` (or the series' own, coarser frequency)."""
+    nat = native_freq(rows)
+    base_rank = max(FREQ_RANK.get(nat, 2), 2)
+    eff_rank = max(base_rank, FREQ_RANK[freq])
+    base_f, eff_f = RANK_FREQ[base_rank], RANK_FREQ[eff_rank]
+
+    # 1) collapse raw rows into their own monthly/quarterly/annual period
+    base_groups: dict[str, list[dict]] = defaultdict(list)
+    base_bounds: dict[str, tuple[date, date]] = {}
+    for r in rows:
+        label, s, e = bucket(r.period_start, base_f)
+        base_groups[label].append(_row_item(r, currency))
+        base_bounds[label] = (s, e)
+    base_points = []
+    for label in sorted(base_groups):
+        s, e = base_bounds[label]
+        p = _combine(base_groups[label], label, s, e, None)
+        p["_start"] = s
+        base_points.append(p)
+    if eff_f == base_f:
+        for p in base_points:
+            p.pop("_start")
+            p["expected_points"] = None
+        return base_points, eff_f
+
+    # 2) average the available sub-periods (never fills a missing month)
+    expected = PERIODS_PER_YEAR[base_f] // PERIODS_PER_YEAR[eff_f]
+    groups: dict[str, list[dict]] = defaultdict(list)
+    bounds: dict[str, tuple[date, date]] = {}
+    for p in base_points:
+        label, s, e = bucket(p.pop("_start"), eff_f)
+        p["period_start"] = date.fromisoformat(p["period_start"])
+        groups[label].append(p)
+        bounds[label] = (s, e)
+    out = []
+    for label in sorted(groups):
+        s, e = bounds[label]
+        out.append(_combine(groups[label], label, s, e, expected))
+    return out, eff_f
+
+
+def _freshness_of(latest: PriceObservation, source: Source | None, freq: str, today: date | None = None) -> dict:
+    """Age of the newest point against the source's own publication rhythm."""
+    today = today or date.today()
+    ref = latest.published_at or latest.period_end
+    cadence = source.expected_max_age_days if source and source.expected_max_age_days else None
+    basis = "source"
+    if not cadence:
+        cadence, basis = DEFAULT_CADENCE_DAYS.get(freq, 45), "frequency"
+    age = (today - ref).days
+    status = "current" if age <= cadence else "aging" if age <= cadence * 1.5 else "stale"
+    return {"status": status, "age_days": age, "reference_date": ref.isoformat(),
+            "expected_max_age_days": cadence, "basis": basis}
+
+
+def _priority_rank(iso3: str | None) -> int:
+    try:
+        return PRIORITY_ISO3.index(iso3)  # type: ignore[arg-type]
+    except ValueError:
+        return len(PRIORITY_ISO3)
+
+
+def build_series(db: Session, rows: list[PriceObservation], currency: Currency, freq: str) -> list[dict]:
+    sources = {s.id: s for s in db.scalars(select(Source))}
+    groups: dict[tuple, list[PriceObservation]] = defaultdict(list)
+    for r in rows:
+        groups[series_key(r, currency)].append(r)
+    out = []
+    for key, grp in groups.items():
+        grp.sort(key=lambda r: (r.period_start, r.published_at or date.min))
+        points, eff = build_points(grp, currency, freq)
+        latest_row = max(grp, key=lambda r: (r.period_start, r.published_at or date.min, r.collected_at))
+        src = sources.get(latest_row.source_id)
+        nat = native_freq(grp)
+        pubs = [r.published_at for r in grp if r.published_at]
+        out.append({
+            "id": series_id(key),
+            "source": source_brief(src),
+            "price_type": latest_row.price_type,
+            "origin_iso3": latest_row.origin_iso3,
+            "origin_label": latest_row.origin_label,
+            "market_iso3": latest_row.market_iso3,
+            "market_location": latest_row.market_location,
+            "variety": latest_row.variety,
+            "variety_raw": sorted({r.variety_raw for r in grp if r.variety_raw}),
+            "color_grade": latest_row.color_grade,
+            "terms": latest_row.terms,
+            "organic": bool(latest_row.organic),
+            "currency": latest_row.currency if currency == "ORIGINAL" else currency,
+            "unit": "kg",
+            "native_frequency": nat,
+            "freq": eff,
+            "n_points": len(points),
+            "first_period": points[0]["period_label"],
+            "last_period": points[-1]["period_label"],
+            "published_at": iso(max(pubs)) if pubs else None,
+            "collected_at": iso(max(r.collected_at for r in grp)),
+            "source_url": latest_row.source_url,
+            "data_status": _most_cautious(r.data_status for r in grp),
+            "data_statuses": sorted({r.data_status for r in grp}),
+            "reliability": latest_row.reliability,
+            "is_demo": any(r.is_demo for r in grp),
+            "has_range": any(p["low"] is not None and p["high"] is not None for p in points),
+            "fx_missing_points": sum(1 for p in points if p["value"] is None),
+            "freshness": _freshness_of(latest_row, src, nat),
+            "points": points,
+        })
+    out.sort(key=lambda s: (_priority_rank(s["origin_iso3"]), s["origin_iso3"] or "~", s["variety"],
+                            s["color_grade"] or "", (s["source"] or {}).get("key", ""), s["id"]))
+    return out
+
+
+def _sources_summary(series: list[dict]) -> list[dict]:
+    by: dict[str, dict] = {}
+    for s in series:
+        src = s["source"] or {"key": "?", "name": "?"}
+        e = by.setdefault(src["key"], {**src, "n_series": 0, "published_at": None, "collected_at": None,
+                                        "source_url": None, "is_demo": False, "freshness": None})
+        e["n_series"] += 1
+        e["is_demo"] = e["is_demo"] or s["is_demo"]
+        if s["published_at"] and (e["published_at"] is None or s["published_at"] > e["published_at"]):
+            e["published_at"], e["source_url"] = s["published_at"], s["source_url"] or e["source_url"]
+        if e["collected_at"] is None or (s["collected_at"] or "") > e["collected_at"]:
+            e["collected_at"] = s["collected_at"]
+        # the freshest series speaks for the source
+        f = s["freshness"]
+        if e["freshness"] is None or f["age_days"] < e["freshness"]["age_days"]:
+            e["freshness"] = f
+        e["source_url"] = e["source_url"] or s["source_url"]
+    return list(by.values())
+
+
+# ---------------------------------------------------------------------------
+# Discrepancies
+# ---------------------------------------------------------------------------
+
+
+def find_discrepancies(db: Session, rows: list[PriceObservation], currency: Currency,
+                       threshold: float = DISCREPANCY_THRESHOLD) -> list[dict]:
+    """Same origin, variety, price type, market and period from >= 2 sources differing > threshold.
+
+    Values are compared per kg in a common currency (USD when `currency` is 'original').
+    Demo rows are only compared with demo rows. Nothing is resolved: every source's value
+    is returned with its provenance.
+    """
+    cmp_ccy: Currency = "USD" if currency == "ORIGINAL" else currency
+    sources = {s.id: s for s in db.scalars(select(Source))}
+    groups: dict[tuple, dict[int, list[PriceObservation]]] = defaultdict(lambda: defaultdict(list))
+    for r in rows:
+        f = RANK_FREQ[max(FREQ_RANK.get(r.frequency, 2), 2)]
+        label, _, _ = bucket(r.period_start, f)
+        groups[(r.price_type, r.origin_iso3, r.variety, r.market_iso3, label, r.is_demo)][r.source_id].append(r)
+    out = []
+    for (pt, origin, variety, market, label, demo), by_src in groups.items():
+        if len(by_src) < 2:
+            continue
+        entries = []
+        for sid, rs in by_src.items():
+            vals = [v for v in (convert_row(r, cmp_ccy)["value"] for r in rs) if v is not None]
+            if not vals:
+                continue
+            latest = max(rs, key=lambda r: (r.published_at or date.min, r.collected_at))
+            entries.append({
+                "source": source_brief(sources.get(sid)),
+                "value": _r(_mean(vals)),
+                "n_rows": len(vals),
+                "color_grades": sorted({r.color_grade for r in rs if r.color_grade}),
+                "terms": sorted({r.terms for r in rs if r.terms}),
+                "published_at": iso(latest.published_at),
+                "collected_at": iso(latest.collected_at),
+                "source_url": latest.source_url,
+                "data_status": _most_cautious(r.data_status for r in rs),
+                "is_demo": demo,
+            })
+        if len(entries) < 2:
+            continue
+        lo, hi = min(e["value"] for e in entries), max(e["value"] for e in entries)
+        if lo <= 0 or (hi - lo) / lo <= threshold:
+            continue
+        entries.sort(key=lambda e: e["value"])
+        out.append({
+            "price_type": pt, "origin_iso3": origin, "variety": variety, "market_iso3": market,
+            "period_label": label, "currency": cmp_ccy, "unit": "kg",
+            "min": lo, "max": hi, "spread_pct": round((hi - lo) / lo * 100, 1),
+            "threshold_pct": round(threshold * 100), "is_demo": demo, "entries": entries,
+        })
+    out.sort(key=lambda d: (d["period_label"], d["spread_pct"]), reverse=True)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+
+def _rows(db: Session, f: PriceFilters, **kw) -> list[PriceObservation]:
+    return list(db.scalars(apply_filters(select(M), f, db, **kw).order_by(M.period_start, M.id)))
+
+
+@router.get("/facets")
+def facets(f: PriceFilters = Depends(price_filters), db: Session = Depends(get_db)):
+    """What exists, with counts, so the interface only offers filters that have data.
+
+    Price-type counts ignore the other filters (the type selector is always complete); every
+    other facet applies all filters except its own dimension.
+    """
+    sources = {s.id: s for s in db.scalars(select(Source))}
+    countries = {c.iso3: c for c in db.scalars(select(Country))}
+
+    def counts(col, dim: str):
+        q = apply_filters(select(col, func.count()).group_by(col), f, db, skip=(dim,))
+        return [(k, n) for k, n in db.execute(q)]
+
+    pt_q = select(M.price_type, func.count(), func.min(M.period_start), func.max(M.period_end)).where(
+        M.is_current.is_(True), demo_clause(M, db)).group_by(M.price_type)
+    pt_counts = {k: (n, lo, hi) for k, n, lo, hi in db.execute(pt_q)}
+    price_types = [{"key": k, "count": pt_counts.get(k, (0,))[0],
+                    "min_period": iso(pt_counts[k][1]) if k in pt_counts else None,
+                    "max_period": iso(pt_counts[k][2]) if k in pt_counts else None} for k in PRICE_TYPES]
+
+    def country_facet(col, dim):
+        out = []
+        for k, n in counts(col, dim):
+            c = countries.get(k) if k else None
+            out.append({"key": k or NONE_TOKEN, "count": n, "priority": bool(c and c.priority),
+                        "name_it": c.name_it if c else None, "name_en": c.name_en if c else None})
+        out.sort(key=lambda x: (_priority_rank(None if x["key"] == NONE_TOKEN else x["key"]), -x["count"], x["key"]))
+        return out
+
+    src_facet = []
+    for sid, n in counts(M.source_id, "source"):
+        s = sources.get(sid)
+        if s:
+            src_facet.append({**source_brief(s), "count": n, "expected_update": s.expected_update,
+                              "latest_published_at": iso(s.latest_published_at)})
+    src_facet.sort(key=lambda x: -x["count"])
+
+    base = apply_filters(select(M), f, db).subquery()
+    total, lo, hi, n_usd, n_eur, n_range = db.execute(select(
+        func.count(), func.min(base.c.period_start), func.max(base.c.period_end),
+        func.count(base.c.usd_per_kg), func.count(base.c.eur_per_kg), func.count(base.c.price_low),
+    )).one()
+    demo_n = db.scalar(select(func.count()).select_from(base).where(base.c.is_demo.is_(True))) or 0
+    ccy = db.execute(select(base.c.currency, func.count()).group_by(base.c.currency)).all()
+    freqs = db.execute(select(base.c.frequency, func.count()).group_by(base.c.frequency)).all()
+
+    return {
+        "scoped_to": f.price_type,
+        "total": total,
+        "price_types": price_types,
+        "origins": country_facet(M.origin_iso3, "origin"),
+        "markets": country_facet(M.market_iso3, "market"),
+        "varieties": sorted(({"key": k, "count": n} for k, n in counts(M.variety, "variety")), key=lambda x: -x["count"]),
+        "sources": src_facet,
+        "color_grades": sorted(({"key": k or NONE_TOKEN, "count": n} for k, n in counts(M.color_grade, "color_grade")),
+                               key=lambda x: -x["count"]),
+        "currencies": [{"key": k, "count": n} for k, n in ccy],
+        "frequencies": [{"key": k, "count": n} for k, n in freqs],
+        "conversions": {"USD": n_usd, "EUR": n_eur},
+        "has_ranges": bool(n_range),
+        "demo_rows": demo_n,
+        "period": {"min": iso(lo), "max": iso(hi)},
+    }
+
+
+@router.get("/series")
+def series(
+    f: PriceFilters = Depends(price_filters),
+    currency: str = Query("USD", description="USD | EUR | original"),
+    freq: str = Query("M", description="M | Q | A"),
+    db: Session = Depends(get_db),
+):
+    """Time series for ONE price type, one line per (source, origin, market, variety, colour, terms, organic)."""
+    pt = _require_type(f)
+    ccy, fq = _currency(currency), _freq(freq)
+    if f.date_from and fq != "M":
+        # widen to the start of the quarter/year so the first bucket is not artificially partial
+        f.date_from = bucket(f.date_from, fq)[1]
+    rows = _rows(db, f)
+    data = build_series(db, rows, ccy, fq)
+    return {
+        "price_type": pt,
+        "currency": "original" if ccy == "ORIGINAL" else ccy,
+        "unit": "kg",
+        "freq": fq,
+        "from": iso(f.date_from),
+        "to": iso(f.date_to),
+        "aggregation": "mean_of_available_months" if fq != "M" else "monthly_mean_of_observations",
+        "series": data,
+        "sources": _sources_summary(data),
+        "discrepancies": find_discrepancies(db, rows, ccy),
+        "today": date.today().isoformat(),
+    }
+
+
+def _point_ref(p: dict | None) -> dict | None:
+    if p is None:
+        return None
+    return {"period_label": p["period_label"], "value": p["value"], "n_points": p["n_points"],
+            "published_at": p["published_at"]}
+
+
+def _pct(curr: float | None, prev: float | None) -> float | None:
+    if curr is None or prev is None or prev == 0:
+        return None
+    return round((curr - prev) / prev * 100, 2)
+
+
+@router.get("/latest")
+def latest(
+    f: PriceFilters = Depends(price_filters),
+    currency: str = Query("USD"),
+    freq: str = Query("M"),
+    db: Session = Depends(get_db),
+):
+    """Latest point per series, with change vs the previous period and vs a year earlier.
+
+    Changes are computed only against the exact previous period and the exact same period one
+    year earlier; when either is missing the change is null (never extrapolated). `from` is
+    ignored here so the year-ago comparison is always available when it exists; `to` acts as
+    an "as of" date.
+    """
+    pt = _require_type(f)
+    ccy, fq = _currency(currency), _freq(freq)
+    rows = _rows(db, f, use_from=False)
+    out = []
+    for s in build_series(db, rows, ccy, fq):
+        pts = {p["period_label"]: p for p in s["points"]}
+        last = s["points"][-1]
+        eff = s["freq"]
+        prev = pts.get(shift_label(last["period_label"], eff, -1))
+        year_ago = pts.get(shift_label(last["period_label"], eff, -PERIODS_PER_YEAR[eff]))
+        fr = s["freshness"]
+        out.append({
+            "series_id": s["id"],
+            **{k: s[k] for k in ("source", "price_type", "origin_iso3", "origin_label", "market_iso3",
+                                 "market_location", "variety", "variety_raw", "color_grade", "terms", "organic",
+                                 "currency", "unit", "native_frequency", "freq", "reliability", "is_demo")},
+            "latest": last,
+            "period_label": last["period_label"],
+            "published_at": last["published_at"],
+            "collected_at": last["collected_at"],
+            "source_url": last["source_url"],
+            "data_status": last["data_status"],
+            "previous": _point_ref(prev),
+            "year_ago": _point_ref(year_ago),
+            "change_prev_pct": _pct(last["value"], prev["value"] if prev else None),
+            "change_yoy_pct": _pct(last["value"], year_ago["value"] if year_ago else None),
+            "freshness": fr,
+            "is_stale": fr["status"] in ("aging", "stale"),
+        })
+    return {"price_type": pt, "currency": "original" if ccy == "ORIGINAL" else ccy, "unit": "kg", "freq": fq,
+            "rows": out, "today": date.today().isoformat()}
+
+
+@router.get("/compare")
+def compare(
+    f: PriceFilters = Depends(price_filters),
+    by: str = Query("origin", description="origin | variety"),
+    period: str = Query("latest", description="'latest' or YYYY-MM"),
+    window: int = Query(DEFAULT_COMPARE_WINDOW, ge=1, le=24, description="months back from the reference month"),
+    currency: str = Query("USD"),
+    db: Session = Depends(get_db),
+):
+    """One bar per origin (or variety): each series' latest point inside the window.
+
+    Every bar states its own period(s). When several series fall under one bar (e.g. two
+    varieties from Argentina) the bar is their simple average and lists its components.
+    """
+    pt = _require_type(f)
+    if by not in ("origin", "variety"):
+        raise HTTPException(422, "by must be origin or variety")
+    ccy = _currency(currency)
+    if ccy == "ORIGINAL":
+        raise HTTPException(422, "compare needs a common currency (USD or EUR)")
+    f.date_from = None
+    if period == "latest":
+        anchor = db.scalar(apply_filters(select(func.max(M.period_start)), f, db))
+        if anchor is None:
+            return {"by": by, "price_type": pt, "currency": ccy, "unit": "kg", "period": period, "window_months": window,
+                    "anchor_period": None, "window_from": None, "window_to": None, "bars": [], "excluded": []}
+    else:
+        anchor = parse_period_bound(period, end=False)
+    anchor_label = bucket(anchor, "M")[0]
+    win_from = date.fromisoformat(shift_label(anchor_label, "M", -(window - 1)) + "-01")
+    win_to = bucket(anchor, "M")[2]
+    f_all = PriceFilters(**{**f.__dict__, "date_from": None, "date_to": win_to})
+    all_series = build_series(db, _rows(db, f_all), ccy, "M")
+
+    groups: dict[str, list[dict]] = defaultdict(list)
+    excluded = []
+    for s in all_series:
+        key = (s["origin_iso3"] or NONE_TOKEN) if by == "origin" else s["variety"]
+        in_win = [p for p in s["points"] if p["value"] is not None and win_from.isoformat() <= p["period_start"] <= win_to.isoformat()]
+        if not in_win:
+            excluded.append({"key": key, "series_id": s["id"], "variety": s["variety"], "origin_iso3": s["origin_iso3"],
+                             "source": s["source"], "last_period": s["last_period"], "reason": "no_point_in_window"})
+            continue
+        p = in_win[-1]
+        groups[key].append({
+            "series_id": s["id"], "origin_iso3": s["origin_iso3"], "variety": s["variety"],
+            "color_grade": s["color_grade"], "terms": s["terms"], "organic": s["organic"], "market_iso3": s["market_iso3"],
+            "source": s["source"], "period_label": p["period_label"], "value": p["value"], "low": p["low"], "high": p["high"],
+            "published_at": p["published_at"], "source_url": p["source_url"], "data_status": p["data_status"],
+            "is_demo": p["is_demo"], "freshness": s["freshness"],
+        })
+    bars = []
+    for key, comps in groups.items():
+        vals = [c["value"] for c in comps]
+        periods = sorted({c["period_label"] for c in comps})
+        bars.append({
+            "key": key, "value": _r(_mean(vals)), "min": min(vals), "max": max(vals), "n_series": len(comps),
+            "period_label": periods[-1], "period_labels": periods, "mixed_periods": len(periods) > 1,
+            "is_demo": any(c["is_demo"] for c in comps),
+            "sources": list({(c["source"] or {}).get("key"): c["source"] for c in comps}.values()),
+            "components": sorted(comps, key=lambda c: -c["value"]),
+        })
+    bars.sort(key=lambda b: -b["value"])
+    have = {b["key"] for b in bars}
+    excluded = [e for e in excluded if e["key"] not in have] + [e for e in excluded if e["key"] in have]
+    return {"by": by, "price_type": pt, "currency": ccy, "unit": "kg", "period": period, "window_months": window,
+            "anchor_period": anchor_label, "window_from": win_from.isoformat(), "window_to": win_to.isoformat(),
+            "bars": bars, "excluded": excluded}
+
+
+@router.get("/discrepancies")
+def discrepancies(
+    f: PriceFilters = Depends(price_filters),
+    currency: str = Query("USD"),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    """Cases where two or more sources disagree by more than 10% (price_type optional)."""
+    ccy = _currency(currency)
+    items = find_discrepancies(db, _rows(db, f), ccy)
+    return {"threshold_pct": round(DISCREPANCY_THRESHOLD * 100), "currency": "USD" if ccy == "ORIGINAL" else ccy,
+            "total": len(items), "items": items[:limit]}
+
+
+# ---------------------------------------------------------------------------
+# Raw observations (table + CSV)
+# ---------------------------------------------------------------------------
+
+CSV_COLUMNS: list[tuple[str, str, str]] = [
+    ("period_label", "Periodo", "Period"),
+    ("period_start", "Inizio periodo", "Period start"),
+    ("period_end", "Fine periodo", "Period end"),
+    ("frequency", "Frequenza", "Frequency"),
+    ("price_type", "Tipo di prezzo", "Price type"),
+    ("origin_name", "Origine", "Origin"),
+    ("origin_iso3", "Codice origine", "Origin code"),
+    ("origin_label", "Origine (testo della fonte)", "Origin (source text)"),
+    ("market_name", "Mercato", "Market"),
+    ("market_location", "Località del mercato", "Market location"),
+    ("variety_name", "Varietà", "Variety"),
+    ("variety_raw", "Varietà (testo della fonte)", "Variety (source text)"),
+    ("color_grade", "Colore", "Colour grade"),
+    ("organic", "Biologico", "Organic"),
+    ("terms", "Condizioni di vendita", "Terms"),
+    ("price_low", "Prezzo minimo (come pubblicato)", "Low (as published)"),
+    ("price_value", "Prezzo (come pubblicato)", "Price (as published)"),
+    ("price_high", "Prezzo massimo (come pubblicato)", "High (as published)"),
+    ("currency", "Valuta", "Currency"),
+    ("unit", "Unità di misura", "Unit"),
+    ("price_per_kg", "Prezzo al kg (valuta originale)", "Price per kg (original currency)"),
+    ("usd_per_kg", "USD al kg", "USD per kg"),
+    ("eur_per_kg", "EUR al kg", "EUR per kg"),
+    ("fx_date", "Data del cambio", "FX rate date"),
+    ("volume_kg", "Volume (kg)", "Volume (kg)"),
+    ("data_status", "Stato del dato", "Data status"),
+    ("reliability", "Affidabilità", "Reliability"),
+    ("source_name", "Fonte", "Source"),
+    ("publisher", "Editore", "Publisher"),
+    ("source_url", "Documento originale", "Original document"),
+    ("published_at", "Data di pubblicazione", "Published"),
+    ("collected_at", "Data di raccolta", "Collected"),
+    ("revision", "Revisione", "Revision"),
+    ("is_demo", "Dato dimostrativo", "Demo data"),
+    ("notes", "Note", "Notes"),
+]
+_NUMERIC = {"price_low", "price_value", "price_high", "price_per_kg", "usd_per_kg", "eur_per_kg", "volume_kg"}
+
+
+def _serialize_obs(r: PriceObservation, src: Source | None) -> dict:
+    return {
+        "id": r.id, "source": source_brief(src), "price_type": r.price_type,
+        "origin_iso3": r.origin_iso3, "origin_label": r.origin_label,
+        "market_iso3": r.market_iso3, "market_location": r.market_location,
+        "variety": r.variety, "variety_raw": r.variety_raw, "color_grade": r.color_grade, "organic": bool(r.organic),
+        "terms": r.terms, "price_low": r.price_low, "price_value": r.price_value, "price_high": r.price_high,
+        "currency": r.currency, "unit": r.unit, "price_per_kg": r.price_per_kg, "usd_per_kg": r.usd_per_kg,
+        "eur_per_kg": r.eur_per_kg, "fx_date": iso(r.fx_date), "volume_kg": r.volume_kg,
+        "period_label": r.period_label, "period_start": iso(r.period_start), "period_end": iso(r.period_end),
+        "frequency": r.frequency, "published_at": iso(r.published_at), "collected_at": iso(r.collected_at),
+        "source_url": r.source_url, "data_status": r.data_status, "reliability": r.reliability,
+        "revision": r.revision, "is_demo": r.is_demo, "notes": r.notes,
+    }
+
+
+def _csv_safe(v: str) -> str:
+    """Neutralise spreadsheet formulas in text that came from external documents."""
+    return "'" + v if v and v[0] in "=+-@\t\r" else v
+
+
+def _csv(rows: list[PriceObservation], sources: dict[int, Source], countries: dict[str, Country], lang: str) -> str:
+    from .meta import PRICE_TYPE_LABELS, RELIABILITY_LABELS, STATUS_LABELS
+
+    it = lang == "it"
+    sep = ";" if it else ","          # Italian Excel expects ';' and a decimal comma
+    yes, no = ("Sì", "No") if it else ("Yes", "No")
+    pt_labels = {k.value: v[lang] for k, v in PRICE_TYPE_LABELS.items()}
+    st_labels = {k.value: v[lang] for k, v in STATUS_LABELS.items()}
+    rel_labels = {k.value: v[lang] for k, v in RELIABILITY_LABELS.items()}
+
+    def cname(code: str | None) -> str:
+        if not code:
+            return ""
+        c = countries.get(code)
+        return (c.name_it if it else c.name_en) if c else code
+
+    def num(v: float | None) -> str:
+        if v is None:
+            return ""
+        s = f"{v:.6f}".rstrip("0").rstrip(".")
+        return s.replace(".", ",") if it else s
+
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=sep, lineterminator="\r\n")
+    w.writerow([it_h if it else en_h for _, it_h, en_h in CSV_COLUMNS])
+    for r in rows:
+        src = sources.get(r.source_id)
+        rec = {
+            **_serialize_obs(r, src),
+            "price_type": pt_labels.get(r.price_type, r.price_type),
+            "origin_name": cname(r.origin_iso3), "market_name": cname(r.market_iso3),
+            "variety_name": VARIETY_LABELS.get(r.variety, {}).get(lang, r.variety),
+            "organic": yes if r.organic else no,
+            "data_status": st_labels.get(r.data_status, r.data_status),
+            "reliability": rel_labels.get(r.reliability, r.reliability),
+            "source_name": src.name if src else "", "publisher": (src.publisher or "") if src else "",
+            "collected_at": r.collected_at.strftime("%Y-%m-%d %H:%M") if r.collected_at else "",
+            "is_demo": ("SÌ — NON REALE" if it else "YES — NOT REAL") if r.is_demo else no,
+        }
+        line = []
+        for key, _, _ in CSV_COLUMNS:
+            v = rec.get(key)
+            if key in _NUMERIC:
+                line.append(num(v))
+            elif v is None:
+                line.append("")
+            else:
+                line.append(_csv_safe(str(v)))
+        w.writerow(line)
+    return "﻿" + buf.getvalue()
+
+
+@router.get("/observations")
+def observations(
+    f: PriceFilters = Depends(price_filters),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=200),
+    sort: str = Query("-period", description="-period | period"),
+    format: str = Query("json", description="json | csv"),
+    lang: str | None = Query(None, description="it | en (CSV headers and labels)"),
+    db: Session = Depends(get_db),
+):
+    """Raw rows exactly as collected, with full provenance. `format=csv` exports every matching row."""
+    q = apply_filters(select(M), f, db)
+    order = [M.period_start.asc() if sort == "period" else M.period_start.desc(),
+             M.origin_iso3, M.variety, M.color_grade, M.source_id, M.id]
+    sources = {s.id: s for s in db.scalars(select(Source))}
+    if format == "csv":
+        lang = lang if lang in ("it", "en") else get_setting(db, "language", "it")
+        rows = list(db.scalars(q.order_by(*order).limit(MAX_CSV_ROWS)))
+        countries = {c.iso3: c for c in db.scalars(select(Country))}
+        body = _csv(rows, sources, countries, lang or "it")
+        stem = "prezzi-miele" if lang == "it" else "honey-prices"
+        name = f"paladex-{stem}{'-' + f.price_type if f.price_type else ''}-{datetime.now():%Y%m%d}.csv"
+        return Response(content=body.encode("utf-8"), media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    if format != "json":
+        raise HTTPException(422, "format must be json or csv")
+    total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
+    rows = db.scalars(q.order_by(*order).offset((page - 1) * page_size).limit(page_size)).all()
+    return {"total": total, "page": page, "page_size": page_size, "pages": max(1, math.ceil(total / page_size)),
+            "rows": [_serialize_obs(r, sources.get(r.source_id)) for r in rows]}

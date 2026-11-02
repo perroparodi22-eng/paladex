@@ -1,0 +1,260 @@
+{
+ "cluster": "Weather, drought and harvest-condition data for honey-producing regions (Open-Meteo, NOAA NCEI/CPC/PSL, Copernicus CDS + EDO/GDO, GEOGLAM Crop Monitor, FAO GIEWS)",
+ "sources": [
+  {
+   "name": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land / ECMWF IFS archive)",
+   "access_method": "REST API (JSON; CSV/XLSX also offered)",
+   "endpoints": [
+    "Free (non-commercial): https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}&start_date=YYYY-MM-DD&end_date=YYYY-MM-DD&daily=temperature_2m_mean,precipitation_sum,et0_fao_evapotranspiration&models=era5&timezone=auto",
+    "Commercial: https://customer-archive-api.open-meteo.com/v1/archive?...same params...&apikey={KEY}",
+    "Several locations in one call: &latitude=-32.0,-36.5,49.0&longitude=-59.2,-60.0,32.0 (JSON response becomes a list, one object per location)",
+    "OpenAPI spec: https://raw.githubusercontent.com/open-meteo/open-meteo-website/main/static/docs/openapi/historical-weather.yml"
+   ],
+   "auth": "None on the free host. Commercial use needs a paid key, passed as &apikey=, on the customer-archive-api.open-meteo.com host. The Historical, Climate, Seasonal and Ensemble APIs require the Professional plan or higher (the Standard plan does not include them).",
+   "cost_licensing": "VERIFIED from the terms and pricing source: the free API is for non-commercial use only. Commercial use explicitly includes 'Commercial products or promotional activities' and 'Undisclosed research at commercial entities'. An internal market-intelligence tool at a for-profit importer therefore counts as commercial use and needs a subscription. The pricing page says to 'Use the free tier for evaluation and prototyping', so development on the free tier is allowed. Plans: Standard 1M calls/month, Professional 5M/month, Enterprise >50M/month. A subscription grants 'a commercial use licence and an API key'. All data is CC BY 4.0 (attribution required; commercial reuse of the data itself is permitted). Euro prices are in a Stripe widget that is not in the page source. From memory, roughly EUR 29/month Standard and EUR 99/month Professional; check the pricing page.",
+   "update_frequency": "VERIFIED: ERA5, ERA5-Land and ERA5-Ensemble update daily with a 5-day delay. ECMWF IFS updates every 6 hours with no delay. ECMWF IFS Analysis Long-Window updates daily with a 2-day delay.",
+   "data_available": "VERIFIED daily variables: temperature_2m_mean, temperature_2m_max, temperature_2m_min, apparent_temperature_mean/max/min, precipitation_sum, rain_sum, snowfall_sum, precipitation_hours, sunshine_duration, daylight_duration, sunrise, sunset, wind_speed_10m_max, wind_gusts_10m_max, wind_direction_10m_dominant, shortwave_radiation_sum, et0_fao_evapotranspiration, weather_code. Extra daily variables: relative_humidity_2m_mean/max/min, dew_point_2m_mean/max/min, cloud_cover_mean/max/min, et0_fao_evapotranspiration_sum, vapour_pressure_deficit_max, soil_moisture_0_to_7cm_mean, soil_moisture_7_to_28cm_mean, soil_moisture_28_to_100cm_mean, soil_moisture_0_to_100cm_mean, soil_temperature_*_mean, wet_bulb_temperature_2m_mean/max/min, pressure_msl_mean, among others. models values: best_match, era5_seamless, era5 (0.25 deg, 1940-), era5_land (0.1 deg, 1950-), era5_ensemble (0.5 deg), ecmwf_ifs (9 km, 2017-), ecmwf_ifs_analysis_long_window, cerra (Europe, 5 km, 1985 to June 2021). Units: temperature_unit=celsius|fahrenheit, precipitation_unit=mm|inch, wind_speed_unit=kmh|ms|mph|kn. Point (grid-cell) data only; there is no monthly aggregation, so aggregate client-side.",
+   "parsing_notes": "(1) Always set models=era5 (or era5_land) for anomaly work. The default best_match blends IFS (2017 onward) with ERA5, which creates a break in the series. The docs say: 'Select ERA5 or ERA5-Land for consistent data over multiple decades.' (2) The docs say daily variables require the timezone parameter. Use timezone=auto or an IANA name. For several locations, timezones can be comma-separated. The UTC offset is fixed at request time and DST is ignored. (3) Call weighting (VERIFIED): a request with more than 10 variables or longer than 14 days counts as several calls. Weight = max(1, max(vars/10, (days/14)*(vars/10))) x locations. For example, a 1991-to-now backfill of 3 daily variables is about 12,800/14 x 0.3, or roughly 275 calls per location. With 60 points that is about 16k calls, over the free 10k/day cap, so spread it over 2 days or use the paid key. (4) Errors return HTTP 400 with JSON {\"error\": true, \"reason\": \"...\"}. (5) The last roughly 2-3 months are preliminary ERA5T and can be revised slightly, so re-fetch a 90-day window on every monthly run. (6) cell_selection=land (the default) picks a land grid cell with similar elevation. Use nearest for raw grid comparison. (7) Values can be null for missing data, so handle None.",
+   "confidence": "verified_from_docs",
+   "evidence_urls": [
+    "https://github.com/open-meteo/open-meteo-website/blob/main/src/routes/en/docs/historical-weather-api/options.ts",
+    "https://github.com/open-meteo/open-meteo-website/blob/main/src/routes/en/docs/historical-weather-api/+page.svelte",
+    "https://github.com/open-meteo/open-meteo-website/blob/main/static/docs/openapi/historical-weather.yml",
+    "https://github.com/open-meteo/open-meteo-website/blob/main/src/lib/components/docs/api-parameters.svelte",
+    "https://github.com/open-meteo/open-meteo-website/blob/main/src/routes/en/terms/+page.svelte",
+    "https://github.com/open-meteo/open-meteo-website/blob/main/src/routes/en/pricing/+page.svelte",
+    "https://github.com/open-meteo/open-meteo-website/blob/main/src/lib/utils/api-url.test.ts"
+   ],
+   "honey_specific_codes": "Not applicable. Suggested region points (lat, lon; approximate, choose your own): Entre Rios -32.0,-59.2; Buenos Aires province -36.5,-60.0; Santa Fe -31.0,-61.0; Uruguay -33.0,-56.0; Piaui -7.5,-42.5; Rio Grande do Sul -29.5,-53.5; Ukraine centre/south 49.0,32.0 and 47.0,34.0; Vojvodina 45.3,19.8; Hungary 47.0,19.5; Romania 44.5,26.0; Italy (Tuscany/Piedmont) 43.5,11.0 and 44.9,7.9; Spain (Valencia/Andalusia) 39.3,-0.5 and 37.5,-4.5; Henan 34.0,113.5; Shandong 36.5,118.0; Vietnam Dak Lak 12.7,108.0; India Punjab/UP 30.5,75.5; Yucatan 20.5,-89.0; Turkey (Mugla/Ordu) 37.2,28.4 and 40.9,37.9; North Dakota 47.5,-100.5; South Dakota 44.5,-100.0; Australia NSW/Victoria -33.0,147.0; New Zealand (Canterbury/Waikato) -43.5,172.0; Canada prairies (Saskatchewan/Alberta) 52.0,-106.0 and 52.0,-113.0.",
+   "publication_lag": "5 days (ERA5); preliminary ERA5T values are revised later.",
+   "rate_limits": "VERIFIED free tier: 600 calls/min, 5,000/hour, 10,000/day, 300,000/month. Limits apply per IP and application. Paid plans have no per-minute, hourly or daily limit, only a monthly budget (Standard 1M, Professional 5M). Monthly limits are not hard-enforced yet; email alerts are sent at 80/90/100%.",
+   "sample_response": "VERIFIED top-level keys (official example plus response-parameter table): {\"latitude\":52.52,\"longitude\":13.419,\"elevation\":44.812,\"generationtime_ms\":2.2119,\"utc_offset_seconds\":0,\"timezone\":\"Europe/Berlin\",\"timezone_abbreviation\":\"CEST\",\"hourly\":{\"time\":[\"2022-07-01T00:00\",...],\"temperature_2m\":[13,12.7,...]},\"hourly_units\":{\"temperature_2m\":\"°C\"}}. RECONSTRUCTED daily form (keys daily/daily_units verified; exact values and unit strings unverified): {\"latitude\":-32.0,\"longitude\":-59.25,\"elevation\":45.0,\"generationtime_ms\":30.1,\"utc_offset_seconds\":-10800,\"timezone\":\"America/Argentina/Buenos_Aires\",\"timezone_abbreviation\":\"-03\",\"daily_units\":{\"time\":\"iso8601\",\"temperature_2m_mean\":\"°C\",\"precipitation_sum\":\"mm\"},\"daily\":{\"time\":[\"1991-01-01\",\"1991-01-02\",...],\"temperature_2m_mean\":[24.3,25.1,...],\"precipitation_sum\":[0.0,12.4,...]}}. With several locations, the response is a JSON array of objects shaped like this."
+  },
+  {
+   "name": "Open-Meteo Seasonal Forecast API (ECMWF SEAS5 / EC46), with monthly anomalies",
+   "access_method": "REST API (JSON)",
+   "endpoints": [
+    "https://seasonal-api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&monthly=temperature_2m_mean,temperature_2m_anomaly,precipitation_mean,precipitation_anomaly,soil_moisture_0_to_7cm_anomaly&models=ecmwf_seas5_ensemble_mean&forecast_days=217&timezone=auto",
+    "Weekly (EC46, 46 days): ...&weekly=temperature_2m_mean,temperature_2m_anomaly,precipitation_mean,precipitation_anomaly,precipitation_anomaly_gt0,temperature_2m_efi",
+    "Commercial: https://customer-seasonal-api.open-meteo.com/v1/forecast?...&apikey={KEY}",
+    "OpenAPI: https://raw.githubusercontent.com/open-meteo/open-meteo-website/main/static/docs/openapi/seasonal.yml"
+   ],
+   "auth": "Free for non-commercial use. Commercial use needs the Professional plan (the Seasonal API is not in the Standard plan).",
+   "cost_licensing": "Same terms as the Historical API: non-commercial only on the free tier. Data is CC BY 4.0. The docs note: 'The data are not bias-corrected'.",
+   "update_frequency": "SEAS5 issues once per month; EC46 updates more often. Exact cadence not verified in the docs read.",
+   "data_available": "VERIFIED monthly parameter values include temperature_2m_mean, temperature_2m_anomaly, precipitation_mean, precipitation_anomaly, dew_point_2m_mean/anomaly, soil_moisture_0_to_7cm_mean/anomaly (also 7_to_28, 28_to_100, 100_to_255), evapotranspiration_mean/anomaly, sea_surface_temperature_mean/anomaly, pressure_msl_mean/anomaly, wind_speed_10m_mean/anomaly, cloud_cover_low_mean/anomaly, runoff_mean/anomaly. Weekly also has temperature_2m_anomaly_gt0/gt1/gt2/ltm1/ltm2, precipitation_anomaly_gt0/gt10/gt20, *_efi, *_sot90. models: best_match, ecmwf_seasonal_seamless, ecmwf_seas5, ecmwf_ec46, ecmwf_seasonal_ensemble_mean_seamless, ecmwf_seas5_ensemble_mean, ecmwf_ec46_ensemble_mean. forecast_days ranges 0-217 (default 183); past_days ranges 0-92. Resolution is 36 km with 51 members.",
+   "parsing_notes": "Response keys 'monthly' and 'monthly_units' each hold a 'time' array plus one array per variable (VERIFIED in the OpenAPI spec). Use the *_ensemble_mean models to get one value per variable. With the all-member models, per-member keys appear; their naming (probably *_memberNN) is UNVERIFIED. The reference climatology behind *_anomaly is the model hindcast, not 1991-2020 ERA5, and its period is not documented in the pages read. Treat it as an outlook signal, not as the same baseline as the observed anomalies.",
+   "confidence": "verified_from_docs",
+   "evidence_urls": [
+    "https://github.com/open-meteo/open-meteo-website/blob/main/static/docs/openapi/seasonal.yml",
+    "https://github.com/open-meteo/open-meteo-website/blob/main/src/routes/en/docs/seasonal-forecast-api/options.ts",
+    "https://github.com/open-meteo/open-meteo-website/blob/main/src/routes/en/docs/seasonal-forecast-api/+page.svelte"
+   ],
+   "honey_specific_codes": "Use the same region points as the Historical API. Useful for flowering-season outlooks, for example acacia (Robinia) in April-May (HU/RO/RS/IT), sunflower in July-August (UA/RO), and polyflora in October-March (AR/UY).",
+   "publication_lag": "Real-time forecast.",
+   "rate_limits": "Same as Open-Meteo free and paid tiers.",
+   "sample_response": "RECONSTRUCTED (keys verified, values and time format unverified): {\"latitude\":-32.0,\"longitude\":-59.2,\"timezone\":\"GMT\",\"monthly_units\":{\"time\":\"iso8601\",\"temperature_2m_anomaly\":\"°C\",\"precipitation_anomaly\":\"mm\"},\"monthly\":{\"time\":[\"2026-11-01\",\"2026-12-01\",...],\"temperature_2m_mean\":[23.1,...],\"temperature_2m_anomaly\":[0.8,...],\"precipitation_mean\":[3.4,...],\"precipitation_anomaly\":[-0.6,...]}}. Whether the precipitation unit is mm/day or a monthly total is UNVERIFIED; check monthly_units."
+  },
+  {
+   "name": "Open-Meteo Forecast API (short range, 16 days) and Climate API (CMIP6 projections; not for observed anomalies)",
+   "access_method": "REST API (JSON)",
+   "endpoints": [
+    "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,et0_fao_evapotranspiration&forecast_days=16&past_days=7&timezone=auto",
+    "Commercial: https://customer-api.open-meteo.com/v1/forecast?...&apikey={KEY}",
+    "Climate (CMIP6 HighResMIP, 1950-2050): https://climate-api.open-meteo.com/v1/climate?latitude=..&longitude=..&start_date=1950-01-01&end_date=2050-12-31&models=EC_Earth3P_HR,MRI_AGCM3_2_S&daily=temperature_2m_mean,precipitation_sum"
+   ],
+   "auth": "None for free use. Forecast is included in the Standard plan; Climate needs Professional.",
+   "cost_licensing": "Same as above: non-commercial on the free tier, CC BY 4.0 data.",
+   "update_frequency": "Forecast models update hourly to 6-hourly.",
+   "data_available": "Forecast: forecast_days ranges 0-16 (default 7); past_days options go up to 92. Climate API models: CMCC_CM2_VHR4, FGOALS_f3_H, HiRAM_SIT_HR, MRI_AGCM3_2_S, EC_Earth3P_HR, MPI_ESM1_2_XR, NICAM16_8S. Daily variables include temperature_2m_mean/max/min, precipitation_sum, soil_moisture_0_to_10cm_mean, et0_fao_evapotranspiration_sum. The docs say the climate data is for model validation and projections, not actual past weather.",
+   "parsing_notes": "Use Forecast for a 'next 2 weeks' panel (frost or heat during bloom). Do NOT use the Climate API for current anomalies, because it holds climate-model projections, not observations. Same JSON shape as the archive API.",
+   "confidence": "verified_from_docs",
+   "evidence_urls": [
+    "https://github.com/open-meteo/open-meteo-website/blob/main/src/routes/en/docs/climate-api/options.ts",
+    "https://github.com/open-meteo/open-meteo-website/blob/main/src/routes/en/docs/options.ts",
+    "https://github.com/open-meteo/open-meteo-website/blob/main/src/routes/en/pricing/+page.svelte"
+   ],
+   "honey_specific_codes": "Not applicable.",
+   "publication_lag": "None (forecast).",
+   "rate_limits": "Same as Open-Meteo free and paid tiers.",
+   "sample_response": "Same structure as the Historical API (daily/daily_units)."
+  },
+  {
+   "name": "Copernicus Climate Data Store (CDS) via cdsapi: ERA5 monthly means and ERA5-based monthly anomalies (ECV dataset)",
+   "access_method": "REST API through the Python client cdsapi (asynchronous job queue); files come back as netCDF or GRIB",
+   "endpoints": [
+    "API root: https://cds.climate.copernicus.eu/api (in ~/.cdsapirc as 'url: https://cds.climate.copernicus.eu/api' plus 'key: <PERSONAL-ACCESS-TOKEN>')",
+    "Dataset reanalysis-era5-single-levels-monthly-means: client.retrieve('reanalysis-era5-single-levels-monthly-means', {'product_type':['monthly_averaged_reanalysis'],'variable':['2m_temperature','total_precipitation'],'year':['2026'],'month':['10'],'time':['00:00'],'area':[N,W,S,E],'data_format':'netcdf','download_format':'unarchived'}, 'out.nc')",
+    "Dataset reanalysis-era5-land-monthly-means: same keys, 0.1 deg",
+    "Dataset ecv-for-climate-change (precomputed anomalies vs 1991-2020): {'variable':['surface_air_temperature','precipitation','0_7cm_volumetric_soil_moisture'],'origin':['era5'],'product_type':['anomaly'],'time_aggregation':['1_month_mean'],'climate_reference_period':['1991_2020'],'year':[...],'month':[...]} (key and value names UNVERIFIED for the new CDS; see notes)",
+    "Alternative client: pip install ecmwf-datastores-client (from ecmwf.datastores import Client; client.retrieve(collection_id, request, target=...); config in ~/.ecmwfdatastoresrc or the ECMWF_DATASTORES_URL and ECMWF_DATASTORES_KEY environment variables)"
+   ],
+   "auth": "Free ECMWF/CDS account. Copy the Personal Access Token from https://cds.climate.copernicus.eu/profile into ~/.cdsapirc. You must accept each dataset's licence once on its web page (the README says 'Remember to agree to the Terms and Conditions of every dataset').",
+   "cost_licensing": "Free. FROM MEMORY: the 'Licence to use Copernicus Products' allows commercial use and redistribution with attribution (e.g. 'Generated using Copernicus Climate Change Service information [year]'). This is the cleanest licence for a commercial internal app. cdsapi itself is Apache-2.0.",
+   "update_frequency": "ERA5 daily data has about a 5-day lag. Monthly means for month M usually appear in the first week of M+1 (FROM MEMORY). The ECV anomaly dataset updates monthly (FROM MEMORY).",
+   "data_available": "ERA5 0.25 deg global; ERA5-Land 0.1 deg over land; monthly means from 1940 (ERA5) or 1950 (ERA5-Land). Variables 2m_temperature, total_precipitation, volumetric_soil_water_layer_1..4, potential_evaporation, etc. The ECV dataset provides monthly_mean, anomaly and climatology for 1991-2020, for surface_air_temperature, precipitation, surface_air_relative_humidity, 0_7cm_volumetric_soil_moisture, sea_ice_cover.",
+   "parsing_notes": "Needs xarray with netCDF4 or h5netcdf (or cfgrib for GRIB), which adds compiled dependencies on a Windows desktop. FROM MEMORY / UNVERIFIED: new-CDS netCDF uses dimension 'valid_time' (not 'time'), variables 't2m' (Kelvin) and 'tp', and may carry 'number' and 'expver' coordinates. Recent months may be ERA5T. In monthly_averaged_reanalysis, tp is the mean DAILY total in metres, so monthly mm = tp x 1000 x days_in_month. 'area' order is [North, West, South, East]. Requests are queued: retrieve() blocks for seconds to minutes, so add retries. The ECV example scripts found are in two styles: the old CDS style ('format':'zip', 'time_aggregation':'1_month') and the 2025+ style (lists, 'time_aggregation':['1_month_mean']). Confirm exact values with the CDS 'Show API request' button on the dataset page. ECV files come zipped and global (no 'area' subsetting confirmed).",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://pypi.org/project/cdsapi/ (v0.7.7 README: url https://cds.climate.copernicus.eu/api, token from /profile, agree to dataset T&Cs)",
+    "https://pypi.org/project/ecmwf-datastores-client/ (v0.5.3 README: request keys data_format/download_format, Client API)",
+    "https://github.com/andrigunn/cds-api-lv/blob/c5b924a988a79c484eebaf01d3ef802672f8a44c/reanalysis-era5-single-levels-monthly-means.py",
+    "https://github.com/robertDouglass/evidence-ai-data/blob/d28d83157015832486483625077d9f7808352ba0/climate_change_dataset/scripts/cds/download_ecv.py",
+    "https://github.com/AgrDataSci/Data_Synthesis_Musa_Trials_BLSD/blob/42241d533c7bd1537db9fd968dfb4189844c3131/scripts/misc/download_ecv_climatologies_1990_2020.py"
+   ],
+   "honey_specific_codes": "Not applicable. Download one bounding box per producing region (e.g. Entre Rios/Buenos Aires [-30,-62,-39,-56]; Ukraine [52,22,45,40]; Pannonian basin HU/RS/RO [48.5,16,43.5,30]) and take area-weighted (cos(latitude)) land-cell means.",
+   "publication_lag": "About 5 days to 1 week after month end (monthly means; from memory).",
+   "rate_limits": "UNVERIFIED: per-user queue and concurrency limits, plus a maximum number of fields per request. Monthly-means requests per region are tiny, so this is not a concern.",
+   "sample_response": "RECONSTRUCTED (not verified) netCDF: dimensions valid_time=N, latitude=37, longitude=25; variables t2m(valid_time,latitude,longitude) float32 units 'K'; tp(valid_time,latitude,longitude) float32 units 'm'; coordinates number, expver. ECV anomaly files: one netCDF per month inside a zip, with variable names such as 't2m'/'tp' (unverified)."
+  },
+  {
+   "name": "Copernicus European / Global Drought Observatory (EDO/GDO) WCS: Combined Drought Indicator, soil-moisture anomaly, SPI",
+   "access_method": "OGC WCS 2.0 GetCoverage (returns a GeoTIFF). A WMS also exists for map images, but its exact URL was not verified.",
+   "endpoints": [
+    "https://drought.emergency.copernicus.eu/api/wcs?map=DO_WCS&SERVICE=WCS&VERSION=2.0.0&REQUEST=GetCoverage&coverageID={id}&CRS=EPSG:4326&format=GEOTIFF&TIME=YYYY-MM-DD&SELECTED_TIMESCALE=01&SUBSET=Long({west},{east})&SUBSET=Lat({south},{north})",
+    "Live-recorded example (2026): https://drought.emergency.copernicus.eu/api/wcs?CRS=EPSG%3A4326&FORMAT=GEOTIFF&REQUEST=GetCoverage&SELECTED_TIMESCALE=01&SERVICE=WCS&SUBSET=Lat%2840.0%2C50.0%29&SUBSET=Long%285.0%2C15.0%29&TIME=2025-12-21&VERSION=2.0.0&coverageID=spaST&map=DO_WCS",
+    "Map viewers (human): https://drought.emergency.copernicus.eu/tumbo/edo/map/ and the GDO equivalent"
+   ],
+   "auth": "None (public).",
+   "cost_licensing": "Copernicus Emergency Management Service: free reuse with attribution. This is from third-party catalog notes, not the official terms; the official terms could not be reached.",
+   "update_frequency": "Dekadal (every 10 days; TIME snaps to day 1, 11 or 21) for cdiad, cdirc, smand, smang, smian, spaST, spaLT, spcST, spcLT, snwvi and lfinx_*. Monthly (TIME = 1st of month) for spgTS, twsan, rdria and msfTS.",
+   "data_available": "Coverage IDs seen live in 2026 (third-party catalog): cdiad and cdirc (current Combined Drought Indicator layers; the old cdinx v4.1 is RETIRED after 2024-01-01), smand (ensemble soil-moisture anomaly), smang, smian (soil-moisture variants), spaST/spaLT and spcST/spcLT (SPI short- and long-term from two precipitation sources), spgTS (SPI from GPCC, monthly), twsan (GRACE total water storage anomaly), lfinx_300_lgs/_sms/_mds (low-flow index), snwvi, rdria (risk of drought impact for agriculture), msfTS. fpanv (fAPAR) is retired; fpanm replaces it. There is only one map, map=DO_WCS, and it serves GLOBAL data. EDO and GDO differ only in the bounding box you request; map=GDO_WCS returns an error.",
+   "parsing_notes": "Third-party findings, verified live in July 2026: (1) Only GetCoverage works reliably; GetCapabilities and DescribeCoverage return 502/400. (2) The server wants lowercase 'coverageID' and WCS-1-style 'CRS=', and returns HTTP 500 if format=GEOTIFF is missing. (3) The Long subset is IGNORED: the server returns a full -180..180 strip for the requested latitude band (the recorded TIFF header shows width 1440 = 360 deg at 0.25 deg and height 40 = 10 deg). Crop longitude yourself. (4) The GeoTIFF has no embedded SRS; assume EPSG:4326 with a 0.25 deg grid. (5) The spaST TIFF is 8-bit unsigned (BitsPerSample=8, SampleFormat=1) with pixel values 0-4, i.e. CLASS CODES, not raw SPI. Map classes with the EDO legend. FROM MEMORY, the CDI classes are Watch, Warning, Alert, plus recovery classes; confirm with the legend. (6) A date outside a coverage's range returns a JSON message containing 'outside the available coverage range' instead of a TIFF, so check Content-Type. (7) SELECTED_TIMESCALE is required for the SPI coverages; others accept and ignore it. Parse with rasterio or tifffile, or with Pillow plus a manual geotransform. To get one value per region, sample the cells around each region point.",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://github.com/serapeum-org/earthlens/blob/0cdb4e4d5e5d004d33d6a7735761be2b7b50ebf5/libs/providers/atmosphere/src/earthlens/drought/catalog/gdo.yaml",
+    "https://github.com/serapeum-org/earthlens/blob/0cdb4e4d5e5d004d33d6a7735761be2b7b50ebf5/libs/providers/atmosphere/src/earthlens/drought/catalog/edo.yaml",
+    "https://github.com/serapeum-org/earthlens/blob/0cdb4e4d5e5d004d33d6a7735761be2b7b50ebf5/libs/providers/atmosphere/src/earthlens/drought/backend.py",
+    "https://github.com/serapeum-org/earthlens/blob/0cdb4e4d5e5d004d33d6a7735761be2b7b50ebf5/libs/providers/atmosphere/tests/drought/test_drought_e2e.py",
+    "https://github.com/serapeum-org/earthlens/blob/0cdb4e4d5e5d004d33d6a7735761be2b7b50ebf5/libs/providers/atmosphere/tests/drought/cassettes/test_wire/test_a_real_request_parses.yaml"
+   ],
+   "honey_specific_codes": "Use cdiad (CDI) and smand (soil-moisture anomaly) for every region. GDO covers China, India, Argentina, Brazil, Mexico and others; EDO-relevant bounding boxes cover Ukraine, Serbia, Hungary, Romania, Italy, Spain and Turkey.",
+   "publication_lag": "About 1-2 dekads (from memory); smand had data for 2024 dates and spaST for 2025-12-21 in the live tests.",
+   "rate_limits": "None documented. Keep it to a few requests per run; the server is flaky (transient 500s), so retry with backoff.",
+   "sample_response": "Binary GeoTIFF (little-endian 'II*'): ImageWidth=1440, ImageLength=40 for Lat(40,50); 8-bit unsigned, uncompressed, pixel values 0..4 (from the recorded cassette). On error, JSON such as {\"message\": \"... outside the available coverage range ...\"} (wording partly reconstructed)."
+  },
+  {
+   "name": "NOAA NCEI Climate Data Online (CDO) Web Services v2 (token)",
+   "access_method": "REST API (JSON)",
+   "endpoints": [
+    "Base: https://www.ncei.noaa.gov/cdo-web/api/v2/ (legacy host https://www.ncdc.noaa.gov/cdo-web/api/v2/ in older clients)",
+    "GET {base}data?datasetid=GSOM&stationid=GHCND:AR000087585&datatypeid=TAVG&datatypeid=PRCP&startdate=2016-01-01&enddate=2025-12-31&units=metric&limit=1000&offset=1",
+    "Other resources: {base}datasets, datacategories, datatypes, locationcategories, locations (e.g. FIPS:AR), stations?locationid=FIPS:AR&datasetid=GSOM",
+    "Token request: https://www.ncdc.noaa.gov/cdo-web/token"
+   ],
+   "auth": "Free token by email, sent as the HTTP header 'token: <TOKEN>' (VERIFIED in the rnoaa client source: headers = list(token = token)).",
+   "cost_licensing": "US Government data, public domain; NOAA asks for citation. No redistribution restriction (from memory).",
+   "update_frequency": "GSOM (Global Summary of the Month) updates a few days to weeks after month end, depending on station reporting.",
+   "data_available": "Station-based (GHCN). The GSOM dataset has TAVG, TMAX, TMIN and PRCP monthly per station. GHCND is daily. NORMAL_* datasets are mostly US. Coverage in Argentina, Brazil, China, Ukraine and elsewhere depends on stations reporting through GHCN, and many have gaps.",
+   "parsing_notes": "datasetid, startdate and enddate are required. The default limit is 25; the maximum is 1000 (from memory). Paginate with offset (1-based). FROM MEMORY: the date range must be under 1 year for daily datasets and under 10 years for monthly ones. GHCN station IDs start with the FIPS 2-letter country code (AR, BR, CH = China, UP = Ukraine, RI = Serbia, HU, RO, IT, SP = Spain, VM = Vietnam, IN, MX, TU = Turkey, UY, AS = Australia, NZ, CA, US). Find them in https://www.ncei.noaa.gov/pub/data/ghcn/daily/ghcnd-stations.txt (from memory). The API is slow and times out on long spans. Station anomalies need your own 1991-2020 normals, which are often incomplete. Use this only as a cross-check.",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://github.com/ropensci/rnoaa/blob/master/R/ncdc.r (ncdc_base <- 'https://www.ncdc.noaa.gov/cdo-web/api/v2/'; headers = list(token = token))",
+    "https://github.com/ropensci/rnoaa/blob/master/man-roxygen/token.R (token at https://www.ncdc.noaa.gov/cdo-web/token)",
+    "https://github.com/ropensci/rnoaa/blob/master/man-roxygen/noaa.r (date range must be less than 1 year)"
+   ],
+   "honey_specific_codes": "datasetid=GSOM; datatypeid=TAVG,PRCP; locationid=FIPS:AR|BR|CH|UP|RI|HU|RO|IT|SP|VM|IN|MX|TU|UY|AS|NZ|CA|US (FIPS codes from memory).",
+   "publication_lag": "Weeks (station dependent).",
+   "rate_limits": "FROM MEMORY / UNVERIFIED: 5 requests per second and 10,000 requests per day per token.",
+   "sample_response": "FROM MEMORY / RECONSTRUCTED: {\"metadata\":{\"resultset\":{\"offset\":1,\"count\":240,\"limit\":1000}},\"results\":[{\"date\":\"2024-01-01T00:00:00\",\"datatype\":\"TAVG\",\"station\":\"GHCND:AR000087585\",\"attributes\":\",,,\",\"value\":25.9}, ...]}"
+  },
+  {
+   "name": "NOAA NCEI Access Data Service (no token): Global Summary of the Month",
+   "access_method": "REST API (JSON/CSV/SSV)",
+   "endpoints": [
+    "https://www.ncei.noaa.gov/access/services/data/v1?dataset=global-summary-of-the-month&stations=AR000087585,UP000033345&dataTypes=TAVG,PRCP&startDate=1991-01-01&endDate=2026-10-31&units=metric&format=json&includeStationName=true",
+    "Bounding-box variant: ...&boundingBox={N},{W},{S},{E}",
+    "User docs (not fetched): https://www.ncei.noaa.gov/support/access-data-service-api-user-documentation"
+   ],
+   "auth": "None.",
+   "cost_licensing": "US Government public domain (from memory).",
+   "update_frequency": "Monthly (station dependent).",
+   "data_available": "Same GHCN station monthly summaries as CDO GSOM: TAVG, TMAX, TMIN, PRCP, etc. Long ranges are allowed in one call (no 10-year chunking, per common usage).",
+   "parsing_notes": "Parameter names (dataset, stations, dataTypes, startDate, endDate, units=metric|standard, format=json|csv|ssv, boundingBox as 'N,W,S,E', includeAttributes, includeStationName, includeStationLocation) come from two independent third-party clients. The JSON is a top-level ARRAY. FROM MEMORY, values are strings with possible leading spaces, so strip them and cast to float. Missing months are simply absent.",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://github.com/markwkiehl/medium_noaa_climate_api/blob/d15189acf3f39ec32a45943f095539769d131e58/api_noaa.py",
+    "https://github.com/Shubham-Saboo/NCEI-MCP-Server/blob/ba38e524ae89653c6129cfbc8523415b3266a216/src/ncei_ads_mcp/tools/fetch_data.py"
+   ],
+   "honey_specific_codes": "dataset=global-summary-of-the-month; dataTypes=TAVG,PRCP.",
+   "publication_lag": "Weeks.",
+   "rate_limits": "Not documented in the sources read.",
+   "sample_response": "RECONSTRUCTED: [{\"DATE\":\"2024-01\",\"STATION\":\"AR000087585\",\"NAME\":\"BUENOS AIRES OBSERVATORIO, AR\",\"TAVG\":\"25.9\",\"PRCP\":\"121.4\"}, ...]"
+  },
+  {
+   "name": "NOAA PSL-hosted CPC/GHCN gridded monthly analyses (GHCN_CAMS temperature, PREC/L precipitation, CPC leaky-bucket soil moisture): the easiest public-domain global anomaly source",
+   "access_method": "Bulk netCDF over HTTPS (whole-file download). PSL also runs THREDDS/OPeNDAP for subsetting, but that URL was not verified.",
+   "endpoints": [
+    "https://downloads.psl.noaa.gov/Datasets/ghcncams/air.mon.mean.nc (2 m air temperature, 0.5 deg, monthly)",
+    "https://downloads.psl.noaa.gov/Datasets/precl/0.5deg/precip.mon.mean.0.5x0.5.nc (PREC/L land precipitation, mm/day, monthly)",
+    "https://downloads.psl.noaa.gov/Datasets/precl/0.5deg/precip.mon.number_gauges.0.5x0.5.nc (gauge counts; use these to judge reliability)",
+    "https://downloads.psl.noaa.gov/Datasets/cpcsoil/soilw.mon.mean.v2.nc and https://downloads.psl.noaa.gov/Datasets/cpcsoil/soilw.mon.ltm.1991-2020.v2.nc (soil moisture plus provider 1991-2020 climatology)",
+    "https://downloads.psl.noaa.gov/Datasets/gpcp/precip.mon.mean.nc (GPCP, 2.5 deg, coarse)",
+    "UNVERIFIED daily near-real-time: https://downloads.psl.noaa.gov/Datasets/cpc_global_precip/precip.{YYYY}.nc and https://downloads.psl.noaa.gov/Datasets/cpc_global_temp/tmax.{YYYY}.nc"
+   ],
+   "auth": "None.",
+   "cost_licensing": "NOAA (US Government) data, public domain (from memory). This is the cleanest licence, but nobody provides an SLA.",
+   "update_frequency": "Monthly, early in the following month (from memory).",
+   "data_available": "Global land 0.5 deg grids from 1948 or 1950 to present. Soil moisture comes with a provider-computed 1991-2020 climatology (12 months).",
+   "parsing_notes": "The whole files total about 800 MB according to the third-party script, so download once and then update with conditional GET (HEAD plus Last-Modified). Longitudes run 0..360 (convert western longitudes: lon % 360). Latitude runs north to south. air is in degK. PREC/L precip is mm/day, so multiply by days in month. The soil-moisture climatology file has year-1 dummy dates (open with decode_times=False). Needs xarray and netCDF4. CPC 'global drought' maps on cpc.ncep.noaa.gov are images, not an API (from memory); these PSL files are the machine-readable equivalent.",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://github.com/geo-smart/mlgeo-book/blob/45c1f589e8d22c2dd696954ad4fe5eedd007ac0d/book/Chapter2-DataManipulation/snapshots/make_cpc_soilw_precl_westUS_1991-2020.py",
+    "https://github.com/crackalamoo/building-earth/blob/d4a767917c99290e58bfceee3b85544520ad0ce0/backend/eval.py",
+    "https://psl.noaa.gov/data/gridded/data.cpcsoil.html (referenced, not fetched)"
+   ],
+   "honey_specific_codes": "Not applicable.",
+   "publication_lag": "About 1-3 weeks after month end (from memory).",
+   "rate_limits": "None documented; it is a static file server.",
+   "sample_response": "RECONSTRUCTED netCDF: air(time, lat, lon) float32 units 'degK', lat 89.75..-89.75, lon 0.25..359.75, time 'days since 1800-01-01'; precip(time, lat, lon) 'mm/day'; soilw(time, lat, lon) 'mm'."
+  },
+  {
+   "name": "GEOGLAM Crop Monitor: crop conditions per country, region and crop (ArcGIS FeatureServer)",
+   "access_method": "REST API (ArcGIS FeatureServer, JSON)",
+   "endpoints": [
+    "Layer list: https://data.cropmonitor.org/arcgis/rest/services/CMET/Global_SHP/FeatureServer?f=json  (layers named Global_Synthesis_YYYYMM)",
+    "Query: https://data.cropmonitor.org/arcgis/rest/services/CMET/Global_SHP/FeatureServer/{layerId}/query?where=1%3D1&outFields=Country,Region,Crop,Conditions,Drivers&returnGeometry=false&orderByFields=FID&resultOffset=0&resultRecordCount=2000&f=json",
+    "Filter example: where=Country IN ('Argentina','Ukraine','China')"
+   ],
+   "auth": "None.",
+   "cost_licensing": "UNVERIFIED: public GEOGLAM product; credit 'GEOGLAM Crop Monitor'. Check the terms on cropmonitor.org before redistributing; internal display with attribution is low risk.",
+   "update_frequency": "Monthly. A new layer per assessment month (published early in the month, usually the first Thursday, from memory). Past months can be revised.",
+   "data_available": "About 48 monthly layers (about 4 years), about 1,000 region-crop polygons each. Fields: Country, Region, Crop, Conditions, Drivers. FROM MEMORY, crops are AMIS crops (wheat, maize, rice, soybeans) and condition classes are Exceptional, Favourable, Watch, Poor, Failure, Out of season, No data. Drivers are text such as dry, wet, hot or cold. Exact values are UNVERIFIED.",
+   "parsing_notes": "TLS gotcha: data.cropmonitor.org sends an incomplete certificate chain (the InCommon RSA Server CA 2 intermediate is missing). Do NOT disable verification. Add that intermediate to an ssl.SSLContext (certifi plus load_verify_locations(cadata=...)) and pass it to httpx via verify=ctx. Page until 'exceededTransferLimit' is false. The month is ONLY in the layer name (suffix YYYYMM), not in the rows. The server stalls under concurrency, so use 4 or fewer workers and timeouts of about 10 s connect and 25 s read. This gives no honey crops; use it as a proxy for agricultural and flowering conditions (soy/maize/wheat regions in AR/BR/UA/CN/IN/US/CA/AU/MX/TR).",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://github.com/subsetsio/connectors/blob/40a30d001f2ea9f143106c69b8d4f39b98ec0247/src/geoglam-crop-monitor/src/nodes/geoglam_crop_monitor.py"
+   ],
+   "honey_specific_codes": "Countries: Argentina, Brazil, Ukraine, China, India, Mexico, Turkey, United States, Canada, Australia, plus EU member names (exact spellings in the data are unverified).",
+   "publication_lag": "About 1 month (each assessment covers conditions as of the end of the previous month).",
+   "rate_limits": "None documented; be gentle (4 or fewer concurrent requests).",
+   "sample_response": "Keys verified from code, values RECONSTRUCTED: {\"features\":[{\"attributes\":{\"Country\":\"Argentina\",\"Region\":\"Buenos Aires\",\"Crop\":\"Soybeans\",\"Conditions\":\"Watch\",\"Drivers\":\"Dry\"}}, ...],\"exceededTransferLimit\":false}"
+  },
+  {
+   "name": "FAO GIEWS country briefs and GIEWS Earth Observation (ASI) pages",
+   "access_method": "HTML and PDF (scrape). No RSS feed was confirmed.",
+   "endpoints": [
+    "HTML: https://www.fao.org/giews/countrybrief/country.jsp?code={ISO3}  (lang=en optional)",
+    "PDF: https://www.fao.org/giews/countrybrief/country/{ISO3}/pdf/{ISO3}.pdf",
+    "Earth observation (ASI/VHI maps): https://www.fao.org/giews/earthobservation/country/index.jsp?code={ISO3}&lang=en"
+   ],
+   "auth": "None.",
+   "cost_licensing": "FROM MEMORY: FAO material may be reproduced for non-commercial use with acknowledgement; many FAO publications are CC BY-NC-SA 3.0 IGO. For a commercial internal tool, store a link and short extracted facts rather than republishing full text; review https://www.fao.org/contact-us/terms/en/.",
+   "update_frequency": "Irregular, roughly 2-4 times a year per country, tied to crop-season milestones (from memory). ASI and VHI are dekadal.",
+   "data_available": "Narrative on crop production prospects, weather impacts, cereal production and imports, food prices and food security, plus small tables and charts. ASI shows the share of cropland under agricultural drought stress (maps).",
+   "parsing_notes": "There is no confirmed RSS. Poll the HTML weekly and hash the main text block; FROM MEMORY, pages show a 'Reference Date' near the top, which you can use for change detection. The PDF is 1-2 pages and pdfplumber-friendly (layout unverified). Coverage is mostly developing and major producing countries. Probably available: ARG, BRA, CHN, IND, UKR, MEX, TUR, VNM, URY, SRB. Probably NOT available for ITA, ESP, HUN, ROU, USA, CAN, AUS, NZL (unverified), so HEAD-check each code and treat 404 or an empty page as 'no brief'. Send a descriptive User-Agent.",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://github.com/data-landscapers/corpus/blob/ca832feea9abd6065f46226b46a8b698345139e0/maturity/agrisatellite/evidence/GNB/readlist.csv",
+    "https://github.com/mehedi-107/IrisOut_AgriSense/blob/3264433da80118927b5b6ff6c4abdd9c232fbd03/final-round/scripts/fetch_kb.sh",
+    "https://github.com/ClyCites/Kernel/blob/820267d5230e675de551ab72208bf31cab50eae1/docs/data-sources.md",
+    "https://github.com/Ahmet-Dedeler/free-north-korea/blob/7071b54380de56025e6edf220056b6a6dc1e04ce/docs/research/probes/population/probe_health_food.py"
+   ],
+   "honey_specific_codes": "ISO3 codes: ARG, BRA, URY, UKR, SRB, CHN, VNM, IND, MEX, TUR (plus HUN, ROU, ITA, ESP, USA, CAN, AUS, NZL if they exist).",
+   "publication_lag": "Weeks to months.",
+   "rate_limits": "None documented; poll weekly at most.",
+   "sample_response": "HTML page. RECONSTRUCTED text layout: 'Country Brief Argentina / Reference Date: dd-Month-yyyy / FOOD SECURITY SNAPSHOT / bullet points / Crop prospects... / Cereal production table'."
+  }
+ ],
+ "recommendation": "ACCESS CAVEAT: the WebSearch budget for this turn was used up, and the sandbox cannot reach open-meteo.com, ncei.noaa.gov, cds.climate.copernicus.eu, drought.emergency.copernicus.eu or fao.org (DNS blocked). I worked from three kinds of source instead. (a) Open-Meteo's own website source on GitHub (open-meteo/open-meteo-website: docs, terms, pricing and OpenAPI YAMLs). This is the official text, so the Open-Meteo facts are rated verified_from_docs. (b) PyPI metadata for cdsapi and ecmwf-datastores-client. (c) Third-party client code via GitHits, including one recorded live EDO request from 2026. To check NOAA, Copernicus and FAO details live, allow those hosts in the session's network settings.\n\nSIMPLEST RELIABLE APPROACH for monthly temperature and precipitation anomalies against a 30-year normal per region:\n1) Define 1-4 representative grid points per producing region (starter list in the Open-Meteo entry). Store them in SQLite with region, country and varieties.\n2) Fetch from the Open-Meteo Historical API (/v1/archive), always with models=era5 (or era5_land for temperature). This keeps the baseline and the current data from the same homogeneous reanalysis; the default best_match switches to IFS from 2017 onward.\n   - Variables: daily=temperature_2m_mean,precipitation_sum,et0_fao_evapotranspiration, with timezone=auto.\n   - Batch about 10-20 points per call using comma-separated latitude/longitude; the response comes back as a list.\n   - Do a one-time backfill from 1991-01-01 to today minus 6 days. That is about 275 weighted calls per point.\n   - After that, run a monthly job (around day 6-8 of month M+1) that re-fetches the last 90 days, because ERA5T values get revised.\n3) Aggregate client-side with pandas:\n   - Monthly T = mean of daily means. Monthly P = sum. Climatic water balance = P minus ET0, which is a good proxy for nectar flow.\n   - Build the WMO 1991-2020 normal per calendar month and point.\n   - Report: dT in °C; P as % of normal; a percentile rank against the 30 baseline years; optionally SPI-1 and SPI-3 (gamma fit, or simply empirical percentiles).\n   - Average the points to get a region value, and flag months that fall in each variety's flowering window. Examples: Robinia/acacia in April-May (HU/RO/RS/IT), sunflower in July-August (UA/RO), citrus/orange blossom in March-April (ES/IT/MX), Argentine/Uruguayan polyflora in October-March, chestnut in June (IT), clover in June-August (US Dakotas, Canadian prairies).\n4) Licensing:\n   - Free tier: verified as non-commercial only. 'Undisclosed research at commercial entities' is listed as commercial. Prototyping on the free tier is explicitly allowed.\n   - Production: an Open-Meteo PROFESSIONAL subscription (Standard does not include the Historical or Seasonal APIs). Swap the host to customer-archive-api.open-meteo.com and add &apikey=. The JSON is identical, so it is a config change.\n   - Zero-cost, commercially licensed alternative: Copernicus CDS through cdsapi. Use reanalysis-era5-single-levels-monthly-means with an 'area' box per region, averaged over land cells, or the precomputed 1991-2020 anomalies in ecv-for-climate-change. This costs a free account, one licence click per dataset, xarray/netCDF dependencies, queue latency, and the unit conversions (K to °C; tp m/day x 1000 x days in month).\n   - Public-domain alternative: NOAA PSL GHCN_CAMS plus PREC/L netCDFs (gauge-based, 0.5 deg, about 800 MB of whole files).\n\nINTEGRATION ORDER:\n(1) Open-Meteo archive anomalies, the core feature: JSON, httpx only, no new dependencies.\n(2) Open-Meteo Seasonal, same key: monthly=temperature_2m_anomaly,precipitation_anomaly with models=ecmwf_seas5_ensemble_mean, for 'next 6 months' outlook badges. Label it as model-climatology anomaly. Add Forecast /v1/forecast for 16-day frost or heat alerts during bloom.\n(3) Copernicus GDO WCS, dekadal. Fetch cdiad (Combined Drought Indicator) and smand (soil-moisture anomaly) for each region's latitude band. Crop longitude yourself, because the server ignores the Long subset. Map the 8-bit class codes to the legend. This is free with attribution. It needs a GeoTIFF reader (tifffile or rasterio; Pillow with a manual 0.25 deg geotransform also works).\n(4) GEOGLAM Crop Monitor FeatureServer, monthly. Pull the newest Global_Synthesis_YYYYMM layer, filter to sourcing countries, and show Conditions and Drivers. You must add the missing intermediate CA cert; do not disable TLS.\n(5) FAO GIEWS country briefs. Poll the HTML or PDF weekly with change detection, use pdfplumber for the PDF, and store link plus extracted bullets (the licence is non-commercial-leaning, so do not republish full text).\n(6) Optional: NOAA NCEI Access Data Service GSOM station data (no token) as a ground-truth cross-check for a few stations. CDO v2 (token header, 1000 results per page, limit of about 5 requests/s and 10k/day) is not needed if you use the Access Data Service.\n\nUse one SQLite table for all of this: (region_id, source, indicator, period_start, value, unit, baseline, fetched_at). Schedule: Open-Meteo monthly on day 7 plus daily for forecasts; GDO every dekad on days 3, 13 and 23; GEOGLAM monthly on day 10; GIEWS weekly."
+}

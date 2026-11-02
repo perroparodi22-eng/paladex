@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 
 import httpx
 from sqlalchemy import select
@@ -148,7 +148,11 @@ class CollectContext:
         retries: int = 2,
         accept_status: tuple[int, ...] = (200,),
         store: bool = True,
+        method: str = "GET",
+        json_body: Any = None,
     ) -> FetchResult:
+        """Polite HTTP request (GET by default). `method="POST"` with `json_body` is for
+        search APIs that only accept a JSON body (e.g. RASFF Window)."""
         host = urlparse(url).netloc
         last = self._last_hit.get(host)
         if last is not None:
@@ -159,7 +163,7 @@ class CollectContext:
         while True:
             attempt += 1
             try:
-                resp = self.client.get(url, params=params, headers=headers)
+                resp = self.client.request(method, url, params=params, headers=headers, json=json_body)
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
                 if attempt > retries:
                     raise Offline(f"Cannot reach {host}: {exc}") from exc
@@ -178,15 +182,18 @@ class CollectContext:
                 time.sleep(min(delay, 60))
                 continue
             break
+        # API keys passed as query parameters (e.g. NASS `key=`) never reach the database or
+        # error messages shown in the UI.
+        safe_url = redact_url(str(resp.request.url))
         if resp.status_code not in accept_status:
-            raise CollectorError(f"HTTP {resp.status_code} for {resp.request.url}")
+            raise CollectorError(f"HTTP {resp.status_code} for {safe_url}")
         content = resp.content
         ctype = resp.headers.get("content-type")
         raw_id, unchanged = (0, False)
         if store:
-            raw_id, unchanged = self._store_raw(str(resp.request.url), content, ctype, title, published_at)
+            raw_id, unchanged = self._store_raw(safe_url, content, ctype, title, published_at)
         return FetchResult(
-            url=str(resp.request.url),
+            url=safe_url,
             status_code=resp.status_code,
             content=content,
             content_type=ctype,
@@ -403,6 +410,9 @@ class Collector(ABC):
     terms_note: str = ""
     requires_key: str | None = None     # name of the Settings attribute holding the key
     key_optional: bool = False          # True if the collector works (reduced) without the key
+    # False for sources whose terms make them opt-in (e.g. personal-use-only feeds): the user
+    # can switch them on from the Sources page after reading the terms note.
+    default_enabled: bool = True
     # APScheduler trigger: {"trigger": "cron", "hour": 6, "minute": 30} or {"trigger": "interval", "hours": 3}
     schedule: dict = {"trigger": "interval", "hours": 12}
     # Lower runs first in "collect all" (FX must precede prices so conversions work).
@@ -415,7 +425,7 @@ class Collector(ABC):
             "kind": cls.kind, "reliability": cls.reliability, "category": cls.category,
             "country_iso3": cls.country_iso3, "language": cls.language, "expected_update": cls.expected_update,
             "expected_max_age_days": cls.expected_max_age_days, "terms_note": cls.terms_note,
-            "requires_key": cls.requires_key,
+            "requires_key": cls.requires_key, "enabled": cls.default_enabled,
         }
 
     def key_value(self, settings: Settings) -> str | None:
@@ -424,6 +434,24 @@ class Collector(ABC):
     @abstractmethod
     def collect(self, ctx: CollectContext) -> None:
         ...
+
+
+# Query parameters whose values are secrets (API keys / tokens).
+_SECRET_QUERY_PARAMS = {"key", "api_key", "apikey", "api-key", "subscription-key", "token", "access_token"}
+
+
+def redact_url(url: str) -> str:
+    """Return `url` with secret query-parameter values replaced by "REDACTED".
+
+    URLs without such parameters are returned unchanged (byte for byte)."""
+    parts = urlsplit(url)
+    if not parts.query:
+        return url
+    pairs = parse_qsl(parts.query, keep_blank_values=True)
+    if not any(k.lower() in _SECRET_QUERY_PARAMS for k, _ in pairs):
+        return url
+    pairs = [(k, "REDACTED" if k.lower() in _SECRET_QUERY_PARAMS else v) for k, v in pairs]
+    return urlunsplit(parts._replace(query=urlencode(pairs)))
 
 
 def _guess_ext(url: str, ctype: str | None) -> str:

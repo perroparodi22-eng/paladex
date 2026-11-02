@@ -1,0 +1,115 @@
+﻿{
+ "more": false,
+ "results": [
+  {
+   "id": 0,
+   "text": "World",
+   "PartnerCode": 0,
+   "PartnerDesc": "World",
+   "partnerNote": "World",
+   "PartnerCodeIsoAlpha2": "W0",
+   "PartnerCodeIsoAlpha3": "W00",
+   "entryEffectiveDate": "1900-01-01T00:00:00",
+   "isGroup": true
+  },
+  {
+   "id": 32,
+   "text": "Argentina",
+   "PartnerCode": 32,
+   "PartnerDesc": "Argentina",
+   "partnerNote": "Argentina",
+   "PartnerCodeIsoAlpha2": "AR",
+   "PartnerCodeIsoAlpha3": "ARG",
+   "entryEffectiveDate": "1900-01-01T00:00:00",
+   "isGroup": false
+  },
+  {
+   "id": 97,
+   "text": "EU",
+   "PartnerCode": 97,
+   "PartnerDesc": "EU",
+   "partnerNote": "EU",
+   "PartnerCodeIsoAlpha2": "EU",
+   "PartnerCodeIsoAlpha3": "EUR",
+   "entryEffectiveDate": "1900-01-01T00:00:00",
+   "isGroup": true
+  },
+  {
+   "id": 251,
+   "text": "France",
+   "PartnerCode": 251,
+   "PartnerDesc": "France",
+   "partnerNote": "France",
+   "PartnerCodeIsoAlpha2": "FR",
+   "PartnerCodeIsoAlpha3": "FRA",
+   "entryEffectiveDate": "1900-01-01T00:00:00",
+   "isGroup": false
+  },
+  {
+   "id": 380,
+   "text": "Italy",
+   "PartnerCode": 380,
+   "PartnerDesc": "Italy",
+   "partnerNote": "Italy",
+   "PartnerCodeIsoAlpha2": "IT",
+   "PartnerCodeIsoAlpha3": "ITA",
+   "entryEffectiveDate": "1900-01-01T00:00:00",
+   "isGroup": false
+  },
+  {
+   "id": 472,
+   "text": "Africa CAMEU region, nes",
+   "PartnerCode": 472,
+   "PartnerDesc": "Africa CAMEU region, nes",
+   "partnerNote": "Africa CAMEU region, nes",
+   "PartnerCodeIsoAlpha2": "R1",
+   "PartnerCodeIsoAlpha3": "R1 ",
+   "entryEffectiveDate": "1900-01-01T00:00:00",
+   "isGroup": true
+  },
+  {
+   "id": 490,
+   "text": "Other Asia, nes",
+   "PartnerCode": 490,
+   "PartnerDesc": "Other Asia, nes",
+   "partnerNote": "Other Asia, nes",
+   "PartnerCodeIsoAlpha2": "S1",
+   "PartnerCodeIsoAlpha3": "S19",
+   "entryEffectiveDate": "1900-01-01T00:00:00",
+   "isGroup": false
+  },
+  {
+   "id": 842,
+   "text": "USA",
+   "PartnerCode": 842,
+   "PartnerDesc": "USA",
+   "partnerNote": "USA",
+   "PartnerCodeIsoAlpha2": "US",
+   "PartnerCodeIsoAlpha3": "USA",
+   "entryEffectiveDate": "1900-01-01T00:00:00",
+   "isGroup": false
+  },
+  {
+   "id": 894,
+   "text": "Zambia",
+   "PartnerCode": 894,
+   "PartnerDesc": "Zambia",
+   "partnerNote": "Zambia",
+   "PartnerCodeIsoAlpha2": "ZM",
+   "PartnerCodeIsoAlpha3": "ZMB",
+   "entryEffectiveDate": "1900-01-01T00:00:00",
+   "isGroup": false
+  },
+  {
+   "id": 899,
+   "text": "Areas, nes",
+   "PartnerCode": 899,
+   "PartnerDesc": "Areas, nes",
+   "partnerNote": "Areas, nes",
+   "PartnerCodeIsoAlpha2": "_X",
+   "PartnerCodeIsoAlpha3": "_X ",
+   "entryEffectiveDate": "1900-01-01T00:00:00",
+   "isGroup": false
+  }
+ ]
+}

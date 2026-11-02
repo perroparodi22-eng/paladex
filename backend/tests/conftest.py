@@ -63,7 +63,8 @@ def api(db):
 @pytest.fixture()
 def run_with_routes(db, monkeypatch):
     """Run a collector with mocked HTTP. `routes` maps a URL (exact, or a regex string starting
-    with '^') to bytes | (status, bytes) | (status, bytes, content_type)."""
+    with '^') to bytes | (status, bytes) | (status, bytes, content_type). A key may also be a
+    `(method, url)` tuple, e.g. `("POST", "https://...")`, to mock a non-GET request."""
     from paladex.collectors import base
 
     monkeypatch.setattr(base.time, "sleep", lambda *_: None)
@@ -73,11 +74,15 @@ def run_with_routes(db, monkeypatch):
 
         with respx.mock(assert_all_called=False) as mock:
             for url, spec in routes.items():
+                method, url = url if isinstance(url, tuple) else ("GET", url)
                 if isinstance(spec, bytes):
                     spec = (200, spec)
                 status, body, *ctype = spec
                 headers = {"content-type": ctype[0]} if ctype else {}
-                route = mock.get(url__regex=url) if url.startswith("^") else mock.get(url__startswith=url)
+                if url.startswith("^"):
+                    route = mock.route(method=method, url__regex=url)
+                else:
+                    route = mock.route(method=method, url__startswith=url)
                 route.mock(return_value=httpx.Response(status, content=body, headers=headers))
             mock.route().mock(side_effect=httpx.ConnectError("blocked in tests"))
             with httpx.Client(follow_redirects=True) as client:

@@ -1,0 +1,35 @@
+{
+ "elapsedTime": "0.42 secs",
+ "count": 2,
+ "data": [
+  {
+   "datasetCode": 380202501,
+   "typeCode": "C",
+   "freqCode": "A",
+   "period": 2025,
+   "reporterCode": 380,
+   "reporterISO": "ITA",
+   "reporterDesc": "Italy",
+   "classificationCode": "H6",
+   "isOriginalClassification": true,
+   "totalRecords": 123456,
+   "firstReleased": "2026-06-02T00:00:00",
+   "lastReleased": "2026-09-14T00:00:00"
+  },
+  {
+   "datasetCode": 32202501,
+   "typeCode": "C",
+   "freqCode": "A",
+   "period": 2025,
+   "reporterCode": 32,
+   "reporterISO": "ARG",
+   "reporterDesc": "Argentina",
+   "classificationCode": "H6",
+   "isOriginalClassification": true,
+   "totalRecords": 123456,
+   "firstReleased": "2026-05-11T00:00:00",
+   "lastReleased": "2026-08-21T00:00:00"
+  }
+ ],
+ "error": ""
+}

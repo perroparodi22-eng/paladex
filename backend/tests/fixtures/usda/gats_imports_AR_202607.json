@@ -1,0 +1,36 @@
+[
+ {
+  "consumptionQuantity1": 1710000.0,
+  "consumptionQuantity2": 0.0,
+  "consumptionValue": 4190000.0,
+  "consumptionCIFValue": 4395000.0,
+  "cifValue": 205000.0,
+  "date": "202607",
+  "countryCode": "AR",
+  "hS10Code": "0409000045",
+  "censusUOMId1": 47,
+  "censusUOMId2": 47,
+  "fasConvertedUOMId": 70,
+  "fasNonConvertedUOMId": 47,
+  "quantity1": 1710000.0,
+  "quantity2": 0.0,
+  "value": 4190000.0
+ },
+ {
+  "consumptionQuantity1": 380100.0,
+  "consumptionQuantity2": 0.0,
+  "consumptionValue": 2330000.0,
+  "consumptionCIFValue": 2441000.0,
+  "cifValue": 111000.0,
+  "date": "202607",
+  "countryCode": "AR",
+  "hS10Code": "2204214050",
+  "censusUOMId1": 78,
+  "censusUOMId2": 78,
+  "fasConvertedUOMId": 78,
+  "fasNonConvertedUOMId": 78,
+  "quantity1": 380100.0,
+  "quantity2": 0.0,
+  "value": 2330000.0
+ }
+]

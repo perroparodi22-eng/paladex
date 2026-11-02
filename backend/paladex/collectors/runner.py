@@ -181,6 +181,15 @@ def post_collection_hooks() -> None:
         pass
     except Exception:  # pragma: no cover
         log.exception("alert evaluation failed")
+    try:
+        from ..services import ai_enrich
+
+        with session_scope() as session:
+            ai_enrich.enrich_news(session)  # no-op when no AI provider is configured
+    except ImportError:
+        pass
+    except Exception:  # pragma: no cover
+        log.exception("AI news enrichment failed")
 
 
 def last_full_run_age_hours() -> float | None:

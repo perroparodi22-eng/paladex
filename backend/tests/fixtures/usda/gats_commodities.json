@@ -1,0 +1,74 @@
+[
+ {
+  "hS10Code": "0204430000",
+  "commodityName": "LAMB, BONELESS, FRESH OR CHILLED",
+  "commodityDescription": "LAMB, BONELESS, FRESH OR CHILLED",
+  "censusUOMId1": 47,
+  "censusUOMId2": 47,
+  "fasConvertedUOMId": 70,
+  "fasNonConvertedUOMId": 47
+ },
+ {
+  "hS10Code": "0409000005",
+  "commodityName": "NATURAL HONEY, CERTIFIED ORGANIC",
+  "commodityDescription": "NATURAL HONEY, CERTIFIED ORGANIC",
+  "censusUOMId1": 47,
+  "censusUOMId2": 47,
+  "fasConvertedUOMId": 70,
+  "fasNonConvertedUOMId": 47
+ },
+ {
+  "hS10Code": "0409000010",
+  "commodityName": "NATURAL HONEY, PACKAGED FOR RETAIL SALE",
+  "commodityDescription": "NATURAL HONEY, PACKAGED FOR RETAIL SALE",
+  "censusUOMId1": 47,
+  "censusUOMId2": 47,
+  "fasConvertedUOMId": 70,
+  "fasNonConvertedUOMId": 47
+ },
+ {
+  "hS10Code": "0409000035",
+  "commodityName": "NATURAL HONEY, NESOI, WHITE OR LIGHTER",
+  "commodityDescription": "NATURAL HONEY, NESOI, WHITE OR LIGHTER",
+  "censusUOMId1": 47,
+  "censusUOMId2": 47,
+  "fasConvertedUOMId": 70,
+  "fasNonConvertedUOMId": 47
+ },
+ {
+  "hS10Code": "0409000045",
+  "commodityName": "NATURAL HONEY, NESOI, EXTRA LIGHT AMBER",
+  "commodityDescription": "NATURAL HONEY, NESOI, EXTRA LIGHT AMBER",
+  "censusUOMId1": 47,
+  "censusUOMId2": 47,
+  "fasConvertedUOMId": 70,
+  "fasNonConvertedUOMId": 47
+ },
+ {
+  "hS10Code": "0409000056",
+  "commodityName": "NATURAL HONEY, NESOI, LIGHT AMBER",
+  "commodityDescription": "NATURAL HONEY, NESOI, LIGHT AMBER",
+  "censusUOMId1": 47,
+  "censusUOMId2": 47,
+  "fasConvertedUOMId": 70,
+  "fasNonConvertedUOMId": 47
+ },
+ {
+  "hS10Code": "0409000065",
+  "commodityName": "NATURAL HONEY, NESOI, AMBER OR DARKER",
+  "commodityDescription": "NATURAL HONEY, NESOI, AMBER OR DARKER",
+  "censusUOMId1": 47,
+  "censusUOMId2": 47,
+  "fasConvertedUOMId": 70,
+  "fasNonConvertedUOMId": 47
+ },
+ {
+  "hS10Code": "0801320000",
+  "commodityName": "CASHEW NUTS, FRESH OR DRIED, SHELLED",
+  "commodityDescription": "CASHEW NUTS, FRESH OR DRIED, SHELLED",
+  "censusUOMId1": 47,
+  "censusUOMId2": 47,
+  "fasConvertedUOMId": 70,
+  "fasNonConvertedUOMId": 47
+ }
+]

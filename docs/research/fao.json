@@ -1,0 +1,212 @@
+{
+ "cluster": "FAO / FAOSTAT honey data (QCL production, PP producer prices, TCL/TM trade, FBS food balance, bulk downloads) + FAO GIEWS/FPMA and FAO Food Price Index",
+ "sources": [
+  {
+   "name": "FAOSTAT REST API (Developer Portal API, v1): auth and request mechanics",
+   "access_method": "REST API (JSON; output_type=objects, CSV also documented)",
+   "endpoints": [
+    "POST https://faostatservices.fao.org/api/v1/auth/login   (Content-Type: application/x-www-form-urlencoded; form fields: username=<account e-mail>, password=<password>)",
+    "GET  https://faostatservices.fao.org/api/v1/{lang}/data/{domain_code}?area={codes}&item={codes}&element={FILTER codes}&year={years}&area_cs={FAO|M49|ISO2|ISO3}&item_cs={FAO|CPC}&show_codes=true&show_unit=true&show_flags=true&show_notes=true&null_values=false&output_type=objects[&page_size=N&page_number=K]",
+    "GET  https://faostatservices.fao.org/api/v1/{lang}/codes/{dimension_id}/{domain_code}   (dimension_id = area | element | item | year, or a subdimension such as countries, regions, specialgroups, items, itemsagg)",
+    "GET  https://faostatservices.fao.org/api/v1/{lang}/dimensions/{domain_code}/",
+    "GET  https://faostatservices.fao.org/api/v1/{lang}/groupsanddomains   (all domains with date_update, release_current, release_next, year_current, year_next)",
+    "GET  https://faostatservices.fao.org/api/v1/{lang}/groups/   and   GET .../{lang}/domains/{group_code}/",
+    "GET  https://faostatservices.fao.org/api/v1/{lang}/definitions/domain/{domain_code}[/{definition_type}]",
+    "GET  https://faostatservices.fao.org/api/v1/{lang}/metadata/{domain_code}",
+    "GET  https://faostatservices.fao.org/api/v1/{lang}/bulkdownloads/{domain_code}/",
+    "POST https://faostatservices.fao.org/api/v1/{lang}/datasize/   JSON body {domain_code, area, element, item, year, area_cs, element_cs, item_cs, year_cs}",
+    "POST https://faostatservices.fao.org/api/v1/{lang}/rankings/   JSON body {domain_code, element_code (DISPLAY code, e.g. 5510), item_code, year, limit}",
+    "GET  https://faostatservices.fao.org/api/v1/ping",
+    "Header on every call except login: Authorization: Bearer <AuthenticationResult.AccessToken>; Accept: application/json"
+   ],
+   "auth": "Required. Since 2026 every API call needs a JWT Bearer token. You get it from a free FAOSTAT Developer Portal account (https://www.fao.org/faostat/en/#developer-portal), which is backed by AWS Cognito. Two ways to get a token: (a) copy one manually from the portal, which lasts 60 minutes; (b) POST /auth/login with the form fields username and password, then read AuthenticationResult.AccessToken (ExpiresIn=3600 seconds). If you call the data endpoint without the header, it returns 401 'Missing Authorization Header'. A bad or expired token returns 403 'Authentication Failed'. A wrong login returns 400 with a JSON body whose __type is 'UserNotFoundException' or 'NotAuthorizedException'. The bulk download host (bulks-faostat.fao.org) needs no account.",
+   "cost_licensing": "Free. The data falls under the FAO Statistical Database Terms of Use (https://www.fao.org/contact-us/terms/db-terms-of-use/en/), and Annex 1 of those terms puts FAOSTAT under CC BY 4.0 'as complemented by those terms'. That means commercial reuse and redistribution are allowed with attribution. Required citation: 'FAO. [YYYY of last update]. [Database: dataset]. [Accessed on DD Month YYYY]. [URL] Licence: CC-BY-4.0.' I did not find a published ban on automated access. Earlier FAOSTAT releases were CC BY-NC-SA 3.0 IGO (from memory), so show the CC BY 4.0 attribution in the app. I could not read the Developer Portal account's own terms of service, which you accept when you register. Check them at sign-up for any API-specific limits.",
+   "update_frequency": "It depends on the domain. Each domain's date_update and release_next come from /en/groupsanddomains (needs a token) or from the bulk catalogue's DateUpdate (no token). Poll one of these weekly to detect new releases.",
+   "data_available": "About 69 to 78 domains in total. The honey-relevant ones are QCL (production), PP (annual producer prices), TCL (aggregate trade), TM (bilateral trade matrix), FBS (food balance, honey = 2745) and QV (value of production, not checked). Each data row carries: Domain Code, Domain, Area Code, Area, Element Code, Element, Item Code, Item, Year Code, Year, Unit, Value, Flag, Flag Description, Note. PP rows also have Months Code and Months, and no Note. Areas default to FAO numeric codes. Pass area_cs=M49|ISO2|ISO3 to use another system.",
+   "parsing_notes": "1) ELEMENT FILTER CODES ARE NOT THE DISPLAY CODES. In QCL you query with element=2510 ('Production Quantity'), but the rows print Element Code '5510' ('Production'). Querying element=5510 silently returns no rows. Look up filter codes with /en/codes/element/{domain}. Exception: the rankings endpoint takes the DISPLAY code. 2) Send at least one of area/item/element/year. A request with no filter returns HTTP 500 with the text/plain body 'Please add at least one filter.' An unknown domain returns HTTP 500 'Index: 0, Size: 0'. An unknown code returns 200 with an empty data array, not an error. 3) For multiple codes, send a comma-separated list (year=2015,2016,2017), which a client recorded working. Repeated keys also appear to work through Python requests. 4) Pagination is not settled: the xippios client saw the portal send page_size and page_number (1-based), but the faostat 2.0.1 package sends limit and offset (limit=-1 means everything). Avoid the question by keeping queries narrow (item=1182 plus one element), which returns a few thousand rows. 5) Values may come back as JSON strings: metadata.dsd[].data_type is 'string' for every column, Value included. Cast with Decimal and handle null and ''. 6) If you pass area_cs or item_cs, the code column is renamed to 'Area Code (FAO)' / 'Area Code (M49)' / 'Item Code (FAO)'. Read the column names from metadata.dsd[].key instead of hard-coding them. In one recorded test, area=840&area_cs=M49 returned no rows, so filter with FAO codes. 7) Aggregate areas: FAO codes 5000 and above (5000 World, 5707 EU27, etc.) are totals, and codes ending in '>' are lists. Code 351 'China' is an aggregate of 41 (mainland), 96 (Hong Kong SAR), 128 (Macao SAR) and 214 (Taiwan), so use 41 for mainland China. Use 272 Serbia for 2006 onward and 186 Serbia and Montenegro before that. 8) Cache the token for ExpiresIn minus 60 s. On a 401 or 403, log in again once and retry. 9) Big unfiltered queries can return HTTP 524, a Cloudflare timeout. 10) lang may be en, fr or es (the faostat package also allows ar, zh, ru). Both trailing-slash and no-trailing-slash paths are used by working clients. 11) The legacy keyless base https://fenixservices.fao.org/faostat/api/v1/ was replaced in about May 2024 (the faostat package changelog says 'Changed the base url'). Do not rely on it. 12) VERIFICATION SCOPE: I could not reach any fao.org host from my sandbox (DNS and egress were blocked), and the web-search budget ran out. Everything marked verified comes from the source code of three current clients: faostat 2.0.1 (March 2026, which credits FAOSTAT staff for the new auth), xippios-faostat 0.1.0 (code lists fetched live from this API on 2026-10-29) and faostat-mcp 1.3.0. I did not read FAO's own portal pages.",
+   "confidence": "verified_from_docs",
+   "evidence_urls": [
+    "https://pypi.org/project/faostat/",
+    "https://pypi.org/project/xippios-faostat/",
+    "https://github.com/berba-q/faostat-mcp",
+    "https://raw.githubusercontent.com/berba-q/faostat-mcp/main/faostat_mcp/client.py",
+    "https://raw.githubusercontent.com/berba-q/faostat-mcp/main/faostat_mcp/server.py",
+    "https://www.fao.org/statistics/highlights-archive/highlights-detail/faostat-launches-a-new-api-developer-portal-to-make-data-access-easier/en",
+    "https://x.com/FAOstatistics/status/2047314552459501753",
+    "https://www.fao.org/statistics/events/events-detail/fao-x-global-network-webinar--faostat-developer-portal/en",
+    "https://www.fao.org/contact-us/terms/db-terms-of-use/en/"
+   ],
+   "honey_specific_codes": "Item 1182 'Natural honey' exists in QCL, TCL and PP (verified). Related items: 1181 'Bees' (QCL/TCL), 1183 'Beeswax' (QCL/TCL/PP), FBS 2745 'Honey', TCL aggregate 1890 '- Sugar and Honey + (Total)'. Verified area FAO codes: Argentina 9, China mainland 41 (China aggregate 351), Ukraine 230, Serbia 272, Brazil 21, Viet Nam 237, India 100, Italy 106, USA 231, Mexico 138, Uruguay 234, Türkiye 223, Hungary 97, Romania 183, Bulgaria 27, Spain 203, Germany 79, Canada 33, Chile 40, Rep. of Moldova 146, Ethiopia 238, New Zealand 156, Russian Fed. 185, Thailand 216, Myanmar 28, Iran 102, World 5000, EU27 5707. From memory, not verified: CPC code for Natural honey is 02910, HS 0409.00.",
+   "publication_lag": "QCL: date_update was 2025-12-31 (verified, recorded 2026-10-29) and it covers up to 2024. The 2025 production year is expected around Dec 2026 (release_next pattern 'YYYY-12'). That gives a rule of thumb: year Y appears around December of Y+1. TCL, TM and PP: annual releases lagging about 1 to 2 years (from memory). Read release_next from /groupsanddomains to confirm.",
+   "rate_limits": "FAO documents no rate limit; xippios says it found none. Client defaults: xippios self-throttles to 30 requests/min with burst 1, and faostat-mcp to 2 requests/s with retries (3 attempts, exponential 1–10 s) on 5xx, plus handling for HTTP 429. Recommended: no more than 1 request/s, and cache responses.",
+   "sample_response": "LOGIN (keys verified, values redacted/reconstructed):\n{\"AuthenticationResult\":{\"AccessToken\":\"eyJraWQi...\",\"ExpiresIn\":3600,\"IdToken\":\"eyJ...\",\"RefreshToken\":\"eyJ...\",\"TokenType\":\"Bearer\"},\"ChallengeParameters\":{}}\n\nDATA GET /en/data/QCL?item=1182&element=2510&area=9&year=2023&show_codes=true&show_unit=true&show_flags=true&show_notes=true&null_values=false&output_type=objects\n(keys verified; numeric values RECONSTRUCTED, not real):\n{\"metadata\":{\"processing_time\":89,\"datasource\":\"PRODUCTION\",\"output_type\":\"OBJECTS\",\n  \"dsd\":[{\"label\":\"Domain Code\",\"type\":\"code\",\"key\":\"Domain Code\",\"dimension_id\":null,\"data_type\":\"string\"},\n         {\"label\":\"Area Code\",\"type\":\"code\",\"key\":\"Area Code\",\"dimension_id\":\"area\",\"data_type\":\"string\"}, ... ,\n         {\"label\":\"Value\",\"type\":\"value\",\"key\":\"Value\",\"dimension_id\":null,\"data_type\":\"string\"}, ... ]},\n \"data\":[{\"Domain Code\":\"QCL\",\"Domain\":\"Crops and livestock products\",\"Area Code\":\"9\",\"Area\":\"Argentina\",\"Element Code\":\"5510\",\"Element\":\"Production\",\"Item Code\":\"1182\",\"Item\":\"Natural honey\",\"Year Code\":\"2023\",\"Year\":\"2023\",\"Unit\":\"t\",\"Value\":\"<number>\",\"Flag\":\"A\",\"Flag Description\":\"Official figure\",\"Note\":\"\"}]}\n\nCODES GET /en/codes/element/QCL (verified):\n{\"metadata\":{...},\"data\":[{\"code\":\"2312\",\"label\":\"Area harvested\",\"aggregate_type\":\"0\"},{\"code\":\"2413\",\"label\":\"Yield\",...},{\"code\":\"2510\",\"label\":\"Production Quantity\",...},{\"code\":\"2111\",\"label\":\"Stocks\",...},{\"code\":\"2313\",\"label\":\"Producing Animals/Slaughtered\",...}]}\n\nGROUPSANDDOMAINS row (keys verified; QCL date_update verified; other values from client-doc examples):\n{\"group_code\":\"Q\",\"group_name\":\"Production\",\"domain_code\":\"QCL\",\"domain_name\":\"Crops and livestock products\",\"date_update\":\"2025-12-31\",\"note_update\":\"\",\"release_current\":\"2025-12-31\",\"state_current\":\"final\",\"year_current\":\"2024\",\"release_next\":\"2026-12\",\"state_next\":\"final\",\"year_next\":\"2025\",\"release_note\":\"update\",\"release_note_expiry\":\"\",\"subgroup_flag\":\"0\",\"subdomain_flag\":\"0\",\"domain_level\":2,\"sdg_flag\":\"0\",\"sdg_text\":\"\",\"FocalPoint\":\"FAOSTAT@fao.org\"}"
+  },
+  {
+   "name": "FAOSTAT QCL: honey production by country (and beehive counts)",
+   "access_method": "REST API (or bulk CSV, see bulk entry)",
+   "endpoints": [
+    "GET https://faostatservices.fao.org/api/v1/en/data/QCL?item=1182&element=2510&year=2000,2001,...,2024&show_codes=true&show_unit=true&show_flags=true&show_notes=true&null_values=false&output_type=objects   (all areas; drop Area Code >= 5000 aggregates and 351)",
+    "GET https://faostatservices.fao.org/api/v1/en/data/QCL?item=1182&element=2510&area=9,41,230,272,21,237,100,106,231,138,234,223&year=...   (sourcing countries)",
+    "GET https://faostatservices.fao.org/api/v1/en/data/QCL?item=1181&element=2111&area=...   (beehive stocks; display element code and unit unverified, expect 'Stocks', unit 'No')",
+    "GET https://faostatservices.fao.org/api/v1/en/codes/element/QCL   (re-verify filter codes at startup)"
+   ],
+   "auth": "Bearer token, as in the API entry. The bulk route needs none.",
+   "cost_licensing": "CC BY 4.0 under the FAO Statistical Database Terms of Use, attribution required.",
+   "update_frequency": "Annual, once around December (the 2025-12-31 release covers up to 2024). Back years can be revised in each release.",
+   "data_available": "Annual production in tonnes (Unit 't') by country, plus world and regional aggregates, from 1961 to the latest year. Element 5510 Production. Flags mark official, estimated or imputed values. No breakdown by variety (acacia, chestnut and so on are not separated).",
+   "parsing_notes": "Filter element=2510 and expect the rows to show '5510'. Honey's parent in the item tree is 'QL>' (livestock primary). Many producers, China and India among them, carry E (estimated) or I (imputed) flags, so show the flag in the UI. FAO honey estimates differ from national sources such as USDA NASS. Store the date_update vintage with each pull so revisions can be compared.",
+   "confidence": "verified_from_docs",
+   "evidence_urls": [
+    "https://pypi.org/project/xippios-faostat/",
+    "https://pypi.org/project/faostat/"
+   ],
+   "honey_specific_codes": "item=1182 (Natural honey), element filter 2510 → display 5510 Production (t); bees item 1181 with filter element 2111 Stocks; beeswax item 1183",
+   "publication_lag": "About 12 months after the end of the reference year (year Y published around December of Y+1).",
+   "rate_limits": "As in the API entry. One query covers every country.",
+   "sample_response": "See the FAOSTAT REST API entry. Rows have Element Code '5510', Unit 't', Item Code '1182'."
+  },
+  {
+   "name": "FAOSTAT PP: annual producer (farm-gate) prices for natural honey",
+   "access_method": "REST API (or bulk CSV)",
+   "endpoints": [
+    "GET https://faostatservices.fao.org/api/v1/en/data/PP?item=1182&element=5532&area=9,41,230,272,21,237,100,106,231,138,234,223&year=2010,...,2024&show_codes=true&show_unit=true&show_flags=true&show_notes=true&null_values=false&output_type=objects",
+    "GET https://faostatservices.fao.org/api/v1/en/codes/element/PP"
+   ],
+   "auth": "Bearer token. The bulk route needs none.",
+   "cost_licensing": "CC BY 4.0 under the FAO Statistical Database Terms of Use, attribution required.",
+   "update_frequency": "Annual (release month not verified; read /groupsanddomains).",
+   "data_available": "Producer prices for honey by country per tonne. Verified element filter codes: 5530 'Producer Price (LCU/tonne)', 5531 'Producer Price (SLC/tonne)', 5532 'Producer Price (USD/tonne)', 5539 'Producer Price Index (2014-2016 = 100)'. Rows include Months Code and Months; one recorded row was Months Code '7021' = 'Annual value'. PP rows have no Note column.",
+   "parsing_notes": "PP element filter codes look the same as the display codes (5530–5539), but I have not confirmed this. Use the Element Code from the row. Coverage for honey is patchy, and some countries have gaps or only local-currency values. Prefer 5532 (USD/t) for cross-country comparison. These are FARM-GATE prices, not export or FOB prices, so they understate container prices. Treat them as a cost floor or margin indicator. Unit text for 5532 is probably 'USD' (unverified).",
+   "confidence": "verified_from_docs",
+   "evidence_urls": [
+    "https://pypi.org/project/xippios-faostat/"
+   ],
+   "honey_specific_codes": "item=1182 (Natural honey), 1183 (Beeswax); element 5532 USD/tonne, 5530 LCU/tonne, 5531 SLC/tonne, 5539 PPI",
+   "publication_lag": "About 1–2 years (from memory, unverified).",
+   "rate_limits": "As in the API entry.",
+   "sample_response": "Same envelope as the API entry. A row looks like this (keys verified, values reconstructed): {\"Domain Code\":\"PP\",\"Domain\":\"Producer Prices\",\"Area Code\":\"9\",\"Area\":\"Argentina\",\"Element Code\":\"5532\",\"Element\":\"Producer Price (USD/tonne)\",\"Item Code\":\"1182\",\"Item\":\"Natural honey\",\"Year Code\":\"2023\",\"Year\":\"2023\",\"Months Code\":\"7021\",\"Months\":\"Annual value\",\"Unit\":\"USD\",\"Value\":\"<number>\",\"Flag\":\"A\",\"Flag Description\":\"Official figure\"}"
+  },
+  {
+   "name": "FAOSTAT TCL: honey import/export quantity and value by country (annual)",
+   "access_method": "REST API (bulk ZIP is 267 MB)",
+   "endpoints": [
+    "GET https://faostatservices.fao.org/api/v1/en/data/TCL?item=1182&element=2610,2620,2910,2920&area=9,41,230,272,21,237,100,106,231&year=2015,...,2024&show_codes=true&show_unit=true&show_flags=true&show_notes=true&null_values=false&output_type=objects",
+    "GET https://faostatservices.fao.org/api/v1/en/codes/element/TCL"
+   ],
+   "auth": "Bearer token.",
+   "cost_licensing": "CC BY 4.0 under the FAO Statistical Database Terms of Use, attribution required.",
+   "update_frequency": "Annual (date not verified; read /groupsanddomains).",
+   "data_available": "Annual import and export quantity and value of natural honey per reporting country. Verified element filter codes: 2610 Import quantity, 2620 Import value, 2910 Export quantity, 2920 Export value. Display codes, from memory and unverified: 5610 Import quantity (t), 5622 Import value (1000 USD), 5910 Export quantity (t), 5922 Export value (1000 USD).",
+   "parsing_notes": "Derive an annual export UNIT VALUE (USD/t) per origin: Value(export value) × 1000 / Qty(export quantity). Check the Unit column first ('1000 USD' is assumed, not verified). This is the most useful FAO number for an importer, a rough proxy for the average FOB price by origin. TCL has extra areas that do not exist in QCL: 265 'China (excluding intra-trade)', 57070 'European Union (27) (excluding intra-trade)' and 269. Avoid double counting with 5707 or 351. The data comes from customs (HS 0409) via UN Comtrade and partners, so for timeliness use UN Comtrade, Eurostat Comext or USDA GATS monthly (other clusters). Use TCL for long annual history.",
+   "confidence": "verified_from_docs",
+   "evidence_urls": [
+    "https://pypi.org/project/xippios-faostat/"
+   ],
+   "honey_specific_codes": "item=1182 Natural honey (parent 'TP>'); aggregate 1890 Sugar and Honey; HS 040900 (from memory)",
+   "publication_lag": "About 1–2 years (from memory, unverified).",
+   "rate_limits": "As in the API entry.",
+   "sample_response": "Same envelope as the API entry. Rows look like {\"Domain Code\":\"TCL\",\"Area Code\":\"9\",\"Area\":\"Argentina\",\"Element Code\":\"5910\"(unverified),\"Element\":\"Export quantity\",\"Item Code\":\"1182\",\"Item\":\"Natural honey\",\"Year\":\"2023\",\"Unit\":\"t\",\"Value\":\"<number>\",\"Flag\":\"...\",...} (reconstructed)"
+  },
+  {
+   "name": "FAOSTAT TM: Detailed Trade Matrix (bilateral honey flows, reporter × partner)",
+   "access_method": "REST API (bulk ZIP is about 410 MB)",
+   "endpoints": [
+    "GET https://faostatservices.fao.org/api/v1/en/dimensions/TM/   (discover the dimension ids FIRST; from memory they are reporterarea, partnerarea, item, element, year, all unverified)",
+    "GET https://faostatservices.fao.org/api/v1/en/codes/element/TM",
+    "GET https://faostatservices.fao.org/api/v1/en/data/TM?reporterarea=106&item=1182&element=<import qty filter>,<import value filter>&year=2019,...,2024&output_type=objects&show_codes=true&show_unit=true&show_flags=true   (parameter names UNVERIFIED)"
+   ],
+   "auth": "Bearer token.",
+   "cost_licensing": "CC BY 4.0 under the FAO Statistical Database Terms of Use, attribution required.",
+   "update_frequency": "Annual.",
+   "data_available": "Who exports honey to whom, annually: for example, Italy's or the USA's honey imports by partner (Argentina, Ukraine, China, Viet Nam, India, Brazil...). Gives quantity and value, so you can compute a unit value per lane.",
+   "parsing_notes": "The bulk ZIP is the largest FAOSTAT file at about 410 MB (verified), so use the API with reporter and item filters. Bulk column names from memory (unverified): 'Reporter Country Code', 'Reporter Country Code (M49)', 'Reporter Countries', 'Partner Country Code', 'Partner Country Code (M49)', 'Partner Countries', 'Item Code', 'Item Code (CPC)', 'Item', 'Element Code', 'Element', 'Year Code', 'Year', 'Unit', 'Value', 'Flag'. Mirror flows (reporter A's imports compared with partner B's exports) will not match.",
+   "confidence": "from_memory_unverified",
+   "evidence_urls": [
+    "https://pypi.org/project/xippios-faostat/"
+   ],
+   "honey_specific_codes": "item=1182; reporter/partner use FAO area codes (Italy 106, USA 231, Argentina 9, Ukraine 230, China mainland 41, Viet Nam 237, India 100, Brazil 21, Serbia 272)",
+   "publication_lag": "About 1–2 years (unverified).",
+   "rate_limits": "As in the API entry.",
+   "sample_response": "Same envelope as the API entry, with reporter and partner columns (reconstructed, verify against metadata.dsd)."
+  },
+  {
+   "name": "FAOSTAT FBS: Food Balances (2010-) for honey: supply and use, per-capita consumption",
+   "access_method": "REST API (or bulk CSV)",
+   "endpoints": [
+    "GET https://faostatservices.fao.org/api/v1/en/data/FBS?item=2745&element=2510,2610,2910,2300,2141,645&area=106,231,79,203&year=2015,...,2023&output_type=objects&show_codes=true&show_unit=true&show_flags=true"
+   ],
+   "auth": "Bearer token.",
+   "cost_licensing": "CC BY 4.0 under the FAO Statistical Database Terms of Use, attribution required.",
+   "update_frequency": "Annual.",
+   "data_available": "Honey (FBS item 2745) supply and use per country. Verified element filter codes: 2510 Production Quantity, 2610 Import quantity, 2910 Export quantity, 2071 Stock Variation, 2300 Domestic supply quantity, 2141 Food, 2151 Other uses (non-food), 2130 Processed, 645 Food supply quantity (kg/capita/yr), 664 kcal/capita/day, 511 Total Population.",
+   "parsing_notes": "Use this for demand-side context in destination markets (Italy, USA, Germany and so on). The rows' display element codes differ from the filter codes, so read Element Code and Element from the rows. FBS figures are in 1000 t (from memory, unverified), so check the Unit column.",
+   "confidence": "verified_from_docs",
+   "evidence_urls": [
+    "https://pypi.org/project/xippios-faostat/"
+   ],
+   "honey_specific_codes": "FBS item 2745 'Honey'",
+   "publication_lag": "About 2 years (unverified).",
+   "rate_limits": "As in the API entry.",
+   "sample_response": "Same envelope as the API entry."
+  },
+  {
+   "name": "FAOSTAT Bulk Downloads (no account needed)",
+   "access_method": "bulk CSV (ZIP) + JSON catalogue",
+   "endpoints": [
+    "GET https://bulks-faostat.fao.org/production/datasets_E.json   (catalogue, about 107 KB, 69 datasets on 2026-10-29)",
+    "GET {FileLocation} from the catalogue, e.g. https://bulks-faostat.fao.org/production/Inputs_LandUse_E_All_Data_(Normalized).zip (verified pattern)",
+    "From memory (resolve through the catalogue instead of hard-coding): https://bulks-faostat.fao.org/production/Production_Crops_Livestock_E_All_Data_(Normalized).zip (QCL), .../Trade_CropsLivestock_E_All_Data_(Normalized).zip (TCL, 267 MB verified size), .../Trade_DetailedTradeMatrix_E_All_Data_(Normalized).zip (TM, about 410 MB), .../Prices_E_All_Data_(Normalized).zip (PP), .../FoodBalanceSheets_E_All_Data_(Normalized).zip (FBS)"
+   ],
+   "auth": "none",
+   "cost_licensing": "CC BY 4.0 under the FAO Statistical Database Terms of Use, attribution required. No account or token.",
+   "update_frequency": "The same releases as the API. Catalogue DateUpdate per dataset, e.g. '2026-10-02T00:00:00'.",
+   "data_available": "A full domain per ZIP (all items, areas and years). Members: <Name>_E_All_Data_(Normalized).csv (long format, one value per row) plus code lists <Name>_E_AreaCodes.csv, _Elements.csv, _Flags.csv, _ItemCodes.csv. A wide-format <Name>_E_All_Data.zip also exists (from memory).",
+   "parsing_notes": "Catalogue JSON shape (verified): {\"Datasets\":{\"-xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"Dataset\":[{\"DatasetCode\":\"QCL\",\"DatasetName\":\"Production: Crops and livestock products\",\"Topic\":...|null,\"DatasetDescription\":...|null,\"Contact\":...,\"Email\":...|null,\"DateUpdate\":\"2026-10-02T00:00:00\",\"CompressionFormat\":\"zip\",\"FileType\":\"csv\",\"FileSize\":\"267104KB\",\"FileRows\":421850,\"FileLocation\":\"https://bulks-faostat.fao.org/production/..._E_All_Data_(Normalized).zip\"}]}}. FileSize is a string in KB and FileRows is an integer. CSV layout (verified for RL): UTF-8 (read with utf-8-sig), comma-separated, every non-empty cell quoted, CRLF line endings. Columns are 'Area Code','Area Code (M49)','Area','Item Code','Item','Element Code','Element','Year Code','Year','Unit','Value','Flag','Note'. The production and trade files are expected to add 'Item Code (CPC)' (unverified). M49 codes have a leading apostrophe ('004), so strip it. Value has six decimals ('65286.000000'), and an empty Value means missing. Element codes in the files are DISPLAY codes (5510 and so on). Stream with zipfile + io.TextIOWrapper + csv.DictReader and filter Item Code == '1182' while reading; do not extract to disk (TCL decompresses to several GB). Older FAOSTAT bulk files were Latin-1 (from memory), so fall back to latin-1 on UnicodeDecodeError. Change detection: compare DateUpdate per DatasetCode and download only when it changes.",
+   "confidence": "verified_from_docs",
+   "evidence_urls": [
+    "https://pypi.org/project/xippios-faostat/"
+   ],
+   "honey_specific_codes": "Filter rows on 'Item Code' == '1182' (QCL/TCL/PP/TM) or '2745' (FBS); QCL Element Code 5510; PP 5532",
+   "publication_lag": "Same as the API.",
+   "rate_limits": "None documented. These are large files, so download at most once per release.",
+   "sample_response": "Normalized CSV (header verified for RL; QCL row RECONSTRUCTED):\n\"Area Code\",\"Area Code (M49)\",\"Area\",\"Item Code\",\"Item Code (CPC)\",\"Item\",\"Element Code\",\"Element\",\"Year Code\",\"Year\",\"Unit\",\"Value\",\"Flag\",\"Note\"\r\n\"9\",\"'032\",\"Argentina\",\"1182\",\"'02910\",\"Natural honey\",\"5510\",\"Production\",\"2023\",\"2023\",\"t\",\"<number>.000000\",\"A\",\r\n"
+  },
+  {
+   "name": "FAO GIEWS FPMA (Food Price Monitoring and Analysis) Tool and FPMA Bulletin",
+   "access_method": "HTML web tool (internal JSON behind it) + monthly PDF bulletin",
+   "endpoints": [
+    "https://fpma.fao.org/giews/fpmat4/#/dashboard/tool/domestic   (UI, from memory)",
+    "https://www.fao.org/giews/reports/fpma-bulletin/en/   (monthly PDF, from memory)",
+    "https://www.fao.org/giews/countrybrief/country.jsp?code=ARG   (country briefs keyed by ISO3, from memory)"
+   ],
+   "auth": "none",
+   "cost_licensing": "FAO terms (www.fao.org/contact-us/terms). License not verified for FPMA series.",
+   "update_frequency": "FPMA Bulletin monthly (around the 10th, from memory). Domestic price series monthly or weekly. Country briefs a few times a year.",
+   "data_available": "Retail and wholesale prices of STAPLE foods (cereals, pulses, some oils, sugar, meat) in about 90+ countries, plus international export prices of wheat, maize and rice. To my knowledge it has no honey series.",
+   "parsing_notes": "Low value for honey prices. Useful only as macro context: crop and drought conditions in Argentina or Ukraine, currency and inflation stress in origin countries. I could not reach the FPMA API from this sandbox; DNS to fao.org hosts was blocked and the search budget ran out. Any JSON endpoint behind the FPMA tool is undocumented, so do not build on it without confirming it in a browser's dev tools.",
+   "confidence": "from_memory_unverified",
+   "evidence_urls": [],
+   "honey_specific_codes": "none (honey not covered)",
+   "publication_lag": "About 1 month.",
+   "rate_limits": "Unknown."
+  },
+  {
+   "name": "FAO Food Price Index (FFPI) incl. Sugar Price Index",
+   "access_method": "HTML page linking CSV/XLSX",
+   "endpoints": [
+    "https://www.fao.org/worldfoodsituation/foodpricesindex/en/   (scrape the page for the current .csv/.xlsx link; the file name changes between releases, from memory)"
+   ],
+   "auth": "none",
+   "cost_licensing": "FAO terms. Attribution needed. Not verified.",
+   "update_frequency": "Monthly, usually the first Friday of the month (from memory).",
+   "data_available": "Monthly nominal and real indices (2014–2016 = 100): overall FFPI, Meat, Dairy, Cereals, Vegetable Oils, Sugar. No honey index.",
+   "parsing_notes": "Only the Sugar sub-index matters, as context for a competing sweetener and for adulteration (syrup) economics. The CSV has a few title rows above the header (from memory), so detect the header row. Not honey-specific.",
+   "confidence": "from_memory_unverified",
+   "evidence_urls": [],
+   "honey_specific_codes": "none",
+   "publication_lag": "The previous month, published early in the following month.",
+   "rate_limits": "Unknown. Fetch at most once a month."
+  }
+ ],
+ "recommendation": "What FAO data can do for this app: FAOSTAT has exactly one honey item (1182 'Natural honey'). It is annual, about 12–24 months old, and has no breakdown by variety. It is good for structural context: which origins produce how much, farm-gate prices, annual export unit values by origin, and who ships to Italy or the USA. It cannot give current container prices. Plan for that, and get timely prices and trade from monthly sources such as Comtrade, Comext, USDA and trade press (other clusters).\n\nHow to build it (in this order):\n\n1. **Change detection, no account needed.** Once a week, GET https://bulks-faostat.fao.org/production/datasets_E.json. Store DateUpdate for QCL, PP, TCL, TM and FBS, and run step 2 or 3 only when a DateUpdate changes. QCL's 2025 data is expected around December 2026.\n\n2. **Main path: the token API.**\n   - Register a free FAOSTAT Developer Portal account and keep FAOSTAT_USERNAME and FAOSTAT_PASSWORD in the OS keyring.\n   - With httpx, POST the form to https://faostatservices.fao.org/api/v1/auth/login and cache AuthenticationResult.AccessToken for ExpiresIn minus 60 s. Send it as Authorization: Bearer on every call. On a 401 or 403, log in again once.\n   - Throttle to 1 request/s or less.\n   - Run these narrow honey queries, in order:\n     - (a) QCL production: item=1182, element=2510. Rows come back as 5510, unit t, all years, all areas. Drop areas with code 5000 or above and code 351, and use 41 for mainland China.\n     - (b) PP producer prices: item=1182, element=5532 (USD/t) and 5530 (local currency).\n     - (c) TCL trade: item=1182, element=2610,2620,2910,2920. From these, compute the annual export unit value per origin as value × 1000 / quantity, after checking the Unit column.\n     - (d) TM bilateral trade, for reporters Italy (106) and USA (231). Call /en/dimensions/TM first, because the reporter and partner parameter names are unverified.\n     - (e) FBS item 2745 for consumption in destination markets.\n   - Always send output_type=objects&show_codes=true&show_unit=true&show_flags=true&show_notes=true&null_values=false.\n   - Read column names from metadata.dsd and cast Value from a string to Decimal.\n   - Never filter by a display element code: use 2510, not 5510.\n\n3. **Fallback with zero credentials, or if the API changes.** Stream the bulk ZIPs and keep only rows with Item Code '1182'. QCL and PP are moderate in size; TCL is 267 MB and TM about 410 MB, so fetch those at most once per release. The bulk files carry display element codes and M49 codes with a leading apostrophe.\n\n4. **Storage.** Use one table: (domain, area_code_fao, area_m49, item_code, element_code_display, element_label, year, unit, value, flag, note, fao_date_update, retrieved_at). FAO revises back years in every release, so keep the vintage and show the flag (A, E, I) next to each value.\n\n5. **Licensing.** Show 'Source: FAO. FAOSTAT [domain], [year of last update]. Accessed [date]. Licence: CC BY 4.0' wherever FAO numbers appear. Commercial use and redistribution are allowed with attribution. Read the Developer Portal account terms at sign-up.\n\n6. **Skip for honey:** the GIEWS FPMA tool and bulletins, which have no honey series. At most, pull the monthly FAO Food Price Index Sugar sub-index as macro context.\n\n**Verification caveats:**\n- I could not reach fao.org, faostatservices.fao.org or bulks-faostat.fao.org from my sandbox, and the web-search budget ran out mid-task.\n- The verified items come from the source code of current client libraries, not from FAO's own pages:\n  - faostat 2.0.1 (March 2026), which credits FAOSTAT staff for the new auth.\n  - xippios-faostat 0.1.0, whose code lists and response captures were fetched from the live API on 2026-10-29.\n  - faostat-mcp 1.3.0.\n- **Verified:** the base URL, the login flow and response keys, the Bearer header, the data, codes and groupsanddomains paths and parameter names, the element filter codes for QCL, PP, TCL and FBS, item codes 1182, 1181, 1183 and 2745, the area codes, the bulk catalogue schema, and the bulk CSV layout for the RL dataset.\n- **Unverified (from memory):** the TCL display codes 5610/5622/5910/5922 and their units, the TM parameter names, the specific QCL, TCL, TM, PP and FBS bulk file names, the release months for PP and TCL, and everything about FPMA and the Food Price Index.\n- Test the unverified items first, from a machine that can reach these hosts: they must be allowed in the network settings, and none of them was reachable here."
+}

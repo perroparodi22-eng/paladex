@@ -1,0 +1,444 @@
+{
+ "cluster": "Honey-industry news feeds for automated collection (RSS/Atom/APIs), English, Italian and Spanish (plus ZH/UK/PT/VI/SR via aggregators)",
+ "sources": [
+  {
+   "name": "GDELT DOC 2.0 API (full-text news search, 65 languages, rolling 3 months)",
+   "access_method": "REST API (JSON / JSONP / CSV / RSS / RSSARCHIVE / JSONFeed / HTML)",
+   "endpoints": [
+    "https://api.gdeltproject.org/api/v2/doc/doc?query={URLENCODED_QUERY}&mode=ArtList&format=json&maxrecords=250&timespan=24h&sort=DateDesc",
+    "https://api.gdeltproject.org/api/v2/doc/doc?query={Q}&mode=ArtList&format=json&maxrecords=250&startdatetime=20261101000000&enddatetime=20261102000000&sort=DateDesc",
+    "https://api.gdeltproject.org/api/v2/doc/doc?query={Q}&mode=ArtList&format=rss&maxrecords=250&timespan=1h   (RSS output of the same search, usable by feedparser)",
+    "https://api.gdeltproject.org/api/v2/doc/doc?query={Q}&mode=ArtList&format=jsonfeed&timespan=24h   (JSONFeed output, ArtList only per GDELT blog)",
+    "https://api.gdeltproject.org/api/v2/doc/doc?query={Q}&mode=TimelineVol&format=json&timespan=3m   (coverage-volume timeline: a 'news intensity' indicator)",
+    "Example honey queries (UNVERIFIED that each operator spelling is accepted; test one first):",
+    "  query=(honey OR \"raw honey\") (export OR import OR price OR tariff OR antidumping OR adulteration) sourcelang:english -\"Honey Singh\" -PayPal",
+    "  query=miele (prezzo OR prezzi OR import OR export OR apicoltori OR frode) sourcelang:italian -lavatrice -lavastoviglie -elettrodomestici",
+    "  query=miel (exportación OR precio OR apicultores OR exportaciones) sourcecountry:argentina",
+    "  query=\"mật ong\" (xuất khẩu OR giá) sourcelang:vietnamese",
+    "  query=蜂蜜 出口 sourcecountry:china"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free. GDELT about page (snippet seen): datasets are 'available for unlimited and unrestricted use for any academic, commercial, or governmental use of any kind', redistribution allowed, but 'any use or redistribution of the data must include a citation to the GDELT Project and a link to this website'. Show 'Source: The GDELT Project (gdeltproject.org)' in the UI. GDELT only returns URL, title and metadata. The article text still belongs to each publisher, so the licensing notes in the recommendation apply to anything fetched beyond the title.",
+   "update_frequency": "Index updates every 15 minutes (from memory, unverified). Searches the rolling last ~3 months only (confirmed by search snippets and the gdeltdoc docs: 'officially only supports the most recent 3 months').",
+   "data_available": "ArtList mode: per article url, url_mobile, title, seendate, socialimage, domain, language, sourcecountry (column list confirmed by the gdeltdoc PyPI docs and the finance-query Rust crate). No summary or body text. language and sourcecountry come back as English full names (e.g. 'Italian', 'Italy'), from memory, unverified. Timeline modes return volume or tone per time step. Query operators (from memory; the official blog post exists but its text could not be fetched): \"exact phrase\", (a OR b) where OR must be inside parentheses, -exclude, domain:, domainis:, sourcecountry: (full name without spaces, or FIPS 2-letter code), sourcelang: (name or 3-letter code), theme: (GKG theme), near20:\"a b\", repeat3:\"word\", tone<-5, toneabs>5. Params: mode (ArtList, ArtGallery, ImageCollage..., TimelineVol, TimelineVolRaw, TimelineTone, TimelineLang, TimelineSourceCountry, ToneChart), format (html, csv, rss, rssarchive, json, jsonp, jsonfeed), timespan (e.g. 15min, 1h, 24h, 7d, 2w, 3m), startdatetime/enddatetime (YYYYMMDDHHMMSS UTC), maxrecords (max 250; default believed to be 75), sort (DateDesc, DateAsc, ToneDesc, ToneAsc, HybridRel).",
+   "parsing_notes": "1) An empty result comes back as '{}' with no 'articles' key. Use data.get('articles', []) (from memory). 2) Query errors are returned as PLAIN TEXT, often with HTTP 200 (e.g. a message about a phrase being too short or a keyword being too common). Check response.headers['content-type'] before calling .json(). 3) The throttle message is plain text, 'Please limit requests to one every 5 seconds' (quoted in finance-query client.rs), possibly with HTTP 429 and no Retry-After header. Sleep 5 s or more between calls and back off on that text. 4) seendate format is 'YYYYMMDDTHHMMSSZ' (UTC); parse with datetime.strptime(s, '%Y%m%dT%H%M%SZ'). It is when GDELT first saw the article, not the publish time. 5) Payloads have occasionally contained invalid control characters. Use json.loads(r.text, strict=False) as a fallback. 6) sourcecountry: filter uses FIPS 10-4 codes, NOT ISO (gdeltdoc docs confirm FIPS). From memory: China=CH, Vietnam=VM, Ukraine=UP, Serbia=RI, Spain=SP, Germany=GM, Argentina=AR, Brazil=BR, India=IN, Italy=IT. Full names avoid the confusion. 7) Very short or very common words can be rejected. Keep phrases specific. 8) Noise to exclude: 'Honey Singh', PayPal 'Honey' extension, Miele appliances (IT/DE/EN), 'luna de miel' (ES), Portuguese 'Mel' as a first name (Mel Gibson, Mel B). 9) Translingual: GDELT machine-translates non-English coverage, and English keywords MAY match translated text (from memory, unverified). Query native-language terms anyway and filter with sourcelang. 10) Dedupe on url, and also on (title, domain) because syndication repeats stories.",
+   "publication_lag": "~15-60 min after publication (from memory)",
+   "rate_limits": "No formal quota is documented. GDELT's server message asks for at most one request every 5 seconds (per third-party client source code). Use 6 s spacing and a global lock in the scheduler.",
+   "sample_response": "RECONSTRUCTED. Field names are corroborated by the gdeltdoc and finance-query docs; values are invented:\n{\"articles\":[{\"url\":\"https://www.example.it/economia/miele-prezzi-2026\",\"url_mobile\":\"\",\"title\":\"Miele, prezzi all'ingrosso in calo per l'import\",\"seendate\":\"20261102T091500Z\",\"socialimage\":\"https://www.example.it/img/miele.jpg\",\"domain\":\"example.it\",\"language\":\"Italian\",\"sourcecountry\":\"Italy\"}]}",
+   "honey_specific_codes": "No honey GKG theme is known. Use keyword sets: EN honey / 'raw honey' / 'honey imports'; IT miele, millefiori, acacia, castagno, apicoltori; ES miel, apicultores, 'exportaciones de miel'; PT 'mel de abelha', 'exportação de mel'; ZH 蜂蜜; UK мед бджолиний / експорт меду; VI 'mật ong'; SR мед / 'izvoz meda'. Trade-policy terms: antidumping, 'anti-dumping', 'countervailing', 'Breakfast Directive', '2001/110'.",
+   "evidence_urls": [
+    "https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/",
+    "https://blog.gdeltproject.org/?p=5757",
+    "https://blog.gdeltproject.org/gdelt-2-0-api-new-export-options-and-upgraded-word-cloud/",
+    "https://blog.gdeltproject.org/gallery-mode-now-available-doc-2-0-api/",
+    "https://pypi.org/project/gdeltdoc",
+    "https://github.com/alex9smith/gdelt-doc-api",
+    "https://docs.rs/crate/finance-query/3.0.0/source/src/adapters/gdelt/models.rs",
+    "https://docs.rs/crate/finance-query/3.0.0/source/src/adapters/gdelt/client.rs",
+    "https://www.gdeltproject.org/about.html"
+   ],
+   "confidence": "from_search_snippets"
+  },
+  {
+   "name": "Google News RSS (search feeds)",
+   "access_method": "RSS 2.0 (undocumented by Google; community-documented)",
+   "endpoints": [
+    "https://news.google.com/rss/search?q={URLENCODED_QUERY}&hl={hl}&gl={GL}&ceid={GL}:{lang}",
+    "Italian:   https://news.google.com/rss/search?q=miele+(prezzo+OR+import+OR+export+OR+apicoltori)+-lavatrice+when:7d&hl=it&gl=IT&ceid=IT:it",
+    "US English: https://news.google.com/rss/search?q=%22honey%22+(imports+OR+antidumping+OR+prices+OR+adulteration)+when:7d&hl=en-US&gl=US&ceid=US:en",
+    "Argentina:  https://news.google.com/rss/search?q=miel+(exportaci%C3%B3n+OR+precio+OR+apicultores)+when:7d&hl=es-419&gl=AR&ceid=AR:es-419",
+    "Site-restricted (replaces missing publisher feeds): https://news.google.com/rss/search?q=miel+site:news.agrofy.com.ar+when:30d&hl=es-419&gl=AR&ceid=AR:es-419",
+    "Other editions (from memory, unverified): hl=en-GB&gl=GB&ceid=GB:en; hl=es&gl=ES&ceid=ES:es; hl=pt-BR&gl=BR&ceid=BR:pt-419; hl=uk&gl=UA&ceid=UA:uk; hl=zh-CN&gl=CN&ceid=CN:zh-Hans; hl=vi&gl=VN&ceid=VN:vi; hl=sr&gl=RS&ceid=RS:sr; hl=en-IN&gl=IN&ceid=IN:en; hl=de&gl=DE&ceid=DE:de",
+    "Topic/section feeds (from memory): https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=it&gl=IT&ceid=IT:it"
+   ],
+   "auth": "none",
+   "cost_licensing": "IMPORTANT RESTRICTION. Feeder's knowledge base (snippet) says each Google News feed is meant 'for use in a personal feed reader for personal, non-commercial use'. From memory, the feed's own <copyright> element reads approximately: 'This XML feed is made available solely for the purpose of rendering Google News results within a personal feed reader for personal, non-commercial use. Any other use of the feed is expressly prohibited.' Feeding a company's market-intelligence tool is arguably commercial use, so Parodi should decide whether to accept that risk. If used, keep it off by default, internal only, low frequency, and store headline + source + link only. There is no official API and no SLA.",
+   "update_frequency": "Near real time (minutes)",
+   "data_available": "Up to ~100 items per feed (from memory). Per item: title (format 'Headline - Publisher'), link (opaque Google redirect), guid, pubDate (RFC 822, GMT), description (HTML snippet containing only an <a> with the headline and a <font> with the publisher, not a real summary), source (text = publisher name, attribute url = publisher homepage). Query operators: when:1h / when:7d / when:1y, after:YYYY-MM-DD, before:YYYY-MM-DD, site:, intitle:, \"exact\", OR, -exclude. Spaces become + or %20 and quotes become %22.",
+   "parsing_notes": "1) Since 2024 the item <link> (https://news.google.com/rss/articles/CBMi...?oc=5) is opaque and NOT base64-decodable. Resolving it needs an extra page fetch plus a POST to Google's batchexecute endpoint (the googlenewsdecoder PyPI package does this). That adds ToS and rate-limit risk. Prefer to store the Google link and let the user's browser follow the redirect. 2) Strip the ' - Publisher' suffix from the title using the <source> text (rsplit(' - ', 1)). 3) feedparser exposes the source as entry.source.title and entry.source.href (from memory). 4) Deduplicate across queries on (normalized title, source.href). 5) 'when:' goes inside q, not as a separate param. 6) hl/gl/ceid must agree, or Google redirects or returns another edition. 7) Expect HTTP 429/503 or consent redirects when polling aggressively. Use conditional GET and back off.",
+   "publication_lag": "minutes to a few hours",
+   "rate_limits": "Undocumented. Practical guidance: ≤1 request per query per 30-60 min, a few seconds between requests, a realistic User-Agent, and exponential backoff on 429/503.",
+   "sample_response": "RECONSTRUCTED from memory:\n<rss version=\"2.0\" xmlns:media=\"http://search.yahoo.com/mrss/\"><channel><generator>NFE/5.0</generator><title>\"miele\" when:7d - Google News</title><link>https://news.google.com/search?q=...&hl=it&gl=IT&ceid=IT:it</link><language>it</language><copyright>... personal, non-commercial use ...</copyright><description>Google News</description>\n<item><title>Miele, crollano i prezzi all'origine - Il Sole 24 ORE</title><link>https://news.google.com/rss/articles/CBMi...?oc=5</link><guid isPermaLink=\"false\">CBMi...</guid><pubDate>Mon, 02 Nov 2026 08:14:00 GMT</pubDate><description>&lt;a href=\"https://news.google.com/rss/articles/CBMi...\"&gt;Miele, crollano...&lt;/a&gt;&amp;nbsp;&amp;nbsp;&lt;font color=\"#6f6f6f\"&gt;Il Sole 24 ORE&lt;/font&gt;</description><source url=\"https://www.ilsole24ore.com\">Il Sole 24 ORE</source></item></channel></rss>",
+   "honey_specific_codes": "Use the same multilingual keyword sets as GDELT. Add exclusions: IT -lavatrice -lavastoviglie -elettrodomestici; EN -\"Honey Singh\" -PayPal; ES -\"luna de miel\".",
+   "evidence_urls": [
+    "https://www.wprssaggregator.com/google-news-rss-feed/",
+    "https://newscatcherapi.com/blog/google-news-rss-search-parameters-the-missing-documentaiton",
+    "https://feeder.co/knowledge-base/rss-feed-creation/google-news-rss-feeds/",
+    "https://www.codewords.ai/blog/google-news-rss",
+    "https://pypi.org/project/googlenewsdecoder/1.0.0/",
+    "https://hexdocs.pm/google_news_decoder/GoogleNewsDecoder.html"
+   ],
+   "confidence": "from_search_snippets"
+  },
+  {
+   "name": "Bing News RSS (format=rss on bing.com/news/search)",
+   "access_method": "RSS (undocumented web feature; the official Bing Search APIs were retired)",
+   "endpoints": [
+    "https://www.bing.com/news/search?q={URLENCODED_QUERY}&format=rss",
+    "With market/language (from memory, unverified): https://www.bing.com/news/search?q=miele+prezzi&format=rss&setlang=it-IT&cc=IT  (mkt=it-IT may also work)",
+    "Freshness/sort (from memory, unverified): &qft=interval%3d%227%22 (last 7 days), &qft=sortbydate%3d%221%22",
+    "Country operator inside q (community-reported, works per ResearchBuzz 2023): q=miel+loc:ar"
+   ],
+   "auth": "none",
+   "cost_licensing": "Microsoft retired the Bing Search APIs, including the news search tier, on 11 Aug 2025 (Microsoft lifecycle announcement; old endpoints reportedly return 410). That leaves no licensed programmatic path. The RSS output of the web page is undocumented and covered only by the general Microsoft Services Agreement, which restricts unauthorized automated access (from memory, unverified). Treat it as fragile and legally grey. NOT recommended.",
+   "update_frequency": "near real time",
+   "data_available": "Per item (from memory, unverified): title, link (bing.com/news/apiclick.aspx?...&url=<url-encoded original>&...), description (a short publisher snippet, unlike Google News), pubDate, plus News:Source and News:Image in a 'News' namespace. Typically ~10-20 items.",
+   "parsing_notes": "The original URL can be recovered from the 'url' query parameter of the apiclick link (urllib.parse.parse_qs). The parameter is written as format=rss or format=RSS in different sources; both reportedly work. The namespace URI for News:* is non-standard, so feedparser may expose these as entry['news_source']. Verify against a live sample. The feature can break without notice.",
+   "publication_lag": "minutes to hours",
+   "rate_limits": "Undocumented; bot detection is likely. If used at all, stay at ≤ a few requests per hour.",
+   "sample_response": "RECONSTRUCTED, unverified:\n<rss version=\"2.0\" xmlns:News=\"https://www.bing.com/news/search?q=miele&format=rss\"><channel><title>miele - BingNews</title><link>https://www.bing.com/news/search?q=miele&format=rss</link><item><title>...</title><link>http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=...&url=https%3a%2f%2fwww.example.it%2f...&c=...&mkt=it-it</link><description>Short snippet...</description><pubDate>Mon, 02 Nov 2026 09:12:00 GMT</pubDate><News:Source>Example</News:Source><News:Image>https://www.bing.com/th?id=...</News:Image></item></channel></rss>",
+   "honey_specific_codes": "same keyword sets as GDELT/Google",
+   "evidence_urls": [
+    "https://learn.microsoft.com/en-us/lifecycle/announcements/bing-search-api-retirement",
+    "https://www.ghacks.net/2013/03/23/bing-create-search-result-rss-feeds/",
+    "https://researchbuzz.me/2023/01/09/taking-advantage-of-bing-news-loc-syntax-with-countryfeed/",
+    "https://forum.newsblur.com/t/bing-news-rss-feeds/10620",
+    "https://www.theregister.com/2025/05/15/bing_search_apis_retired/"
+   ],
+   "confidence": "from_search_snippets"
+  },
+  {
+   "name": "Google Alerts RSS (alternative aggregator with decodable links)",
+   "access_method": "Atom feed",
+   "endpoints": [
+    "Create the alert at https://www.google.com/alerts and choose 'Deliver to: RSS feed'. The feed URL has the form https://www.google.com/alerts/feeds/{numericUserId}/{alertId} (from memory)"
+   ],
+   "auth": "A Google account is needed once to create the alert. The resulting feed URL is public and needs no auth to poll.",
+   "cost_licensing": "Google Terms of Service apply. No explicit commercial-use grant (from memory). Same caution as Google News: store headline, link and snippet only.",
+   "update_frequency": "'As it happens' or once a day, chosen per alert",
+   "data_available": "Atom entries: id, title (HTML with <b> highlights), link href (google.com/url?rct=j&sa=t&url=<ORIGINAL URL>&ct=ga&cd=...&usg=...), published, updated, content (a short snippet with <b> tags). Covers news and web.",
+   "parsing_notes": "Extract the original article from the 'url' query parameter of the link. This is simpler than decoding Google News links. Strip <b> tags from the title and content. The alert set is managed manually in the Google UI, not by the app. Entire field layout is from memory and unverified.",
+   "publication_lag": "minutes to 1 day",
+   "rate_limits": "undocumented; hourly polling is fine",
+   "sample_response": "RECONSTRUCTED from memory:\n<feed xmlns=\"http://www.w3.org/2005/Atom\"><id>tag:google.com,2005:reference:...</id><title>Google Alert - miele prezzi</title><entry><id>tag:google.com,2013:googlealerts/feed:123</id><title type=\"html\">&lt;b&gt;Miele&lt;/b&gt;, prezzi...</title><link href=\"https://www.google.com/url?rct=j&amp;sa=t&amp;url=https://www.example.it/...&amp;ct=ga&amp;cd=...&amp;usg=...\"/><published>2026-11-02T08:00:00Z</published><content type=\"html\">...snippet...</content></entry></feed>",
+   "honey_specific_codes": "one alert per language query",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "Bee Culture magazine (beeculture.com, A.I. Root Co.)",
+   "access_method": "RSS (WordPress)",
+   "endpoints": [
+    "https://www.beeculture.com/feed/   (listed by the Feedspot directory as beeculture.com/feed)",
+    "https://www.beeculture.com/feed/atom/   (standard WordPress, unverified)",
+    "https://www.beeculture.com/tag/{tag-slug}/feed/   e.g. https://www.beeculture.com/tag/apimondia/feed/ (the tag page /tag/apimondia/ exists per search; the feed suffix is the WordPress convention, unverified)",
+    "https://www.beeculture.com/?s=honey+prices&feed=rss2   (WordPress search feed, unverified)",
+    "https://www.beeculture.com/wp-json/wp/v2/posts?search=honey&per_page=20&_fields=id,date_gmt,link,title,excerpt   (WordPress REST, unverified if enabled)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Copyrighted magazine content; the print and digital magazine is subscription. The RSS is offered for reading. Store title, link, date and ≤300-char excerpt for internal use only, and do not republish full text. No explicit RSS licence was found.",
+   "update_frequency": "Several posts per week (blog/'Catch the Buzz' items); monthly magazine issue PDFs on cdn.beeculture.com",
+   "data_available": "US beekeeping and industry news. Market-relevant items include the monthly regional honey price report (US wholesale and retail by region, from memory, unverified) and US import/tariff/antidumping coverage. Feed fields: title, link, pubDate, dc:creator, category, guid, description (excerpt), and possibly content:encoded.",
+   "parsing_notes": "WordPress defaults to the 10 most recent items, so poll at least daily. Monthly issue PDFs live under https://cdn.beeculture.com/wp-content/uploads/YYYY/MM/<Month><Year>V1.pdf (e.g. .../2025/01/February2025V1.pdf seen in search). The naming is inconsistent (March2023_V1.pdf vs February2025V1.pdf), so do not template it. Discover links from the feed or site instead.",
+   "publication_lag": "same day",
+   "rate_limits": "none published. Poll hourly at most with conditional GET (ETag/If-Modified-Since).",
+   "sample_response": "RECONSTRUCTED (standard WordPress RSS2):\n<rss version=\"2.0\" xmlns:content=\"http://purl.org/rss/1.0/modules/content/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><channel><title>Bee Culture</title><link>https://www.beeculture.com</link><item><title>...</title><link>https://www.beeculture.com/slug/</link><dc:creator><![CDATA[...]]></dc:creator><pubDate>Mon, 02 Nov 2026 12:00:00 +0000</pubDate><category><![CDATA[Catch The Buzz]]></category><guid isPermaLink=\"false\">https://www.beeculture.com/?p=12345</guid><description><![CDATA[excerpt...]]></description><content:encoded><![CDATA[...]]></content:encoded></item></channel></rss>",
+   "honey_specific_codes": "Filter for: honey price, honey imports, antidumping, adulteration, 'honey report', National Honey Board",
+   "evidence_urls": [
+    "https://rss.feedspot.com/beekeeping_rss_feeds",
+    "https://www.beeculture.com/tag/apimondia/",
+    "https://beeculture.com/blog/page/2",
+    "https://cdn.beeculture.com/wp-content/uploads/2025/01/February2025V1.pdf"
+   ],
+   "confidence": "from_search_snippets"
+  },
+  {
+   "name": "American Bee Journal (americanbeejournal.com, Dadant & Sons)",
+   "access_method": "RSS (WordPress)",
+   "endpoints": [
+    "https://americanbeejournal.com/feed/   (listed by the Feedspot directory)",
+    "https://americanbeejournal.com/?s=honey+market&feed=rss2   (WordPress search feed, unverified)",
+    "https://americanbeejournal.com/category/{slug}/feed/   (WordPress convention, unverified)"
+   ],
+   "auth": "none for the feed. Magazine articles may be subscriber-only (digital subscription sold via dadant.com).",
+   "cost_licensing": "Copyrighted; paywalled subscriber content. Store headline, link and short excerpt only. Do not attempt to fetch paywalled article bodies.",
+   "update_frequency": "Weekly-ish web posts; monthly magazine",
+   "data_available": "US industry news. The monthly 'U.S. Honey Crop and Market Report' (prices by region and colour grade, from memory) is published in the magazine and is likely subscriber-only. Standard WordPress feed fields.",
+   "parsing_notes": "The site is WordPress (?p= permalinks seen). The feed may contain only teaser text for subscriber posts. Feed existence was not directly confirmed; it appears only in a third-party directory.",
+   "publication_lag": "same day",
+   "rate_limits": "none published; poll ≤ hourly",
+   "sample_response": "Standard WordPress RSS2 (see the Bee Culture sample). Reconstructed.",
+   "honey_specific_codes": "'Honey Crop and Market Report', imports, prices",
+   "evidence_urls": [
+    "https://rss.feedspot.com/beekeeping_rss_feeds",
+    "https://americanbeejournal.com/?p=18",
+    "https://americanbeejournal.com/subscribers/"
+   ],
+   "confidence": "from_search_snippets"
+  },
+  {
+   "name": "Apimondia (International Federation of Beekeepers' Associations) news",
+   "access_method": "RSS (WordPress, inferred) + XML sitemap + llms.txt",
+   "endpoints": [
+    "https://apimondia.org/feed/   (WordPress default, inferred, unverified)",
+    "https://apimondia.org/category/news/feed/   (category /category/news/ exists per search, paginated /category/news/page/8/; the feed suffix is inferred)",
+    "https://apimondia.org/llms.txt   (exists per search; lists content and links an XML sitemap)",
+    "https://apimondia.org/wp-json/wp/v2/posts?per_page=20&_fields=id,date_gmt,link,title,excerpt   (inferred, unverified)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Association content, copyrighted. Headline, link and excerpt only. Official statements (e.g. on honey fraud) can be quoted briefly with attribution.",
+   "update_frequency": "Low: a few posts per month (statements, congress news, annual reports)",
+   "data_available": "Statements on honey authenticity and fraud, congress news (50th Congress, Dubai, 15-19 Nov 2027), annual reports. Low volume but authoritative.",
+   "parsing_notes": "Date archives exist (/2025/10/21/), which confirms WordPress permalinks. If /feed/ is disabled, fall back to the sitemap: read the sitemap URL from llms.txt and diff <lastmod>.",
+   "publication_lag": "days",
+   "rate_limits": "none published; poll daily",
+   "sample_response": "Standard WordPress RSS2. Reconstructed.",
+   "honey_specific_codes": "honey fraud, authenticity, adulteration, 'Apimondia Statement'",
+   "evidence_urls": [
+    "https://apimondia.org/",
+    "https://apimondia.org/category/news/page/8/",
+    "https://apimondia.org/llms.txt",
+    "https://apimondia.org/2025/10/21/"
+   ],
+   "confidence": "from_search_snippets"
+  },
+  {
+   "name": "Informamiele (informamiele.it), believed to be the site of Osservatorio Nazionale Miele (Italy)",
+   "access_method": "HTML/PDF (possible RSS if WordPress). Not verified.",
+   "endpoints": [
+    "https://www.informamiele.it/feed/   (guess; the WordPress convention; unverified)",
+    "https://www.informamiele.it/   (discover <link rel=\"alternate\" type=\"application/rss+xml\"> on first run)"
+   ],
+   "auth": "none expected",
+   "cost_licensing": "Unknown. Treat as copyrighted. Market reports may be for members. Store links and titles only; consider contacting the Osservatorio for permission to ingest price tables.",
+   "update_frequency": "Unknown (market reports believed periodic, roughly monthly or bimonthly)",
+   "data_available": "From memory, unverified: Italian honey market news and periodic wholesale price surveys for Italian and foreign honey by variety (millefiori, acacia, agrumi/orange blossom, castagno/chestnut, tiglio, girasole...) in €/kg, bulk. This is potentially the most valuable Italian source and should be verified by hand.",
+   "parsing_notes": "Host resolution was blocked from this research sandbox, so nothing was verified. Implement generic feed autodiscovery plus an HTML link-list fallback. If price tables are PDFs, use pdfplumber.",
+   "publication_lag": "unknown",
+   "rate_limits": "unknown; poll daily",
+   "sample_response": "n/a (unverified)",
+   "honey_specific_codes": "Italian variety names: millefiori, acacia (robinia), agrumi/arancio, castagno, tarassaco, lavanda, girasole, eucalipto, trifoglio",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "Conapi / Mielizia (Italian beekeepers' cooperative and its brand)",
+   "access_method": "HTML (no known RSS)",
+   "endpoints": [
+    "https://www.conapi.it/   (news section path unknown)",
+    "https://www.mielizia.com/   (brand site/blog, path unknown)",
+    "Recommended fallback: GDELT query=(Conapi OR Mielizia) or Google News q=Conapi+OR+Mielizia&hl=it&gl=IT&ceid=IT:it"
+   ],
+   "auth": "none",
+   "cost_licensing": "Corporate press content. Headline and link only.",
+   "update_frequency": "low (a few items per month)",
+   "data_available": "Italian harvest outlooks (Conapi often comments on crop failures, e.g. acacia), corporate news.",
+   "parsing_notes": "Low volume, so it is not worth a custom scraper. Capture through the aggregators.",
+   "publication_lag": "days",
+   "rate_limits": "n/a",
+   "sample_response": "n/a",
+   "honey_specific_codes": "Conapi, Mielizia, 'raccolto miele', 'produzione di miele'",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "Honey Bee Health Coalition (honeybeehealthcoalition.org)",
+   "access_method": "RSS (WordPress likely)",
+   "endpoints": [
+    "https://honeybeehealthcoalition.org/feed/   (WordPress convention, unverified)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Copyrighted NGO content; headline and link only.",
+   "update_frequency": "low",
+   "data_available": "Colony health and varroa guidance. Low commercial/market relevance (supply-side risk signals only).",
+   "parsing_notes": "Low priority. If the feed 404s, drop it rather than scraping.",
+   "publication_lag": "days",
+   "rate_limits": "n/a; poll daily",
+   "sample_response": "Standard WordPress RSS2 (reconstructed)",
+   "honey_specific_codes": "varroa, colony losses",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "Bee World and Journal of Apicultural Research (IBRA, Taylor & Francis)",
+   "access_method": "RSS (publisher TOC) and REST API (Crossref, recommended)",
+   "endpoints": [
+    "https://www.tandfonline.com/feed/rss/tbwo20   (Bee World TOC; T&F journal code from memory, unverified)",
+    "https://www.tandfonline.com/feed/rss/tjar20   (Journal of Apicultural Research, unverified)",
+    "https://api.crossref.org/journals/0005-772X/works?sort=published&order=desc&rows=20&mailto={contact}   (Bee World print ISSN from memory)",
+    "https://api.crossref.org/journals/0021-8839/works?sort=published&order=desc&rows=20&mailto={contact}   (JAR print ISSN from memory)",
+    "https://api.crossref.org/works?query.bibliographic=honey+adulteration&filter=from-pub-date:2026-01-01&rows=50&mailto={contact}"
+   ],
+   "auth": "none (Crossref 'polite pool' needs a mailto= param or a User-Agent with contact)",
+   "cost_licensing": "Crossref metadata is effectively public domain (CC0, from memory). T&F full text is paywalled. T&F terms forbid systematic downloading of articles, so take the TOC/metadata only.",
+   "update_frequency": "Bee World quarterly-ish; JAR continuous online-first",
+   "data_available": "Crossref items (from memory): DOI, title[], container-title[], published.date-parts, URL, author[], abstract (JATS XML, sometimes missing), type.",
+   "parsing_notes": "tandfonline.com often sits behind Cloudflare bot checks, which makes Crossref more reliable for a headless collector. Strip JATS tags (<jats:p>) from abstracts. Crossref rows max 1000; cursor=* for deep paging.",
+   "publication_lag": "days to weeks",
+   "rate_limits": "Crossref: be polite (≈ a few req/s max); daily polling is plenty",
+   "sample_response": "RECONSTRUCTED Crossref shape: {\"status\":\"ok\",\"message-type\":\"work-list\",\"message\":{\"total-results\":123,\"items\":[{\"DOI\":\"10.1080/0005772X.2026.xxxx\",\"title\":[\"...\"],\"container-title\":[\"Bee World\"],\"published\":{\"date-parts\":[[2026,10,15]]},\"URL\":\"https://doi.org/10.1080/...\",\"abstract\":\"<jats:p>...</jats:p>\"}]}}",
+   "honey_specific_codes": "ISSNs 0005-772X (Bee World), 0021-8839 (JAR), both from memory",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "Australian Honey Bee Industry Council (AHBIC)",
+   "access_method": "HTML (RSS unknown)",
+   "endpoints": [
+    "https://honeybee.org.au/   (news path unknown; try /feed/ in case it is WordPress, unverified)",
+    "Fallback: GDELT query=honey (AHBIC OR \"Honey Bee Industry Council\") or Google News q=AHBIC&hl=en-AU&gl=AU&ceid=AU:en"
+   ],
+   "auth": "none",
+   "cost_licensing": "Copyrighted; headline and link only.",
+   "update_frequency": "low",
+   "data_available": "Australian industry policy, varroa response, export market notes.",
+   "parsing_notes": "Low priority for an Italy/US importer. Use the aggregator fallback.",
+   "publication_lag": "days",
+   "rate_limits": "n/a",
+   "sample_response": "n/a",
+   "honey_specific_codes": "AHBIC, varroa destructor Australia",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "Food Safety News (foodsafetynews.com, Marler Clark)",
+   "access_method": "RSS (WordPress)",
+   "endpoints": [
+    "https://www.foodsafetynews.com/feed/   (main feed, WordPress convention; from memory, unverified)",
+    "https://www.foodsafetynews.com/tag/honey/feed/   (tag feed: the best honey filter if the tag exists; unverified)",
+    "https://www.foodsafetynews.com/?s=honey&feed=rss2   (WordPress search feed fallback, unverified)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free-to-read news site; content copyrighted. Headline, link and excerpt only. No known licence for full-text reuse.",
+   "update_frequency": "Multiple articles daily (main feed); honey items a few per month",
+   "data_available": "Recalls, EU/US honey fraud enforcement (EU 'From the Hives' coordinated action, RASFF alerts, UK/EU authenticity testing), import alerts.",
+   "parsing_notes": "MAJOR NOISE: many 'honey' items are about 'royal honey' or male-enhancement 'honey' sachets with hidden sildenafil/tadalafil (FDA warnings), or about infant botulism. Exclude items matching (sildenafil|tadalafil|'royal honey'|'VIP honey'|enhancement). The main feed carries ~10-20 latest items, so poll every 1-2 h if filtering the main feed client-side.",
+   "publication_lag": "same day",
+   "rate_limits": "none published; poll ≤ hourly",
+   "sample_response": "Standard WordPress RSS2 (reconstructed)",
+   "honey_specific_codes": "honey fraud, adulteration, 'From the Hives', RASFF honey, import alert 36-xx (FDA honey import alerts, from memory)",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "EU institutional sources (EC Press Corner, DG AGRI honey, EU Agri-Food Fraud monthly reports, RASFF)",
+   "access_method": "HTML + PDF (EC sites offer RSS on some listings; exact URLs unverified)",
+   "endpoints": [
+    "https://ec.europa.eu/commission/presscorner/home/en   (press releases; RSS option exists on the site but exact URL unverified)",
+    "https://agriculture.ec.europa.eu/farming/animal-products/honey_en   (DG AGRI honey page: market situation presentation PDF and prices; from memory, unverified)",
+    "https://knowledge4policy.ec.europa.eu/food-fraud-quality_en   (JRC Knowledge Centre for Food Fraud and Quality: monthly food fraud summary reports as PDF; from memory, unverified)",
+    "https://webgate.ec.europa.eu/rasff-window/screen/search   (RASFF Window SPA; no official RSS; JSON backend undocumented)",
+    "Practical fallback: GDELT query=honey (domain:europa.eu) or Google News q=honey+site:europa.eu"
+   ],
+   "auth": "none",
+   "cost_licensing": "EU Commission reuse policy (Decision 2011/833/EU): content reusable with acknowledgement unless stated otherwise (from memory). This is the most permissive of the news sources.",
+   "update_frequency": "Press: daily. Fraud reports: monthly. DG AGRI honey market presentation: a few times a year.",
+   "data_available": "Policy (Breakfast Directive 2024/1438 amending honey Directive 2001/110/EC: country-of-origin labelling, honey traceability work), fraud enforcement, RASFF notifications (product category 'honey and royal jelly').",
+   "parsing_notes": "The monthly fraud report PDFs list cases by commodity. Use pdfplumber to extract text, then regex for 'honey'. Europa URLs change across site migrations, so store and discover links rather than hard-coding them.",
+   "publication_lag": "days (press) to ~1 month (fraud reports)",
+   "rate_limits": "none published; daily polling",
+   "sample_response": "n/a",
+   "honey_specific_codes": "Directive 2001/110/EC; Directive (EU) 2024/1438; RASFF category 'honey and royal jelly'; CN/HS 0409 00 00 (natural honey)",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "Argentina news: SENASA, Agrofy News, Clarín Rural (+ La Nación Campo, Infocampo, Bichos de Campo)",
+   "access_method": "RSS where available, otherwise aggregator fallback",
+   "endpoints": [
+    "Clarín Rural: https://www.clarin.com/rss/rural/   (from memory, unverified)",
+    "La Nación (Arc XP outbound feeds, pattern from memory): https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml",
+    "Infocampo (WordPress, inferred): https://www.infocampo.com.ar/feed/",
+    "Bichos de Campo (WordPress, inferred): https://bichosdecampo.com/feed/   and search feed https://bichosdecampo.com/?s=miel&feed=rss2",
+    "Agrofy News: https://news.agrofy.com.ar/   (RSS unknown). Fallback: https://news.google.com/rss/search?q=miel+site:news.agrofy.com.ar+when:30d&hl=es-419&gl=AR&ceid=AR:es-419",
+    "SENASA: https://www.argentina.gob.ar/senasa   (news listing; RSS unknown). Fallback: GDELT query=miel SENASA sourcecountry:argentina"
+   ],
+   "auth": "none",
+   "cost_licensing": "Commercial newspapers: copyrighted. Clarín and La Nación terms prohibit reproduction without authorization (from memory). Headline, link and excerpt only. Government (argentina.gob.ar) content is generally reusable with attribution (from memory).",
+   "update_frequency": "Daily (newspapers); honey-specific items a few per month, peaking at harvest/export season (Jan-May)",
+   "data_available": "Argentine honey export volumes and prices (USD/t FOB quoted in press), SENASA export certifications and residue/glyphosate issues, drought and harvest forecasts, US antidumping effects.",
+   "parsing_notes": "Filter Spanish items with a word-boundary regex \\bmiel(es)?\\b and exclude 'luna de miel'. Clarín/La Nación section feeds are broad (all agriculture), so client-side filtering is required. Every URL here is unverified, so implement autodiscovery and mark failing feeds inactive automatically.",
+   "publication_lag": "same day",
+   "rate_limits": "none published; poll each feed ≤ hourly",
+   "sample_response": "Standard RSS2 (reconstructed)",
+   "honey_specific_codes": "miel, apicultores, 'exportaciones de miel', 'precio de la miel', SENASA, 'Sociedad Argentina de Apicultores'",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "China Daily (and Chinese-language honey export news)",
+   "access_method": "RSS",
+   "endpoints": [
+    "http://www.chinadaily.com.cn/rss/bizchina_rss.xml   (from memory, unverified)",
+    "http://www.chinadaily.com.cn/rss/china_rss.xml   (from memory, unverified)",
+    "Better targeted: GDELT query=蜂蜜 (出口 OR 价格) sourcecountry:china and query=honey sourcecountry:china",
+    "Google News zh: https://news.google.com/rss/search?q=%E8%9C%82%E8%9C%9C+%E5%87%BA%E5%8F%A3+when:30d&hl=zh-CN&gl=CN&ceid=CN:zh-Hans   (q = 蜂蜜 出口)"
+   ],
+   "auth": "none",
+   "cost_licensing": "China Daily site notice (from memory): content belongs to China Daily Information Co and may not be republished or used without written authorization. Headline and link only.",
+   "update_frequency": "Feeds daily. Honey items are rare in English China Daily, so expect low yield.",
+   "data_available": "General business news. China honey export prices are better sourced from customs statistics (other cluster).",
+   "parsing_notes": "Feeds are served over http://. Handle redirects to https. Possibly GB2312/UTF-8 encoding quirks on Chinese-language feeds, so let feedparser detect the encoding from the bytes, not from response.text.",
+   "publication_lag": "same day",
+   "rate_limits": "n/a; poll ≤ every few hours",
+   "sample_response": "Standard RSS2 (reconstructed)",
+   "honey_specific_codes": "蜂蜜 (honey), 出口 (export), 蜂蜜价格 (honey price), 洋槐蜜 (acacia honey), 椴树蜜 (linden honey)",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "Ukraine agri news: Latifundist (+ UkrAgroConsult, APK-Inform)",
+   "access_method": "RSS (unverified) / HTML / aggregator fallback",
+   "endpoints": [
+    "https://latifundist.com/   (RSS path unknown; the English edition is at /en/; use autodiscovery)",
+    "https://ukragroconsult.com/en/news/   (honey market news; parts paywalled; from memory)",
+    "https://www.apk-inform.com/en   (paid market reports incl. honey prices; from memory)",
+    "Fallback GDELT: query=(honey OR мед) (export OR експорт) sourcecountry:ukraine",
+    "Fallback Google News: https://news.google.com/rss/search?q=%D0%B5%D0%BA%D1%81%D0%BF%D0%BE%D1%80%D1%82+%D0%BC%D0%B5%D0%B4%D1%83+when:30d&hl=uk&gl=UA&ceid=UA:uk   (q = експорт меду)"
+   ],
+   "auth": "none for headlines. UkrAgroConsult and APK-Inform market data are paid subscriptions.",
+   "cost_licensing": "Copyrighted. Paywalled analytics must not be scraped. Headline and link only.",
+   "update_frequency": "daily; honey items weekly-ish in season",
+   "data_available": "Ukrainian honey export volumes and prices (USD/kg or UAH/kg purchase prices from beekeepers), EU TRQ/ATM duty-free quota usage for honey, war-related supply disruption.",
+   "parsing_notes": "In Ukrainian, 'мед' also appears in medical abbreviations (мед. = медичний). Use the phrase 'експорт меду' or 'мед' combined with бджол* (bee) or ціни (prices). EU-Ukraine trade arrangement changes (2025 DCFTA revision with honey quotas) are big price movers, so also track the term 'honey quota Ukraine EU'.",
+   "publication_lag": "same day",
+   "rate_limits": "n/a",
+   "sample_response": "n/a",
+   "honey_specific_codes": "мед, експорт меду, ціни на мед, бджолярі; EU TRQ honey Ukraine",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "FoodNavigator (William Reed; also FoodNavigator-USA / -Asia / -LATAM)",
+   "access_method": "RSS (exact URLs unverified; the site was re-platformed)",
+   "endpoints": [
+    "https://www.foodnavigator.com/   (use RSS autodiscovery; historical RSS info page under /Info/; exact feed URL unverified)",
+    "Fallback: GDELT query=honey domain:foodnavigator.com  |  Google News q=honey+site:foodnavigator.com+when:30d&hl=en-GB&gl=GB&ceid=GB:en"
+   ],
+   "auth": "none for headlines; some content may need free registration",
+   "cost_licensing": "William Reed terms restrict reproduction (from memory). Headline, link and excerpt only.",
+   "update_frequency": "daily; honey items monthly-ish",
+   "data_available": "EU regulatory and authenticity coverage (Breakfast Directive, honey fraud testing, NMR/LC-HRMS methods).",
+   "parsing_notes": "Feed paths changed in the re-platform (from memory), so prefer GDELT domain: filtering, which survives URL changes.",
+   "publication_lag": "same day",
+   "rate_limits": "n/a",
+   "sample_response": "n/a",
+   "honey_specific_codes": "honey authenticity, Breakfast Directive, origin labelling",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "Generic WordPress feed/REST conventions (applies to most beekeeping trade sites above)",
+   "access_method": "RSS2 / Atom / WP REST JSON",
+   "endpoints": [
+    "{site}/feed/  (RSS2)   {site}/feed/atom/   {site}/feed/rdf/",
+    "{site}/category/{slug}/feed/   {site}/tag/{slug}/feed/   {site}/author/{name}/feed/",
+    "{site}/?s={query}&feed=rss2   (server-side keyword-filtered feed)",
+    "{site}/wp-json/wp/v2/posts?search={q}&per_page=20&orderby=date&_fields=id,date_gmt,link,title,excerpt",
+    "Autodiscovery: <link rel=\"alternate\" type=\"application/rss+xml\" href=\"...\"> in the homepage <head>"
+   ],
+   "auth": "none",
+   "cost_licensing": "Per site (see each entry)",
+   "update_frequency": "per site",
+   "data_available": "RSS2 item: title, link, dc:creator, pubDate, category (repeated), guid (isPermaLink=false, ?p=ID form), description (excerpt, HTML in CDATA), content:encoded (full text when the site is set to 'Full text'). WP REST: id, date, date_gmt, link, title.rendered, excerpt.rendered.",
+   "parsing_notes": "Default posts_per_rss is 10, so feeds only show the latest 10 posts. Poll frequently enough, or use REST per_page up to 100. Use guid or link as the dedupe key. Many sites disable REST or the search feed. Security plugins can return 403 to non-browser User-Agents, so set a descriptive UA. feedparser exposes bozo=1 for malformed XML; keep parsing, but log the error.",
+   "publication_lag": "n/a",
+   "rate_limits": "Be polite: ≤1 req/min per host, conditional GET",
+   "sample_response": "See the Bee Culture entry (reconstructed)",
+   "honey_specific_codes": "n/a",
+   "evidence_urls": [],
+   "confidence": "from_memory_unverified"
+  }
+ ],
+ "recommendation": "CAVEAT FIRST. During this research every publisher host was blocked from the research sandbox: curl got a 403 from the proxy, and WebFetch got ENOTFOUND for beeculture.com, americanbeejournal.com, informamiele.it, foodsafetynews.com, blog.gdeltproject.org and newscatcherapi.com. The shared WebSearch budget also ran out partway through. Only GDELT, Google News RSS, Bing and the Bee Culture / ABJ / Apimondia site structures are backed by search evidence. Everything else is from memory and is flagged in each entry. A follow-up search pass, or allowing those hosts, would firm them up. Design the collector to self-verify: run feed autodiscovery on first use and automatically deactivate feeds that fail repeatedly.\n\nORDER OF INTEGRATION\n1) GDELT DOC 2.0 first: the backbone. It is the only aggregator whose licence clearly allows commercial use (attribution and a link to gdeltproject.org are required). It returns clean JSON, covers 65 languages, and filters by sourcelang/sourcecountry, which covers Argentina, China, Ukraine, Serbia, Brazil, Vietnam and India without per-country scrapers.\n- Use mode=ArtList, format=json, maxrecords=250, sort=DateDesc, and timespan=2h on a 60-min schedule (the overlap absorbs indexing delay). One saved query per language/market, roughly 10-15 queries: EN, IT, ES-AR, PT-BR, ZH, UK, VI, SR, plus EN with sourcecountry:india. Add negative terms for Miele appliances, Honey Singh, PayPal Honey and 'luna de miel'.\n- Run all GDELT calls through one global rate limiter with ≥6 s spacing.\n- Parse defensively: check the content-type, use data.get('articles', []), and parse seendate with '%Y%m%dT%H%M%SZ'.\n- Store url, title, seendate, domain, language, sourcecountry.\n- Optionally pull mode=TimelineVol weekly per query as a 'news intensity' signal next to price charts.\n\n2) Direct trade-press feeds second, via feedparser with conditional GET (keep etag/modified per feed in SQLite). Start with Bee Culture /feed/, American Bee Journal /feed/, Apimondia /category/news/feed/ and Food Safety News (/tag/honey/feed/, falling back to /?s=honey&feed=rss2). Add Informamiele (Osservatorio Nazionale Miele) after checking by hand; it may be the best Italian price-related source. Use the WordPress conventions entry: try /feed/, then the ?s=…&feed=rss2 search feed, then wp-json. Poll hourly to daily. Apply a keyword relevance filter, and use the Food Safety News sildenafil/'royal honey' exclusion.\n\n3) Crossref API for Bee World and the Journal of Apicultural Research (CC0 metadata, official API; daily). Avoid scraping tandfonline.com.\n\n4) Google News RSS: an optional recall booster, disabled by default. It has the best recall for Italian and Argentine local press and for site: queries (Agrofy, Clarín, FoodNavigator, Latifundist). However, the feed's own notice limits use to a 'personal feed reader for personal, non-commercial use', which a corporate intelligence tool arguably breaches. Expose it as an opt-in setting that Parodi management consciously enables. If enabled, poll each query ≤ hourly with backoff. Do not decode the opaque article links server-side (decoding needs extra Google calls); keep the Google link and the <source url>. Google Alerts RSS is a similar alternative whose links carry the original URL in a url= parameter.\n\n5) Skip Bing News RSS. The official API was retired on 11 Aug 2025, and the format=rss web output is undocumented and covered only by Microsoft's general terms.\n\n6) EU institutional sources: DG AGRI honey page and JRC monthly food-fraud PDFs, monthly via pdfplumber. EU reuse policy is permissive. EC press can also be captured through GDELT domain:europa.eu.\n\nDATA MODEL / PIPELINE\n- feeds table: id, name, kind (gdelt | rss | gnews | crossref | pdf), url_or_query, lang, country, poll_minutes, etag, last_modified, last_success, fail_count, active.\n- articles table: id, canonical_url (strip utm_*, fbclid, AMP suffixes), url_hash UNIQUE, title, source_name, source_domain, published_utc, lang, country, summary_short (≤300 chars, HTML stripped), tags (countries / varieties / topics), relevance_score, first_seen, feed_id.\n- Dedupe: unique on url_hash, then a near-duplicate title check on the same day (rapidfuzz ratio > 90).\n- Tagging dictionaries:\n  - origins: Argentina, China, Ukraine, Serbia, Brazil, Vietnam, India, Mexico, Turkey, ...\n  - varieties: acacia/robinia, orange blossom/zagara/agrumi/azahar, chestnut/castagno, lavender/lavanda, dandelion/tarassaco, sunflower/girasole/girasol, eucalyptus, clover/trifoglio, multifloral/millefiori/polyflora\n  - topics: price, export/import, tariff/antidumping/countervailing, adulteration/fraud/NMR, harvest/drought/crop, regulation (Breakfast Directive, 2001/110/EC, origin labelling), EU-Ukraine quota.\n- Relevance = (honey term present) AND (market/trade term OR origin country), after the exclusion lists.\n- Send a descriptive User-Agent such as 'ParodiHoneyIntel/1.0 (+company contact URL)'. Honour robots.txt for any HTML fetch. Space requests ≥1 min per host for publishers.\n\nLICENSING POLICY (store vs full text)\n- Store headline, link, source, date and your own tags, plus at most a short excerpt (≤300 chars, as supplied by the feed). This is the defensible default. Under EU DSM Directive Art. 15 (press publishers' right; implemented in Italy as Art. 43-bis of L. 633/1941), hyperlinks and 'individual words or very short extracts' are excluded, and US practice treats headlines and links as low-risk.\n- Do NOT store or redisplay full article text (content:encoded or scraped bodies). Full-content RSS is licensed for reading, not archiving or redistribution, and paywalled sources (ABJ magazine, APK-Inform, UkrAgroConsult, T&F) must never be fetched beyond their public teasers.\n- Transient full-text processing for classification can fall under the EU text-and-data-mining exception (DSM Art. 4; Italy Art. 70-quater): it applies to lawfully accessed content unless the rightsholder has opted out in machine-readable form (robots.txt / TDM-reservation). Copies must not be kept longer than needed. Practically: fetch, classify, discard the body, and keep only the metadata.\n- Show attribution: 'Source: The GDELT Project' for GDELT results and the publisher name on every item.\n- Because the app runs on one desktop for internal use and does not republish, risk stays low as long as it remains internal. Revisit before sharing digests externally, such as emailing customers."
+}
