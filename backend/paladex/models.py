@@ -72,7 +72,7 @@ class Source(Base):
     kind: Mapped[str] = mapped_column(String(20))                # SourceKind
     reliability: Mapped[str] = mapped_column(String(20))         # Reliability
     category: Mapped[str] = mapped_column(String(30))            # prices | trade | production | news | regulation | weather | fx
-    country_iso3: Mapped[str | None] = mapped_column(String(3))
+    country_iso3: Mapped[str | None] = mapped_column(String(10))
     language: Mapped[str | None] = mapped_column(String(5))
     expected_update: Mapped[str | None] = mapped_column(String(120))   # human text, e.g. "Monthly (around the 15th)"
     expected_max_age_days: Mapped[int | None] = mapped_column(Integer)  # used by the staleness check
@@ -169,9 +169,9 @@ class PriceObservation(_ObservationMixin, Base):
     )
 
     price_type: Mapped[str] = mapped_column(String(30), index=True)  # PriceType
-    origin_iso3: Mapped[str | None] = mapped_column(String(3), index=True)  # where the honey comes from
+    origin_iso3: Mapped[str | None] = mapped_column(String(10), index=True)  # where the honey comes from
     origin_label: Mapped[str | None] = mapped_column(String(120))           # raw text, e.g. "Argentina", "Domestic"
-    market_iso3: Mapped[str | None] = mapped_column(String(3), index=True)  # where the price is observed
+    market_iso3: Mapped[str | None] = mapped_column(String(10), index=True)  # where the price is observed
     market_location: Mapped[str | None] = mapped_column(String(120))
     variety: Mapped[str] = mapped_column(String(30), index=True)           # Variety
     variety_raw: Mapped[str | None] = mapped_column(String(200))
@@ -200,8 +200,8 @@ class TradeFlowObservation(_ObservationMixin, Base):
     )
 
     hs_code: Mapped[str] = mapped_column(String(12), default="0409")
-    reporter_iso3: Mapped[str] = mapped_column(String(3), index=True)   # "EU" aggregates use pseudo codes like "EU27"
-    partner_iso3: Mapped[str] = mapped_column(String(5), index=True)    # "WLD" = world total
+    reporter_iso3: Mapped[str] = mapped_column(String(10), index=True)   # "EU" aggregates use pseudo codes like "EU27"
+    partner_iso3: Mapped[str] = mapped_column(String(10), index=True)    # "WLD" = world total
     flow: Mapped[str] = mapped_column(String(12), index=True)           # TradeFlow
     net_weight_kg: Mapped[float | None] = mapped_column(Float)
     value: Mapped[float | None] = mapped_column(Float)
@@ -215,7 +215,7 @@ class TradeFlowObservation(_ObservationMixin, Base):
 class ProductionStat(_ObservationMixin, Base):
     __tablename__ = "production_stats"
 
-    country_iso3: Mapped[str] = mapped_column(String(5), index=True)
+    country_iso3: Mapped[str] = mapped_column(String(10), index=True)
     metric: Mapped[str] = mapped_column(String(40), index=True)  # production | colonies | yield_per_colony | producer_price | stocks
     value: Mapped[float] = mapped_column(Float)
     unit: Mapped[str] = mapped_column(String(30))                # t, kg, number, USD/t, LCU/t ...
@@ -226,7 +226,7 @@ class WeatherObservation(_ObservationMixin, Base):
     __tablename__ = "weather_observations"
 
     region_key: Mapped[str] = mapped_column(String(60), index=True)
-    country_iso3: Mapped[str] = mapped_column(String(3), index=True)
+    country_iso3: Mapped[str] = mapped_column(String(10), index=True)
     temp_mean_c: Mapped[float | None] = mapped_column(Float)
     precip_mm: Mapped[float | None] = mapped_column(Float)
     temp_anomaly_c: Mapped[float | None] = mapped_column(Float)
@@ -336,7 +336,7 @@ class SupplierQuote(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     supplier_name: Mapped[str] = mapped_column(String(200), index=True)
-    origin_iso3: Mapped[str] = mapped_column(String(3), index=True)
+    origin_iso3: Mapped[str] = mapped_column(String(10), index=True)
     variety: Mapped[str] = mapped_column(String(30), index=True)
     variety_note: Mapped[str | None] = mapped_column(String(200))
     price_per_kg: Mapped[float] = mapped_column(Float)

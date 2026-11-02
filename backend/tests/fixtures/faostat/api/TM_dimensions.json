@@ -1,0 +1,7 @@
+{"metadata":{"processing_time":12,"datasource":"PRODUCTION","output_type":"OBJECTS"},
+ "data":[
+ {"id":"reporterarea","subdimensions":[{"id":"reportercountries","label":"Countries","coding_systems":["FAO","M49","ISO2","ISO3"]}]},
+ {"id":"partnerarea","subdimensions":[{"id":"partnercountries","label":"Countries","coding_systems":["FAO","M49","ISO2","ISO3"]}]},
+ {"id":"element","subdimensions":[{"id":"elements","label":"Elements","coding_systems":[]}]},
+ {"id":"item","subdimensions":[{"id":"items","label":"Items","coding_systems":["FAO","CPC"]}]},
+ {"id":"year","subdimensions":[{"id":"years","label":"Years","coding_systems":[]}]}]}

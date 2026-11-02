@@ -34,9 +34,17 @@ export function fmtPct(v: number | null | undefined, lang: Lang, digits = 1, sig
   return `${v > 0 ? '+' : v < 0 ? '−' : ''}${s}%`
 }
 
+/** Parse backend timestamps. Date-only values ("2026-10-15") are calendar dates (shown as-is);
+ * datetimes without a zone are naive UTC (backend convention) and are shown in local time. */
+export function parseBackendDate(iso: string): Date {
+  if (iso.length === 10) return new Date(`${iso}T12:00:00`)
+  const hasZone = iso.endsWith('Z') || /[+-]\d\d:?\d\d$/.test(iso)
+  return new Date(hasZone ? iso : `${iso}Z`)
+}
+
 export function fmtDate(iso: string | null | undefined, lang: Lang, opts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric' }): string {
   if (!iso) return '—'
-  const d = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso)
+  const d = parseBackendDate(iso)
   if (Number.isNaN(d.getTime())) return iso
   return new Intl.DateTimeFormat(locale(lang), opts).format(d)
 }
@@ -48,8 +56,7 @@ export function fmtDateTime(iso: string | null | undefined, lang: Lang): string 
 /** "3 ore fa" / "3 hours ago" for timestamps stored as naive UTC by the backend. */
 export function fmtAgo(iso: string | null | undefined, lang: Lang): string {
   if (!iso) return '—'
-  const s = iso.endsWith('Z') || /[+-]\d\d:\d\d$/.test(iso) ? iso : iso.length === 10 ? `${iso}T12:00:00Z` : `${iso}Z`
-  const diff = (Date.now() - new Date(s).getTime()) / 1000
+  const diff = (Date.now() - parseBackendDate(iso).getTime()) / 1000
   const rtf = new Intl.RelativeTimeFormat(locale(lang), { numeric: 'auto' })
   if (Math.abs(diff) < 60) return rtf.format(-Math.round(diff), 'second')
   if (Math.abs(diff) < 3600) return rtf.format(-Math.round(diff / 60), 'minute')

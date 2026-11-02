@@ -30,11 +30,14 @@ from ..models import (
 
 Outcome = Literal["new", "unchanged", "revised"]
 
+# Fields whose change makes a new revision. `data_status` is included so that a figure
+# promoted from "provisional" to "published" (or downgraded to "estimate") is recorded as a
+# revision too, keeping the history of what was known when.
 VALUE_FIELDS: dict[type, tuple[str, ...]] = {
-    PriceObservation: ("price_low", "price_high", "price_value", "currency", "unit", "volume_kg"),
-    TradeFlowObservation: ("net_weight_kg", "value", "currency", "value_basis"),
-    ProductionStat: ("value", "unit", "flag_raw"),
-    WeatherObservation: ("temp_mean_c", "precip_mm", "temp_anomaly_c", "precip_anomaly_pct"),
+    PriceObservation: ("price_low", "price_high", "price_value", "currency", "unit", "volume_kg", "data_status"),
+    TradeFlowObservation: ("net_weight_kg", "value", "currency", "value_basis", "data_status"),
+    ProductionStat: ("value", "unit", "flag_raw", "data_status"),
+    WeatherObservation: ("temp_mean_c", "precip_mm", "temp_anomaly_c", "precip_anomaly_pct", "data_status"),
 }
 
 

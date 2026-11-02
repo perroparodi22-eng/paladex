@@ -21,7 +21,8 @@ COLLECTOR_MODULES: list[str] = [
     "paladex.collectors.italy",           # Osservatorio Nazionale Miele / Italian price lists
     "paladex.collectors.comtrade",        # UN Comtrade HS 0409
     "paladex.collectors.faostat",         # FAOSTAT production / producer prices
-    "paladex.collectors.news_feeds",      # RSS / Atom news
+    "paladex.collectors.news_gdelt",      # GDELT DOC 2.0 (multilingual news, commercial use allowed)
+    "paladex.collectors.news_feeds",      # RSS / Atom news (Google News feeds are opt-in)
     "paladex.collectors.regulation",      # Federal Register, EUR-Lex... (official notices)
 ]
 

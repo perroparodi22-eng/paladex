@@ -78,6 +78,8 @@ class FeedSpec:
 # ---------------------------------------------------------------------------
 
 _GN_TERMS = (
+    "DISATTIVATO DI DEFAULT: Google indica che i feed di Google News sono destinati a lettori di feed per uso "
+    "personale e non commerciale. Attivarlo solo dopo aver valutato questi termini per l'uso aziendale. "
     "Aggregatore Google News: titoli e link agli articoli originali, il testo resta proprietà degli editori. "
     "Endpoint RSS pubblico ma non documentato ufficialmente da Google (può cambiare senza preavviso). "
     "Si legge solo il titolo e l'estratto del feed; l'articolo si apre sul sito dell'editore."
@@ -418,6 +420,8 @@ def _make_collector(spec: FeedSpec, index: int) -> type[FeedCollector]:
         "expected_max_age_days": spec.expected_max_age_days,
         "terms_note": spec.terms_note,
         "schedule": _schedule(index),
+        # Google News RSS is offered for personal, non-commercial use: opt-in from the Fonti page.
+        "default_enabled": spec.family != "google_news",
         "feed": property(lambda self, _s=spec: _s),
     }
     name = "NewsFeed_" + re.sub(r"\W", "_", spec.key)

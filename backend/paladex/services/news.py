@@ -44,7 +44,8 @@ from ..reference.countries import COUNTRY_KEYWORDS, country_name
 
 Outcome = Literal["new", "unchanged", "duplicate", "filtered"]
 
-SNIPPET_MAX_CHARS = 600
+# Short excerpt only (licensing: headline + link + very short extract; see DATA_SOURCES.md)
+SNIPPET_MAX_CHARS = 300
 DEDUP_WINDOW_DAYS = 5
 FUZZY_THRESHOLD = 88
 FUTURE_TOLERANCE = timedelta(hours=36)
@@ -342,6 +343,7 @@ _GATE_EXCLUSIONS = _words([
     r"honey bunny", r"honey blonde", r"honey locusts?", r"honey crisp", r"honey ?pots?", r"honey ?moon\w*",
     r"(?:land of )?milk (?:and|&) honey", r"honey,? i shrunk", r"american honey (?:queen|movie|film)",
     r"mel gibson", r"mel b", r"mel brooks", r"mel tucker", r"mel robbins",
+    r"royal honey", r"honey packets? (?:with|containing) (?:sildenafil|tadalafil)", r"miele (?:spa|group|elettrodomestici)",
 ])
 
 # Strong terms: any one is enough to pass the gate.
@@ -353,6 +355,14 @@ _GATE_STRONG = _words([
     r"colony collapse", r"royal jelly", r"pappa reale", r"jalea real", r"propoli\w*",
     r"(?:hs|nc|cn|code|codice|partida|heading|voce|subheading)[\s.]*(?:code[\s.]*)?0409\w*",
 ])
+# Non-Latin scripts / languages without spaces (GDELT queries in ZH, UK, RU, VI, SR).
+# CJK has no word boundaries, so these are matched as plain substrings.
+_GATE_STRONG_RAW = re.compile(
+    r"蜂蜜|养蜂|蜂农|"                                   # Chinese: honey, beekeeping, beekeepers
+    r"(?<!\w)(?:мед|меду|медом|бджіл\w*|бджоли\w*|пасічн\w*|пчел\w*|пасек\w*|пасеч\w*)(?!\w)|"  # UK/RU
+    r"(?<!\w)(?:mat ong|nuoi ong)(?!\w)|"                 # Vietnamese (accents folded): honey, beekeeping
+    r"(?<!\w)(?:pcel\w*|izvoz meda|meda)(?!\w)"          # Serbian/Croatian (folded): bee*, honey export
+)
 # Portuguese "mel" is a name elsewhere (Mel Gibson): bare "mel" only in Portuguese items,
 # otherwise only in unmistakable Portuguese phrases.
 _GATE_MEL_PT = _words([r"mel"])
@@ -368,6 +378,7 @@ def honey_terms(text: str, language: str | None = None) -> list[str]:
     """Honey/beekeeping terms found in `text` (folded matching). Empty list = not about honey."""
     t = _GATE_EXCLUSIONS.sub(" ", fold(text))
     found = [m.group(0) for m in _GATE_STRONG.finditer(t)]
+    found += [m.group(0) for m in _GATE_STRONG_RAW.finditer(t)]
     mel = _GATE_MEL_PT if (language or "").startswith("pt") else _GATE_MEL_PHRASES
     found += [m.group(0) for m in mel.finditer(t)]
     if not found:

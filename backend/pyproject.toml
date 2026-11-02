@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "respx>=0.21"]
+dev = ["pytest>=8", "respx>=0.21", "fpdf2>=2.7"]  # fpdf2: regenerates USDA fixture PDFs only
 
 [project.scripts]
 paladex = "paladex.cli:main"

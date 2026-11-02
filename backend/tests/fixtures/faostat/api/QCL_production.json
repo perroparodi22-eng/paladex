@@ -1,0 +1,21 @@
+{"metadata":{"processing_time":89,"datasource":"PRODUCTION","output_type":"OBJECTS","dsd":[
+ {"label":"Domain Code","type":"code","key":"Domain Code","dimension_id":null,"data_type":"string"},
+ {"label":"Domain","type":"label","key":"Domain","dimension_id":null,"data_type":"string"},
+ {"label":"Area Code","type":"code","key":"Area Code","dimension_id":"area","data_type":"string"},
+ {"label":"Area","type":"label","key":"Area","dimension_id":"area","data_type":"string"},
+ {"label":"Element Code","type":"code","key":"Element Code","dimension_id":"element","data_type":"string"},
+ {"label":"Element","type":"label","key":"Element","dimension_id":"element","data_type":"string"},
+ {"label":"Item Code","type":"code","key":"Item Code","dimension_id":"item","data_type":"string"},
+ {"label":"Item","type":"label","key":"Item","dimension_id":"item","data_type":"string"},
+ {"label":"Year Code","type":"code","key":"Year Code","dimension_id":"year","data_type":"string"},
+ {"label":"Year","type":"label","key":"Year","dimension_id":"year","data_type":"string"},
+ {"label":"Unit","type":"unit","key":"Unit","dimension_id":null,"data_type":"string"},
+ {"label":"Value","type":"value","key":"Value","dimension_id":null,"data_type":"string"},
+ {"label":"Flag","type":"flag","key":"Flag","dimension_id":null,"data_type":"string"},
+ {"label":"Flag Description","type":"flag_label","key":"Flag Description","dimension_id":null,"data_type":"string"},
+ {"label":"Note","type":"note","key":"Note","dimension_id":null,"data_type":"string"}]},
+ "data":[
+ {"Domain Code":"QCL","Domain":"Crops and livestock products","Area Code":"9","Area":"Argentina","Element Code":"5510","Element":"Production","Item Code":"1182","Item":"Natural honey","Year Code":"2023","Year":"2023","Unit":"t","Value":"72500","Flag":"E","Flag Description":"Estimated value","Note":""},
+ {"Domain Code":"QCL","Domain":"Crops and livestock products","Area Code":"41","Area":"China, mainland","Element Code":"5510","Element":"Production","Item Code":"1182","Item":"Natural honey","Year Code":"2023","Year":"2023","Unit":"t","Value":"480000","Flag":"E","Flag Description":"Estimated value","Note":""},
+ {"Domain Code":"QCL","Domain":"Crops and livestock products","Area Code":"351","Area":"China","Element Code":"5510","Element":"Production","Item Code":"1182","Item":"Natural honey","Year Code":"2023","Year":"2023","Unit":"t","Value":"490000","Flag":"E","Flag Description":"Estimated value","Note":""},
+ {"Domain Code":"QCL","Domain":"Crops and livestock products","Area Code":"5000","Area":"World","Element Code":"5510","Element":"Production","Item Code":"1182","Item":"Natural honey","Year Code":"2023","Year":"2023","Unit":"t","Value":"1900000","Flag":"A","Flag Description":"Official figure","Note":""}]}

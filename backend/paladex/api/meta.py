@@ -14,6 +14,7 @@ from ..enums import DataStatus, PriceType, Reliability
 from ..models import (
     CollectionRun,
     Country,
+    FxRate,
     NewsArticle,
     PriceObservation,
     ProductionStat,
@@ -99,6 +100,10 @@ def _source_counts(db: Session) -> dict[int, dict]:
     add(NewsArticle, "news", current_only=False)
     add(Report, "reports", current_only=False)
     add(RegulationItem, "regulations", current_only=False)
+    fx_n = db.scalar(select(func.count(FxRate.id)))
+    fx_src = db.scalars(select(Source).where(Source.key == "ecb_fx")).first()
+    if fx_src is not None and fx_n:
+        out.setdefault(fx_src.id, {})["fx_rates"] = fx_n
     return out
 
 

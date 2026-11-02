@@ -307,6 +307,9 @@ def test_every_feed_is_its_own_source(db):
 
 
 def test_google_news_collector_end_to_end(run_with_routes, session_factory, frozen_now):
+    # Google News feeds are opt-in (personal-use terms): the owner enables them on /fonti.
+    with session_factory() as s:
+        s.scalars(select(Source).where(Source.key == "news_gn_en_honey_prices")).one().enabled = True
     routes = {r"^https://news\.google\.com/rss/search": (200, fixture_bytes("news/google_news_en.xml"),
                                                         "application/rss+xml; charset=utf-8")}
     res = run_with_routes("news_gn_en_honey_prices", routes)
