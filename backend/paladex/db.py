@@ -75,6 +75,49 @@ def init_db(url: str | None = None) -> Engine:
 
     engine = get_engine(url)
     Base.metadata.create_all(engine)
+    migrate_add_missing_columns(engine)
     with session_scope() as s:
         seed_reference_data(s)
     return engine
+
+
+def migrate_add_missing_columns(engine: Engine) -> list[str]:
+    """Lightweight forward migration for SQLite: add columns that exist in the models but not
+    in an older database file (new optional columns only — never drops or alters data).
+
+    New columns must therefore be nullable or have a server-side default. Returns the list of
+    "table.column" added (for logging/tests).
+    """
+    from sqlalchemy import inspect, text
+
+    added: list[str] = []
+    insp = inspect(engine)
+    existing_tables = set(insp.get_table_names())
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if table.name not in existing_tables:
+                continue
+            have = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name in have:
+                    continue
+                ddl_type = col.type.compile(dialect=engine.dialect)
+                default = ""
+                if not col.nullable:
+                    # SQLite requires a default for NOT NULL columns added later
+                    py_default = getattr(col.default, "arg", None)
+                    if isinstance(py_default, bool):
+                        default = f" DEFAULT {int(py_default)}"
+                    elif isinstance(py_default, (int, float)):
+                        default = f" DEFAULT {py_default}"
+                    elif isinstance(py_default, str):
+                        default = " DEFAULT '" + py_default.replace("'", "''") + "'"
+                    else:
+                        default = " DEFAULT NULL"
+                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {ddl_type}{default}'))
+                added.append(f"{table.name}.{col.name}")
+    if added:
+        import logging
+
+        logging.getLogger(__name__).info("database migrated: added columns %s", ", ".join(added))
+    return added

@@ -87,3 +87,34 @@ def test_api_sources_and_demo(api):
     assert api.post("/api/demo/seed").json()["inserted"] > 100
     assert api.get("/api/settings").json()["show_demo"] is True
     assert api.delete("/api/demo").json()["deleted"] > 100
+
+
+def test_migration_adds_missing_columns(tmp_path):
+    """An older database file without a newer column is upgraded in place, data kept."""
+    import sqlite3
+
+    from sqlalchemy import create_engine, inspect
+
+    from paladex import db as dbmod
+
+    path = tmp_path / "old.sqlite3"
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE regulations (id INTEGER PRIMARY KEY, source_id INTEGER, jurisdiction VARCHAR(10), "
+                "doc_type VARCHAR(40), reference VARCHAR(200), title VARCHAR(1000), status VARCHAR(40), "
+                "published_at DATE, effective_date DATE, url VARCHAR(1000), countries JSON, summary_en TEXT, "
+                "summary_it TEXT, summary_is_ai BOOLEAN, collected_at DATETIME, is_demo BOOLEAN)")
+    con.execute("INSERT INTO regulations (id, source_id, jurisdiction, doc_type, reference, title, url) "
+                "VALUES (1, 1, 'EU', 'directive', 'X', 'T', 'u')")
+    con.commit()
+    con.close()
+    engine = create_engine(f"sqlite:///{path}")
+    from paladex import models  # noqa: F401
+
+    added = dbmod.migrate_add_missing_columns(engine)
+    assert "regulations.extra" in added
+    assert "extra" in {c["name"] for c in inspect(engine).get_columns("regulations")}
+    with engine.connect() as c:
+        from sqlalchemy import text
+
+        assert c.execute(text("SELECT title FROM regulations WHERE id=1")).scalar() == "T"
+    assert dbmod.migrate_add_missing_columns(engine) == []   # idempotent

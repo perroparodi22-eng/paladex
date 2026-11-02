@@ -71,6 +71,10 @@ export function fmtPeriod(label: string | null | undefined, lang: Lang): string 
   if (!label) return '—'
   const m = /^(\d{4})-(\d{2})$/.exec(label)
   if (m) return fmtDate(`${m[1]}-${m[2]}-15`, lang, { month: 'short', year: 'numeric' })
+  const q = /^(\d{4})-Q([1-4])$/.exec(label)
+  if (q) return lang === 'it' ? `${q[2]}° trim. ${q[1]}` : `Q${q[2]} ${q[1]}`
+  const w = /^(\d{4})-W(\d{1,2})$/.exec(label)
+  if (w) return lang === 'it' ? `sett. ${Number(w[2])} ${w[1]}` : `week ${Number(w[2])} ${w[1]}`
   return label
 }
 
