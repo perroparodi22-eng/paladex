@@ -9,7 +9,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     usda_nass_api_key: str | None = None
     # api.data.gov key — used by USDA FAS GATS (US Census honey imports by origin)
     data_gov_api_key: str | None = None
+    # FAOSTAT Developer Portal account (free). Optional: without it FAOSTAT is read from the public
+    # bulk downloads; with it the collector uses narrow API queries and adds bilateral trade (TM).
+    faostat_username: str | None = None
+    faostat_password: SecretStr | None = None
 
     @property
     def db_path(self) -> Path:

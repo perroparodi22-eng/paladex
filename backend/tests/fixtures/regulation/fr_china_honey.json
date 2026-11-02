@@ -1,0 +1,40 @@
+{
+  "count": 2,
+  "description": "Documents matching '\"honey from the people's republic of china\"' and published on or after 11/03/2023",
+  "total_pages": 1,
+  "next_page_url": null,
+  "results": [
+    {
+      "document_number": "2026-90102",
+      "title": "Initiation of Antidumping and Countervailing Duty Administrative Reviews",
+      "type": "Notice",
+      "abstract": "The U.S. Department of Commerce (Commerce) has received requests to conduct administrative reviews of various antidumping duty (AD) and countervailing duty (CVD) orders with June anniversary dates. In accordance with Commerce&#8217;s regulations, we are initiating those administrative reviews.",
+      "publication_date": "2026-08-05",
+      "effective_on": null,
+      "html_url": "https://www.federalregister.gov/documents/2026/08/05/2026-90102/initiation-of-antidumping-and-countervailing-duty-administrative-reviews",
+      "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2026-08-05/pdf/2026-90102.pdf",
+      "agencies": [
+        {"raw_name": "DEPARTMENT OF COMMERCE", "name": "Commerce Department", "id": 54, "url": "https://www.federalregister.gov/agencies/commerce-department", "json_url": "https://www.federalregister.gov/api/v1/agencies/54", "parent_id": null, "slug": "commerce-department"},
+        {"raw_name": "International Trade Administration", "name": "International Trade Administration", "id": 261, "url": "https://www.federalregister.gov/agencies/international-trade-administration", "json_url": "https://www.federalregister.gov/api/v1/agencies/261", "parent_id": 54, "slug": "international-trade-administration"}
+      ],
+      "action": "Notice.",
+      "citation": "91 FR 51234"
+    },
+    {
+      "document_number": "2025-90201",
+      "title": "Honey From the People's Republic of China: Final Results of Antidumping Duty Administrative Review; 2023-2024",
+      "type": "Notice",
+      "abstract": "The U.S. Department of Commerce (Commerce) determines that the companies under review are part of the China-wide entity and are subject to the China-wide entity rate.",
+      "publication_date": "2025-03-14",
+      "effective_on": "2025-03-14",
+      "html_url": "https://www.federalregister.gov/documents/2025/03/14/2025-90201/honey-from-the-peoples-republic-of-china-final-results-of-antidumping-duty-administrative-review-2023-2024",
+      "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2025-03-14/pdf/2025-90201.pdf",
+      "agencies": [
+        {"raw_name": "DEPARTMENT OF COMMERCE", "name": "Commerce Department", "id": 54, "url": "https://www.federalregister.gov/agencies/commerce-department", "json_url": "https://www.federalregister.gov/api/v1/agencies/54", "parent_id": null, "slug": "commerce-department"},
+        {"raw_name": "International Trade Administration", "name": "International Trade Administration", "id": 261, "url": "https://www.federalregister.gov/agencies/international-trade-administration", "json_url": "https://www.federalregister.gov/api/v1/agencies/261", "parent_id": 54, "slug": "international-trade-administration"}
+      ],
+      "action": "Notice.",
+      "citation": "90 FR 12101"
+    }
+  ]
+}

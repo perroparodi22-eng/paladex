@@ -1,0 +1,24 @@
+{
+  "count": 4,
+  "description": "Documents matching '\"raw honey\"' and published on or after 11/03/2023",
+  "total_pages": 2,
+  "next_page_url": null,
+  "results": [
+    {
+      "document_number": "2025-90104",
+      "title": "Raw Honey From the Socialist Republic of Vietnam: Final Results of Antidumping Duty Administrative Review; 2022-2023",
+      "type": "Notice",
+      "abstract": "The U.S. Department of Commerce (Commerce) determines that the producer/exporter subject to this review made sales of subject merchandise at less than normal value during the period of review.",
+      "publication_date": "2025-01-10",
+      "effective_on": "2025-01-10",
+      "html_url": "https://www.federalregister.gov/documents/2025/01/10/2025-90104/raw-honey-from-the-socialist-republic-of-vietnam-final-results-of-antidumping-duty-administrative-review-2022-2023",
+      "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2025-01-10/pdf/2025-90104.pdf",
+      "agencies": [
+        {"raw_name": "DEPARTMENT OF COMMERCE", "name": "Commerce Department", "id": 54, "url": "https://www.federalregister.gov/agencies/commerce-department", "json_url": "https://www.federalregister.gov/api/v1/agencies/54", "parent_id": null, "slug": "commerce-department"},
+        {"raw_name": "International Trade Administration", "name": "International Trade Administration", "id": 261, "url": "https://www.federalregister.gov/agencies/international-trade-administration", "json_url": "https://www.federalregister.gov/api/v1/agencies/261", "parent_id": 54, "slug": "international-trade-administration"}
+      ],
+      "action": "Notice.",
+      "citation": "90 FR 1801"
+    }
+  ]
+}

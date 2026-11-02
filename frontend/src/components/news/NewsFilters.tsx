@@ -46,7 +46,7 @@ function SearchBox({ value, onChange }: { value: string; onChange: (q: string) =
   }
 
   return (
-    <form onSubmit={submit} role="search" className="relative flex-1 min-w-[16rem]">
+    <form onSubmit={submit} role="search" className="relative w-full min-w-0 xl:w-auto xl:flex-1">
       <Search size={19} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
       <input
         value={text}
@@ -136,7 +136,7 @@ export function NewsFilters({ state, facets, update, toggle }: {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 items-end gap-x-5 gap-y-3.5 px-5 py-4 md:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
+      <div className="grid grid-cols-1 items-end gap-x-5 gap-y-3.5 px-5 py-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
         <Field label={t('news.f.topic')}>
           <select className="field pr-8" value={topicValue} aria-label={t('news.f.topic')}
             onChange={(e) => update({ topics: e.target.value ? [e.target.value] : [] })}>
@@ -156,14 +156,14 @@ export function NewsFilters({ state, facets, update, toggle }: {
             {selectedSourceMissing.map((k) => <option key={k} value={k}>{k} (0)</option>)}
           </select>
         </Field>
-        <Field label={t('news.f.period')}>
+        <Field label={t('news.f.period')} className="[&_button]:whitespace-nowrap">
           <Segmented<PeriodPreset>
             value={state.period}
             onChange={(v) => update({ period: v })}
             options={PERIODS.map((p) => ({ value: p, label: t(`news.f.period.${p}`) }))}
           />
         </Field>
-        <div className="flex h-[38px] items-center md:col-span-2 2xl:col-span-1">
+        <div className="flex h-[38px] items-center">
           <Switch checked={state.relevantOnly} onChange={(v) => update({ relevantOnly: v })}
             label={t('news.f.relevantOnly')} hint={t('news.f.relevantOnlyHint')} />
         </div>

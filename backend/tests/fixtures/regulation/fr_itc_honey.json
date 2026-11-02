@@ -1,0 +1,38 @@
+{
+  "count": 2,
+  "description": "Documents matching 'honey' from International Trade Commission and published on or after 11/03/2023",
+  "total_pages": 1,
+  "next_page_url": null,
+  "results": [
+    {
+      "document_number": "2024-90301",
+      "title": "Raw Honey From Argentina, Brazil, India, and Vietnam; Notice of Commission Determinations",
+      "type": "Notice",
+      "abstract": null,
+      "publication_date": "2024-03-20",
+      "effective_on": null,
+      "html_url": "https://www.federalregister.gov/documents/2024/03/20/2024-90301/raw-honey-from-argentina-brazil-india-and-vietnam-notice-of-commission-determinations",
+      "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2024-03-20/pdf/2024-90301.pdf",
+      "agencies": [
+        {"raw_name": "INTERNATIONAL TRADE COMMISSION", "name": "International Trade Commission", "id": 262, "url": "https://www.federalregister.gov/agencies/international-trade-commission", "json_url": "https://www.federalregister.gov/api/v1/agencies/262", "parent_id": null, "slug": "international-trade-commission"}
+      ],
+      "action": "Notice.",
+      "citation": "89 FR 19901"
+    },
+    {
+      "document_number": "2025-90302",
+      "title": "Certain Beehive Monitoring Devices and Components Thereof; Institution of Investigation",
+      "type": "Notice",
+      "abstract": "Notice is hereby given that a complaint was filed concerning devices that monitor the health of honey bee colonies.",
+      "publication_date": "2025-09-02",
+      "effective_on": null,
+      "html_url": "https://www.federalregister.gov/documents/2025/09/02/2025-90302/certain-beehive-monitoring-devices-and-components-thereof-institution-of-investigation",
+      "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2025-09-02/pdf/2025-90302.pdf",
+      "agencies": [
+        {"raw_name": "INTERNATIONAL TRADE COMMISSION", "name": "International Trade Commission", "id": 262, "url": "https://www.federalregister.gov/agencies/international-trade-commission", "json_url": "https://www.federalregister.gov/api/v1/agencies/262", "parent_id": null, "slug": "international-trade-commission"}
+      ],
+      "action": "Notice.",
+      "citation": "90 FR 42001"
+    }
+  ]
+}
