@@ -75,7 +75,7 @@ export function AvailabilityLegend({ keys = ['production', 'exports', 'imports',
 export function AvailabilityChips({ a }: { a: Availability }) {
   const { t } = useI18n()
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <span className="flex flex-wrap gap-1.5">
       {AVAIL_KEYS.map((k) => {
         const s = state(a, k)
         return (
@@ -89,7 +89,7 @@ export function AvailabilityChips({ a }: { a: Availability }) {
           </span>
         )
       })}
-    </div>
+    </span>
   )
 }
 

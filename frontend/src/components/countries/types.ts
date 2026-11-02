@@ -107,7 +107,7 @@ export interface CountryProfile {
   country: CountryRefFull
   availability: Availability
   production: { available: boolean; metrics: ProductionMetric[]; providers: Provider[] }
-  trade: { import: TradeFlowSection; export: TradeFlowSection; providers: Provider[] }
+  trade: { import: TradeFlowSection; export: TradeFlowSection; providers: Provider[]; providers_import?: Provider[] }
   prices: { available: boolean; groups: { price_type: string; rows: PriceRow[]; count: number; latest_period_label: string | null; link: string }[]; providers: Provider[] }
   news: { available: boolean; items: NewsItem[]; count_30d: number; days: number; link: string; providers: Provider[] }
   regulations: { available: boolean; items: RegulationRow[]; providers: Provider[] }

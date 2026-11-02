@@ -22,8 +22,10 @@ How this collector works
   TM (bilateral trade matrix, ~410 MB) is too big for this path and is skipped.
 * **Optional token API path.** When ``PALADEX_FAOSTAT_USERNAME`` / ``PALADEX_FAOSTAT_PASSWORD``
   are set, the collector logs in (``POST /auth/login``), caches the JWT for ``ExpiresIn - 60`` s,
-  sends it as ``Authorization: Bearer`` (never in a URL) and runs narrow honey queries for QCL,
-  PP and TCL instead of the big ZIPs, plus TM bilateral flows (reporter x partner) for the
+  sends it as ``Authorization: Bearer`` (never in a URL), re-logs in once on HTTP 401/403, and
+  runs narrow honey queries (``page_size``/``page_number`` paging; requests at least 1.5 s apart
+  per host via ``ctx.fetch``, within the research's 1 request/s) for QCL, PP and TCL instead of
+  the big ZIPs, plus TM bilateral flows (reporter x partner) for the
   ``TM_REPORTERS`` panel. TM's dimension names and element filter codes are unverified, so they
   are probed first (``/dimensions/TM/``, ``/codes/element/TM``) and the dataset fails loudly when
   the probe does not match. If the login is refused, the run warns and falls back to the bulk
@@ -76,7 +78,15 @@ import httpx
 from ..api.common import get_setting, set_setting
 from ..enums import DataStatus, PriceType, Reliability, SourceKind, TradeFlow, Variety
 from ..reference.countries import AGGREGATES, countries, lookup_fao, lookup_iso3
-from .base import CollectContext, Collector, CollectorError, FetchResult, Offline, parse_date, year_bounds
+from .base import (
+    CollectContext,
+    Collector,
+    CollectorError,
+    FetchResult,
+    Offline,
+    parse_date,
+    year_bounds,
+)
 
 log = logging.getLogger(__name__)
 
@@ -251,12 +261,13 @@ def parse_value(raw: Any) -> float | None:
     a number (or NaN/inf) raises ValueError."""
     if raw is None:
         return None
-    if isinstance(raw, bool):
-        raise ValueError(f"boolean value {raw!r}")
-    s = str(raw).strip()
-    if not s:
-        return None
-    out = float(raw) if isinstance(raw, (int, float)) else float(s)   # no comma tricks: "12,5" is malformed
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        out = float(raw)
+    else:
+        s = str(raw).strip()            # a JSON boolean becomes "True": not a number -> ValueError
+        if not s:
+            return None
+        out = float(s)                  # no comma tricks: "12,5" is malformed, never 125
     if math.isnan(out) or math.isinf(out):
         raise ValueError(f"non-finite value {raw!r}")
     return out
@@ -1405,8 +1416,30 @@ class FaostatCollector(Collector):
 
 
 __all__ = [
-    "CATALOGUE_URL", "API_ROOT", "LOGIN_URL", "DATASETS", "TM_REPORTERS", "MIN_YEAR", "FLAG_STATUS",
-    "AreaMatch", "BulkExtract", "CatalogueEntry", "FaoRow", "Issues", "resolve_area", "flag_status", "least_firm",
-    "local_currency", "classify_trade_element", "parse_value", "parse_catalogue", "read_bulk_zip", "bulk_rows",
-    "parse_api_rows", "build_production", "build_prices", "build_trade", "FaostatCollector",
+    "API_ROOT",
+    "CATALOGUE_URL",
+    "DATASETS",
+    "FLAG_STATUS",
+    "LOGIN_URL",
+    "MIN_YEAR",
+    "TM_REPORTERS",
+    "AreaMatch",
+    "BulkExtract",
+    "CatalogueEntry",
+    "FaoRow",
+    "FaostatCollector",
+    "Issues",
+    "build_prices",
+    "build_production",
+    "build_trade",
+    "bulk_rows",
+    "classify_trade_element",
+    "flag_status",
+    "least_firm",
+    "local_currency",
+    "parse_api_rows",
+    "parse_catalogue",
+    "parse_value",
+    "read_bulk_zip",
+    "resolve_area",
 ]

@@ -83,10 +83,10 @@ def _state(s, key: str) -> dict:
 
 
 def _fr_doc(**over) -> reg.FrDocument:
-    base = dict(document_number="2026-1", title="Notice", type_label="Notice", abstract=None,
-                publication_date=date(2026, 1, 1), effective_on=None, url="https://www.federalregister.gov/d/2026-1",
-                pdf_url=None, agency_slugs=(), agency_names=(), action=None, citation=None,
-                has_effective_on_key=True)
+    base = {"document_number": "2026-1", "title": "Notice", "type_label": "Notice", "abstract": None,
+            "publication_date": date(2026, 1, 1), "effective_on": None,
+            "url": "https://www.federalregister.gov/d/2026-1", "pdf_url": None, "agency_slugs": (),
+            "agency_names": (), "action": None, "citation": None, "has_effective_on_key": True}
     base.update(over)
     return reg.FrDocument(**base)
 
@@ -250,7 +250,7 @@ def test_fr_relevance_filters():
     assert reg.fr_is_relevant(fda, _fr_doc(title="Honey Order", agency_slugs=("agricultural-marketing-service",))) == (False, "agency")
     assert reg.fr_is_relevant(fda, _fr_doc(title="Honey labeling", agency_slugs=()))[0]   # no agencies: cannot check
     origins = _query("pres_tariff_origins")
-    pres = dict(type_label="Presidential Document")
+    pres = {"type_label": "Presidential Document"}
     assert reg.fr_is_relevant(origins, _fr_doc(title="Imposing Duties on Imports From Brazil", **pres))[0]
     assert reg.fr_is_relevant(origins, _fr_doc(title="Further Modifying the Reciprocal Tariff Rates", **pres))[0]
     assert not reg.fr_is_relevant(origins, _fr_doc(title="Adjusting Imports of Lumber Into the United States", **pres))[0]
@@ -332,6 +332,20 @@ def test_fr_second_run_adds_nothing(run_with_routes, session_factory, pin_today)
     assert forced["new"] == 0 and forced["seen"] >= len(FR_EXPECTED)    # re-parsed, de-duplicated
     with session_factory() as s:
         assert s.scalar(select(func.count(RegulationItem.id))) == len(FR_EXPECTED)
+
+
+def test_fr_identical_bytes_from_another_search_are_still_ingested(run_with_routes, session_factory, pin_today):
+    # The USITC search (runs earlier, drops off-agency results) and the presidential 'tariff honey'
+    # search (keeps everything) get byte-identical responses: the archive de-duplicates by hash,
+    # but the later search must still ingest the page on its first run.
+    same = fx("fr_pres_tariff_honey.json")
+    res = run_with_routes("us_federal_register", fr_routes({
+        FR_DOCS + r".*international-trade-commission": same,
+        FR_DOCS + r".*conditions%5Bterm%5D=tariff\+honey": same,
+    }))
+    assert any("USITC + honey" in w and "filter" in w for w in res["warnings"])
+    with session_factory() as s:
+        assert "2025-90501" in _items(s, "us_federal_register")
 
 
 def test_fr_incremental_window_after_first_run(run_with_routes, pin_today, monkeypatch):
@@ -429,6 +443,13 @@ def test_build_sparql_queries():
         assert f"cdm:{rel}" in r
     for query in (q, r):
         assert query.count("{") == query.count("}") and query.startswith("PREFIX cdm:")
+
+
+def test_eu_title_since():
+    assert reg.eu_title_since(None, TODAY) == TODAY - timedelta(days=reg.EU_BACKFILL_DAYS)
+    assert reg.eu_title_since("2026-10-26", TODAY) == date(2026, 10, 26) - timedelta(days=reg.EU_OVERLAP_DAYS)
+    assert reg.eu_title_since("2026-10-26", TODAY, force=True) == TODAY - timedelta(days=reg.EU_BACKFILL_DAYS)
+    assert reg.eu_title_since("2027-03-01", TODAY) == TODAY - timedelta(days=reg.EU_OVERLAP_DAYS)
 
 
 def test_parse_sparql_json_reconstructed_result():

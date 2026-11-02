@@ -297,14 +297,27 @@ class Ctx:
         pref = SOURCE_PREFERENCE.index(src.key) if src and src.key in SOURCE_PREFERENCE else len(SOURCE_PREFERENCE)
         return (c.complete, c.freq == "A", c.uses_world, -rel, -pref, c.partners_count, c.periods)
 
-    def providers(self, category: str = "trade") -> list[dict]:
-        out = [
-            {"key": s.key, "name": s.name, "publisher": s.publisher, "enabled": s.enabled,
-             "last_run_status": s.last_run_status, "expected_update": s.expected_update}
-            for s in self.sources.values()
-            if s.category == category and s.key != "demo" and s.kind != SourceKind.MANUAL.value
-        ]
-        return sorted(out, key=lambda p: (not p["enabled"], p["name"]))
+    def providers(self, category: str | Iterable[str] = "trade", *, country: str | None = None,
+                  prefer: Iterable[str] = (), country_first: bool = True) -> list[dict]:
+        """Registered sources that would fill a block (for honest empty states). Enabled first;
+        then sources about `country`, then the `prefer` keys, then the rest by name.
+
+        With `country`, a source dedicated to ANOTHER country (e.g. USDA NASS for the USA, an
+        Italian chamber-of-commerce price list) is left out unless it is in `prefer`."""
+        cats = {category} if isinstance(category, str) else set(category)
+        prefer = list(prefer)
+        rows = [s for s in self.sources.values()
+                if s.category in cats and s.key != "demo" and s.kind != SourceKind.MANUAL.value
+                and (country is None or s.country_iso3 in (None, country) or s.key in prefer)]
+
+        def key(s: Source) -> tuple:
+            local = not (country and s.country_iso3 == country)
+            pref = prefer.index(s.key) if s.key in prefer else len(prefer)
+            return (not s.enabled, local, pref, s.name) if country_first else (not s.enabled, pref, local, s.name)
+
+        return [{"key": s.key, "name": s.name, "publisher": s.publisher, "enabled": s.enabled,
+                 "last_run_status": s.last_run_status, "expected_update": s.expected_update}
+                for s in sorted(rows, key=key)]
 
     def freshness_for(self, sid: int, ref: date | None, freq: str | None) -> dict:
         """Source freshness; for a source without run metadata (demo, imported rows), judged

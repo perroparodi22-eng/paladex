@@ -49,10 +49,11 @@ import json
 import logging
 import re
 from collections import defaultdict
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from enum import StrEnum
-from typing import Any, Iterable, Sequence
+from typing import Any
 from urllib.parse import urlsplit
 
 from ..enums import Reliability, SourceKind
@@ -544,7 +545,7 @@ class FederalRegisterCollector(Collector):
             attempted.append(q.label)
             since = fr_since(query_state.get(q.state_key), t, ctx.force)
             try:
-                complete = self._run_query(ctx, q, since, run)
+                complete = self._run_query(ctx, q, since, run, completed_before=q.state_key in query_state)
             except SourceQueryError as exc:
                 ctx.warn(str(exc))
                 failed.append(q.label)
@@ -592,8 +593,14 @@ class FederalRegisterCollector(Collector):
         return missing
 
     # ---------------------------------------------------------------- queries
-    def _run_query(self, ctx: CollectContext, q: FrQuery, since: date, run: _FrRun) -> bool:
-        """Run one saved search, following next_page_url. Returns True when it was read to the end."""
+    def _run_query(self, ctx: CollectContext, q: FrQuery, since: date, run: _FrRun, *,
+                   completed_before: bool = False) -> bool:
+        """Run one saved search, following next_page_url. Returns True when it was read to the end.
+
+        A page whose bytes were already archived is not re-ingested, but only for a search that
+        has completed before: the archive is de-duplicated by content hash across all searches,
+        and searches keep different subsets of the same results."""
+        skip_unchanged = completed_before and not ctx.force
         url: str | None = FR_SEARCH_URL
         params: list[tuple[str, str]] | None = fr_search_params(q, since, run.fields)
         stats = _QueryStats()
@@ -619,7 +626,7 @@ class FederalRegisterCollector(Collector):
                 raise SourceQueryError(f"Federal Register search '{q.label}' failed: HTTP {doc.status_code}: "
                                        f"{_snippet(doc.content)}")
             page = parse_fr_search(doc.content)          # SchemaDrift propagates: fail loudly
-            if not (doc.unchanged and not ctx.force):    # identical bytes: already stored last time
+            if not (doc.unchanged and skip_unchanged):   # identical bytes: already ingested last time
                 for p in page.problems:
                     ctx.warn(f"Federal Register ({q.label}): {p}")
                 for d in page.documents:
@@ -720,6 +727,16 @@ def build_title_query(since: date, limit: int = SPARQL_LIMIT) -> str:
         + "}\nORDER BY DESC(?date)\n"
         f"LIMIT {limit}"
     )
+
+
+def eu_title_since(last_complete: str | None, ref: date, force: bool = False) -> date:
+    """Lower document-date bound for the title search: about five years on the first run (or
+    when forced), otherwise the last complete run minus ~6 months, because CELLAR can index an
+    act weeks after its document date."""
+    last = parse_iso_date(last_complete)
+    if last is None or force:
+        return ref - timedelta(days=EU_BACKFILL_DAYS)
+    return min(last, ref) - timedelta(days=EU_OVERLAP_DAYS)
 
 
 def build_related_query(targets: Iterable[str], limit: int = SPARQL_LIMIT) -> str:
@@ -992,9 +1009,7 @@ class EurLexHoneyCollector(Collector):
             ctx.checkpoint()
 
         # (b) Acts with "honey" in the English title, date-limited.
-        last = state.get("title_complete")
-        since = (t - timedelta(days=EU_BACKFILL_DAYS)) if (ctx.force or not parse_iso_date(last)) \
-            else min(parse_iso_date(last), t) - timedelta(days=EU_OVERLAP_DAYS)
+        since = eu_title_since(state.get("title_complete"), t, ctx.force)
         try:
             doc, res = self._select(ctx, build_title_query(since), TITLE_VARS, f"honey titles since {since}")
         except SourceQueryError as exc:
@@ -1052,11 +1067,37 @@ class EurLexHoneyCollector(Collector):
 
 
 __all__ = [
-    "HONEY_RE", "detect_countries", "clean_text", "parse_iso_date",
-    "FR_QUERIES", "FR_FIELDS", "FR_CORE_FIELDS", "FrQuery", "Keep", "fr_search_params", "fr_since",
-    "parse_fr_search", "parse_fr_agencies", "fr_doc_type", "fr_status", "fr_is_relevant",
-    "WATCHED_ACTS", "build_title_query", "build_related_query", "parse_sparql_json", "sparql_incomplete",
-    "parse_celex", "eu_doc_type", "eu_status", "eurlex_url", "group_eu_acts", "check_related_canary",
-    "check_title_canary", "SchemaDrift", "SourceQueryError",
-    "FederalRegisterCollector", "EurLexHoneyCollector",
+    "FR_CORE_FIELDS",
+    "FR_FIELDS",
+    "FR_QUERIES",
+    "HONEY_RE",
+    "WATCHED_ACTS",
+    "EurLexHoneyCollector",
+    "FederalRegisterCollector",
+    "FrQuery",
+    "Keep",
+    "SchemaDrift",
+    "SourceQueryError",
+    "build_related_query",
+    "build_title_query",
+    "check_related_canary",
+    "check_title_canary",
+    "clean_text",
+    "detect_countries",
+    "eu_doc_type",
+    "eu_status",
+    "eu_title_since",
+    "eurlex_url",
+    "fr_doc_type",
+    "fr_is_relevant",
+    "fr_search_params",
+    "fr_since",
+    "fr_status",
+    "group_eu_acts",
+    "parse_celex",
+    "parse_fr_agencies",
+    "parse_fr_search",
+    "parse_iso_date",
+    "parse_sparql_json",
+    "sparql_incomplete",
 ]

@@ -56,6 +56,9 @@ PRICE_TYPE_ORDER = [p.value for p in (PriceType.WHOLESALE_BULK, PriceType.PRODUC
                                       PriceType.EXPORT_UNIT_VALUE, PriceType.RETAIL, PriceType.OTHER)]
 # Units a production volume can be shown in, converted to tonnes for the map.
 TONNES_PER_UNIT = {"t": 1.0, "tonnes": 1.0, "tonne": 1.0, "kg": 0.001}
+# Sources that publish prices BY ORIGIN for many countries (bulk quotes, customs unit values):
+# listed first when a country's prices are missing.
+ORIGIN_PRICE_SOURCES = ("usda_honey_report", "un_comtrade", "eurostat_comext", "usda_fas_gats")
 # Which source categories would fill each section (for honest empty states).
 SECTION_CATEGORIES = {
     "production": "production", "exports": "trade", "imports": "trade", "prices": "prices",
@@ -166,7 +169,7 @@ def production_section(ctx: Ctx, iso3: str) -> dict:
                                                       else len(METRIC_ORDER), m["metric"]))
     for m in ordered:
         m["series"].sort(key=lambda s: (-len(s["points"]), _source_rank(ctx, ctx.source_id(s["source"]["key"]) or 0)))
-    return {"available": bool(ordered), "metrics": ordered, "providers": ctx.providers("production")}
+    return {"available": bool(ordered), "metrics": ordered, "providers": ctx.providers("production", country=iso3)}
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +195,8 @@ def trade_section(ctx: Ctx, iso3: str, totals: Totals) -> dict:
             "partners": partners if partners and partners.get("available") else None,
             "mirror": mirror if mirror["rows"] else None,
         }
-    out["providers"] = ctx.providers("trade")
+    out["providers"] = section_providers(ctx, "exports", iso3)
+    out["providers_import"] = section_providers(ctx, "imports", iso3)
     return out
 
 
@@ -232,7 +236,27 @@ def prices_section(ctx: Ctx, iso3: str) -> dict:
         out.append({"price_type": pt, "rows": items[:PRICE_ROWS_PER_TYPE], "count": len(items),
                     "latest_period_label": items[0]["period_label"] if items else None,
                     "link": f"/prezzi?tipo={pt}&origini={iso3}"})
-    return {"available": bool(out), "groups": out, "providers": ctx.providers("prices")}
+    return {"available": bool(out), "groups": out, "providers": price_providers(ctx, iso3)}
+
+
+DECLARED_TRADE_SOURCES = ("un_comtrade", "eurostat_comext")
+
+
+def section_providers(ctx: Ctx, key: str, iso3: str) -> list[dict]:
+    """Sources that would fill one profile section for this country."""
+    if key == "prices":
+        return price_providers(ctx, iso3)
+    if key in ("exports", "imports"):
+        # Customs data declared by the country itself: the global datasets come first (a national
+        # import series such as USDA GATS only answers for that country's imports).
+        return ctx.providers("trade", country=iso3, prefer=DECLARED_TRADE_SOURCES, country_first=key == "imports")
+    return ctx.providers(SECTION_CATEGORIES[key], country=iso3)
+
+
+def price_providers(ctx: Ctx, iso3: str) -> list[dict]:
+    """Price lists about the country, then sources publishing prices by origin (customs unit
+    values are stored as prices by the trade collectors), then the other price lists."""
+    return ctx.providers(("prices", "trade"), country=iso3, prefer=ORIGIN_PRICE_SOURCES)
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +293,7 @@ def news_section(ctx: Ctx, iso3: str) -> dict:
         if iso3 in (c or [])
     )
     return {"available": bool(items), "items": items, "count_30d": count_30d, "days": NEWS_DAYS,
-            "link": f"/notizie?country={iso3}", "providers": ctx.providers("news")}
+            "link": f"/notizie?country={iso3}", "providers": ctx.providers("news", country=iso3)}
 
 
 def regulations_section(ctx: Ctx, country: Country) -> dict:
@@ -292,7 +316,7 @@ def regulations_section(ctx: Ctx, country: Country) -> dict:
         })
         if len(items) >= REG_LIMIT:
             break
-    return {"available": bool(items), "items": items, "providers": ctx.providers("regulation")}
+    return {"available": bool(items), "items": items, "providers": ctx.providers("regulation", country=country.iso3)}
 
 
 def context_section(country: Country) -> dict:
@@ -447,7 +471,7 @@ def country_profile(iso3: str, db: Session = Depends(get_db)):
             missing.append({
                 "key": key, "category": SECTION_CATEGORIES[key],
                 "partial_alternative": mirror_key if mirror_key and availability.get(mirror_key) else None,
-                "providers": ctx.providers(SECTION_CATEGORIES[key]),
+                "providers": section_providers(ctx, key, code),
             })
     if not context["available"]:
         missing.append({"key": "context", "category": None, "partial_alternative": None, "providers": []})
