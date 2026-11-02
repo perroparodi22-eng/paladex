@@ -908,11 +908,7 @@ _TOKEN_CACHE: dict[str, tuple[str, float]] = {}
 def _wait_turn(ctx: CollectContext, url: str) -> str:
     """Same per-host politeness as ``ctx.fetch`` for requests made outside it (login, streaming)."""
     host = urlsplit(url).netloc
-    last = ctx._last_hit.get(host)
-    if last is not None:
-        wait = ctx.MIN_INTERVAL_PER_HOST - (time.monotonic() - last)
-        if wait > 0:
-            time.sleep(wait)
+    ctx.wait_for_host(host)
     return host
 
 
@@ -953,7 +949,7 @@ def _download_to_file(ctx: CollectContext, url: str, dest_dir: Path) -> tuple[Pa
             _unlink(tmp)
             raise
         finally:
-            ctx._last_hit[host] = time.monotonic()
+            ctx.mark_host(host)
 
 
 def _unlink(path: str | os.PathLike[str] | None) -> None:
@@ -981,7 +977,7 @@ class _FaostatApi:
         except httpx.HTTPError as exc:
             raise _ApiUnavailable(f"login request failed ({type(exc).__name__})") from None
         finally:
-            ctx._last_hit[host] = time.monotonic()
+            ctx.mark_host(host)
         if resp.status_code != 200:
             kind = ""
             try:
@@ -1018,8 +1014,8 @@ class _FaostatApi:
             except Offline as exc:
                 raise _ApiUnavailable(str(exc)) from exc
             if doc.status_code == 200:
-                # ctx._store_raw is the archive half of ctx.fetch: only successful answers are kept.
-                raw_id, unchanged = ctx._store_raw(doc.url, doc.content, doc.content_type, title, published_at)
+                # ctx.store_raw is the archive half of ctx.fetch: only successful answers are kept.
+                raw_id, unchanged = ctx.store_raw(doc.url, doc.content, doc.content_type, title, published_at)
                 return dataclasses.replace(doc, raw_document_id=raw_id, unchanged=unchanged)
             _TOKEN_CACHE.pop(self._username, None)
         raise _ApiUnavailable(f"the API refused the token twice (HTTP {doc.status_code})")
@@ -1164,7 +1160,7 @@ class _FaostatRun:
                                  "format or item codes changed?")
         items = ", ".join(sorted(BULK_ITEMS[code]))
         title = f"FAOSTAT {code} bulk download: honey rows (items {items}) extracted from {extract.member}"
-        raw_id, _unchanged = ctx._store_raw(url, extract.to_zip_bytes(), "application/zip", title, entry.published)
+        raw_id, _unchanged = ctx.store_raw(url, extract.to_zip_bytes(), "application/zip", title, entry.published)
         rows, bad = bulk_rows(extract, code, url)
         for r in rows:
             r.raw_document_id = raw_id or None

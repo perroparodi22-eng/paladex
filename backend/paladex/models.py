@@ -323,6 +323,8 @@ class RegulationItem(Base):
     summary_it: Mapped[str | None] = mapped_column(Text)
     summary_is_ai: Mapped[bool] = mapped_column(Boolean, default=False)
     collected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Source-specific metadata: official PDF URL, citation, action, agencies, raw document id...
+    extra: Mapped[dict | None] = mapped_column(JSON)
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
 
 

@@ -202,6 +202,24 @@ class CollectContext:
             headers=dict(resp.headers),
         )
 
+    # -------------------------------------------------- public low-level helpers
+    def store_raw(self, url: str, content: bytes, content_type: str | None = None, title: str | None = None,
+                  published_at: date | None = None) -> tuple[int, bool]:
+        """Archive bytes obtained without `fetch` (streamed downloads, POST answers, extracts).
+        Returns (raw_document_id, unchanged)."""
+        return self._store_raw(redact_url(url), content, content_type, title, published_at)
+
+    def wait_for_host(self, host: str) -> None:
+        """Respect MIN_INTERVAL_PER_HOST for requests made outside `fetch`."""
+        last = self._last_hit.get(host)
+        if last is not None:
+            wait = self.MIN_INTERVAL_PER_HOST - (time.monotonic() - last)
+            if wait > 0:
+                time.sleep(wait)
+
+    def mark_host(self, host: str) -> None:
+        self._last_hit[host] = time.monotonic()
+
     def _store_raw(self, url, content, ctype, title, published_at) -> tuple[int, bool]:
         h = hashlib.sha256(content).hexdigest()
         existing = self.session.scalars(
