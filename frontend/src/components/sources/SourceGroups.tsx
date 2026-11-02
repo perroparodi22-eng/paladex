@@ -6,8 +6,8 @@ import { ChevronDown, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { Badge, FreshnessBadge, ReliabilityBadge } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { fmtAgo, fmtDate, fmtDateTime, fmtNumber, fmtPeriod } from '@/lib/format'
-import type { SourceInfo } from '@/lib/types'
-import { errorKey, runTone } from './explain'
+import type { Lang, SourceInfo } from '@/lib/types'
+import { asUtc, errorKey, runTone } from './explain'
 import { KeyHelp } from './KeyHelp'
 import { RunHistory } from './RunHistory'
 import type { ApiKeyInfo } from './types'
@@ -34,6 +34,11 @@ export interface RowState {
 }
 
 const GROUP_VISIBLE = 6
+
+/** "2026-09" -> "set 2026"; "2026-10-30" (daily data) -> "30 ott 2026"; others unchanged. */
+function periodText(label: string, lang: Lang): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(label) ? fmtDate(label, lang) : fmtPeriod(label, lang)
+}
 
 export function SourceGroups({ sources, state }: { sources: SourceInfo[]; state: RowState }) {
   const groups = GROUP_ORDER.map((g) => ({ g, items: sources.filter((s) => groupOf(s) === g) })).filter((x) => x.items.length)
@@ -62,7 +67,7 @@ function SourceGroup({ group, items, state }: { group: string; items: SourceInfo
           {items.length === 1 ? t('sources.group.countOne') : t('sources.group.count', { n: items.length })}
         </span>
       </div>
-      <div className="hidden xl:grid grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1fr)_13rem] gap-x-6 px-5 py-2 bg-paper border-b border-line-soft eyebrow !text-[0.68rem]">
+      <div className={clsx(group === 'quotes' ? 'hidden' : 'hidden xl:grid', 'grid-cols-[minmax(0,2.3fr)_minmax(0,1fr)_minmax(0,1fr)_12rem] gap-x-6 px-5 py-2 bg-paper border-b border-line-soft eyebrow !text-[0.68rem]')}>
         <span>{t('sources.col.source')}</span>
         <span>{t('sources.col.latest')}</span>
         <span>{t('sources.col.check')}</span>
@@ -94,9 +99,8 @@ function SourceRow({ s, state }: { s: SourceInfo; state: RowState }) {
   const lastError = state.lastError(s.key)
 
   return (
-    <li id={`src-${s.key}`} className={clsx('scroll-mt-24 border-l-[3px]', state.highlighted === s.key ? 'border-gold bg-gold-pale/25' : 'border-transparent',
-      !s.enabled && state.highlighted !== s.key && 'bg-paper/70')}>
-      <div className="grid gap-x-6 gap-y-3 px-5 py-3.5 grid-cols-2 xl:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1fr)_13rem] items-start">
+    <li id={`src-${s.key}`} className={clsx('scroll-mt-24', state.highlighted === s.key ? 'bg-gold-pale/25 shadow-[inset_3px_0_0_#A8873A]' : !s.enabled && 'bg-paper/70')}>
+      <div className="grid gap-x-6 gap-y-3 px-5 py-3.5 grid-cols-2 xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1fr)_minmax(0,1fr)_12rem] items-start">
         {/* who / what */}
         <div className="col-span-2 xl:col-span-1 min-w-0">
           <div className={clsx('font-semibold text-[1.05rem] leading-snug', s.enabled ? 'text-charcoal' : 'text-muted')}>
@@ -111,14 +115,15 @@ function SourceRow({ s, state }: { s: SourceInfo; state: RowState }) {
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.88rem] text-muted">
             {s.publisher && <span>{s.publisher}</span>}
             <ReliabilityBadge reliability={s.reliability} />
-            {manual && <Badge tone="outline">{t('sources.row.manual')}</Badge>}
             {!s.enabled && <Badge tone="outline">{t('sources.row.disabled')}</Badge>}
           </div>
           <div className="mt-1 text-[0.86rem] text-muted leading-snug">
-            {s.expected_update && (
-              <>{t('sources.row.expected')}: <span className="text-charcoal-soft">{s.expected_update}</span><span className="mx-1.5">·</span></>
+              {s.expected_update && (
+              <>{t('sources.row.expected')}: <span className="text-charcoal-soft">{s.expected_update}</span>
+                {(counts.length > 0 || (s.freshness.status === 'never' && !manual)) && <span className="mx-1.5">·</span>}</>
             )}
-            <span className="num">{counts.length ? counts.join(' · ') : t('sources.row.counts.none')}</span>
+            {counts.length ? <span className="num">{counts.join(' · ')}</span>
+              : s.freshness.status === 'never' && !manual ? <span>{t('sources.row.counts.none')}</span> : null}
           </div>
         </div>
 
@@ -131,9 +136,9 @@ function SourceRow({ s, state }: { s: SourceInfo; state: RowState }) {
             <div className="text-[0.95rem] text-muted">{manual ? '—' : t('sources.row.noData')}</div>
           )}
           {s.latest_period_label && (
-            <div className="text-[0.86rem] text-muted">{t('sources.row.period')}: <span className="text-charcoal-soft">{fmtPeriod(s.latest_period_label, lang)}</span></div>
+            <div className="text-[0.86rem] text-muted">{t('sources.row.period')}: <span className="text-charcoal-soft">{periodText(s.latest_period_label, lang)}</span></div>
           )}
-          {!manual && <div className="mt-1.5"><FreshnessBadge status={s.freshness.status} ageDays={s.freshness.age_days} /></div>}
+          {!manual && s.freshness.status !== 'never' && <div className="mt-1.5"><FreshnessBadge status={s.freshness.status} ageDays={s.freshness.age_days} /></div>}
         </div>
 
         {/* last check */}
@@ -143,7 +148,7 @@ function SourceRow({ s, state }: { s: SourceInfo; state: RowState }) {
             <div className="flex items-center gap-1.5 text-forest-800 text-[0.95rem]"><Loader2 size={15} className="animate-spin" /> {t('sources.row.updating')}</div>
           ) : s.last_run_at ? (
             <>
-              <div className="text-[1rem] text-charcoal" title={fmtDateTime(s.last_run_at, lang)}>{fmtAgo(s.last_run_at, lang)}</div>
+              <div className="text-[1rem] text-charcoal" title={fmtDateTime(asUtc(s.last_run_at), lang)}>{fmtAgo(s.last_run_at, lang)}</div>
               {s.last_run_status && <div className="mt-1.5"><Badge tone={runTone(s.last_run_status)}>{t(`status.${s.last_run_status}`)}</Badge></div>}
               {s.last_run_status === 'failed' && lastError !== undefined && (
                 <p className="mt-1.5 text-[0.86rem] leading-snug text-down">{t(errorKey(lastError))}</p>
@@ -184,7 +189,7 @@ function SourceRow({ s, state }: { s: SourceInfo; state: RowState }) {
       {(s.key_missing || !s.enabled || expanded) && (
         <div className="px-5 pb-5 space-y-4">
           {!s.enabled && <p className="text-[0.9rem] text-muted">{t('sources.row.disabledNote')}</p>}
-          {s.key_missing && s.requires_key && s.enabled && <KeyHelp info={keyInfo} settingAttr={s.requires_key} optional={optional} />}
+          {s.key_missing && s.requires_key && s.enabled && <KeyHelp info={keyInfo} settingAttr={s.requires_key} optional={optional} defaultOpen={state.highlighted === s.key} />}
           {expanded && <div id={`runs-${s.key}`}><RunHistory sourceKey={s.key} /></div>}
         </div>
       )}

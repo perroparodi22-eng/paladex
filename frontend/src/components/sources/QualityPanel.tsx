@@ -10,6 +10,7 @@ import { pickLang, useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtAgo, fmtDate, fmtDateTime, fmtNumber, fmtPct, fmtPeriod } from '@/lib/format'
 import type { Lang } from '@/lib/types'
+import { asUtc } from './explain'
 import type { QualityIssue, QualityIssues, QualityRunResult, Severity } from './types'
 
 const VISIBLE = 6
@@ -60,7 +61,7 @@ export function QualityPanel({ onNotice }: { onNotice: (n: { tone: 'ok' | 'warn'
             {run.isPending ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
             {run.isPending ? t('sources.q.rechecking') : t('sources.q.recheck')}
           </button>
-          <span className="text-[0.82rem] text-muted" title={fmtDateTime(q.data?.last_check_at, lang)}>
+          <span className="text-[0.82rem] text-muted" title={fmtDateTime(asUtc(q.data?.last_check_at), lang)}>
             {q.data?.last_check_at ? t('sources.q.lastCheck', { t: fmtAgo(q.data.last_check_at, lang) }) : t('sources.q.neverChecked')}
           </span>
         </div>
@@ -125,8 +126,8 @@ function IssueItem({ issue }: { issue: QualityIssue }) {
         </div>
         <p className="mt-1.5 text-[1rem] leading-relaxed text-charcoal">{message}</p>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-5 gap-y-1 text-[0.85rem] text-muted">
-          <span title={fmtDateTime(issue.detected_at, lang)}>{t('sources.q.detected', { t: fmtAgo(issue.detected_at, lang) })}</span>
-          {issue.resolved_at && <span title={fmtDateTime(issue.resolved_at, lang)}>{t('sources.q.resolvedAt', { t: fmtAgo(issue.resolved_at, lang) })}</span>}
+          <span title={fmtDateTime(asUtc(issue.detected_at), lang)}>{t('sources.q.detected', { t: fmtAgo(issue.detected_at, lang) })}</span>
+          {issue.resolved_at && <span title={fmtDateTime(asUtc(issue.resolved_at), lang)}>{t('sources.q.resolvedAt', { t: fmtAgo(issue.resolved_at, lang) })}</span>}
           {numbers && (
             <button className="inline-flex items-center gap-1 text-forest-700 hover:text-forest-900" onClick={() => setOpen((x) => !x)} aria-expanded={open}>
               <ChevronDown size={14} className={clsx('transition-transform', open && 'rotate-180')} /> {t('sources.q.numbers')}

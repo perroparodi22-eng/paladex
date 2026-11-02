@@ -46,3 +46,11 @@ export function runTone(status: string | null | undefined): RunTone {
     default: return 'neutral'
   }
 }
+
+/** The backend stores naive UTC timestamps ("2026-11-02T08:55:00"): mark them as UTC so clock
+ * times are shown in the reader's local time. Dates ("2026-11-02") are returned unchanged. */
+export function asUtc(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  if (iso.length <= 10 || iso.endsWith('Z') || /[+-]\d\d:\d\d$/.test(iso)) return iso
+  return `${iso}Z`
+}

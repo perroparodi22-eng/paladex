@@ -5,7 +5,7 @@ import { Badge, ErrorBlock, Loading } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtDateTime, fmtNumber } from '@/lib/format'
-import { runExplanationKey, runTone } from './explain'
+import { asUtc, runExplanationKey, runTone } from './explain'
 import type { CollectionRunInfo, SourceRuns } from './types'
 
 export function RunHistory({ sourceKey }: { sourceKey: string }) {
@@ -19,7 +19,7 @@ export function RunHistory({ sourceKey }: { sourceKey: string }) {
   const runs = q.data?.runs ?? []
   return (
     <div>
-      <h3 className="eyebrow mb-2">{t('sources.runs.title')}</h3>
+      <h3 className="eyebrow font-sans mb-2">{t('sources.runs.title')}</h3>
       {runs.length === 0 ? (
         <p className="text-muted text-[0.95rem]">{t('sources.runs.empty')}</p>
       ) : (
@@ -38,7 +38,7 @@ function RunItem({ run }: { run: CollectionRunInfo }) {
   return (
     <li className="px-4 py-3 grid gap-x-5 gap-y-1 grid-cols-1 md:grid-cols-[11.5rem_minmax(0,1fr)_auto] items-start">
       <div className="text-[0.92rem]">
-        <div className="num text-charcoal">{fmtDateTime(run.started_at, lang)}</div>
+        <div className="num text-charcoal">{fmtDateTime(asUtc(run.started_at), lang)}</div>
         <div className="text-[0.8rem] text-muted">{trigger.startsWith('sources.') ? run.trigger : trigger}</div>
       </div>
       <div className="min-w-0">
@@ -66,7 +66,7 @@ function RunItem({ run }: { run: CollectionRunInfo }) {
         )}
       </div>
       <div className="text-[0.85rem] text-muted md:text-right whitespace-nowrap">
-        {run.status !== 'offline' && run.status !== 'skipped' && (
+        {['success', 'partial', 'no_change'].includes(run.status) && (
           <>
             <div className="num">{t('sources.runs.newRevised', { n: fmtNumber(run.items_new, lang), r: fmtNumber(run.items_revised, lang) })}</div>
             <div className="num text-[0.78rem]">{t('sources.runs.seen', { n: fmtNumber(run.items_seen, lang) })}</div>

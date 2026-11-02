@@ -144,7 +144,7 @@ function Suggestions({ data }: { data: SearchResponse }) {
       <div className="mt-4 grid gap-6 md:grid-cols-3 border-t border-line-soft pt-6">
         {s && s.countries.length > 0 && (
           <div>
-            <h3 className="eyebrow mb-2">{t('search.suggest.countries')}</h3>
+            <h3 className="eyebrow font-sans mb-2">{t('search.suggest.countries')}</h3>
             <div className="flex flex-wrap gap-2">
               {s.countries.map((c) => {
                 const name = lang === 'it' ? c.name_it : c.name_en
@@ -155,7 +155,7 @@ function Suggestions({ data }: { data: SearchResponse }) {
         )}
         {s && s.varieties.length > 0 && (
           <div>
-            <h3 className="eyebrow mb-2">{t('search.suggest.varieties')}</h3>
+            <h3 className="eyebrow font-sans mb-2">{t('search.suggest.varieties')}</h3>
             <div className="flex flex-wrap gap-2">
               {s.varieties.map((v) => {
                 const name = lang === 'it' ? v.it : v.en
@@ -165,7 +165,7 @@ function Suggestions({ data }: { data: SearchResponse }) {
           </div>
         )}
         <div>
-          <h3 className="eyebrow mb-2">{t('search.suggest.examples')}</h3>
+          <h3 className="eyebrow font-sans mb-2">{t('search.suggest.examples')}</h3>
           <div className="flex flex-wrap gap-2">
             {examples.map((e) => <Link key={e} to={`/cerca?q=${encodeURIComponent(e)}`} className={chip} data-result="">{e}</Link>)}
           </div>

@@ -52,7 +52,7 @@ from urllib.parse import urlparse
 from sqlalchemy import func, select
 
 from ..enums import DataStatus, PriceType, Reliability, SourceKind, TradeFlow, Variety
-from ..models import AppSetting, PriceObservation, ProductionStat, Report
+from ..models import AppSetting, ProductionStat, Report
 from ..reference.countries import country_name, lookup_iso3
 from ..reference.varieties import detect_color_grade, normalize_variety
 from .base import (
@@ -196,7 +196,8 @@ _PRICE_TAIL = re.compile(
 )
 _PRICE_LIKE = re.compile(r"\$\s?\d|\b\d+\.\d{2}\b")
 _PLACEHOLDER = re.compile(
-    r"\b(no reports? issued|no report|too few (?:prices|sales|reports|trades)\b.*|insufficient (?:data|prices|sales|trading)\b.*|"
+    r"\b(no reports? issued|no report|too few (?:prices|sales|reports|trades)\b.*|"
+    r"insufficient (?:data|prices|sales|trading)\b.*|"
     r"not available|no (?:sales|trading|market|prices) (?:reported|established)|none reported|n/a)\b",
     re.I,
 )
@@ -221,7 +222,8 @@ _HEADINGS: list[tuple[str, re.Pattern, int]] = [
 ]
 _BOILERPLATE = [
     re.compile(r"^(?:usda\s+)?national honey report\b.{0,40}$"),
-    re.compile(r"^(?:usda\b|u\.s\. department of agriculture|agricultural marketing service|specialty crops market news)"),
+    re.compile(r"^(?:usda\b|u\.s\. department of agriculture|agricultural marketing service|"
+               r"specialty crops market news)"),
     re.compile(r"(?:www\.|https?://|mymarketnews|@usda\.gov)"),
     re.compile(r"^for more information\b"),
 ]
@@ -411,17 +413,28 @@ def parse_price_token(token: str) -> tuple[float, bool]:
     return value, False
 
 
+_FOOTNOTE_TAIL = re.compile(r"\s*(?:\*+|\(\w\)|\d/)\s*$")
+
+
+def _is_price_token(token: str) -> bool:
+    """A bare integer of 4+ digits without '$' is a year or a quantity, never a price."""
+    t = token.replace(" ", "")
+    return "$" in t or "." in t or len(t) <= 3
+
+
 def split_price_tail(text: str) -> tuple[str, tuple[float, float | None, bool] | None]:
     """Split a table line into (text before the price, (low, high, printed_in_cents)).
-    Returns (text, None) when the line does not end in a price or price range."""
-    m = _PRICE_TAIL.search(text.rstrip())
-    if not m:
+    Returns (text, None) when the line does not end in a price or price range.
+    A trailing footnote marker ('*', '(a)', '1/') is ignored."""
+    stripped = _FOOTNOTE_TAIL.sub("", text.rstrip())
+    m = _PRICE_TAIL.search(stripped)
+    if not m or not all(_is_price_token(t) for t in (m.group("low"), m.group("high")) if t):
         return text, None
     low, c1 = parse_price_token(m.group("low"))
     high, c2 = (None, c1)
     if m.group("high"):
         high, c2 = parse_price_token(m.group("high"))
-    return text[: m.start()].rstrip(), (low, high, c1 or c2)
+    return stripped[: m.start()].rstrip(), (low, high, c1 or c2)
 
 
 def _geo(text: str, section: str) -> str | None:
@@ -517,6 +530,8 @@ def _match_heading(norm: str, current: str | None) -> str | None:
     for section, pattern, max_len in _HEADINGS:
         if max_len and (len(norm) > max_len or norm.endswith(".")):
             continue
+        if section == UNKNOWN and current == NARRATIVE:
+            continue            # "Prices paid to ... were steady" is commentary, not a new table
         if pattern.search(norm):
             return section
     # An HTS table title outside the export section starts the import tables.
@@ -1365,7 +1380,8 @@ class UsdaFasGatsCollector(Collector):
         complete = True
         ps, pe = month_bounds(rel.year, rel.month)
         label = _period_label(rel.year, rel.month)
-        for code, iso3 in GATS_PARTNERS.items():
+        partners = list(GATS_PARTNERS.items())
+        for i, (code, iso3) in enumerate(partners):
             url = GATS_IMPORTS_URL.format(partner=code, year=rel.year, month=rel.month)
             try:
                 # ~1 MB per partner-month for big partners: not archived (only the honey lines are kept)
@@ -1384,7 +1400,7 @@ class UsdaFasGatsCollector(Collector):
             if remaining.isdigit() and int(remaining) < GATS_MIN_RATE_REMAINING:
                 ctx.warn(f"api.data.gov quota nearly used up ({remaining} calls left this hour); "
                          "remaining months will be fetched on the next run")
-                return False, True
+                return complete and i == len(partners) - 1, True
         return complete, False
 
     def _store(self, ctx: CollectContext, rel: GatsRelease, code: str, iso3: str, url: str,

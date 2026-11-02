@@ -38,7 +38,7 @@ export function ResultGroup({ group, query }: { group: SearchGroup; query: strin
       actions={group.see_all && seeAllLabel ? (
         <Link to={group.see_all} className="link text-[0.92rem] inline-flex items-center gap-1">{seeAllLabel} <ArrowRight size={14} /></Link>
       ) : undefined}
-      bodyClassName={group.key === 'countries' || group.key === 'varieties' ? 'p-5' : 'p-0'}
+      bodyClassName={group.key === 'countries' || group.key === 'varieties' ? 'p-5' : '!p-0'}
       footer={more > 0 ? t('search.group.more', { n: fmtNumber(more, lang) }) : undefined}
     >
       {group.key === 'countries' && <CardGrid>{(group.items as CountryHit[]).map((c) => <CountryCard key={c.iso3} c={c} />)}</CardGrid>}
@@ -71,7 +71,7 @@ function CountryCard({ c }: { c: CountryHit }) {
         <Globe2 size={22} className="text-forest-600 shrink-0" />
         <div className="min-w-0">
           <div className="font-serif text-[1.15rem] font-semibold text-charcoal leading-tight">{main}</div>
-          <div className="text-[0.85rem] text-muted truncate">{[other !== main ? other : null, c.region].filter(Boolean).join(' · ')}</div>
+          {other !== main && <div className="text-[0.85rem] text-muted truncate">{other}</div>}
           <div className="mt-1.5">
             {c.has_prices ? <Badge tone="forest">{t('search.country.hasPrices')}</Badge> : <Badge tone="outline">{t('search.country.noPrices')}</Badge>}
           </div>
@@ -89,7 +89,7 @@ function VarietyCard({ v }: { v: VarietyHit }) {
     <Link to={v.target} className={cardCls} {...resultProps}>
       <div className="min-w-0">
         <div className="font-serif text-[1.15rem] font-semibold text-charcoal leading-tight">{main}</div>
-        <div className="text-[0.85rem] text-muted truncate">{other}</div>
+        {other !== main && <div className="text-[0.85rem] text-muted truncate">{other}</div>}
         <div className="mt-1.5">
           {v.has_prices ? <Badge tone="forest">{t('search.country.hasPrices')}</Badge> : <Badge tone="outline">{t('search.country.noPrices')}</Badge>}
         </div>
@@ -119,7 +119,7 @@ function PriceRow({ p }: { p: PriceHit }) {
             <div className="mt-1 flex flex-wrap gap-1.5">
               {p.price_types.map((pt) => <Badge key={pt} tone="neutral">{priceType(pt)}</Badge>)}
             </div>
-            <div className="mt-1.5 text-[0.88rem] text-muted num">
+            <div className="mt-1.5 text-[0.88rem] text-muted tabular-nums">
               {t('search.prices.latest')}: <span className="text-charcoal-soft">{fmtPeriod(p.latest_period_label, lang)}</span>
               {' · '}{t('search.prices.observations', { n: fmtNumber(p.observations, lang) })}
               {' · '}{p.sources === 1 ? t('search.prices.sourcesOne') : t('search.prices.sources', { n: p.sources })}

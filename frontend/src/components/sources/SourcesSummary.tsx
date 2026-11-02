@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { useI18n } from '@/i18n'
 import { fmtAgo, fmtDateTime, fmtNumber } from '@/lib/format'
 import type { CollectState, SourceInfo } from '@/lib/types'
+import { asUtc } from './explain'
 import type { QualitySummary } from './types'
 
 function needsAttention(s: SourceInfo): boolean {
@@ -25,7 +26,7 @@ export function SourcesSummary({ summary, sources, collect, onUpdateAll, startin
     : ok ? t('sources.sum.verdict.ok')
     : attention === 1 ? t('sources.sum.verdict.one')
     : attention > 1 ? t('sources.sum.verdict.attention', { n: attention })
-    : t('sources.sum.verdict.attention', { n: summary.issues.critical + summary.issues.warning })
+    : t('sources.sum.verdict.checks', { n: summary.issues.critical + summary.issues.warning })
 
   return (
     <section className="panel" aria-labelledby="sources-verdict">
@@ -50,13 +51,13 @@ export function SourcesSummary({ summary, sources, collect, onUpdateAll, startin
           <dl className="text-sm leading-snug">
             <div className="flex gap-2 items-baseline">
               <dt className="text-muted">{t('sources.sum.lastUpdate')}:</dt>
-              <dd className="text-charcoal font-medium" title={fmtDateTime(summary.last_check_at, lang)}>
+              <dd className="text-charcoal font-medium" title={fmtDateTime(asUtc(summary.last_check_at), lang)}>
                 {summary.last_check_at ? fmtAgo(summary.last_check_at, lang) : t('sources.sum.never')}
               </dd>
             </div>
             <div className="flex gap-2 items-baseline mt-0.5">
               <dt className="text-muted">{t('sources.sum.lastNewData')}:</dt>
-              <dd className="text-charcoal-soft" title={fmtDateTime(summary.last_new_data_at, lang)}>
+              <dd className="text-charcoal-soft" title={fmtDateTime(asUtc(summary.last_new_data_at), lang)}>
                 {summary.last_new_data_at ? fmtAgo(summary.last_new_data_at, lang) : t('sources.sum.never')}
               </dd>
             </div>
@@ -68,7 +69,7 @@ export function SourcesSummary({ summary, sources, collect, onUpdateAll, startin
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-px bg-line-soft">
         <Stat label={t('sources.sum.active')} value={fmtNumber(s.enabled, lang)} hint={t('sources.sum.activeOf', { n: s.total })} href="#fonti-elenco" />
         <Stat label={t('sources.sum.current')} value={fmtNumber(s.current, lang)} hint={t('sources.sum.currentHint')} dot="bg-up" href="#fonti-elenco" />
         <Stat label={t('sources.sum.late')} value={fmtNumber(s.aging + s.stale, lang)} hint={t('sources.sum.lateHint')} dot="bg-warn" href="#fonti-elenco"
@@ -77,7 +78,8 @@ export function SourcesSummary({ summary, sources, collect, onUpdateAll, startin
           emphasis={s.errors > 0} />
         <Stat label={t('sources.sum.issues')} value={fmtNumber(summary.issues.open, lang)} href="#qualita"
           hint={t('sources.sum.issuesHint', { c: summary.issues.critical, w: summary.issues.warning, i: summary.issues.info })}
-          dot={summary.issues.critical ? 'bg-down' : summary.issues.warning ? 'bg-warn' : undefined} emphasis={summary.issues.critical > 0} />
+          dot={summary.issues.critical ? 'bg-down' : summary.issues.warning ? 'bg-warn' : undefined} emphasis={summary.issues.critical > 0}
+          className="col-span-2 xl:col-span-1" />
       </div>
 
       {running && collect?.started_at && (
@@ -90,9 +92,11 @@ export function SourcesSummary({ summary, sources, collect, onUpdateAll, startin
   )
 }
 
-function Stat({ label, value, hint, dot, href, emphasis }: { label: string; value: ReactNode; hint: string; dot?: string; href: string; emphasis?: boolean }) {
+function Stat({ label, value, hint, dot, href, emphasis, className }: {
+  label: string; value: ReactNode; hint: string; dot?: string; href: string; emphasis?: boolean; className?: string
+}) {
   return (
-    <a href={href} className="group block px-6 py-4 border-line-soft border-t sm:border-t-0 sm:[&:nth-child(n+4)]:border-t lg:[&:nth-child(n+4)]:border-t-0 border-r last:border-r-0 hover:bg-ivory/40">
+    <a href={href} className={clsx('group block bg-white px-6 py-4 hover:bg-[#FCFAF4]', className)}>
       <div className="eyebrow flex items-center gap-1.5">
         {dot && <span className={clsx('inline-block h-2 w-2 rounded-full', dot)} />}
         {label}

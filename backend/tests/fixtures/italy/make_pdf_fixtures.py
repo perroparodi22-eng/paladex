@@ -41,21 +41,28 @@ def _cuneo_averages(path: Path, year: int, rows: list[list[str]], ruled: bool) -
     ])
 
 
+def _row(label: str, months: str, mean: str) -> list[str]:
+    """One averages row: twelve space-separated monthly values ('_' = no quotation) and the mean."""
+    cells = ["" if v == "_" else v for v in months.split()]
+    assert len(cells) == 12, label
+    return [label, *cells, mean]
+
+
 def cuneo_averages() -> None:
     # 2025: annual means close to the approximate 2025 averages quoted in docs/research/italy.json
     # (acacia 8,09, millefiori 5,83, castagno 5,80, tiglio 6,59, alta montagna 7,67); the monthly
     # values are illustrative. Blank cells = month without a quotation.
     rows_2025 = [
-        ["Acacia (fusto da 3 q.li)", "8,00", "8,00", "8,00", "8,00", "8,00", "8,10", "8,20", "8,20", "8,20", "8,10", "8,10", "8,10", "8,09"],
-        ["Millefiori (fusto da 3 q.li)", "5,90", "5,90", "5,90", "5,90", "5,80", "5,80", "5,80", "5,80", "5,80", "5,80", "5,75", "5,75", "5,83"],
-        ["Castagno (fusto da 3 q.li)", "", "", "5,80", "5,80", "5,80", "5,80", "5,80", "5,80", "5,80", "5,80", "5,80", "5,80", "5,80"],
-        ["Tiglio (fusto da 3 q.li)", "6,60", "6,60", "6,60", "6,60", "6,60", "6,60", "6,60", "6,60", "6,55", "6,55", "6,60", "6,60", "6,59"],
-        ["Millefiori di alta montagna (secchio da 25 kg)", "", "", "", "", "", "", "", "", "7,67", "7,67", "7,67", "7,67", "7,67"],
+        _row("Acacia (fusto da 3 q.li)", "8,00 8,00 8,00 8,00 8,00 8,10 8,20 8,20 8,20 8,10 8,10 8,10", "8,09"),
+        _row("Millefiori (fusto da 3 q.li)", "5,90 5,90 5,90 5,90 5,80 5,80 5,80 5,80 5,80 5,80 5,75 5,75", "5,83"),
+        _row("Castagno (fusto da 3 q.li)", "_ _ 5,80 5,80 5,80 5,80 5,80 5,80 5,80 5,80 5,80 5,80", "5,80"),
+        _row("Tiglio (fusto da 3 q.li)", "6,60 6,60 6,60 6,60 6,60 6,60 6,60 6,60 6,55 6,55 6,60 6,60", "6,59"),
+        _row("Millefiori di alta montagna (secchio da 25 kg)", "_ _ _ _ _ _ _ _ 7,67 7,67 7,67 7,67", "7,67"),
     ]
     _cuneo_averages(HERE / "cuneo_medie_2025.pdf", 2025, rows_2025, ruled=True)
     rows_2024 = [
-        ["Acacia (fusto da 3 q.li)", "7,90", "7,90", "", "8,00", "8,00", "8,00", "8,10", "8,10", "8,10", "8,10", "8,10", "8,10", "8,04"],
-        ["Millefiori (fusto da 3 q.li)", "6,00", "6,00", "6,00", "", "", "", "5,90", "5,90", "5,90", "5,90", "5,90", "5,90", "5,94"],
+        _row("Acacia (fusto da 3 q.li)", "7,90 7,90 _ 8,00 8,00 8,00 8,10 8,10 8,10 8,10 8,10 8,10", "8,04"),
+        _row("Millefiori (fusto da 3 q.li)", "6,00 6,00 6,00 _ _ _ 5,90 5,90 5,90 5,90 5,90 5,90", "5,94"),
     ]
     _cuneo_averages(HERE / "cuneo_medie_2024_unruled.pdf", 2024, rows_2024, ruled=False)
 

@@ -54,6 +54,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from itertools import pairwise
 from urllib.parse import unquote, urljoin, urlparse
 
 from bs4 import BeautifulSoup
@@ -687,11 +688,13 @@ def parse_cuneo_list_csv(content: bytes | str, *, fallback_title: str | None = N
     lines = text.splitlines()
     delimiter = max((";", "\t", ","), key=lambda d: sum(line.count(d) for line in lines[:40]))
     rows = [[_clean(c) for c in r] for r in csv.reader(lines, delimiter=delimiter)]
-    for h, r in enumerate(rows[:40]):
-        mapping = _map_header(r, CUNEO_SPEC)
-        if all(k in mapping for k in ("product", "min", "max")):
+    h, mapping = -1, {}
+    for i, r in enumerate(rows[:40]):
+        candidate = _map_header(r, CUNEO_SPEC)
+        if all(k in candidate for k in ("product", "min", "max")):
+            h, mapping = i, candidate
             break
-    else:
+    if h < 0:
         raise SchemaDrift(
             f"Cuneo honey list (CSV): no header row with Prodotto / Prezzo min / Prezzo max (first rows: {rows[:3]})"
         )
@@ -782,21 +785,23 @@ def _averages_from_words(page, unit: str, problems: list[str]) -> list[dict] | N
     """Fallback for unruled tables: locate the month header words and assign each number to
     the nearest column centre. Returns None when the page has no month header."""
     lines = _group_lines(page.extract_words(keep_blank_chars=False, use_text_flow=False))
-    for idx, (_, words) in enumerate(lines):
-        cols: dict[int, tuple[float, float]] = {}
+    header_idx, cols = None, {}
+    for i, (_, words) in enumerate(lines):
+        found: dict[int, tuple[float, float]] = {}     # month (0 = Media) -> (x centre, x0)
         for w in words:
             k = _month_of_header(w["text"])
-            if k is not None and k not in cols:
-                cols[k] = ((w["x0"] + w["x1"]) / 2, w["x0"])
-        if len([k for k in cols if k]) == 12:
+            if k is not None and k not in found:
+                found[k] = ((w["x0"] + w["x1"]) / 2, w["x0"])
+        if len([k for k in found if k]) == 12:
+            header_idx, cols = i, found
             break
-    else:
+    if header_idx is None:
         return None
     centres = sorted((c, k) for k, (c, _) in cols.items())
-    spacing = min(b[0] - a[0] for a, b in zip(centres, centres[1:]))
+    spacing = min(b[0] - a[0] for a, b in pairwise(centres))
     label_right = min(x0 for _, x0 in cols.values()) - 1
     rows, pending = [], ""
-    for _, words in lines[idx + 1:]:
+    for _, words in lines[header_idx + 1:]:
         label = _clean(" ".join(w["text"] for w in words if w["x1"] <= label_right))
         values = [w for w in words if w["x1"] > label_right]
         if not values:
@@ -843,7 +848,7 @@ def parse_cuneo_averages_pdf(content: bytes, *, year: int | None = None) -> Cune
                     continue
                 header_found = page_done = True
                 h, cmap, unit_col = hdr
-                label_col = next(j for j in range(len(tbl[h])) if j not in cmap and j != unit_col)
+                label_col = next((j for j in range(len(tbl[h])) if j not in cmap and j != unit_col), 0)
                 for r in tbl[h + 1:]:
                     cells = {k: (r[j] if j < len(r) else "") or "" for j, k in cmap.items()}
                     row_unit = unit
@@ -852,7 +857,8 @@ def parse_cuneo_averages_pdf(content: bytes, *, year: int | None = None) -> Cune
                         if not row_unit:
                             result.problems.append(f"Cuneo averages: unknown unit {r[unit_col]!r}; row skipped")
                             continue
-                    row = _averages_row(r[label_col] or "" if label_col < len(r) else "", cells, row_unit, result.problems)
+                    label = (r[label_col] or "") if label_col < len(r) else ""
+                    row = _averages_row(label, cells, row_unit, result.problems)
                     if row:
                         result.rows.append(row)
             if not page_done:
@@ -1491,12 +1497,16 @@ def extract_onm_prices(paragraphs: list[str]) -> list[dict]:
                     origin = detect_origin(span)
                     if origin.ambiguous:
                         continue
-                    if re.search(r"\bfust[oi]\b", span):
+                    span_fusto = bool(re.search(r"\bfust[oi]\b", span))
+                    span_secchio = bool(re.search(r"\bsecch|\blatt[ae]\b", span))
+                    if span_fusto and span_secchio:
+                        continue                     # drums and tins named together: which one?
+                    if span_fusto:
                         packaging = "fusto"
-                    elif re.search(r"\bsecch|\blatt[ae]\b", span):
+                    elif span_secchio:
                         packaging = "secchio"
                     elif sent_fusto and sent_secchio:
-                        continue                     # both channels in the sentence: which one?
+                        continue
                     else:
                         packaging = "fusto" if sent_fusto else "secchio" if sent_secchio else "non_specificato"
                     variety, organic = normalize_it_variety(subject["kw"])
@@ -1511,7 +1521,8 @@ def extract_onm_prices(paragraphs: list[str]) -> list[dict]:
     # The same variety/organic/origin/packaging twice with different numbers is ambiguous.
     by_key: dict[tuple, list[dict]] = {}
     for f in found:
-        by_key.setdefault((f["variety_raw"], f["organic"], f["origin_iso3"], f["origin_label"], f["packaging_code"]), []).append(f)
+        key = (f["variety_raw"], f["organic"], f["origin_iso3"], f["origin_label"], f["packaging_code"])
+        by_key.setdefault(key, []).append(f)
     out = []
     for group in by_key.values():
         if len({(g["low"], g["high"]) for g in group}) == 1:
@@ -1619,7 +1630,7 @@ def _parse_text_table(lines: list[str], start: int, problems: list[str], what: s
             problems.append(f"ONM annual report, {what} '{label}': {len(tokens)} values for {len(cols)} columns; row skipped")
             continue
         try:
-            values = dict(zip(cols, (parse_it_number(t) for t in tokens)))
+            values = dict(zip(cols, (parse_it_number(t) for t in tokens), strict=True))
         except ValueError:
             problems.append(f"ONM annual report, {what} '{label}': unparseable values {tokens}; row skipped")
             continue

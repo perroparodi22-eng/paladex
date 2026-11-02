@@ -25,6 +25,7 @@ export default {
     'sum.verdict.ok': 'Le fonti attive sono aggiornate e non ci sono problemi aperti.',
     'sum.verdict.attention': '{n} fonti richiedono attenzione: i dettagli sono qui sotto.',
     'sum.verdict.one': '1 fonte richiede attenzione: i dettagli sono qui sotto.',
+    'sum.verdict.checks': 'Le fonti sono aggiornate, ma ci sono {n} dati da verificare: i dettagli sono qui sotto.',
     'sum.verdict.empty': 'Non è ancora stato raccolto nessun dato. Premi «Aggiorna tutto» per iniziare.',
     'sum.keysMissing': '{n} fonti attendono una chiave di accesso gratuita.',
     'sum.offline': 'Ultimo tentativo senza connessione internet: i dati salvati restano visibili.',
@@ -87,6 +88,8 @@ export default {
 
     // key help
     'key.title': 'Serve una chiave di accesso gratuita',
+    'key.how': 'Come aggiungerla (5 passaggi)',
+    'key.hide': 'Nascondi i passaggi',
     'key.optional': 'Questa fonte funziona anche senza chiave, ma con meno dati: con la chiave gratuita ottieni la serie completa.',
     'key.required': 'Senza la chiave questa fonte non può essere aggiornata.',
     'key.step1': 'Registrati gratuitamente su',
@@ -224,6 +227,7 @@ export default {
     'sum.verdict.ok': 'Active sources are up to date and there are no open issues.',
     'sum.verdict.attention': '{n} sources need attention: details below.',
     'sum.verdict.one': '1 source needs attention: details below.',
+    'sum.verdict.checks': 'Sources are up to date, but {n} figures should be checked: details below.',
     'sum.verdict.empty': 'No data has been collected yet. Press “Update all” to start.',
     'sum.keysMissing': '{n} sources are waiting for a free access key.',
     'sum.offline': 'Last attempt had no internet connection: saved data is still shown.',
@@ -283,6 +287,8 @@ export default {
     'row.toggledOff': '“{name}” has been turned off.',
 
     'key.title': 'A free access key is needed',
+    'key.how': 'How to add it (5 steps)',
+    'key.hide': 'Hide the steps',
     'key.optional': 'This source also works without a key, but with less data: the free key gives you the full series.',
     'key.required': 'Without the key this source cannot be updated.',
     'key.step1': 'Sign up for free at',
