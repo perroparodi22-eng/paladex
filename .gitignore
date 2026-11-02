@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+# Node
+node_modules/
+frontend/dist/
+# Local data (never commit the father's database or API keys)
+data/
+*.sqlite3
+*.db
+.env
