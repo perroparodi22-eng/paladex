@@ -884,7 +884,7 @@ def partner_breakdown(ctx: Ctx, reporter: str, flow: str, year: int | None = Non
     total = candidate_total(ctx, pick, totals)
     out.update(
         available=bool(rows), rows=head, partners_count=len(rows), total=total, share_basis=share_basis,
-        frequency=pick.freq, months_count=pick.periods if pick.freq == "M" else None, complete=pick.complete,
+        months_count=pick.periods if pick.freq == "M" else None, complete=pick.complete,
         summed_from_months=pick.summed_from_months, source_key=ctx.source(pick.source_id).key if ctx.source(pick.source_id) else None,
         **provenance(ctx, pick.source_id, pick.total, pick.freq, period_label=str(year)),
         freshness=ctx.freshness_for(pick.source_id, pick.total.published_at or pick.total.end, pick.freq),
