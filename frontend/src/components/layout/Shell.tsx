@@ -190,6 +190,19 @@ function TopBar() {
   )
 }
 
+/** Attribution required by the sources' terms (FAOSTAT/Eurostat CC BY 4.0, GDELT citation, NASS API notice). */
+function AttributionFooter() {
+  const { t } = useI18n()
+  return (
+    <footer className="px-8 py-4 border-t border-line text-[0.75rem] leading-relaxed text-muted max-w-[1600px]">
+      <span className="font-medium text-charcoal-soft">{t('footer.sources')}</span>{' '}
+      USDA AMS · USDA FAS · USDA NASS · Eurostat (CC BY 4.0) · European Commission · UN Comtrade · FAOSTAT (CC BY 4.0) ·
+      ECB · The GDELT Project (gdeltproject.org) · Osservatorio Nazionale Miele · ISMEA · CCIAA Cuneo · CCIAA Arezzo-Siena ·
+      Federal Register · EUR-Lex. {t('footer.nass')} {t('footer.private')}
+    </footer>
+  )
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen">
@@ -197,6 +210,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <div className="flex-1 min-w-0 flex flex-col">
         <TopBar />
         <main className="flex-1 px-8 py-7 max-w-[1600px] w-full">{children}</main>
+        <AttributionFooter />
       </div>
     </div>
   )

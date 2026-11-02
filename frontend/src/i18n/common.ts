@@ -5,6 +5,9 @@ export const common = {
     'app.subtitle': 'Honey Intelligence',
     'app.tagline': 'Intelligence sul mercato mondiale del miele',
     'app.heritage': 'Oltre 160 anni · Italia · USA',
+    'footer.sources': 'Fonti dei dati:',
+    'footer.nass': 'This product uses the NASS API but is not endorsed or certified by NASS.',
+    'footer.private': 'Strumento interno riservato a Parodi Group: i dati restano su questo computer.',
 
     'nav.section.market': 'Mercato',
     'nav.section.business': 'Azienda',
@@ -94,6 +97,9 @@ export const common = {
     'app.subtitle': 'Honey Intelligence',
     'app.tagline': 'Global honey market intelligence',
     'app.heritage': '160+ years · Italy · USA',
+    'footer.sources': 'Data sources:',
+    'footer.nass': 'This product uses the NASS API but is not endorsed or certified by NASS.',
+    'footer.private': 'Internal Parodi Group tool: data stays on this computer.',
 
     'nav.section.market': 'Market',
     'nav.section.business': 'Business',
