@@ -7,7 +7,7 @@ export default defineConfig({
   resolve: { alias: { '@': '/src' } },
   server: {
     port: 5173,
-    proxy: { '/api': 'http://127.0.0.1:8765' },
+    proxy: { '/api': process.env.PALADEX_API ?? 'http://127.0.0.1:8765' },
   },
   build: {
     outDir: 'dist',

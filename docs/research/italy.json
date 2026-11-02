@@ -1,0 +1,251 @@
+{
+ "cluster": "Italian honey wholesale prices and production (Osservatorio Nazionale Miele / Mieleinforma, ISMEA Mercati, Chambers of Commerce (Cuneo, Arezzo-Siena, Bologna, Torino, Milano), and Italian production reports)",
+ "sources": [
+  {
+   "name": "Osservatorio Nazionale Miele (ONM): public monthly bulletin pages on informamiele.it ('Rilevazione mensile')",
+   "access_method": "HTML (WordPress posts). Possibly an RSS feed (the standard WordPress /feed/ path), not verified.",
+   "endpoints": [
+    "https://www.informamiele.it/{mese}-{yyyy}-rilevazione-mensile/   (current template, verified by many examples: agosto-2026, luglio-2026, giugno-2026, aprile-2026, febbraio-2026, dicembre-2025, ottobre-2025, agosto-2025, settembre-2023; {mese} = Italian month in lowercase)",
+    "https://www.informamiele.it/{mese}-{yyyy}-indagine-produttiva-ed-economica/   (2021-2022 template, e.g. dicembre-2021, agosto-2022)",
+    "https://www.informamiele.it/{mese}-{yyyy}-indagine-produttiva-ed-economica.html   (older template, e.g. gennaio-2020, agosto-2021, ottobre-2022)",
+    "https://www.informamiele.it/monitoraggio-produzione-e-mercato/   (section landing page)",
+    "https://www.informamiele.it/tutte-le-notizie/   (news listing)",
+    "https://www.informamiele.it/category/comunicati/  and  /category/comunicati/page/{n}/   (verified WP category archive)",
+    "UNVERIFIED (standard WordPress paths, not confirmed): https://www.informamiele.it/feed/ ; https://www.informamiele.it/category/comunicati/feed/ ; https://www.informamiele.it/wp-json/wp/v2/posts?search=rilevazione&per_page=20&_fields=id,date,link,title,content",
+    "https://rilevazione.informamiele.it/   (data-entry portal for the ONM's surveyors and beekeepers. It is NOT a data source)"
+   ],
+   "auth": "none for the public pages",
+   "cost_licensing": "Free to read. Reports are marked '© Osservatorio Nazionale Miele'. I found no open licence and no explicit scraping clause. Contact: osservatorio@informamiele.it, tel. 051 940147, Castel San Pietro Terme (BO). Use politely (one fetch per day) and ask permission before redistributing figures outside the company. ONM runs this survey on behalf of ISMEA, so the same network feeds ISMEA's honey prices.",
+   "update_frequency": "Monthly. Example: the September 2026 bulletin was listed on the home page as posted 20/10/2026. The 'Prime valutazioni' report comes out in mid-September and the annual report in early March.",
+   "data_available": "Since 2023 the public page is only a SUMMARY: weather, production by area (kg per hive), a narrative on the market, swarms and queens. Prices appear only as ranges in the prose, for example Aug 2026: 'offerte d'acquisto (attorno ai 4,00 €/kg per il millefiori)'; Jul 2026: conventional millefiori 5,00-6,50 €/kg, monofloral 6,00-7,50, acacia 8,00-10,00. Price basis: €/kg, transactions on the wholesale market, 'franco produttore, IVA inclusa' (queen prices are IVA esclusa). Two channels are covered: fusti (300 kg drums, sold to packers) and secchi/latte (25 kg tins, sold between beekeepers). Conventional and organic are split, and North/Centre/South are compared. The 2020-2022 pages carried fuller price text by region and variety in public.",
+   "parsing_notes": "(1) The FULL monthly report with price tables is NOT public. Since 2023 the pages say to read the complete survey on MIELEINFORMA (see the next source). (2) The prices are prose, so extract them with regex patterns such as r'(\\d+,\\d{2})\\s*(?:-|e)\\s*(\\d+,\\d{2})\\s*€/kg' next to variety keywords (millefiori, acacia, castagno, tiglio, agrumi, girasole, eucalipto, melata, sulla), and keep the context sentence for manual review. Decimals use commas. (3) The URL slug templates changed in 2023 and some slugs carry a '-2' suffix (seen on mirrors), so discover new posts from a listing or feed rather than by building URLs. (4) The methodology note says no quote for a market means no transactions were recorded. Store this as a missing value, not zero. (5) The publication date is about 3 weeks after the reference month, so store reference_month separately from published_at.",
+   "publication_lag": "About 3 weeks after month end",
+   "rate_limits": "None documented. Fetch once a day at most.",
+   "sample_response": "RECONSTRUCTED from search snippets: <h1>Agosto 2026 - Rilevazione mensile</h1> … sections 'Andamento meteorologico' / 'Andamento produttivo' / 'Mercato' … text: 'Rimane stazionario il mercato del miele all'ingrosso in fusti, con un volume ridotto di transazioni verso le principali aziende di confezionamento e prezzi ancora in fase di definizione. Si registrano diversi casi di trattative non finalizzate a causa di offerte d'acquisto (attorno ai 4,00 €/kg per il millefiori)…' … followed by a link to the complete survey on Mieleinforma.",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://www.informamiele.it/agosto-2026-rilevazione-mensile/",
+    "https://www.informamiele.it/luglio-2026-rilevazione-mensile/",
+    "https://www.informamiele.it/monitoraggio-produzione-e-mercato/",
+    "https://www.informamiele.it/category/comunicati/page/2/",
+    "https://www.apilombardia.it/produzioni/luglio-2026-rilevazione-mensile-dellosservatorio-nazionale-miele/",
+    "https://www.iubenda.com/app/privacy-policy/30654350/legal"
+   ],
+   "honey_specific_codes": "Slug keyword 'rilevazione-mensile'. Varieties named in the bulletins: millefiori, acacia, castagno, tiglio, agrumi, girasole, eucalipto, melata, sulla, plus about 33 honey types monitored in total."
+  },
+  {
+   "name": "MieleInforma (mieleinforma.it plus iOS/Android app): ONM's Technical Reference Centre, which holds the FULL monthly price tables",
+   "access_method": "Web app/portal behind a login (HTML). I found no public API.",
+   "endpoints": [
+    "https://mieleinforma.it/ (login and registration)",
+    "iOS app: https://apps.apple.com/it/app/mieleinforma/id6463791404"
+   ],
+   "auth": "Free registration ('E' facile e gratuito, basta registrarsi su mieleinforma.it oppure scaricare l'app'). Creates a personal account.",
+   "cost_licensing": "Free. I could not find the terms of use. Automated scraping of a logged-in personal account is likely against the terms, but this is unverified. Recommended route: register manually, read the monthly reports by hand, or ask ONM for a data-sharing agreement or CSV.",
+   "update_frequency": "Monthly (complete version of each 'rilevazione mensile'), plus annual and preliminary reports",
+   "data_available": "Per the ONM and Apilombardia notices: the complete monthly report with the sale prices recorded in recent months for honey in 300 kg drums (fusti) and 25 kg tins (latte/secchi), broken down by region and variety, conventional and organic. It also covers prices for swarms, queens, pollen, propolis and pollination services, the annual reports, and the monofloral characterisation sheets.",
+   "parsing_notes": "I could not inspect the portal (the session network blocks it). Treat it as a manual or partnership source. If ONM sends PDFs, they will probably use the same layout as the annual-report tables: variety x min/max/avg €/kg, fusti 300 kg.",
+   "publication_lag": "About 3 weeks after month end",
+   "rate_limits": "Unknown",
+   "sample_response": "Not available, because the portal could not be accessed.",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://www.informamiele.it/chi-siamo/",
+    "https://www.informamiele.it/report-annuali-produzione-e-mercato/",
+    "https://www.apilombardia.it/produzioni/marzo-2024-rilevazione-mensile-dellosservatorio-nazionale-miele/",
+    "https://apps.apple.com/it/app/mieleinforma/id6463791404"
+   ],
+   "honey_specific_codes": "n/a"
+  },
+  {
+   "name": "ONM annual and preliminary production and market reports (Report Annuale, Report di Prime Valutazioni, 'Il Valore della Terra')",
+   "access_method": "PDF (wp-content uploads), with HTML announcement posts",
+   "endpoints": [
+    "https://www.informamiele.it/report-annuali-produzione-e-mercato/   (archive page, organised by year)",
+    "https://www.informamiele.it/report-annuale-andamento-produttivo-e-di-mercato-stagione-2025/",
+    "https://www.informamiele.it/report-di-prime-valutazioni-della-stagione-2026/",
+    "https://www.informamiele.it/wp-content/uploads/2025/03/REPORT-Annuale-2024.pdf",
+    "https://www.informamiele.it/wp-content/uploads/2025/02/Report-Prime-Valutazioni-2024.pdf",
+    "https://www.informamiele.it/wp-content/uploads/2025/02/Report-2023-Il-Valore-della-Terra.pdf",
+    "https://www.informamiele.it/wp-content/uploads/2023/03/Report-2022-Il-Valore-della-Terra-per-web.pdf",
+    "Mirror of the 2025 annual report: https://www.apicoltoremoderno.it/wp-content/uploads/2026/03/Report-annuale-Monitoraggio-produzione-e-mercato-del-miele-stagione-2025-2.pdf",
+    "Mirror of the 2024 annual report: https://www.apilombardia.it/wp-content/uploads/2025/03/ONM_REPORTAnnuale_2024.pdf"
+   ],
+   "auth": "none for the PDFs found. The 2025 annual report page says the full text is on Mieleinforma.",
+   "cost_licensing": "© Osservatorio Nazionale Miele. Free download. I found no redistribution licence. (A CREA/ONM cost study carries CC BY-NC-SA, but that applies only to that study.)",
+   "update_frequency": "Annual report: early March (2025 season report published 3 March 2026 and presented at APIMELL Piacenza, 6-8 March 2026). Prime Valutazioni: mid-September (2026 edition presented 19-20 Sept 2026 at Castel San Pietro Terme).",
+   "data_available": "National production in tonnes with regional detail. Example: the 2025 season was estimated at 30,992 t, according to Apilombardia's summary. Also yields in kg per hive by region and variety, and hive counts. The 2025 report surveyed over 400 farms in 93 provinces covering 33 honey types. Tables give wholesale prices (min/max/avg €/kg) for the main conventional honeys in 300 kg drums, for lots over 30 quintals, IVA inclusa, franco produttore. There are North/Centre/South tables, an organic vs conventional premium (2024: +9.7%), direct-sale prices, and a section on IMPORT PRICES IN ITALY BY COUNTRY OF ORIGIN, which is highly relevant to an importer.",
+   "parsing_notes": "Designed brochure PDFs with multi-column layout. Use pdfplumber.extract_tables() page by page and fall back to extract_words() with x-coordinate bucketing. Column headers are often missing in extracted text: a search extract of a regional table showed bare numbers ('Nord 100 / 130 / 16 / 20'), so map columns by hand for each edition. The file names are irregular. Discover PDFs by scraping the archive page for links ending in .pdf rather than building URLs. Numbers use comma decimals.",
+   "publication_lag": "About 2 months after season end (annual). The preliminary report comes out mid-season.",
+   "rate_limits": "n/a (static files)",
+   "sample_response": "RECONSTRUCTED: the 'Prezzi principali mieli convenzionali in fusti da 300 kg' table has rows per variety (Acacia, Agrumi, Castagno, Millefiori, Tiglio, …) and columns Min | Max | Media €/kg. A separate 'Prezzi all'importazione per paese di origine' table has country rows and €/kg values. Exact headers are unverified.",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://www.informamiele.it/report-annuale-andamento-produttivo-e-di-mercato-stagione-2025/",
+    "https://www.apilombardia.it/produzioni/report-annuale-dellosservatorio-nazionale-miele-stagione-2025/",
+    "https://www.informamiele.it/report-di-prime-valutazioni-della-stagione-2026/",
+    "https://www.informamiele.it/wp-content/uploads/2025/03/REPORT-Annuale-2024.pdf",
+    "https://www.apicolturaonline.it/comunicatoreport2025.pdf"
+   ],
+   "honey_specific_codes": "n/a"
+  },
+  {
+   "name": "Third-party mirrors of the ONM monthly bulletin: Apicoltore Moderno (full PDF attachments) and Apilombardia (summaries)",
+   "access_method": "HTML posts plus PDF attachments (WordPress). The standard WordPress RSS paths are unverified.",
+   "endpoints": [
+    "https://www.apicoltoremoderno.it/{mese}-{yyyy}-indagine-meteorologica-produttiva-ed-economica/   (verified: settembre-2026, agosto-2026, maggio-2026, aprile-2026)",
+    "PDF examples (irregular names): https://www.apicoltoremoderno.it/wp-content/uploads/2025/11/Rilevazione-ottobre-2025.pdf ; /wp-content/uploads/2026/05/Rilevazione-aprile-2026.pdf ; /wp-content/uploads/2026/04/Rilevazione-marzo-2026.pdf ; /wp-content/uploads/2026/03/Rilevazione-febbraio-2026-Rilevazione-mensile.pdf ; /wp-content/uploads/2025/02/Gennaio-rilevamento-mensile.pdf ; /wp-content/uploads/2026/02/Andamento-metereologico-gennaio-2026.pdf",
+    "https://www.apicoltoremoderno.it/tag/miele/",
+    "https://www.apilombardia.it/produzioni/{mese}-{yyyy}-rilevazione-mensile-dellosservatorio-nazionale-miele/   (also seen under /monitoraggi/…, with a '-2' suffix)",
+    "UNVERIFIED: https://www.apicoltoremoderno.it/feed/ ; https://www.apilombardia.it/category/produzioni/feed/"
+   ],
+   "auth": "none",
+   "cost_licensing": "These are republications of ONM content, which remains © ONM. Treat them as a convenience copy for internal use only. Do not redistribute without ONM's consent.",
+   "update_frequency": "Monthly, a few days to weeks after ONM publishes",
+   "data_available": "Apicoltore Moderno's PDFs appear to be the full monthly bulletin with explicit price ranges. Oct 2025 example: packers paid conventional millefiori 4-4,5 €/kg in fusto and organic about 5 €/kg in fusto. Between beekeepers, per kg in latta: millefiori 6-6,5; castagno 6,5-6,7 (organic 7); acacia 8,5-9 (organic 8,5-10); tiglio 6,5-6,7 (organic 7). Jan 2026 (covering Q4 2025): conventional millefiori in 300 kg drums 4,00-4,50 €/kg, organic 6,00-6,30. Basis: 'Franco Produttore I.V.A. inclusa'.",
+   "parsing_notes": "The PDF file names change every month, so find the PDF link from the post HTML (the <a href> ending in .pdf) instead of building the URL. The PDF is mostly prose plus a few small tables, so combine pdfplumber extract_text() with the same regex as for the ONM pages. Expect a lag of the post date after the reference month.",
+   "publication_lag": "About 3-6 weeks after month end",
+   "rate_limits": "None documented",
+   "sample_response": "RECONSTRUCTED from snippets: 'Il prezzo del miele (€/kg) per le transazioni avvenute sul mercato all'ingrosso è inteso Franco Produttore I.V.A. inclusa.' … 'il miele millefiori convenzionale mostra quotazioni prevalentemente comprese tra 4 e 4,5 €/kg (fusto), mentre il millefiori biologico si attesta intorno ai 5 €/kg (fusto)'.",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://www.apicoltoremoderno.it/wp-content/uploads/2025/11/Rilevazione-ottobre-2025.pdf",
+    "https://www.apicoltoremoderno.it/settembre-2026-indagine-meteorologica-produttiva-ed-economica/",
+    "https://www.apicoltoremoderno.it/aprile-2026-indagine-meteorologica-produttiva-ed-economica/",
+    "https://www.apilombardia.it/produzioni/giugno-2026-rilevazione-mensile-dellosservatorio-nazionale-miele/"
+   ],
+   "honey_specific_codes": "n/a"
+  },
+  {
+   "name": "ISMEA Mercati: Api e Miele producer and origin prices (weekly by variety, monthly by product)",
+   "access_method": "HTML tables (ServeBLOB pages). There is no public API. An Excel export is offered on ISMEA's price-INDEX pages, but I could not confirm one for the honey tables.",
+   "endpoints": [
+    "https://www.ismeamercati.it/flex/cm/pages/ServeBLOB.php/L/IT/IDPagina/11024   ('Altre filiere - Api e Miele - Prezzi - Prezzi medi - Origine - Settimanali per varietà')",
+    "https://www.ismeamercati.it/flex/cm/pages/ServeBLOB.php/L/IT/IDPagina/11025   ('… Origine - Mensile per prodotto')",
+    "https://www.ismeamercati.it/flex/cm/pages/ServeBLOB.php/L/IT/IDPagina/11028   ('… Prezzi - Prezzi medi', landing page)",
+    "https://www.ismeamercati.it/api-miele   (sector page with a monthly 'Italia' aggregate, e.g. 2026-6 = 5,48 €/kg)",
+    "Context and production PDFs: https://www.ismeamercati.it/flex/files/1/a/d/D.0812d852ca9d91825dcb/Scheda_Miele_2024_220724.pdf ; https://www.ismeamercati.it/flex/files/1/7/2/D.9706ea0ce4ff2cf39aee/Scheda_Miele_2023__2_.pdf ; https://www.ismeamercati.it/flex/files/1/4/9/D.8dbdf151026c898c6b2e/Scheda_Miele_2022.pdf",
+    "Tendenze miele: https://www.ismeamercati.it/flex/cm/pages/ServeBLOB.php/L/IT/IDPagina/13170 (n.1/2024), /IDPagina/12812 (n.1/2023), /IDPagina/13172 ('Bilancio amaro per il miele italiano')"
+   ],
+   "auth": "none for these pages, which are public",
+   "cost_licensing": "I found no explicit terms. A civic-data project's source check (github.com/dataciviclab/filiere-agroalimentari issue #4) flagged that the licence, attribution and terms of use still need checking. It also noted that the tables may be served by SSRS, which may need a session, and recommended asking ISMEA for bulk data before building a scraper. Always cite 'Fonte: ISMEA'.",
+   "update_frequency": "Nominally weekly (weekly series) and monthly (monthly series). Note: in early Nov 2026 the latest week visible in search snapshots was '2026-6-4', so the honey series may be seasonal or updated irregularly. Monitor it rather than assume it is weekly.",
+   "data_available": "National ('Italia') ORIGIN or producer average prices in €/Kg, stated IVA inclusa, per variety. Week 2026-6-4: Acacia 8,00; Agrumi 5,70; Castagno 4,90; Eucalipto 5,25; Millefiori 4,20; Sulla 4,50; Tiglio 4,90. Change columns: vs previous week and vs the same week a year earlier ('nd' when not available). The monthly 'Italia' aggregate was 5,48 €/kg for 2026-6. Methodology: averages of quotes collected weekly on the reference markets. The prices come from the ONM surveyor network, which surveys on ISMEA's behalf.",
+   "parsing_notes": "(1) The period string looks like 'YYYY-M-W' (e.g. '2026-6-4', probably year-month-week of month). Store it raw and derive a date with care, because the format is unconfirmed. (2) Prices use comma decimals with a unit suffix ('8,00 €/Kg'); strip the suffix and replace ',' with '.'. Percentages look like '0,0%' and missing values are 'nd'. (3) Column headers seen in snippets: 'Variaz. su Sett. Prec.' and 'Variaz. su Sett. Anno Prec.'; other headers, such as product, market and week, are unverified. (4) The table may be rendered by a reporting service (SSRS) inside the page or an iframe. If httpx returns no <table>, inspect the page for a report URL. (5) These are producer or origin prices, not drum wholesale prices, and are not directly comparable with Cuneo or ONM fusti prices.",
+   "publication_lag": "Unknown. Probably 1 week for the weekly series when it is active.",
+   "rate_limits": "None documented",
+   "sample_response": "PARTLY VERIFIED (values and change headers from snippets; first-column names reconstructed): | Prodotto/Varietà | Piazza | Settimana | Prezzo | Variaz. su Sett. Prec. | Variaz. su Sett. Anno Prec. | → | Acacia | Italia | 2026-6-4 | 8,00 €/Kg | 0,0% | nd | ; | Millefiori | Italia | 2026-6-4 | 4,20 €/Kg | 0,0% | nd |",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://www.ismeamercati.it/flex/cm/pages/ServeBLOB.php/L/IT/IDPagina/11024",
+    "https://www.ismeamercati.it/flex/cm/pages/ServeBLOB.php/L/IT/IDPagina/11025",
+    "https://www.ismeamercati.it/api-miele",
+    "https://github.com/dataciviclab/filiere-agroalimentari/issues/4",
+    "https://www.calabrianews24.com/news/497348939270/coltivazioni-api-calabria"
+   ],
+   "honey_specific_codes": "IDPagina 11024 (weekly by variety), 11025 (monthly by product), 11028 (average-price landing). Varieties: Acacia, Agrumi, Castagno, Eucalipto, Millefiori, Sulla, Tiglio."
+  },
+  {
+   "name": "Camera di Commercio di Cuneo: Cuneo Prezzi portal, 'Miele' wholesale price list (the only chamber found with a structured honey list)",
+   "access_method": "HTML tables plus PDF and CSV downloads ('Scarica il capitolo' in html/pdf/csv)",
+   "endpoints": [
+    "https://www.cuneoprezzi.it/ingrosso/alimentari/   (category index; find the latest Miele list here)",
+    "https://www.cuneoprezzi.it/ingrosso/ALIMENTARI/?listCategory={id}   (one published list or chapter; IDs change with every issue, e.g. 2326, 6794, 19363)",
+    "https://www.cuneoprezzi.it/dataentry/site/ingrosso/lists/download/html?listCategory={id}   (verified: listCategory=15948 = 'Miele - rilevazione mensile del 30 settembre 2023')",
+    "UNVERIFIED by analogy: https://www.cuneoprezzi.it/dataentry/site/ingrosso/lists/download/pdf?listCategory={id}  and  …/download/csv?listCategory={id}",
+    "https://www.cuneoprezzi.it/ingrosso/ALIMENTARI/?screen=medie&category=11&mYear={YYYY}   (HTML monthly and annual averages for Miele; verified for 2024)",
+    "https://www.cuneoprezzi.it/dataentry/site/ingrosso/medie/download/pdf?category=11&mYear={YYYY}   (PDF averages; verified for 2025 and 2026; an older variant uses &year=)",
+    "Context: https://www.cn.camcom.it/focus/informazione-economica/prezzi/rilevazione-dei-prezzi-allingrosso ; list of listed items: https://www.cn.camcom.it/sites/default/files/uploads/documents/Prezzi/Elenco%20voci%20listino%20camerale.pdf"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free public Chamber of Commerce price list. Prices are informative (indicative) only. I found no explicit reuse licence. Italian public-sector data is generally reusable with attribution under the CAD/D.Lgs. 36/2006 'open by default' rule, but that is from memory and unverified for this site. Cite 'CCIAA Cuneo'.",
+   "update_frequency": "Monthly for Miele (the item list shows 'Miele | kg | mensile'), dated at month end. Other products on the portal are weekly or fortnightly. Since San Martino 2025 the chamber's consultative committee has also quoted acacia, castagno and high-mountain millefiori in the listino.",
+   "data_available": "Wholesale €/kg, min-max per item. Basis: 'Prodotto sfuso in fusti da 3 q.li - franco partenza dal magazzino IVA compresa', with a VAT-rate column (10%). Items seen: Acacia (fusto da 3 q.li), Millefiori (fusto da 3 q.li), Castagno (fusto), Tiglio (fusto; labelled 'secchio' in some years), Melata, Millefiori di alta montagna (secchio da 25 kg). Example values: Sept 2023 acacia 7,50-8,50, millefiori 5,50-6,50. 2025 averages approx. acacia 8,09, millefiori 5,83, castagno 5,80, tiglio 6,59, alta montagna 7,67. 2026 acacia average approx. 7,31, millefiori approx. 5,20. These figures were read from messy search extracts, so re-check them.",
+   "parsing_notes": "(1) listCategory IDs are not predictable. Scrape the ALIMENTARI index page, find the anchor whose text contains 'Miele', take the highest or latest listCategory, then fetch download/html. pandas.read_html() should work. (2) The packaging is embedded in the product label, so split 'Acacia (fusto da 3 q.li)' into variety and pack with a regex. (3) Header text says 'IVA compresa' but a 10% VAT column is present (one summary said 'IVA esclusa'). Confirm the treatment on the first real fetch and store a vat_included flag. (4) The averages PDF has 12 monthly columns plus an annual mean, and blank cells for months with no quote. (5) Comma decimals.",
+   "publication_lag": "Probably a few days to 2 weeks after the reference month end (unverified)",
+   "rate_limits": "None documented",
+   "sample_response": "RECONSTRUCTED from snippets: Title 'Listino dei Prezzi all'Ingrosso sulla piazza di Cuneo — Miele — rilevazione mensile del 30 settembre 2023'; note 'Prodotto sfuso in fusti da 3 q.li - franco partenza dal magazzino IVA compresa'; columns: Prodotto | U.M. (kg) | Prezzo min | Prezzo max | IVA % ; rows: 'Acacia (fusto da 3 q.li)' | kg | 7,50 | 8,50 | 10 ; 'Millefiori (fusto da 3 q.li)' | kg | 5,50 | 6,50 | 10 ; … Averages PDF 'Miele - medie {YYYY}': Prodotto | Gen … Dic | Media.",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://www.cuneoprezzi.it/dataentry/site/ingrosso/lists/download/html?listCategory=15948",
+    "https://www.cuneoprezzi.it/dataentry/site/ingrosso/medie/download/pdf?category=11&mYear=2025",
+    "https://www.cuneoprezzi.it/dataentry/site/ingrosso/medie/download/pdf?category=11&mYear=2026",
+    "https://www.cuneoprezzi.it/ingrosso/ALIMENTARI/?screen=medie&category=11&mYear=2024",
+    "https://www.cuneoprezzi.it/ingrosso/ALIMENTARI/?listCategory=2326",
+    "https://www.cn.camcom.it/sites/default/files/uploads/documents/Prezzi/Elenco%20voci%20listino%20camerale.pdf",
+    "https://confagricoltura.bagubits.tools/camera-di-commercio-di-cuneo-pubblicati-i-prezzi-di-san-martino-2025/"
+   ],
+   "honey_specific_codes": "Averages: category=11 (Miele). Published list example: listCategory=15948 (Sept 2023 honey list)."
+  },
+  {
+   "name": "Camera di Commercio di Arezzo-Siena: weekly price list for the province of Siena (includes a honey line)",
+   "access_method": "PDF (weekly), linked from yearly archive HTML pages",
+   "endpoints": [
+    "https://www.as.camcom.it/pubblicazioni-e-listini-prezzi/prezzi   (current page)",
+    "https://www.as.camcom.it/listini-settimanali-provincia-siena-anno-2023  (yearly archive pattern: …-anno-{YYYY}; 2020 uses 'listino-settimanale-provincia-siena-anno-2020')",
+    "PDF examples (irregular names): https://www.as.camcom.it/sites/default/files/contenuto_redazione/pagina_base/allegati/listino_prezzi_n_14_del_08_04_2026.pdf ; …/listino_prezzi_n._24_del_18_06_2025.pdf ; …/listino_prezzi_n._34_del_28.08.2024.pdf"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free public list. The price office states the values are purely informative, set partly by the office directly and partly by a commission.",
+   "update_frequency": "Weekly (Wednesday issue dates)",
+   "data_available": "€/kg min-max for 'miele millefiori' (e.g. 6,00-7,00 in 2025-2026) and 'miele selezionato' (6,50-10,00). Packaging and VAT basis are unclear from the snippets; they look like local wholesale or direct-sale prices, not drum prices.",
+   "parsing_notes": "File names vary in separators ('n_14_del_08_04_2026' vs 'n._24_del_18_06_2025' vs '28.08.2024'), so scrape the archive page for links. Use pdfplumber.extract_text() and a regex on lines starting with 'Miele'. Low value for bulk import pricing; use it only as a sanity check on retail and local prices.",
+   "publication_lag": "Probably days",
+   "rate_limits": "None documented",
+   "sample_response": "RECONSTRUCTED: line 'Miele millefiori  kg  6,00  7,00' ; 'Miele selezionato  kg  6,50  10,00' under an agri-food section of 'Listino n. 14 del 08.04.2026' (unit-of-measure column 'u. misura', price columns 'da Euro' / 'a Euro').",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://www.as.camcom.it/sites/default/files/contenuto_redazione/pagina_base/allegati/listino_prezzi_n_14_del_08_04_2026.pdf",
+    "https://www.as.camcom.it/sites/default/files/contenuto_redazione/pagina_base/allegati/listino_prezzi_n._24_del_18_06_2025.pdf",
+    "https://www.as.camcom.it/pubblicazioni-e-listini-prezzi/prezzi"
+   ],
+   "honey_specific_codes": "Line labels 'miele millefiori' and 'miele selezionato'"
+  },
+  {
+   "name": "Borsa Merci / CCIAA Bologna weekly and monthly lists, plus Torino, Milano (PiùPrezzi), Firenze, Bolzano (WIFO), Umbria, Livorno-Grosseto: honey NOT found",
+   "access_method": "PDF",
+   "endpoints": [
+    "Bologna weekly (Thursday): https://www.bo.camcom.gov.it/sites/default/files/borsa-merci-e-rilevazione-prezzi/listino-dei-prezzi-settimanali/anno-{YYYY}/n.{N}_{D} {mese}_{YYYY}.pdf  (irregular spacing, e.g. 'n.26_ 25 giugno_2026.pdf', 'n.9_26 febbraio 2026.pdf', 2025: 'n.25 - 26 giugno 2025.pdf')",
+    "Bologna monthly averages: https://www.bo.camcom.gov.it/sites/default/files/borsa-merci-e-rilevazione-prezzi/listino-mensile/anno-{YYYY}/{M}-{YYYY}.pdf  (verified 3..7-2026)",
+    "Bologna index: https://www.bo.camcom.gov.it/it/borsa-merci/home ; https://www.bo.camcom.gov.it/it/borsa-merci/listino-mensile",
+    "Torino weekly: https://www.to.camcom.it/sites/default/files/prezzi-merci/{seq}_BM_{N}_{YYYY}.pdf (e.g. 755_BM_35_2026.pdf; seq is a running counter)",
+    "Milano: https://www.piuprezzi.it/ingrosso/",
+    "Bolzano: https://www.wifo.bz.it/media/{uuid}/listino-prezzi-ingrosso-{YYYY}-{M}.pdf (uuid not predictable)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free public lists. Bologna states that the only official indicative prices are the min/max prices in the weekly lists.",
+   "update_frequency": "Bologna and Torino weekly (Thursday). Bolzano and Umbria monthly. Firenze weekly or fortnightly.",
+   "data_available": "Search snippets from the Bologna lists show cereals, rice, fruit, wine, dairy, feed and petroleum products, but NO honey. Torino shows grain, feed and fertiliser. I found no honey line in any of these lists. Contrary to the brief's assumption, I could not confirm that Bologna publishes honey quotations.",
+   "parsing_notes": "Do not build collectors for these until someone checks one full PDF by hand for 'miele' (the snippets are truncated, so a section could have been missed). If one turns up, Bologna and Torino PDFs are tabular (pdfplumber.extract_tables) with min/max columns.",
+   "publication_lag": "Days",
+   "rate_limits": "None documented",
+   "sample_response": "n/a",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://www.bo.camcom.gov.it/sites/default/files/borsa-merci-e-rilevazione-prezzi/listino-dei-prezzi-settimanali/anno-2026/n.26_%2025%20giugno_2026.pdf",
+    "https://www.bo.camcom.gov.it/sites/default/files/borsa-merci-e-rilevazione-prezzi/listino-mensile/anno-2026/7-2026.pdf",
+    "https://www.to.camcom.it/sites/default/files/prezzi-merci/755_BM_35_2026.pdf",
+    "https://arsiam.it/borsa-merci-bologna/",
+    "https://www.piuprezzi.it/ingrosso/"
+   ],
+   "honey_specific_codes": "none found"
+  },
+  {
+   "name": "'Mielenet' (and other harvest-report sources)",
+   "access_method": "none",
+   "endpoints": [],
+   "auth": "n/a",
+   "cost_licensing": "n/a",
+   "update_frequency": "n/a",
+   "data_available": "I found no source called 'Mielenet'. Italian harvest and production reporting is effectively ONM (monthly bulletins, Prime Valutazioni, Annual Report) plus ISMEA's 'Scheda Miele' and 'Tendenze miele' (e.g. 2023 production approx. 22,000 t; 2022 approx. 23,000 t; Italy covers about 54% of its own consumption). Others: regional associations (Apilombardia, ARPAT/AAPI mid-season meetings) and the CREA 'Honey Cost' report (July 2026, with ONM; cost of production approx. 9,7 €/kg per press reports, unverified).",
+   "parsing_notes": "Treat 'Mielenet' as unverified or nonexistent unless the user supplies a URL.",
+   "confidence": "from_search_snippets",
+   "evidence_urls": [
+    "https://www.ismeamercati.it/flex/files/1/a/d/D.0812d852ca9d91825dcb/Scheda_Miele_2024_220724.pdf",
+    "https://www.arpat.info/news/incontro-aapi-di-mezza-stagione-primo-bilancio-delle-produzioni-di-miele-2026-21973/",
+    "https://www.dissapore.com/notizie/il-miele-italiano-costa-anche-10-volte-di-piu-di-quello-extra-europeo/"
+   ]
+  }
+ ],
+ "recommendation": "IMPORTANT CAVEAT: this session could not reach any of these hosts. WebFetch and curl were blocked by the network allow-list (informamiele.it, ismeamercati.it, cuneoprezzi.it and apicoltoremoderno.it all failed). Everything comes from search-engine snippets: URL templates are confirmed only where real example URLs were indexed, and table layouts are partly reconstructed. Every collector should save the raw HTML or PDF and fail loudly on schema drift.\n\nIntegration order:\n1) CCIAA Cuneo (cuneoprezzi.it): first and best structured. It is the only chamber found with a dedicated monthly 'Miele' wholesale list in the right packaging (bulk 'fusti da 3 q.li', plus 25 kg secchio), by variety (acacia, millefiori, castagno, tiglio, melata, alta montagna), with min/max €/kg and HTML/CSV/PDF downloads. Collector steps: once a month, GET https://www.cuneoprezzi.it/ingrosso/alimentari/, find the newest anchor containing 'Miele', extract listCategory, GET /dataentry/site/ingrosso/lists/download/html?listCategory={id}, then pandas.read_html. Backfill history from /dataentry/site/ingrosso/medie/download/pdf?category=11&mYear={YYYY} with pdfplumber. Parse '(fusto da 3 q.li)' or '(secchio da 25 kg)' out of the label, and store the VAT flag (the IVA wording is inconsistent).\n\n2) ISMEA Mercati honey pages (IDPagina 11024 weekly by variety, 11025 monthly): national producer/origin €/kg for acacia, agrumi, castagno, eucalipto, millefiori, sulla, tiglio. Scrape the HTML table weekly and store the raw 'YYYY-M-W' period string. Expect gaps: the latest week visible was 2026-6-4. If the table turns out to be SSRS-rendered, email ISMEA for a bulk extract instead of reverse-engineering it. Label it 'producer price, IVA incl.' and keep it separate from drum wholesale prices.\n\n3) ONM (informamiele.it): the authoritative national source and the one the market quotes, but since 2023 its full price tables sit behind a free Mieleinforma registration.\n- Automate only the public side: detect new '{mese}-{yyyy}-rilevazione-mensile' posts via /feed/ or the WP REST API if they exist (unverified), otherwise by scraping /tutte-le-notizie/ and /category/comunicati/. Store the market paragraph, regex-extract any '€/kg' ranges with their variety keyword, and flag them for human review.\n- Every March, download the Annual Report PDF and parse it with pdfplumber. It has production by region, min/max/avg drum prices by variety, and a table of import prices by country of origin, which matters most for an importer sourcing from Argentina, Ukraine and China.\n- Optionally use the Apicoltore Moderno PDF attachments (which carry the explicit price ranges) as a parse target, for internal use only.\n- Separately, Parodi should register on Mieleinforma by hand. It should also write to osservatorio@informamiele.it asking for permission or a data feed, rather than scraping the logged-in portal.\n\n4) Arezzo-Siena weekly PDF: optional local sanity check (millefiori/selezionato €/kg).\n\n5) Skip Bologna, Torino, Milano, Firenze and Bolzano for honey. No honey quotations were found there (Bologna's list appears to cover grains, fruit, wine and dairy only). Have someone open one full Bologna PDF by hand before ruling it out for good.\n\nFor the data model, normalise everything to (source, reference_period, variety, origin=IT, packaging ∈ {fusto_300kg, fusto_3q, secchio_25kg, unknown}, channel ∈ {producer_to_packer, beekeeper_to_beekeeper, chamber_wholesale, ismea_origin}, organic bool, price_min, price_max, price_avg, currency=EUR, unit=kg, vat_included bool, raw_text). Prices across these sources are not directly comparable, so never average them together."
+}

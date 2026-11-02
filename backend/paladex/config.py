@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     comtrade_api_key: str | None = None
     usda_mmn_api_key: str | None = None
     usda_nass_api_key: str | None = None
+    # api.data.gov key — used by USDA FAS GATS (US Census honey imports by origin)
+    data_gov_api_key: str | None = None
 
     @property
     def db_path(self) -> Path:
@@ -75,6 +77,7 @@ class Settings(BaseSettings):
             "comtrade_key": bool(self.comtrade_api_key),
             "usda_mmn_key": bool(self.usda_mmn_api_key),
             "usda_nass_key": bool(self.usda_nass_api_key),
+            "data_gov_key": bool(self.data_gov_api_key),
             "scheduler_enabled": self.scheduler_enabled,
         }
 
