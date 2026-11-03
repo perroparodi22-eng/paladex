@@ -86,12 +86,12 @@ Tables:
 
 | # | Milestone | Status |
 |---|---|---|
-| 1 | Foundation: architecture, schema, collector framework, scheduler, CLI, design system, navigation, start-up scripts | **done** |
-| 2 | Official data collection: USDA (National Honey Report, FAS GATS, NASS), EU (Eurostat Comext, DG AGRI), Italy (Osservatorio Nazionale Miele / price lists), UN Comtrade, FAOSTAT, ECB FX | **in this delivery** |
-| 3 | Price intelligence: price database, explorer, history, origin and variety comparisons, discrepancies | **in this delivery** |
-| 4 | Global news: feeds, dedup, relevance, AI summaries and translation, search and filters | **in this delivery** |
-| 5 | Map, country profiles and trade (basic versions shipped early); harvest/weather (Open-Meteo / Copernicus); regulations UI | partially started |
-| 6 | AI assistant (database-grounded, cited answers), daily AI briefing | planned |
+| 1 | Foundation: architecture, schema, collector framework, scheduler, CLI, design system, navigation, start-up scripts, automatic DB column migration | **done** |
+| 2 | Official data collection: USDA (National Honey Report PDF, FAS GATS, NASS), EU (Eurostat Comext, TAXUD weekly, DG AGRI decks, RASFF), Italy (CCIAA Cuneo, ISMEA, Osservatorio Nazionale Miele, CCIAA Siena), UN Comtrade, FAOSTAT, ECB FX, Federal Register, EUR-Lex | **done; parsers verified against reconstructed fixtures only — first live run pending** |
+| 3 | Price intelligence: price database, explorer (M/Q/A, USD/EUR, per kg/lb), history, origin and variety comparisons, discrepancies, CSV export | **done** |
+| 4 | Global news: GDELT (10 languages) + trade-press RSS (+ opt-in Google News), honey gate, dedup, relevance, AI summaries/translation (optional key), search and filters | **done** |
+| 5 | Map (offline), country profiles and trade leaders/flows (**basic versions done**); harvest/weather (Copernicus CDS or NOAA — Open-Meteo free tier is non-commercial); regulations UI (collectors already store EU/US documents) | partially done |
+| 6 | AI assistant (database-grounded, cited answers), daily AI briefing (a rule-based daily summary already runs, labelled "not AI") | planned |
 | 7 | Supplier quotes, landed-cost calculator, alerts, historical archive views | schema ready, planned |
 | 8 | Polish, source verification on the live machine, performance, installer | planned |
 
