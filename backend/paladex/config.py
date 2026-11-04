@@ -31,9 +31,8 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = True
     # Run a full collection shortly after start-up if the last run is older than this.
     startup_collect_if_older_than_hours: int = 6
-    user_agent: str = (
-        "ParodiGroup-HoneyIntelligence/0.1 (internal research tool; contact: info@parodigroup.local)"
-    )
+    # Generic client name: the company name is never sent to external websites.
+    user_agent: str = "Paladex/0.1 (internal research tool)"
     http_timeout_seconds: float = 45.0
 
     # --- AI ---
