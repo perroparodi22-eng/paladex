@@ -295,6 +295,20 @@ def _terms(*parts: str | None) -> str | None:
     return s[:200] or None
 
 
+# One stable wording per packaging class for Cuneo, so the same product stays ONE series over the
+# years: the list writes "fusto da 3 q.li", "fusti da 3 q.li (quantitativi >10 q.li)", "IVA compresa
+# (aliquota 10%)"... The exact wording of every row stays in extra (packaging, item_label,
+# vat_rate_pct), and list prices and the averages PDF (same item, same basis) join one series.
+_CUNEO_PACKAGING_TERMS = {"fusto_3q": "fusto da 3 q.li", "fusto_300kg": "fusto da 300 kg",
+                          "secchio_25kg": "secchio da 25 kg"}
+
+
+def _cuneo_terms(packaging: str | None, packaging_code: str | None, delivery: str | None,
+                 vat_included: bool | None, statistic: str | None = None) -> str | None:
+    pack = _CUNEO_PACKAGING_TERMS.get(packaging_code or "") or packaging or "confezione non indicata"
+    return _terms(pack, statistic, delivery, _vat_words(vat_included))
+
+
 # ===========================================================================
 # Varieties, origins, packaging
 # ===========================================================================
@@ -1159,7 +1173,6 @@ class CuneoHoneyCollector(Collector):
         label = f"{parsed.period_year}-{parsed.period_month:02d}"
         delivery = _delivery_words(parsed.basis_note)
         for r in parsed.rows:
-            vat = _vat_words(parsed.vat_included) + (f" (aliquota {r['vat_rate']:g}%)" if r["vat_rate"] else "")
             ctx.add_price(
                 series_key=f"cuneo|{r['key']}|{label}",
                 price_type=PriceType.WHOLESALE_BULK,
@@ -1169,7 +1182,7 @@ class CuneoHoneyCollector(Collector):
                 period_start=start, period_end=end, period_label=label, frequency="M",
                 market_iso3=MARKET_ISO3, market_location="Cuneo",
                 origin_iso3=r["origin_iso3"], origin_label=r["origin_label"],
-                terms=_terms(r["packaging"] or "confezione non indicata", delivery, vat),
+                terms=_cuneo_terms(r["packaging"], r["packaging_code"], delivery, parsed.vat_included),
                 published_at=parsed.list_date, source_url=doc.url, raw_document_id=doc.raw_document_id,
                 data_status=DataStatus.PUBLISHED,
                 extra={
@@ -1233,7 +1246,7 @@ class CuneoHoneyCollector(Collector):
     def _store_averages(self, ctx: CollectContext, parsed: CuneoAverages, year: int, doc, *, final: bool = True) -> None:
         not_quoted: dict[str, list[str]] = _get_state(ctx.session, self.key).get("not_quoted") or {}
         delivery = _delivery_words(parsed.basis_note)
-        vat = _vat_words(parsed.vat_included) if parsed.basis_note else None
+        vat_flag = parsed.vat_included if parsed.basis_note else None
         for r in parsed.rows:
             slug = r["key"]
             group = r.get("price_group")
@@ -1272,13 +1285,14 @@ class CuneoHoneyCollector(Collector):
                     log.info("Cuneo averages %s %s: published although the monthly list says n.q.", slug, label)
                 ctx.add_price(series_key=f"cuneo-media|{slug}|{label}", price_value=value,
                               period_start=start, period_end=end, period_label=label, frequency="M",
-                              terms=_terms(r["packaging"], "media mensile", delivery, vat),
+                              terms=_cuneo_terms(r["packaging"], r["packaging_code"], delivery, vat_flag),
                               extra=month_extra, **month_common)
             if r["annual"] is not None:
                 start, end = year_bounds(year)
                 ctx.add_price(series_key=f"cuneo-media|{slug}|{year}", price_value=r["annual"],
                               period_start=start, period_end=end, period_label=str(year), frequency="A",
-                              terms=_terms(r["packaging"], "media annua", delivery, vat),
+                              terms=_cuneo_terms(r["packaging"], r["packaging_code"], delivery, vat_flag,
+                                                 "media annua"),
                               extra={**extra, "statistic": "annual_average"},
                               **{**common, "notes": annual_note,
                                  "data_status": DataStatus.PUBLISHED if final else DataStatus.PROVISIONAL})

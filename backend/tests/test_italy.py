@@ -341,7 +341,9 @@ def test_cuneo_end_to_end_real_and_idempotent(run_with_routes, session_factory, 
         assert acacia.data_status == "published" and acacia.reliability == "industry"
         assert acacia.source_url == CUNEO_HTML_20353 and acacia.raw_document_id
         assert acacia.variety_raw == "Acacia"
-        assert acacia.terms.startswith("fusto da 3 q.li") and "IVA compresa (aliquota 10%)" in acacia.terms
+        # one stable wording per product (the list's exact wording and VAT rate stay in extra)
+        assert acacia.terms == "fusto da 3 q.li; franco partenza dal magazzino; IVA compresa"
+        assert acacia.extra["vat_rate_pct"] == 10
         assert acacia.extra["packaging_code"] == "fusto_3q" and acacia.extra["drum"] is True
         assert acacia.extra["vat_included"] is True and acacia.extra["list_category"] == 20353
         tiglio = next(r for r in lists if r.variety == "linden")
