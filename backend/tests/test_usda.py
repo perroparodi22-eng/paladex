@@ -209,7 +209,8 @@ def test_market_month(line, issue, expected):
     ("CHINA(MAINLAND)", ("CHN", None)),
     ("REPUBLIC OF SOUTH AFRICA", ("ZAF", None)),
     ("Grand Total", ("WLD", None)),
-    ("GUINEA", (None, None)),          # not in the country list: skipped, not invented
+    ("GUINEA", ("GIN", None)),         # every ISO country is recognised
+    ("ATLANTIS", (None, None)),        # not a country: skipped, not invented
 ])
 def test_ace_origin(label, expected):
     assert ace_origin(label) == expected

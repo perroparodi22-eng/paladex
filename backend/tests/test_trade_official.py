@@ -965,21 +965,21 @@ def test_census_unmapped_partner_is_skipped_and_warned_once(run, session_factory
     rows = json.loads(F("census_hs6_2025-11_2026-10.json"))
     template = rows[-1]
     tokelau = list(template)
-    tokelau[0], tokelau[1] = "5682", "TOKELAU"
+    tokelau[0], tokelau[1] = "5682", "ATLANTIS"  # no such country: warned once, skipped
     clash = list(template)
     clash[0], clash[1] = "4801", "MONTENEGRO"
     rows += [tokelau, clash]
     routes = census_routes(**{census_q("HS6", "from 2025-11 to 2026-10"): json.dumps(rows).encode()})
     res = run("us_census_trade", routes)
     assert res["status"] == "partial", res
-    assert sum("TOKELAU" in w for w in res["warnings"]) == 1
+    assert sum("ATLANTIS" in w for w in res["warnings"]) == 1
     assert sum("MONTENEGRO" in w and "code table" in w for w in res["warnings"]) == 1
     with session_factory() as s:
         partners = {t.partner_iso3 for t in _rows(s, T, "us_census_trade")}
         assert "SRB" not in partners and "MNE" not in partners and "BTN" not in partners
-        assert _state(s, "us_census_trade")["unknown_partners"] == {"5682": "TOKELAU", "4801": "MONTENEGRO"}
+        assert _state(s, "us_census_trade")["unknown_partners"] == {"5682": "ATLANTIS", "4801": "MONTENEGRO"}
     res2 = run("us_census_trade", routes, force=True)
-    assert not any("TOKELAU" in w or "MONTENEGRO" in w for w in res2["warnings"]), res2
+    assert not any("ATLANTIS" in w or "MONTENEGRO" in w for w in res2["warnings"]), res2
 
 
 def test_census_annual_revision_triggers_full_window_once(run, session_factory, pin_today):

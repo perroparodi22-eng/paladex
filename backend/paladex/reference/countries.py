@@ -14,6 +14,8 @@ from __future__ import annotations
 import re
 import unicodedata
 
+from .world_countries import WORLD_COUNTRIES
+
 # iso3, iso2, m49, fao_code (None when not certain), name_en, name_it, region, lat, lon
 _COUNTRIES: list[tuple[str, str, int, int | None, str, str, str, float, float]] = [
     ("ARG", "AR", 32, 9, "Argentina", "Argentina", "South America", -34.0, -64.0),
@@ -266,6 +268,11 @@ _ALIASES: dict[str, str] = {
 }
 
 
+_CURATED_ISO3 = {c[0] for c in _COUNTRIES}
+# Every other ISO country (no curated coordinates/FAO code/profile): recognised, never invented.
+_EXTRA = [c for c in WORLD_COUNTRIES if c[0] not in _CURATED_ISO3]
+
+
 def countries() -> list[dict]:
     out = []
     for iso3, iso2, m49, fao, en, it, region, lat, lon in _COUNTRIES:
@@ -276,6 +283,9 @@ def countries() -> list[dict]:
                 "profile": _PROFILES.get(iso3),
             }
         )
+    for iso3, iso2, m49, en, it in _EXTRA:
+        out.append({"iso3": iso3, "iso2": iso2, "m49": m49, "fao_code": None, "name_en": en, "name_it": it,
+                    "region": None, "lat": None, "lon": None, "priority": False, "profile": None})
     return out
 
 
@@ -292,6 +302,12 @@ for _iso3, _iso2, _m49, _fao, _en, _it, *_ in _COUNTRIES:
     _BY_M49[_m49] = _iso3
     if _fao:
         _BY_FAO[_fao] = _iso3
+for _iso3, _iso2, _m49, _en, _it in _EXTRA:
+    _ISO3.add(_iso3)
+    _BY_NAME.setdefault(_norm(_en), _iso3)
+    _BY_NAME.setdefault(_norm(_it), _iso3)
+    _BY_ISO2.setdefault(_iso2, _iso3)
+    _BY_M49.setdefault(_m49, _iso3)
 for _k, _v in _ALIASES.items():
     _BY_NAME[_norm(_k)] = _v
 
@@ -336,6 +352,9 @@ def country_name(iso3: str | None, lang: str = "it") -> str:
     for c in _COUNTRIES:
         if c[0] == iso3:
             return c[5] if lang == "it" else c[4]
+    for c in _EXTRA:
+        if c[0] == iso3:
+            return c[4] if lang == "it" else c[3]
     return iso3
 
 
