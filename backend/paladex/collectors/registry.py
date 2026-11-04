@@ -25,6 +25,7 @@ COLLECTOR_MODULES: list[str] = [
     "paladex.collectors.news_gdelt",      # GDELT DOC 2.0 (multilingual news, commercial use allowed)
     "paladex.collectors.news_feeds",      # RSS / Atom news (Google News feeds are opt-in)
     "paladex.collectors.regulation",      # Federal Register, EUR-Lex... (official notices)
+    "paladex.collectors.official_watchers",  # origin-country notices: MAPA (BR), SENASA/Boletín Oficial (AR), DGFT (IN)
     "paladex.collectors.tariffs",         # EU TARIC (UK XI mirror) and US HTS duties on honey by origin
 ]
 
