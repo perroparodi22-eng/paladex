@@ -1262,16 +1262,21 @@ def _series_exists(ctx: CollectContext, series_key: str) -> bool:
 # ===========================================================================
 
 ISMEA_URL = "https://www.ismeamercati.it/flex/cm/pages/ServeBLOB.php/L/IT/IDPagina/{id}"
+# The two "per varietà" pages (live check, 4 Nov 2026). The "per prodotto" pages (11023 weekly,
+# 11025 monthly) show a single product 'Miele' under the subtitle 'Miele Millefiori' whose price
+# equals the Millefiori row of the variety pages (4,20 €/Kg for 2026-6-4 and 2026-6): they are
+# not collected, so the same millefiori price is not stored twice under two labels.
 ISMEA_PAGES: dict[int, str] = {
-    11024: "Prezzi medi all'origine - settimanali per varietà",
-    11025: "Prezzi medi all'origine - mensili per prodotto",
+    11024: "Prezzi medi alla produzione - settimanali per varietà",
+    11026: "Prezzi medi alla produzione - mensili per varietà",
 }
 ISMEA_SPEC: dict[str, re.Pattern] = {
     "product": re.compile(r"prodott|variet"),
     "market": re.compile(r"piazz|mercat"),
     "chg_year": re.compile(r"variaz.*anno|anno\s+prec"),
     "chg_prev": re.compile(r"variaz"),
-    "period": re.compile(r"settiman|^mese\b|periodo|^data\b"),
+    # real headers: 'Anno-Mese-Sett.' (weekly) and 'Anno-Mese' (monthly)
+    "period": re.compile(r"^anno\s*-\s*mese|settiman|^mese\b|periodo|^data\b"),
     "price": re.compile(r"^prezz"),
 }
 _ISMEA_WEEK_RE = re.compile(r"(\d{4})\s*-\s*(\d{1,2})\s*-\s*(\d{1,2})")

@@ -36,6 +36,22 @@ endpoint, parameter and field name comes from ``docs/research/regulation.json``,
   no official abstract, so ``summary_en`` is None for EU acts; ``effective_date`` is None when
   the source gives none.
 
+Federal Register relevance (checked against the live API, November 2026)
+------------------------------------------------------------------------
+``conditions[term]`` searches the full text, so a phrase search for "raw honey" also returns
+notices on glycine, rebar, plywood ... whose footnotes cite a honey case ("See, e.g., Raw Honey
+from the Socialist Republic of Vietnam ..."). A document is therefore stored only when:
+
+* "honey" (not the insect) is in its title or official abstract; or
+* for Commerce omnibus notices (initiation / opportunity to request / rescission of
+  administrative reviews, which have no honey abstract), the search ``excerpts`` show a honey
+  case listed with its case number ("ARGENTINA: Raw Honey, A-357-823"), not merely cited; or
+* for presidential tariff documents, the title, abstract or excerpts mention honey or HTS 0409.
+  The tariff annexes are printed as images in the Federal Register (``[GRAPHIC] [TIFF
+  OMITTED]``) and are not searchable, and the full-text downloads redirect to a bot check, so
+  a tariff action that does not name honey in its text is not stored (duty rates on 0409 come
+  from the tariff collectors instead).
+
 Future work (M5): for ITA "Final Results of Antidumping Duty Administrative Review" notices,
 fetch ``full_text_xml_url`` (GPO XML), parse the ``<GPOTABLE>`` rows (exporter, weighted-average
 margin, period of review) into a dedicated AD-rate table, and suggest ``SupplierQuote.duty_pct``
@@ -227,10 +243,12 @@ FR_OVERLAP_DAYS = 7               # later runs: from the last complete run minus
 FR_AGENCY_PROBE_DAYS = 30         # re-check the agency slugs at most monthly (every run while one is missing)
 
 # Fields requested with fields[]. The "core" ones are believed to be the API defaults; the
-# optional ones are unverified names. If the API rejects them, the run falls back to the core set.
+# optional ones were unverified names (the live API accepts them all). If the API rejects them,
+# the run falls back to the core set. "excerpts" is the search-hit highlighting
+# (<span class="match">...</span>), used by the relevance rules.
 FR_FIELDS: tuple[str, ...] = (
     "document_number", "title", "type", "abstract", "publication_date", "effective_on",
-    "html_url", "pdf_url", "agencies", "action", "citation",
+    "html_url", "pdf_url", "agencies", "action", "citation", "excerpts",
 )
 FR_OPTIONAL_FIELDS: tuple[str, ...] = ("effective_on", "action", "citation")
 FR_CORE_FIELDS: tuple[str, ...] = tuple(f for f in FR_FIELDS if f not in FR_OPTIONAL_FIELDS)
