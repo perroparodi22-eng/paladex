@@ -97,6 +97,29 @@ def record(session: Session, model: type, *, source_id: int, series_key: str, is
     return "revised", row
 
 
+def retire(session: Session, model: type, *, source_id: int, series_key: str, is_demo: bool = False) -> int:
+    """Withdraw a series the source no longer publishes (or that no longer qualifies, e.g. a derived
+    unit value whose trade row lost its weight). The current row is kept with its values untouched;
+    only `is_current` is cleared, the same flag flip `record()` does on a revision, so history stays
+    append-only and the last published value remains in the archive. Returns the rows retired (0 when
+    the series has no current row)."""
+    if model not in VALUE_FIELDS:
+        raise TypeError(f"Unsupported observation model {model!r}")
+    rows = session.scalars(
+        select(model).where(
+            model.source_id == source_id,
+            model.series_key == series_key,
+            model.is_current.is_(True),
+            model.is_demo.is_(is_demo),
+        )
+    ).all()
+    for row in rows:
+        row.is_current = False
+    if rows:
+        session.flush()
+    return len(rows)
+
+
 # ---------------------------------------------------------------------------
 # Unit helpers
 # ---------------------------------------------------------------------------

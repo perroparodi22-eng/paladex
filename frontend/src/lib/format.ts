@@ -2,15 +2,19 @@ import type { Lang } from './types'
 
 const locale = (lang: Lang) => (lang === 'it' ? 'it-IT' : 'en-GB')
 
+// Italian CLDR leaves 4-digit numbers ungrouped ("8775 t" next to "27.605 t" in the same column):
+// always group thousands so every figure reads the same way.
+const GROUPING = { useGrouping: 'always' } as unknown as Intl.NumberFormatOptions
+
 export function fmtNumber(v: number | null | undefined, lang: Lang, digits = 0): string {
   if (v === null || v === undefined || Number.isNaN(v)) return '—'
-  return new Intl.NumberFormat(locale(lang), { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v)
+  return new Intl.NumberFormat(locale(lang), { ...GROUPING, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v)
 }
 
 export function fmtMoney(v: number | null | undefined, currency: string, lang: Lang, digits = 2): string {
   if (v === null || v === undefined || Number.isNaN(v)) return '—'
   try {
-    return new Intl.NumberFormat(locale(lang), { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v)
+    return new Intl.NumberFormat(locale(lang), { ...GROUPING, style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v)
   } catch {
     return `${fmtNumber(v, lang, digits)} ${currency}`
   }

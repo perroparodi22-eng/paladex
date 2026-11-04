@@ -118,6 +118,11 @@ export default {
     'latest.show': 'Mostra nel grafico',
     'latest.hide': 'Nascondi dal grafico',
     'latest.sortBy': 'Ordina per {c}',
+    'latest.col.change': 'Variazione',
+    'latest.short.mom': 'm/m',
+    'latest.short.yoy': 'a/a',
+    'latest.col.sourceStatus': 'Fonte e stato',
+    'latest.scrollHint': 'Scorri la tabella verso destra per vedere tutte le colonne →',
 
     'compare.titleOrigin': 'Confronto tra origini',
     'compare.titleVariety': 'Confronto tra varietà',
@@ -293,6 +298,11 @@ export default {
     'latest.show': 'Show on chart',
     'latest.hide': 'Hide from chart',
     'latest.sortBy': 'Sort by {c}',
+    'latest.col.change': 'Change',
+    'latest.short.mom': 'm/m',
+    'latest.short.yoy': 'y/y',
+    'latest.col.sourceStatus': 'Source and status',
+    'latest.scrollHint': 'Scroll the table to the right to see every column →',
 
     'compare.titleOrigin': 'Comparison by origin',
     'compare.titleVariety': 'Comparison by variety',

@@ -1,7 +1,7 @@
 // Small building blocks shared by the price components.
 import clsx from 'clsx'
 import { ExternalLink } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useI18n } from '@/i18n'
 import { fmtPct } from '@/lib/format'
 import type { MassUnit, PointRef } from './types'
@@ -85,4 +85,29 @@ export function Swatch({ color, on, size = 12 }: { color?: string; on: boolean; 
       }}
     />
   )
+}
+
+/** True while the element is wider than its box (a table that has to scroll sideways). `dep` re-runs
+ * the check when the content changes. */
+export function useOverflows<T extends HTMLElement>(dep: unknown): [RefObject<T>, boolean] {
+  const ref = useRef<T>(null)
+  const [overflows, setOverflows] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const check = () => setOverflows(el.scrollWidth > el.clientWidth + 1)
+    check()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    if (el.firstElementChild) ro.observe(el.firstElementChild)
+    return () => ro.disconnect()
+  }, [dep])
+  return [ref, overflows]
+}
+
+/** Shown above a table only while some of its columns are off-screen. */
+export function ScrollHint() {
+  const { t } = useI18n()
+  return <div className="px-4 py-1.5 text-[0.8rem] text-muted border-b border-line-soft">{t('prices.latest.scrollHint')}</div>
 }

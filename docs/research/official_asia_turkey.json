@@ -1,0 +1,493 @@
+{
+ "key": "asia_turkey",
+ "region": "Asia and Turkey (China, India, Vietnam, Turkey, Japan)",
+ "sources": [
+  {
+   "country": "China",
+   "name": "GACC Customs Statistics Online Query Platform (海关统计数据在线查询平台)",
+   "official_body": "General Administration of Customs of the PRC (海关总署), Statistics & Analysis Dept.",
+   "access_method": "HTML web query form with partial table download. No documented public API. A headless browser can call the backend XHR after the slider or captcha step. It could not be reached from this sandbox: the DNS lookup failed because the session's network policy blocks the host.",
+   "endpoints": [
+    "http://stats.customs.gov.cn/  (VERIFIED as the official address; also reachable via www.customs.gov.cn > 政务公开 > 数说海关 > 数据在线查询)",
+    "http://stats.customs.gov.cn/queryData/queryDataByWhere  (POST form-encoded; REMEMBERED, UNVERIFIED) params: pageSize=10000, iEType=0 (export) | 1 (import), currencyType=usd | rmb, year=2026, startMonth=1, endMonth=9, monthFlag=1 (one row per month; blank = cumulative), unitFlag=true (include quantities), codeLength=8, outerField1=CODE_TS, outerField2=ORIGIN_COUNTRY (partner), outerField3=TRADE_MODE, outerField4=TRADE_CO_PORT (consignor registered province/city), outerValue1=04090000, outerValue2..4= (blank = all), orderType=CODE ASC DEFAULT",
+    "http://stats.customs.gov.cn/indexEn  (English UI; REMEMBERED)"
+   ],
+   "auth": "None. A slider or captcha verification on the query form is remembered, not verified.",
+   "cost_licensing": "Free. Chinese government website with no published API or licence terms. High-frequency automated access is likely to be throttled. Attribute to 'GACC'.",
+   "update_frequency": "Monthly. Single-month and year-to-date views, with history back to about 2015 (remembered).",
+   "publication_lag": "Detailed HS8 × partner data appear about 3 weeks after month end, around the 20th of M+1 (remembered).",
+   "data_available": "CN statistical code 04090000 天然蜂蜜 (10-digit tariff line 0409000000, MFN 15%: verified via tariff listings). Selectable dimensions (verified via third-party guides): commodity (HS8), trading partner, trade mode (一般贸易 general trade vs 进料加工 processing), and consignor registered location (province). Measures: 第一数量 (kg), 第二数量, and value in USD or RMB yuan. Exports are FOB and imports CIF (standard GACC practice). Imports into China (e.g., NZ manuka, Kyrgyz and Russian honey) are also available.",
+   "value_for_parodi": "China is the world's largest honey exporter. This source gives monthly export tonnage and USD value by destination (UK, Belgium, Poland, Spain, Netherlands, Japan, Italy...), from which China FOB USD/kg per destination can be computed. It arrives months ahead of Comtrade. The province and trade-mode splits (e.g., Anhui, Hubei, Jiangxi, Henan exporters; general vs processing trade) do not exist in Comtrade or Eurostat mirrors.",
+   "confidence": "from_search_snippets",
+   "priority": "high",
+   "parsing_notes": "Partner codes are China customs 3-digit codes (REMEMBERED, verify): 116 Japan, 301 Belgium, 303 UK, 304 Germany, 307 Italy, 309 Netherlands, 312 Spain, 502 USA. Quantity is in kg; compute value/qty for USD/kg. The response is an HTML table fragment, not JSON (remembered). The site is often slow or unstable from outside China. The most robust approach is a monthly run in the owner's Chrome (the owner offered it) or Playwright, saving the CSV/HTML into Paladex. Keep currencyType=usd to avoid FX conversion. With monthFlag=1 you get the single-month series directly instead of having to difference YTD figures.",
+   "sample_response": "RECONSTRUCTED (not observed): HTML <table> columns: 数据年月 | 商品编码 | 商品名称 | 贸易伙伴编码 | 贸易伙伴名称 | 贸易方式 | 注册地 | 第一数量 | 第一计量单位 | 第二数量 | 第二计量单位 | 美元 ; e.g. 202609 | 04090000 | 天然蜂蜜 | 303 | 英国 | 一般贸易 | 安徽省 | 1234567 | 千克 | 0 | - | 2345678",
+   "rate_limits": "Undocumented. Captcha plus likely IP throttling.",
+   "evidence_urls": [
+    "https://www.sellersprite.com/cn/v3/knowledge/article/customs-statistics-data",
+    "https://www.amz123.com/ask/40bD3GkS",
+    "https://www.htshub.com/cn-hs/detail/0409000000",
+    "https://treayo.com/en/hs/china/0409000000",
+    "https://www.tridge.com/news/customs-data-analysis-of-the-export-situatio-mfknpa"
+   ]
+  },
+  {
+   "country": "India",
+   "name": "TradeStat – Export Import Data Bank (annual EIDB + monthly MEIDB / FTSPCC systems)",
+   "official_body": "Department of Commerce, Ministry of Commerce & Industry. Underlying data from DGCI&S Kolkata.",
+   "access_method": "Server-rendered HTML forms and tables; an Excel or print export is remembered, not verified. No API. Scrape with requests+BeautifulSoup, GETting the form first for any CSRF token.",
+   "endpoints": [
+    "https://tradestat.commerce.gov.in/eidb/default.asp  (VERIFIED landing; menu includes 'Commodity-wise all Countries' for export & import)",
+    "https://tradestat.commerce.gov.in/eidb/chapter_wise_all_commodities_import  (VERIFIED route pattern; values in US$ million or ₹ crore)",
+    "https://tradestat.commerce.gov.in/eidb/predefined_group_of_countries_export  (VERIFIED; snapshot showed FY2017-18..2025-26, 'last updated 19 May 2026')",
+    "https://tradestat.commerce.gov.in/ftspcc/import_region_wise_all_commodities  (VERIFIED monthly system: Trade Type / Month / Year filters; 'Values in' = US$ million, ₹ crore, Quantity, per-unit ₹ and per-unit US$; snapshot Jan 2010–Nov 2025)",
+    "https://tradestat.commerce.gov.in/eidb/commodity_wise_all_countries_export  (INFERRED from route pattern; annual FY, HS code 04090000, 8-digit level)",
+    "https://tradestat.commerce.gov.in/meidb/commodity_wise_all_countries_export  (INFERRED monthly equivalent; form field names unverified)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free public government data. No explicit terms for automated access were found; poll politely (once a month).",
+   "update_frequency": "Monthly. The ministry states monthly data run from Jan 2007 by commodity, country and region in ₹ and US$, with quantity at 8-digit level, updated monthly from DGCI&S.",
+   "publication_lag": "Quick estimates come out around the 15th of M+1 (remembered). 8-digit country detail on TradeStat typically lags about 1.5–2 months; check the 'data last updated' stamp on each page.",
+   "data_available": "ITC-HS 04090000 'Natural honey'. Exports and imports by partner country, month and cumulative Indian FY (April–March). Value in US$ million or ₹ crore. Quantity in UQC KGS (the display may be in thousands, so verify). The monthly system also offers per-unit price in ₹ and US$.",
+   "value_for_parodi": "Gives India's monthly export volume and FOB unit value by destination; the USA takes about 80% (2019 coverage), the rest goes to Gulf and EU markets. These can be checked directly against the US$1,400/t MEP floor. India's Comtrade reporting is usually many months late, so this is much fresher.",
+   "confidence": "from_search_snippets",
+   "priority": "high",
+   "parsing_notes": "Values come in US$ million to 2 decimals, which is too coarse for small partners. Request the per-unit US$ or ₹ option, or use ₹ values and convert. FY boundary is April. Country names are text, so map them to ISO. Fallback mirror (third party, ISB India Data Portal): monthly 8-digit dataset, quantity in thousands, value in US$ million.",
+   "sample_response": "RECONSTRUCTED: HTML table: S.No. | Country | Unit | Qty <Mon YYYY> | Value US$ Mn <Mon YYYY> | Qty <Apr–Mon> | Value <Apr–Mon> | %Growth | %Share ; e.g. 1 | U S A | KGS | 4512.30 | 9.85 | ...",
+   "rate_limits": "None documented",
+   "evidence_urls": [
+    "https://tradestat.commerce.gov.in/eidb/default.asp",
+    "https://www.commerce.gov.in/?p=18",
+    "https://tradestat.commerce.gov.in/ftspcc/import_region_wise_all_commodities",
+    "https://tradestat.commerce.gov.in/eidb/predefined_group_of_countries_export",
+    "https://tradestat.commerce.gov.in/eidb/chapter_wise_all_commodities_import",
+    "https://ckandev.indiadataportal.com/dataset/exports-imports-india/resource/a873702e-dc4a-4fa5-8223-924ebeeb6851",
+    "https://www.dgciskol.gov.in/writereaddata/Downloads/20251015164834NMDS.pdf"
+   ]
+  },
+  {
+   "country": "India",
+   "name": "DGFT Notifications – Minimum Export Price (MEP) on Natural Honey",
+   "official_body": "Directorate General of Foreign Trade (DGFT), Ministry of Commerce & Industry",
+   "access_method": "HTML notification list with PDF gazette notifications. Monitor by scraping the list page.",
+   "endpoints": [
+    "https://www.dgft.gov.in/CP/?opt=notification  (REMEMBERED list URL; official dgft.gov.in not fetched)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free; Gazette of India (public).",
+   "update_frequency": "Ad hoc. Past extensions came at quarter or year end.",
+   "publication_lag": "Same day (gazette)",
+   "data_available": "ITC-HS 04090000. Notification No. 09/2026-27 dated 10 Apr 2026 extends the MEP of US$1,400/MT FOB to 31 Dec 2026. Earlier steps: No. 52/2025-26 (31 Dec 2025) extended it to 31 Mar 2026. In August 2025 the MEP was cut from US$2,000 to US$1,400/MT. The MEP was first introduced in March 2024 at US$2,000/MT; Notif. 45/2024-25 is cited with the US$2,000 floor. Export policy stays 'Free' subject to the MEP. All of these come from secondary legal-news sources; verify on dgft.gov.in.",
+   "value_for_parodi": "This is a legal floor price for Indian honey offers (US$1.40/kg FOB), so it directly sets the bottom of Indian quotes. It expires 31 Dec 2026, about 8 weeks from today. Paladex should alert on renewal, change or lapse.",
+   "confidence": "from_search_snippets",
+   "priority": "high",
+   "parsing_notes": "Match notification titles containing 'honey' / '04090000' / 'Minimum Export Price'. Store the MEP value, currency, Incoterm (FOB) and validity end date as a time series.",
+   "rate_limits": "None documented",
+   "evidence_urls": [
+    "https://www.india-briefing.com/news/india-honey-export-mep-extension-2026-44161.html",
+    "https://www.livelaw.in/tax-cases/foreign-trade-policy-natural-honey-exports-capped-at-usd-1400-per-metric-ton-till-march-2026-notifies-dgft-516790",
+    "https://knnindia.co.in/news/newsdetails/sectors/exportimports/minimum-export-price-for-honey-fixed-at-usd-1400-per-tonne-till-march-2026-dgft",
+    "https://globaltradealert.org/state-act/94086-india-reduction-in-minimum-export-price-for-natural-honey",
+    "https://taxguru.in/dgft/mep-natural-honey-extended-31st-december-2025-dgft.html",
+    "https://teamleaseregtech.com/updates/article/51349/dgft-extension-of-minimum-export-price-on-natural-honey"
+   ]
+  },
+  {
+   "country": "Japan",
+   "name": "e-Stat API v3.0 – Trade Statistics of Japan (普通貿易統計, statsCode 00350300)",
+   "official_body": "Ministry of Finance / Japan Customs (data owner); e-Stat portal (MIC Statistics Bureau / NSTAC)",
+   "access_method": "REST API returning JSON, XML or CSV (getSimpleStatsData). This is the only fully machine-readable official API in this region.",
+   "endpoints": [
+    "https://api.e-stat.go.jp/rest/3.0/app/json/getStatsList?appId={APPID}&statsCode=00350300&searchWord=品別国別表%20輸入  (resolve current table IDs dynamically)",
+    "https://api.e-stat.go.jp/rest/3.0/app/json/getMetaInfo?appId={APPID}&statsDataId=0003425294  (confirm dimension ids for item code, country, time, measure)",
+    "https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?appId={APPID}&statsDataId=0003425294&cdCat01=040900000&metaGetFlg=Y&cntGetFlg=N&startPosition=1&limit=100000  (the dimension holding the 9-digit item code may be cat01 or cat02: confirm via getMetaInfo)",
+    "https://api.e-stat.go.jp/rest/3.0/app/getSimpleStatsData?appId={APPID}&statsDataId=0003425294&cdCat01=040900000&sectionHeaderFlg=2  (CSV)",
+    "https://www.e-stat.go.jp/dbview?sid=0003425294  (browser view)",
+    "Table IDs (VERIFIED via ecitizen.jp mirror): 0003425294 = 品別国別表 輸入 (imports, 2021–2024 confirmed + 2025 preliminary, ~18.9M records); 0003425293 = 品別国別表 輸出 (exports); 0003425300 = 海上コンテナ貨物品別国別表 輸入; 0003425302 = 税関別品別国別表 輸入"
+   ],
+   "auth": "Free appId from e-Stat user registration (マイページ > API機能 > アプリケーションID発行)",
+   "cost_licensing": "Free. Commercial use is allowed (official FAQ). Published apps must show the e-Stat credit notice (FAQ). Terms are compatible with the Government of Japan Standard Terms of Use (CC BY 4.0-compatible; remembered).",
+   "update_frequency": "Monthly",
+   "publication_lag": "From MOF/Customs documents: 9-digit import preliminary (輸入9桁速報) around the end of M+1; import confirmed (確報) around the end of M+2; annual final (確定) around March of the following year. Whether table 0003425294 holds monthly or annual time codes must be checked with getMetaInfo.",
+   "data_available": "Japan statistical code 0409.00-000 天然はちみつ (9-digit 040900000; general tariff 30%, WTO 25.5%: verified). Imports by country of origin, with quantity (KG) and value (thousand JPY, CIF; units remembered). Exports in 0003425293. Monthly history on Japan Customs runs back to 1988 (third-party claim).",
+   "value_for_parodi": "Gives monthly CIF JPY/kg by origin. China supplies about 70% of Japan's imports (MAFF); Argentina, Canada, Hungary, Myanmar, NZ and others also ship. That makes it an independent official price benchmark for Chinese and Argentine bulk honey in a second major market, available a few weeks after month end and cleanly via API. Convert JPY with the ECB rates already in Paladex.",
+   "confidence": "from_search_snippets",
+   "priority": "high",
+   "parsing_notes": "Always filter by item code: the tables have tens of millions of rows. Japan Customs country codes are 3-digit; 105 = China is remembered, so map the rest from getMetaInfo CLASS_OBJ. Quantity and value are separate 'tab' measure items. Table IDs are re-issued as years roll, so call getStatsList on each run. Pagination: follow RESULT_INF.NEXT_KEY with startPosition. Max 100,000 rows per call (remembered from the spec).",
+   "sample_response": "RECONSTRUCTED from API spec v3.0 (not observed for this table): {\"GET_STATS_DATA\":{\"RESULT\":{\"STATUS\":0,\"ERROR_MSG\":\"正常に終了しました。\"},\"STATISTICAL_DATA\":{\"RESULT_INF\":{\"TOTAL_NUMBER\":240,\"FROM_NUMBER\":1,\"TO_NUMBER\":240},\"TABLE_INF\":{\"@id\":\"0003425294\",\"STAT_NAME\":{\"@code\":\"00350300\",\"$\":\"貿易統計\"},\"GOV_ORG\":{\"$\":\"財務省\"}},\"CLASS_INF\":{\"CLASS_OBJ\":[{\"@id\":\"tab\",\"@name\":\"表章項目\"},{\"@id\":\"cat01\",\"@name\":\"品目\"},{\"@id\":\"cat02\",\"@name\":\"国\"},{\"@id\":\"time\",\"@name\":\"時間軸\"}]},\"DATA_INF\":{\"VALUE\":[{\"@tab\":\"..\",\"@cat01\":\"040900000\",\"@cat02\":\"105\",\"@time\":\"2025000909\",\"@unit\":\"KG\",\"$\":\"2345678\"}]}}}}",
+   "rate_limits": "Not confirmed. The FAQ has a question on request limits but the answer was truncated in the snippet.",
+   "evidence_urls": [
+    "https://www.e-stat.go.jp/en/statistics/00350300",
+    "https://ecitizen.jp/Statdb/StatsMeta/0003425294",
+    "https://ecitizen.jp/Statdb/StatsData/0003425293",
+    "https://www.e-stat.go.jp/api/api-dev/faq",
+    "https://www.e-stat.go.jp/api/sites/default/files/uploads/2019/07/API-specVer3.0.pdf",
+    "https://www.e-stat.go.jp/stat-search/files?tstat=000001013141",
+    "https://www.htshub.com/jp-hs/detail/040900000",
+    "https://www.customs.go.jp/moji/moji_toukei/202410kensaku-riyou.pdf",
+    "https://www.soumu.go.jp/main_content/000499930.pdf"
+   ]
+  },
+  {
+   "country": "Turkey",
+   "name": "TÜİK Foreign Trade Statistics database (Dış Ticaret İstatistikleri, GTİP × country, monthly)",
+   "official_body": "Turkish Statistical Institute (TÜİK), compiled with the Ministry of Trade from customs declarations",
+   "access_method": "Interactive web database (ZK-framework, stateful AJAX) with Excel export, plus monthly PDF/Excel bulletins. No documented REST API. TÜİK's new Veri Portalı publishes trade indices but no confirmed GTİP-level API.",
+   "endpoints": [
+    "https://biruni.tuik.gov.tr/disticaretapp/menu.zul  (TR UI; REMEMBERED, UNVERIFIED)",
+    "https://biruni.tuik.gov.tr/disticaretapp/menu_ing.zul  (EN UI; REMEMBERED, UNVERIFIED)",
+    "https://veriportali.tuik.gov.tr/  (new TÜİK data portal; existence verified via news, honey-level content unverified)"
+   ],
+   "auth": "None for standard tables. Firm-level or special tabulations are paid (snippet; possibly dated).",
+   "cost_licensing": "Standard tables free (remembered). Custom tabulations by country, firm or GTİP are available for a fee (secondary source). Attribute to TÜİK.",
+   "update_frequency": "Monthly",
+   "publication_lag": "The official foreign-trade release comes on the last working day of the following month (verified snippet). The Ministry of Trade publishes preliminary totals around the 2nd–4th of M+1 (remembered).",
+   "data_available": "Honey is HS6 040900, with Turkish 12-digit GTİP lines 0409.00.00.00.xx. Turkey splits natural honey into national sub-lines, so query at HS6 or verify the lines in the Gümrük Tarife Cetveli. Exports and imports by country, monthly. Value in USD; quantity 1 in kg plus quantity 2. General Trade System basis.",
+   "value_for_parodi": "Turkish export unit values by destination (Germany, Iraq, Saudi Arabia, USA...) for a supplier on Parodi's list. These are monthly and typically fresher than Comtrade. Turkey imports almost nothing because of high protection, so the export side is what matters.",
+   "confidence": "from_memory_unverified",
+   "priority": "medium",
+   "parsing_notes": "ZK UIs are hard to automate. Use Playwright or a manual monthly export from the owner's Chrome. Store GTİP, partner, month, USD, kg and compute USD/kg. Turkish honey (pine and flower) prices well above Chinese/Indian, so keep it as a separate series.",
+   "sample_response": "RECONSTRUCTED: Excel columns: Yıl | Ay | GTİP | GTİP Tanımı | Ülke Kodu | Ülke | Miktar 1 | Ölçü 1 (KG) | Miktar 2 | Dolar ; e.g. 2026 | 9 | 040900000011 | ... | 004 | Almanya | 120000 | KG | | 780000",
+   "rate_limits": "Undocumented",
+   "evidence_urls": [
+    "https://www.forbes.com.tr/ekonomi/tuik-ten-dis-ticarette-yeni-endeks-serileri",
+    "https://orgtr.org/turkiye-ve-dunyadaki-onemli-veri-tabanlari-3/",
+    "https://www.karar.com/dunya-tek-tuslaihracatcinin-avucunda-845074"
+   ]
+  },
+  {
+   "country": "Turkey",
+   "name": "TÜİK Animal Production Statistics (Hayvansal Üretim İstatistikleri): honey, beeswax, beehives",
+   "official_body": "Turkish Statistical Institute (TÜİK)",
+   "access_method": "Annual press bulletin (HTML/PDF with Excel tables) plus the data portal. Province-level tables via MEDAS (remembered).",
+   "endpoints": [
+    "https://data.tuik.gov.tr/Kategori/GetKategori?p=Tarim-111  (agriculture category page; REMEMBERED)",
+    "https://veriportali.tuik.gov.tr/  (new data portal)",
+    "https://biruni.tuik.gov.tr/medas/?locale=tr  (Central Dissemination System, province-level livestock incl. beehives/honey; REMEMBERED)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free; attribute to TÜİK.",
+   "update_frequency": "Annual",
+   "publication_lag": "About 6 weeks after year end. The 2025 bulletin was published around 10 Feb 2026 (production reference period Jan–Dec 2025; stock counts as of 31 Dec).",
+   "data_available": "2025 (verified via press): honey production 97,253 t (+1.8% y/y); beeswax 3,258 t (−1.7%). Hive counts (arılı kovan, new and old type) by province. The Ministry of Agriculture cites 96,646 beekeeping enterprises and 8,817,155 hives. Sources disagree on 2024 hives (8.96M vs 9.22M), so use TÜİK tables, not press.",
+   "value_for_parodi": "The official Turkish harvest size and hive trend, the world's #2–3 producer by hive count. Supply-side context for Turkish offers.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "parsing_notes": "Parse the bulletin Excel annex or the MEDAS table. Store production (t) and hives (count) per year and per province.",
+   "rate_limits": "None documented",
+   "evidence_urls": [
+    "https://www.ekonomigazetesi.com/sektor-haberleri/demir-koloni-ve-isletme-sayisindaki-azalmaya-ragmen-bal-uretimi-artti-72558",
+    "https://www.alomaliye.com/2026/02/10/hayvansal-uretim-istatistikleri-2025/",
+    "https://www.tarimorman.gov.tr/Haber/7077/Bakan-Yumaklidan-20-Mayis-Dunya-Ari-Gunu-Aciklamasi"
+   ]
+  },
+  {
+   "country": "India",
+   "name": "APEDA AgriExchange – India Export of Agro Food Products: Natural Honey (product group 0408)",
+   "official_body": "Agricultural & Processed Food Products Export Development Authority (APEDA), Ministry of Commerce & Industry",
+   "access_method": "HTML (ASP.NET WebForms) report pages; no API",
+   "endpoints": [
+    "https://agriexchange.apeda.gov.in/indexp/Product_description_32head.aspx?gcode=0408  (VERIFIED: India honey exports by destination, 3 FYs, Qty MT / ₹ lakh / US$ million)",
+    "https://agriexchange.apeda.gov.in/IntTrade/PrdGrpReport.aspx?gcode=0408  (VERIFIED URL. Caution: this 'International Trade' page appears to show WORLD imports by country. Its row 'USA 2022 205,160 MT / US$794.28 M' matches US total honey imports, not India's exports.)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free; government site",
+   "update_frequency": "Annual (Indian FY), updated after DGCI&S finalisation",
+   "publication_lag": "Several months after FY end",
+   "data_available": "Natural honey (ITC-HS 04090000) exports by country, FY April–March, quantity MT, value ₹ lakh and US$ million.",
+   "value_for_parodi": "An easy annual cross-check of TradeStat. APEDA is also the registration body for honey exporters and an approving body under the Export of Honey (QC, Inspection & Monitoring) Rules.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "parsing_notes": "WebForms pages use __VIEWSTATE postbacks for FY selection. Do not mix up the /indexp/ (India exports) and /IntTrade/ (world trade) sections.",
+   "rate_limits": "None documented",
+   "evidence_urls": [
+    "https://agriexchange.apeda.gov.in/indexp/Product_description_32head.aspx?gcode=0408",
+    "https://agriexchange.apeda.gov.in/IntTrade/PrdGrpReport.aspx?gcode=0408",
+    "https://marketscreener.com/news/latest/APEDA-working-in-collaboration-with-state-governments-farmers-and-others-to-boost-honey-exports-37470954"
+   ]
+  },
+  {
+   "country": "India",
+   "name": "Export Inspection Council (EIC) – honey export certification, approved establishments and Residue Monitoring Plan",
+   "official_body": "Export Inspection Council of India, Ministry of Commerce & Industry",
+   "access_method": "PDF and HTML documents and lists",
+   "endpoints": [
+    "https://www.eicindia.gov.in/WebApp1/resources/PDF/honey.pdf  (VERIFIED: EIC honey instructions, approval/monitoring of processing establishments, self-RMP)",
+    "https://www.eicindia.gov.in/WebApp1/resources/PDF/Coum_Notif_Hon_171213.pdf  (VERIFIED: honey notification)",
+    "https://www.eicindia.gov.in/  (approved-establishment lists for EU honey; REMEMBERED location)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free",
+   "update_frequency": "Ad hoc (lists and notifications); RMP annual",
+   "publication_lag": "n/a",
+   "data_available": "Export of Honey (Quality Control, Inspection and Monitoring) Rules. EIC-approved honey processing units for EU export. Annual residue monitoring plan (veterinary drugs, pesticides, heavy metals). The government asked EIC in 2019 to make NMR testing mandatory for honey exports; current status unconfirmed.",
+   "value_for_parodi": "Supplier due diligence: an Indian packer must be EIC-approved and certified to ship to Italy/EU. A change in RMP status would block EU access.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "parsing_notes": "Download PDFs monthly, hash them, and alert on change. Extract establishment name, approval number and validity.",
+   "rate_limits": "None documented",
+   "evidence_urls": [
+    "https://www.eicindia.gov.in/WebApp1/resources/PDF/honey.pdf",
+    "https://www.eicindia.gov.in/WebApp1/resources/PDF/Coum_Notif_Hon_171213.pdf",
+    "https://www.businessinsider.in/business/news/govt-wants-nmr-testing-mandatory-for-honey-exported-from-india/articleshow/72212477.cms",
+    "https://indiaenvironmentportal.org.in/reports-and-documents/residue-monitoring-plan-for-2008-for-drugs-pesticides-and-heavy-metals-for-export-of-honey-to-the-european-union"
+   ]
+  },
+  {
+   "country": "India",
+   "name": "DGCI&S Foreign Trade Data Dissemination Portal (8-digit × country × port, paid)",
+   "official_body": "Directorate General of Commercial Intelligence and Statistics (DGCI&S), Kolkata",
+   "access_method": "Paid portal with CSV/Excel bulk download",
+   "endpoints": [
+    "https://www.dgciskol.gov.in/  (VERIFIED domain)",
+    "https://www.ftddp.in/  (Foreign Trade Data Dissemination Portal; REMEMBERED, UNVERIFIED)"
+   ],
+   "auth": "Paid account",
+   "cost_licensing": "Paid subscription, priced per commodity/period (remembered). Licence restricts redistribution (remembered).",
+   "update_frequency": "Monthly",
+   "publication_lag": "About 1–2 months",
+   "data_available": "Monthly ITC-HS 8-digit (04090000) by country and Indian port (e.g., Mundra, Nhava Sheva, Kolkata), with quantity and value in ₹ and US$. DGCI&S metadata notes that HS revisions break series.",
+   "value_for_parodi": "Port-level detail helps find exporter hubs and gives precise unit values, because quantities and values are not rounded to US$ million. Worth paying for only if TradeStat precision is insufficient.",
+   "confidence": "from_memory_unverified",
+   "priority": "medium",
+   "parsing_notes": "CSV imports straight into Paladex; map the port and country codes.",
+   "rate_limits": "Per licence",
+   "evidence_urls": [
+    "https://www.dgciskol.gov.in/writereaddata/Downloads/20251015164834NMDS.pdf",
+    "https://www.dgciskol.gov.in/writereaddata/Downloads/20251010175904NMDS.pdf"
+   ]
+  },
+  {
+   "country": "China",
+   "name": "National Bureau of Statistics – National Data (annual honey output 蜂蜜产量)",
+   "official_body": "National Bureau of Statistics of China (国家统计局)",
+   "access_method": "Web plus an undocumented JSON 'easyquery' endpoint used by the site",
+   "endpoints": [
+    "https://data.stats.gov.cn/easyquery.htm?m=getTree&dbcode=hgnd&wdcode=zb&id={parentId}  (browse indicator tree to find 主要畜产品产量 > 蜂蜜产量; REMEMBERED)",
+    "https://data.stats.gov.cn/easyquery.htm?m=QueryData&dbcode=hgnd&rowcode=zb&colcode=sj&wds=[]&dfwds=[{\"wdcode\":\"zb\",\"valuecode\":\"{indicatorCode}\"}]  (annual national; dbcode=fsnd for provinces; REMEMBERED)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free; attribute to NBS.",
+   "update_frequency": "Annual",
+   "publication_lag": "About 9–10 months (Statistical Yearbook in autumn; remembered)",
+   "data_available": "Honey production in 10,000 t (万吨), national and by province (remembered to be part of the 主要畜产品产量 table).",
+   "value_for_parodi": "The official Chinese crop-size series, which is the supply-side anchor for Chinese export price moves.",
+   "confidence": "from_memory_unverified",
+   "priority": "medium",
+   "parsing_notes": "Responses are JSON with returndata.datanodes[] {code, data.data, wds[]}. Indicator codes are not stable or documented, so discover them via getTree. The site often needs a browser-like User-Agent and has TLS quirks.",
+   "sample_response": "RECONSTRUCTED: {\"returncode\":200,\"returndata\":{\"datanodes\":[{\"code\":\"zb.A0D0X_sj.2025\",\"data\":{\"data\":46.5,\"hasdata\":true},\"wds\":[{\"valuecode\":\"A0D0X\",\"wdcode\":\"zb\"},{\"valuecode\":\"2025\",\"wdcode\":\"sj\"}]}]}}",
+   "rate_limits": "Undocumented",
+   "evidence_urls": []
+  },
+  {
+   "country": "Japan",
+   "name": "Japan Customs – Trade Statistics search and table downloads (品別国別表)",
+   "official_body": "Japan Customs, Ministry of Finance",
+   "access_method": "HTML search with CSV download, plus pre-built tables (e-Stat links and PDF)",
+   "endpoints": [
+    "https://www.customs.go.jp/toukei/info/tsdl.htm  (VERIFIED: table list; national 品別国別表 / 統計品別表 / 国別品別表 for exports & imports)",
+    "https://www.customs.go.jp/toukei/search/index1.htm  (VERIFIED: search index; A-1 品別国別表)",
+    "https://www.customs.go.jp/toukei/srch/index.htm  (search UI; query params e.g. ?M=01&P=0 REMEMBERED)",
+    "https://www.customs.go.jp/toukei/sankou/sonotai/oj120315.html  (VERIFIED: CSV export notice, ≤3,000 records)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free; Government of Japan Standard Terms of Use (remembered).",
+   "update_frequency": "Monthly (plus 上中旬 interim flash for totals)",
+   "publication_lag": "9-digit import preliminary around the end of M+1; confirmed around the end of M+2",
+   "data_available": "Code 0409.00-000 by country, monthly, quantity KG, value thousand JPY. English UI available.",
+   "value_for_parodi": "Fallback and cross-check for the e-Stat API, and the fastest place to eyeball the latest month.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "parsing_notes": "CSV in Shift-JIS (remembered). The 2012 notice limits CSV to 3,000 records, which is fine for a single HS line.",
+   "rate_limits": "None documented",
+   "evidence_urls": [
+    "https://www.customs.go.jp/toukei/info/tsdl.htm",
+    "https://www.customs.go.jp/toukei/search/index1.htm",
+    "https://www.customs.go.jp/toukei/sankou/sonotai/oj120315.html",
+    "https://www.customs.go.jp/kobe/boueki/kensakuhoho/kensakuhoho.pdf",
+    "https://www.customs.go.jp/toukei/sankou/howto/faq.htm"
+   ]
+  },
+  {
+   "country": "Turkey",
+   "name": "Ministry of Agriculture & Forestry – TEPGE Beekeeping Market Report, hive registry figures, and the Adulterated Foods (Taklit/Tağşiş) disclosure list",
+   "official_body": "T.C. Tarım ve Orman Bakanlığı (TEPGE – Agricultural Economics & Policy Development Institute; General Directorate of Food & Control)",
+   "access_method": "Annual PDF report, press releases, and an HTML public list of adulterated products",
+   "endpoints": [
+    "https://arastirma.tarimorman.gov.tr/tepge/Belgeler/PDF%20Tarım%20Ürünleri%20Piyasaları/2025-Temmuz%20Tarım%20Ürünleri%20Raporu/Arıcılık%20Tarım%20Ürünleri%20Piyasaları%20Raporu%20Temmuz-2025.pdf  (VERIFIED; 2024 edition also exists: .../2024-Temmuz.../Arıcılık...Temmuz-2024-v4.pdf)",
+    "https://www.tarimorman.gov.tr/Haber/7077/Bakan-Yumaklidan-20-Mayis-Dunya-Ari-Gunu-Aciklamasi  (VERIFIED: 96,646 enterprises, 8,817,155 hives)",
+    "https://guvenilirgida.tarimorman.gov.tr/GuvenilirGida/gkd/TaklitTagsis  (adulteration disclosure list; REMEMBERED URL)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free",
+   "update_frequency": "TEPGE report annual (July); adulteration list continuous",
+   "publication_lag": "n/a",
+   "data_available": "TEPGE gives production, hives, yields, trade, domestic producer and consumer prices (TL/kg) and a world outlook. The disclosure list gives company, brand, product (bal), batch and finding (e.g., added glucose/sugar syrup).",
+   "value_for_parodi": "Turkish domestic price context. The adulteration list gives food-safety red flags for Turkish suppliers and brands, which no Comtrade/Eurostat source covers.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "parsing_notes": "Parse the PDF with pdfplumber. For the adulteration list, filter product category 'bal' and store firm name and tax ID for supplier screening.",
+   "rate_limits": "None documented",
+   "evidence_urls": [
+    "https://arastirma.tarimorman.gov.tr/tepge/Belgeler/PDF%20Tarım%20Ürünleri%20Piyasaları/2025-Temmuz%20Tarım%20Ürünleri%20Raporu/Arıcılık%20Tarım%20Ürünleri%20Piyasaları%20Raporu%20Temmuz-2025.pdf",
+    "https://arastirma.tarimorman.gov.tr/tepge/Belgeler/PDF%20Tarım%20Ürünleri%20Piyasaları/2024-Temmuz%20Tarım%20Ürünleri%20Raporu/Arıcılık%20Tarım%20Ürünleri%20Piyasaları%20Raporu%20Temmuz-2024-v4.pdf",
+    "https://www.tarimorman.gov.tr/Haber/7077/Bakan-Yumaklidan-20-Mayis-Dunya-Ari-Gunu-Aciklamasi"
+   ]
+  },
+  {
+   "country": "Japan",
+   "name": "MAFF – 養蜂をめぐる情勢 (Beekeeping situation) and MAFF honey-import XLS on e-Stat",
+   "official_body": "Ministry of Agriculture, Forestry and Fisheries (MAFF), Livestock Bureau",
+   "access_method": "PDF report plus an XLS file on e-Stat / data.e-gov.go.jp",
+   "endpoints": [
+    "https://d2gt7qz2p7h7rk.cloudfront.net/j/chikusan/kikaku/lin/sonota/attach/pdf/bee-131.pdf  (VERIFIED, MAFF CDN, Nov 2025 edition)",
+    "https://d2gt7qz2p7h7rk.cloudfront.net/j/chikusan/kikaku/lin/sonota/attach/pdf/bee-133.pdf",
+    "https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040047464&fileKind=0  (VERIFIED catalogue entry: 貿易統計(輸入)_1_農産物(畜産品)_天然はちみつ, XLS, last modified 2024-07-01)",
+    "https://data.e-gov.go.jp/data/en/dataset/maff_20230421_0199/resource/1b7d9263-dfd4-4d28-89a4-7ca8eeb56525"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free; Government of Japan Standard Terms of Use",
+   "update_frequency": "Report updated a few times a year; XLS annual",
+   "publication_lag": "Months",
+   "data_available": "Beekeeping households 12,150 and colonies 242,000 (as of 1 Jan 2025). Domestic honey production. Import volume and post-duty import price (WTO 25.5%, TPP11 rates). Domestic wholesale price ¥1,200–2,500/kg. China ≈70% of imports. Customs definition of natural honey (moisture ≤20%, sucrose ≤5%, fructose+glucose ≥60%).",
+   "value_for_parodi": "Low. This is context on Japanese demand and the price premium; the e-Stat trade API covers the price signal better.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "parsing_notes": "PDF tables; XLS is MAFF-formatted with headers in Japanese.",
+   "rate_limits": "None",
+   "evidence_urls": [
+    "https://d2gt7qz2p7h7rk.cloudfront.net/j/chikusan/kikaku/lin/sonota/attach/pdf/bee-131.pdf",
+    "https://d2gt7qz2p7h7rk.cloudfront.net/j/chikusan/kikaku/lin/sonota/attach/pdf/bee-84.pdf",
+    "https://data.e-gov.go.jp/data/en/dataset/maff_20230421_0199/resource/1b7d9263-dfd4-4d28-89a4-7ca8eeb56525",
+    "https://www.customs.go.jp/kaisei/tsutatsu/H30tsutatsu/H30tsutatsu0260/annex03.pdf"
+   ]
+  },
+  {
+   "country": "India",
+   "name": "National Bee Board / Ministry of Agriculture & Farmers Welfare (PIB releases, Madhukranti portal)",
+   "official_body": "National Bee Board (NBB), Ministry of Agriculture & Farmers Welfare; Press Information Bureau",
+   "access_method": "HTML/PDF press releases and documents; no data API",
+   "endpoints": [
+    "https://nbb.gov.in/  (REMEMBERED)",
+    "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/nov/doc2025112682601.pdf  (VERIFIED)",
+    "https://pib.gov.in/PressReleasePage.aspx?PRID=1855541  (VERIFIED)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free",
+   "update_frequency": "Irregular / annual",
+   "publication_lag": "Long, with inconsistent figures",
+   "data_available": "Production estimates: about 1,33,200 MT (2021-22, PIB); about 1.4 lakh MT (2024); 1,51,690 MT for 2025-26 (ministry-attributed, secondary). 12,699 registered beekeepers and 19.34 lakh colonies (older PIB). State figures, e.g., Bihar 22,587 t (2024-25).",
+   "value_for_parodi": "Indian crop-size context only.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "parsing_notes": "Manual or LLM extraction from press PDFs.",
+   "rate_limits": "None",
+   "evidence_urls": [
+    "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2025/nov/doc2025112682601.pdf",
+    "https://pib.gov.in/PressReleasePage.aspx?PRID=1855541",
+    "https://www.downtoearth.org.in/wildlife-biodiversity/world-bee-day-2026-indias-honey-boom-has-a-hidden-sting"
+   ]
+  },
+  {
+   "country": "China",
+   "name": "MOFCOM / GACC export licensing catalogue 2026 and MOFCOM–MARA monthly agri-trade reports",
+   "official_body": "Ministry of Commerce (商务部, 对外贸易司) with GACC; Ministry of Agriculture & Rural Affairs (农业农村部)",
+   "access_method": "HTML/PDF announcements and monthly PDF reports",
+   "endpoints": [
+    "https://www.mofcom.gov.cn/  (商务部 海关总署公告2025年第89号《出口许可证管理货物目录(2026年)》: 43 goods, effective 2026-01-01)",
+    "https://www.tid.gov.hk/en/tradecircular/files/2026/ci362026a.pdf  (VERIFIED HK TID reprint of the 2026 licensing announcement)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free",
+   "update_frequency": "Licensing list annual (January); agri-trade reports monthly",
+   "publication_lag": "n/a",
+   "data_available": "Whether honey requires a Chinese export licence in 2026 could not be confirmed, because the annex list was not captured; verify the annex. Monthly agri-trade reports give aggregates only, with honey not reliably split out.",
+   "value_for_parodi": "Regulatory watch only. A licence or quota change would affect Chinese supply.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "parsing_notes": "Diff the annual annex for '蜂蜜' / 0409.",
+   "rate_limits": "None",
+   "evidence_urls": [
+    "https://www.tid.gov.hk/en/tradecircular/files/2026/ci362026a.pdf",
+    "https://www.cirs-group.com/cn/chemicals/zhong-guo-2026-nian-jin-chu-kou-xu-ke-zheng-guan-li-huo-wu-mu-lu-yi-sheng-xiao"
+   ]
+  },
+  {
+   "country": "Vietnam",
+   "name": "Vietnam Customs statistics (Thống kê hải quan)",
+   "official_body": "Customs Department (Cục Hải quan), Ministry of Finance. Formerly the General Department of Vietnam Customs, restructured in 2025 (remembered).",
+   "access_method": "HTML/Excel releases of preliminary trade by main commodity group and country. Detailed HS8 data on request (fee), remembered.",
+   "endpoints": [
+    "https://www.customs.gov.vn/  (statistics section 'Số liệu thống kê'; exact paths not verified)"
+   ],
+   "auth": "None for published tables",
+   "cost_licensing": "Published tables are free. Custom HS-level extracts are paid on request (remembered).",
+   "update_frequency": "Monthly and semi-monthly for main groups",
+   "publication_lag": "About 2–4 weeks for main groups",
+   "data_available": "AHTN 0409.00.00 'Mật ong tự nhiên'. Honey is NOT among the published main commodity groups (remembered), so no free public honey series was found. Context from secondary sources: Vietnam's honey exports to the US were about US$29.5M in 2025 (−31% y/y), citing the Vietnam Trade Office in the US; Vietnamese honey has the world's lowest export unit price (VnEconomy).",
+   "value_for_parodi": "Low. For Vietnam, the US import side (Census via USDA GATS, already integrated) and the EU side (Comext) are the practical official mirrors.",
+   "confidence": "from_memory_unverified",
+   "priority": "low",
+   "parsing_notes": "If honey data are needed, request an HS 0409 extract from Customs, or rely on mirror data.",
+   "rate_limits": "n/a",
+   "evidence_urls": [
+    "https://vneconomy.vn/mat-ong-viet-nam-xuat-khau-voi-gia-thap-nhat-the-gioi.htm",
+    "https://doanhnghiephoinhap.vn/danh-thuc-tiem-nang-xuat-khau-mat-ong-46887.html",
+    "https://vnbusiness.vn/trang-thuong-hieu-mat-ong-kho-vuon-xa.html"
+   ]
+  },
+  {
+   "country": "Vietnam",
+   "name": "Ministry of Agriculture & Environment (MAE) honey residue monitoring / livestock stats, and Vietnamese trade-remedy information on US anti-dumping on honey",
+   "official_body": "MAE (formerly MARD), Livestock Production Dept. and quality authority (ex-NAFIQAD); MOIT Trade Remedies Authority; VCCI WTO Center (quasi-official)",
+   "access_method": "PDF/HTML bulletins and news",
+   "endpoints": [
+    "https://mae.gov.vn/  (REMEMBERED)",
+    "https://www.trav.gov.vn/  (REMEMBERED)",
+    "https://trungtamwto.vn/tin-tuc/32544-my-giam-thue-chong-ban-pha-gia-voi-mat-ong-viet-nam  (VERIFIED)",
+    "https://qn.check.net.vn/data/BNN_Document/18_6_2025_15_15_29Ban tin thi truong NLTS-đã gộp.pdf  (provincial MAE market bulletin, VERIFIED)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free",
+   "update_frequency": "Irregular",
+   "publication_lag": "n/a",
+   "data_available": "Honey national residue monitoring programme required for EU listing. Colony counts. Vietnamese-side summaries of the US AD order: 412.49% preliminary rate, later reduced in reviews. EU AD commentary.",
+   "value_for_parodi": "Low. The US AD and EU positions are already tracked via the Federal Register and EUR-Lex; useful only as Vietnamese-language early signals.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "parsing_notes": "News-style monitoring; keyword 'mật ong'.",
+   "rate_limits": "n/a",
+   "evidence_urls": [
+    "https://trungtamwto.vn/tin-tuc/32544-my-giam-thue-chong-ban-pha-gia-voi-mat-ong-viet-nam",
+    "https://trungtamwto.vn/hiep-dinh-khac/19322-bi-ap-thue-41249-mat-ong-viet-nam-tac-duong-sang-my",
+    "https://trungtamwto.vn/an-pham/21192-xuat-khau-mat-ong-cua-viet-nam-vao-chau-au-se-ra-sao-sau-khi-thue-cbpg-duoc-dieu-chinh"
+   ]
+  },
+  {
+   "country": "Turkey",
+   "name": "Ministry of Trade monthly foreign-trade data and TİM (Turkish Exporters Assembly) export figures",
+   "official_body": "T.C. Ticaret Bakanlığı. TİM is a statutory public-law umbrella body of exporter unions.",
+   "access_method": "Monthly HTML/PDF/Excel releases",
+   "endpoints": [
+    "https://ticaret.gov.tr/istatistikler  (REMEMBERED)",
+    "https://ticaret.gov.tr/data/5e5e031513b8765dd4555b37/2020 Yılı Şubat Ayı Veri Bülteni.pdf  (VERIFIED example bulletin)",
+    "https://tim.org.tr/tr/ihracat-rakamlari  (REMEMBERED)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free",
+   "update_frequency": "Monthly",
+   "publication_lag": "About 2–4 days after month end (preliminary, remembered)",
+   "data_available": "Preliminary monthly exports by sector and country. GTİP-level honey detail is limited or unconfirmed. TİM's İhracat Pusulası tool compares HS6 trade.",
+   "value_for_parodi": "Low. A fast directional signal ahead of TÜİK; TÜİK is the authoritative source for honey.",
+   "confidence": "from_memory_unverified",
+   "priority": "low",
+   "parsing_notes": "Prefer TÜİK for HS-level data.",
+   "rate_limits": "n/a",
+   "evidence_urls": [
+    "https://ticaret.gov.tr/data/5e5e031513b8765dd4555b37/2020 Yılı Şubat Ayı Veri Bülteni.pdf",
+    "https://www.karar.com/dunya-tek-tuslaihracatcinin-avucunda-845074"
+   ]
+  }
+ ],
+ "recommendation": "Build in this order, ranked by value to a bulk-honey buyer and by how hard each is to automate.\n\n1. **Japan e-Stat API.** Build this first: it is the region's only official REST API. The appId is free and commercial use is allowed if the e-Stat credit notice is shown. Resolve the table ID on each run with getStatsList (statsCode=00350300), confirm the dimension IDs once with getMetaInfo, then pull 9-digit code 040900000 imports by country. That gives monthly CIF JPY/kg for Chinese, Argentine, Canadian, Hungarian and Myanmar honey. Convert with the ECB rates Paladex already has.\n\n2. **India TradeStat monthly.** Scrape the HTML for HS 04090000, exports, 'Commodity-wise all Countries', with quantity plus US$ per unit (or ₹). Compare unit values with the DGFT minimum export price.\n\n3. **DGFT notifications watcher.** Add this now. Indian honey's minimum export price is US$1,400/t FOB under Notification 09/2026-27 and expires 31 Dec 2026, about 8 weeks away. Alert on renewal, change or lapse.\n\n4. **China GACC query platform.** This is the most valuable dataset in the region: China's monthly FOB USD/kg by destination, plus trade-mode and exporter-province splits that Comtrade lacks. It has no public API, a captcha and an unstable connection from abroad. The practical design is a monthly semi-automated pull: Playwright, or the owner's own Chrome, which they offered. Query exports, usd, codeLength=8, outerValue1=04090000, grouped by partner, trade mode and province with monthFlag=1, and import the table into Paladex.\n\n5. **Turkey.** Pull the TÜİK foreign-trade database monthly (HS6 040900 by country, USD and kg; also a stateful UI, so use a browser). Add the TÜİK animal-production bulletin each February (2025: 97,253 t honey). Watch the Ministry of Agriculture's adulterated-food list for 'bal' entries, which gives supplier red flags.\n\n6. **Supplier-compliance layer.** Add the EIC list of approved Indian honey establishments for EU export, and APEDA AgriExchange as an annual cross-check. Use the /indexp/ pages: the /IntTrade/ page shows world imports, not India's exports.\n\n7. **Vietnam.** Vietnam's customs service publishes no free honey line, so rely on the US Census (GATS) and Comext mirror data already integrated. Keep Vietnamese government and VCCI pages only as news signals on the US anti-dumping duty.\n\n8. **Optional context.** China's statistics bureau annual honey output (easyquery JSON) and the Japanese agriculture ministry's beekeeping PDFs.\n\n**What is verified and what is not:**\n- **Verified through search results:** platform URLs and their query dimensions; the e-Stat table IDs 0003425294 (imports) and 0003425293 (exports); the honey codes (CN 04090000 / 0409000000, ITC-HS 04090000, Japan 040900000) and Japan's 25.5% WTO tariff; the DGFT price-floor history; the TÜİK 2025 production figures; the Japanese release calendar; the EIC and Japanese agriculture-ministry documents.\n- **Remembered and must be verified:** the GACC backend endpoint and its parameter names, the TradeStat monthly route and form field names, the TÜİK trade-database URLs and Turkey's 12-digit honey codes, e-Stat dimension IDs and country codes, and DGCI&S portal pricing.\n\n**Blockers:**\n- WebFetch could not open any official site. stats.customs.gov.cn, www.e-stat.go.jp and s.apifox.cn failed DNS resolution, and the agent proxy refuses tunnels to most government hosts. Live checks need these hosts allowed in the session's network settings: stats.customs.gov.cn, api.e-stat.go.jp, www.e-stat.go.jp, tradestat.commerce.gov.in, agriexchange.apeda.gov.in, dgft.gov.in, eicindia.gov.in, biruni.tuik.gov.tr, data.tuik.gov.tr, veriportali.tuik.gov.tr, customs.gov.vn and data.stats.gov.cn. The alternative is to run those checks in the owner's Chrome.\n- The shared WebSearch budget (200 calls per turn) ran out before Turkey's trade database, Vietnam's customs data and China's statistics-bureau indicator codes could be confirmed. A follow-up turn can finish those checks."
+}

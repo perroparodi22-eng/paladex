@@ -27,7 +27,11 @@ Source research: docs/research/comtrade.json. How this collector works:
   - a derived customs **unit value** (``PriceType.IMPORT_UNIT_VALUE`` /
     ``EXPORT_UNIT_VALUE``, USD/kg) per country pair. It is a customs value divided by a weight,
     never a market quotation, so it is never stored as ``WHOLESALE_BULK``.
-  Revisions published by UN Comtrade become new revisions through ``services.ingest``.
+  Revisions published by UN Comtrade become new revisions through ``services.ingest``. A series a
+  fresh answer no longer supports is withdrawn (``ctx.retire``: no longer current, kept in the
+  history): a unit value whose re-released trade row lost its weight, a partner the re-release no
+  longer reports, or a partner code now mapped to another ISO3 (keys use the derived ISO3, so the
+  stable Comtrade ``partnerCode`` decides that it is the same partner).
 
 Response format: rows are in the top-level ``data`` array and the total is in ``count``. Field
 names follow the official client and the rOpenSci *comtradr* column mapping. That mapping
@@ -44,14 +48,14 @@ import time
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, TypeVar
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from sqlalchemy import func, select
 
 from ..enums import DataStatus, PriceType, Reliability, SourceKind, TradeFlow, Variety
-from ..models import TradeFlowObservation
+from ..models import PriceObservation, RawDocument, TradeFlowObservation
 from ..reference.countries import lookup_iso3
 from .base import (
     CollectContext,
@@ -112,6 +116,11 @@ KEYED_MAX_REPORTERS_PER_CALL = 6
 KEYLESS_MIN_INTERVAL = 2.0      # seconds between keyless calls (ctx.fetch alone guarantees 1.5 s)
 KEYED_MIN_INTERVAL = 1.1        # free key: 1 call/s (ctx.fetch's 1.5 s already satisfies it)
 QUOTA_STATUSES = (403, 429)     # APIM: 429 = rate limit, 403 = daily quota exhausted
+# getDa's lastReleased may be date-only (midnight, as in the documented sample) or on another clock,
+# while our last fetch time has hours. A re-release later on the day we last fetched must still count
+# as newer, so the comparison allows this much slack (it costs at most a re-fetch or two: last_seen_at
+# moves past it on the re-fetch).
+RELEASE_SLACK = timedelta(days=1)
 
 # Unit values are derived only for flows of at least this many kg. Tiny consignments (samples,
 # retail parcels, mis-keyed weights) give extreme USD/kg values that would only add noise to the
@@ -462,7 +471,16 @@ class ParseResult:
     skipped_aggregates: int = 0
     skipped_breakdown: int = 0       # partner2 / customs procedure / transport sub-totals
     skipped_other: int = 0           # other flows (re-imports...) or other commodities
+    # "flow='M' cmd=409" -> rows: the RAW values of rows rejected as another flow/commodity, so a format
+    # change (a number instead of a string, a label instead of a code) shows in the warning.
+    other_samples: dict[str, int] = field(default_factory=dict)
     envelope_error: str | None = None
+    # Which partners the answer carries, whatever became of their rows (kept, sub-total, malformed...):
+    # (reporterCode, period code) -> partnerCodes. store() uses it to tell a partner the source no longer
+    # reports from one we merely could not read. `unplaced` counts rows that could not be placed at all.
+    answered: dict[tuple[int, str], set[int]] = field(default_factory=dict)
+    unplaced: int = 0
+    group_partners: set[tuple[int, str, int]] = field(default_factory=set)  # (reporter, period, partner) skipped as groups
 
 
 def _is_total(value: Any, total: str) -> bool:
@@ -473,21 +491,10 @@ def _is_total(value: Any, total: str) -> bool:
 def _row_to_record(row: Any, ref: dict[int, PartnerInfo] | None, res: ParseResult, idx: int) -> TradeRecord | None:
     if not isinstance(row, dict):
         res.malformed.append(f"row {idx}: not a JSON object")
+        res.unplaced += 1
         return None
     ci = _ci(row)
     where = f"row {idx} (reporter {ci.get('reportercode')}, partner {ci.get('partnercode')}, period {ci.get('period')})"
-
-    flow_code = (_str_code(ci.get("flowcode")) or "").upper()
-    cmd = _str_code(ci.get("cmdcode"))
-    if flow_code not in FLOW_BY_CODE or (cmd is not None and cmd not in ACCEPTED_CMD_CODES):
-        res.skipped_other += 1
-        return None
-    # We ask for totals only (partner2Code=0, customsCode=C00, motCode=0). Sub-total rows would
-    # duplicate the same series key, so they are never stored.
-    if not (_is_total(ci.get("partner2code"), "0") and _is_total(ci.get("customscode"), "C00")
-            and _is_total(ci.get("motcode"), "0")):
-        res.skipped_breakdown += 1
-        return None
 
     freq_hint = _str_code(ci.get("freqcode"))
     raw_period = ci.get("period")
@@ -498,12 +505,30 @@ def _row_to_record(row: Any, ref: dict[int, PartnerInfo] | None, res: ParseResul
         elif (freq_hint or "").upper() == "A" and ref_year:
             raw_period = str(ref_year)
     period = parse_period(raw_period, freq_hint)
+    reporter_code = _int_code(ci.get("reportercode"))
+    partner_code = _int_code(ci.get("partnercode"))
+    if period is None or reporter_code is None or partner_code is None:
+        res.unplaced += 1
+    else:
+        res.answered.setdefault((reporter_code, period.code), set()).add(partner_code)
+
+    flow_code = (_str_code(ci.get("flowcode")) or "").upper()
+    cmd = _str_code(ci.get("cmdcode"))
+    if flow_code not in FLOW_BY_CODE or (cmd is not None and cmd not in ACCEPTED_CMD_CODES):
+        res.skipped_other += 1
+        sample = f"flow={ci.get('flowcode')!r} cmd={ci.get('cmdcode')!r}"
+        res.other_samples[sample] = res.other_samples.get(sample, 0) + 1
+        return None
+    # We ask for totals only (partner2Code=0, customsCode=C00, motCode=0). Sub-total rows would
+    # duplicate the same series key, so they are never stored.
+    if not (_is_total(ci.get("partner2code"), "0") and _is_total(ci.get("customscode"), "C00")
+            and _is_total(ci.get("motcode"), "0")):
+        res.skipped_breakdown += 1
+        return None
+
     if period is None:
         res.malformed.append(f"{where}: missing or invalid period {raw_period!r}")
         return None
-
-    reporter_code = _int_code(ci.get("reportercode"))
-    partner_code = _int_code(ci.get("partnercode"))
     if reporter_code is None or partner_code is None:
         res.malformed.append(f"{where}: missing reporter or partner code")
         return None
@@ -514,6 +539,7 @@ def _row_to_record(row: Any, ref: dict[int, PartnerInfo] | None, res: ParseResul
     partner_iso3, known = resolve_partner(partner_code, ci.get("partneriso"), ref)
     if partner_iso3 is None:
         res.skipped_aggregates += 1
+        res.group_partners.add((reporter_code, period.code, partner_code))
         return None
     ref_info = (ref or {}).get(partner_code)
     partner_desc = _first(ci, "partnerdesc") or (ref_info.desc if ref_info else None)
@@ -609,6 +635,33 @@ def unit_value(rec: TradeRecord) -> float | None:
     return round(rec.value / rec.net_weight_kg, 4)
 
 
+def no_unit_value_reason(rec: TradeRecord) -> str:
+    """Why `unit_value(rec)` is None, in words (for the warning when an earlier unit value is withdrawn)."""
+    if not rec.partner_known:
+        return "partner not mapped to a country"
+    if not rec.value:
+        return "value not reported"
+    if not rec.net_weight_kg:
+        return "net weight not reported"
+    if rec.net_weight_kg < MIN_UNIT_VALUE_KG:
+        return f"net weight {rec.net_weight_kg:,.0f} kg < {MIN_UNIT_VALUE_KG:,.0f} kg"
+    return "no unit value derivable"
+
+
+def unit_value_price_type(flow_code: str) -> PriceType:
+    return PriceType.IMPORT_UNIT_VALUE if flow_code == "M" else PriceType.EXPORT_UNIT_VALUE
+
+
+def unit_value_series(freq: str, reporter_iso3: str, partner_iso3: str, period_code: str) -> str:
+    """Series key of the unit value derived from one trade row, as passed to `ctx.add_price`."""
+    return f"{HS_CODE}|{freq}|{reporter_iso3}|{partner_iso3}|{period_code}"
+
+
+def stored_unit_value_key(flow_code: str, freq: str, reporter_iso3: str, partner_iso3: str, period_code: str) -> str:
+    """The same key as stored: `ctx.add_price` prefixes the price type, which carries the flow."""
+    return f"{unit_value_price_type(flow_code).value}|{unit_value_series(freq, reporter_iso3, partner_iso3, period_code)}"
+
+
 T = TypeVar("T")
 
 
@@ -674,6 +727,7 @@ class _ComtradeRun:
         self._partner_ref = partner_ref
         self.warned_partners: set[int] = warned_partners if warned_partners is not None else set()
         self._warned_breakdown = False
+        self._warned_other = False
         self._last_call: float | None = None
         self.availability: dict[str, dict[tuple[int, str], datetime | None] | None] = {}
         self.ok_calls = 0
@@ -727,8 +781,9 @@ class _ComtradeRun:
                     released = avail[(code, p)]
                     if released is None:    # published, release time unknown
                         need = seen is None or p in seg.recheck
-                    else:                   # new, or re-released since we last saw it
-                        need = seen is None or released > seen
+                    else:                   # new, or re-released since we last saw it (RELEASE_SLACK:
+                        # a date-only lastReleased later on the day of our last fetch is still newer)
+                        need = seen is None or released + RELEASE_SLACK > seen
                 else:
                     need = seen is None or p in seg.recheck
                 if need:
@@ -795,9 +850,10 @@ class _ComtradeRun:
         )
 
     def partner_ref(self) -> dict[int, PartnerInfo]:
-        """Partner reference table, loaded once per run on first use. It is an optional
-        enrichment (ISO3 for partners missing from our country table, `isGroup`), so a failure
-        is logged and the run continues without it."""
+        """Partner reference table, loaded once per run on first use. It enriches the mapping (ISO3
+        for partners missing from our country table, `isGroup`). The mapping decides the series keys,
+        so it must not flip between runs: when the file cannot be fetched, the last archived copy is
+        used; only when there is none does the run continue without it, with a warning."""
         if self._partner_ref is None:
             self._partner_ref = {}
             try:
@@ -806,8 +862,34 @@ class _ComtradeRun:
             except Offline:
                 raise
             except (CollectorError, _QuotaReached, _KeyRejected) as exc:
-                log.info("[%s] partner reference unavailable: %s", self.ctx.source.key, exc)
+                reason = self._redact(str(exc))[:160]
+                archived = self._archived_partner_ref()
+                if archived is not None:
+                    self._partner_ref, fetched_at = archived
+                    log.info("[%s] partner reference unavailable (%s); using the copy archived on %s",
+                             self.ctx.source.key, reason, fetched_at)
+                else:
+                    self.ctx.warn(f"UN Comtrade partner reference (partnerAreas.json) unavailable and never archived "
+                                  f"({reason}): partners without an ISO code in the answer are stored under their "
+                                  "Comtrade code (M###) this run, and only known groups of countries are skipped")
         return self._partner_ref
+
+    def _archived_partner_ref(self) -> tuple[dict[int, PartnerInfo], datetime] | None:
+        """The most recent archived partnerAreas.json that still parses (refused answers are archived
+        under the same URL too, so a few are tried, newest first)."""
+        ctx = self.ctx
+        docs = ctx.session.scalars(
+            select(RawDocument).where(RawDocument.source_id == ctx.source.id, RawDocument.url == PARTNER_REF_URL)
+            .order_by(RawDocument.fetched_at.desc(), RawDocument.id.desc()).limit(5)
+        ).all()
+        for d in docs:
+            try:
+                ref = parse_partner_reference((ctx.settings.raw_dir / d.path).read_bytes())
+            except (OSError, CollectorError):
+                continue
+            if ref:
+                return ref, d.fetched_at
+        return None
 
     def load_availability(self, freq: str, codes: list[int], periods: list[str]) -> dict | None:
         """One getDa call per frequency. Returns None when the answer is missing or unusable, in
@@ -884,10 +966,11 @@ class _ComtradeRun:
                 return
             self.ctx.warn(f"UN Comtrade {label}: answer reached the {cap}-row cap and may be incomplete; "
                           "rows received are stored, partner coverage may be partial")
-        self.store(result, doc, label)
+        self.store(result, doc, label, complete=not truncated)
 
     # ---------------------------------------------------------------- store
-    def store(self, result: ParseResult, doc: FetchResult, label: str) -> None:
+    def store(self, result: ParseResult, doc: FetchResult, label: str, *, complete: bool = True) -> None:
+        """Store one answer. `complete` is False when it hit the row cap (some partners may be missing)."""
         ctx = self.ctx
         for msg in result.malformed[:10]:
             ctx.warn(f"UN Comtrade {label}: {msg}")
@@ -904,12 +987,24 @@ class _ComtradeRun:
             self._warned_breakdown = True
             ctx.warn(f"UN Comtrade {label}: {result.skipped_breakdown} sub-total rows (partner2/customs/"
                      "transport breakdown) were returned despite the filters and skipped")
-        if result.skipped_aggregates or result.skipped_other:
-            log.debug("[%s] %s: skipped %d group-partner rows, %d other-flow/commodity rows", ctx.source.key,
-                      label, result.skipped_aggregates, result.skipped_other)
+        # The request pins cmdCode and flowCode, so a row of another flow/commodity is unexpected: if
+        # every row is rejected that way, the format has most likely changed (409 instead of "0409",
+        # "Import" instead of "M") and the run must not look healthy while no trade data arrives.
+        sample = "; ".join(list(result.other_samples)[:3]) or "none"
+        if result.raw_count and not result.records and not result.malformed and not result.skipped_breakdown:
+            ctx.warn(f"UN Comtrade {label}: {result.raw_count} rows received but none kept (other flow/commodity: "
+                     f"{result.skipped_other}, group partners: {result.skipped_aggregates}; e.g. {sample}); "
+                     "response format may have changed")
+        elif result.skipped_other and not self._warned_other:
+            self._warned_other = True
+            ctx.warn(f"UN Comtrade {label}: {result.skipped_other} rows of another flow or commodity were returned "
+                     f"despite the filters and skipped (e.g. {sample})")
+        if result.skipped_aggregates:
+            log.debug("[%s] %s: skipped %d group-partner rows", ctx.source.key, label, result.skipped_aggregates)
 
         source_url = redact_url(doc.url)
         avail = self.availability.get
+        no_uv: dict[str, TradeRecord] = {}       # unit-value key -> record that no longer supports one
         for rec in result.records:
             released = (avail(rec.freq) or {}).get((rec.reporter_code, rec.period.code))
             published = rec.published_at or (released.date() if released else None)
@@ -926,6 +1021,9 @@ class _ComtradeRun:
             )
             uv = unit_value(rec)
             if uv is None:
+                if rec.partner_iso3 != "WLD":     # the World total never has a unit value
+                    no_uv[stored_unit_value_key(rec.flow_code, rec.freq, rec.reporter_iso3, rec.partner_iso3,
+                                                p.code)] = rec
                 continue
             is_import = rec.flow_code == "M"
             # imports: the partner is the origin and the reporter the market; exports: the reverse
@@ -934,8 +1032,8 @@ class _ComtradeRun:
                 origin, market = market, origin
             origin_label = (rec.partner_desc if is_import else rec.reporter_desc) or origin
             ctx.add_price(
-                series_key=f"{HS_CODE}|{rec.freq}|{rec.reporter_iso3}|{rec.partner_iso3}|{p.code}",
-                price_type=PriceType.IMPORT_UNIT_VALUE if is_import else PriceType.EXPORT_UNIT_VALUE,
+                series_key=unit_value_series(rec.freq, rec.reporter_iso3, rec.partner_iso3, p.code),
+                price_type=unit_value_price_type(rec.flow_code),
                 variety=Variety.UNSPECIFIED.value, variety_raw="HS 0409 natural honey (all floral types)",
                 price_value=uv, currency="USD", unit="kg",
                 period_start=p.start, period_end=p.end, period_label=p.label, frequency=rec.freq,
@@ -948,6 +1046,86 @@ class _ComtradeRun:
                        "partner_iso3": rec.partner_iso3, "value_usd": rec.value, "net_weight_kg": rec.net_weight_kg},
                 **common,
             )
+        self.retire_unit_values(no_uv, label)
+        self.retire_withdrawn(result, label, complete=complete)
+
+    def retire_unit_values(self, no_uv: dict[str, TradeRecord], label: str) -> None:
+        """A re-released trade row that no longer supports a unit value (weight now missing or under
+        MIN_UNIT_VALUE_KG, partner unmapped...) must not leave the earlier unit value standing as the
+        latest published price next to a trade row that contradicts it."""
+        if not no_uv:
+            return
+        ctx, po = self.ctx, PriceObservation
+        held: set[str] = set()
+        for chunk in _chunks(list(no_uv), 500):
+            held.update(ctx.session.scalars(select(po.series_key).where(
+                po.source_id == ctx.source.id, po.is_current.is_(True), po.is_demo.is_(False),
+                po.series_key.in_(chunk))).all())
+        withdrawn = [f"{rec.partner_iso3} {rec.period.label} ({no_unit_value_reason(rec)})"
+                     for key, rec in no_uv.items() if key in held and ctx.retire(po, key)]
+        if withdrawn:
+            more = f" and {len(withdrawn) - 8} more" if len(withdrawn) > 8 else ""
+            ctx.warn(f"UN Comtrade {label}: earlier unit value withdrawn for {len(withdrawn)} partner(s) whose "
+                     f"re-released figures no longer support one: {', '.join(withdrawn[:8])}{more}")
+
+    def retire_withdrawn(self, result: ParseResult, label: str, *, complete: bool) -> None:
+        """Withdraw stored series that a fresh answer no longer supports, so they do not stay current
+        next to the figures that replace them:
+
+        * the same Comtrade partner code (stable, unlike the ISO3 derived from it) now arrives under
+          another key, e.g. 'M894' -> 'ZMB' once the partner reference loads, or is now classed as a
+          group of countries: the old series would count that partner twice;
+        * when the answer is complete (under the row cap, every row placed): a partner the source no
+          longer reports for that reporter and period (reallocated or withdrawn). A partner whose row
+          is only unreadable or a sub-total is still in `answered`, so it is never withdrawn.
+
+        Only reporter/period pairs with rows in this answer are considered, so an empty answer
+        withdraws nothing. A withdrawn trade row takes its unit value with it."""
+        if not result.records:
+            return
+        ctx, t = self.ctx, TradeFlowObservation
+        flow_code, freq = result.records[0].flow_code, result.records[0].freq
+        received: dict[tuple[str, str], dict[str, TradeRecord]] = defaultdict(dict)  # (reporter, period) -> key -> rec
+        for rec in result.records:
+            received[(rec.reporter_iso3, rec.period.label)][rec.series_key] = rec
+        stored = ctx.session.scalars(select(t).where(
+            t.source_id == ctx.source.id, t.is_current.is_(True), t.is_demo.is_(False),
+            t.flow == FLOW_BY_CODE[flow_code], t.frequency == freq,
+            t.reporter_iso3.in_(sorted({r for r, _ in received})),
+            t.period_label.in_(sorted({pl for _, pl in received})),
+        ).order_by(t.id)).all()
+        may_drop = complete and result.unplaced == 0
+        remapped: list[str] = []
+        dropped: list[str] = []
+        for row in stored:
+            group = received.get((row.reporter_iso3, row.period_label))
+            if group is None or row.series_key in group:
+                continue
+            sample = next(iter(group.values()))
+            reporter_code, period_code = sample.reporter_code, sample.period.code
+            code = (row.extra or {}).get("partner_code")
+            now = next((r.partner_iso3 for r in group.values() if r.partner_code == code), None)
+            if now is None and (reporter_code, period_code, code) in result.group_partners:
+                now = "group of countries, not stored"
+            if now is not None:
+                remapped.append(f"partner {code} {row.period_label}: {row.partner_iso3} -> {now}")
+            elif may_drop and code not in result.answered.get((reporter_code, period_code), set()):
+                dropped.append(f"{row.partner_iso3} {row.period_label}")
+            else:
+                continue
+            ctx.retire(t, row.series_key)
+            ctx.retire(PriceObservation,
+                       stored_unit_value_key(flow_code, freq, row.reporter_iso3, row.partner_iso3, period_code))
+        if remapped:
+            more = f" and {len(remapped) - 6} more" if len(remapped) > 6 else ""
+            ctx.warn(f"UN Comtrade {label}: {len(remapped)} series withdrawn because their Comtrade partner code now "
+                     f"maps differently (left current, they would count the partner twice): "
+                     f"{', '.join(remapped[:6])}{more}")
+        if dropped:
+            more = f" and {len(dropped) - 8} more" if len(dropped) > 8 else ""
+            ctx.warn(f"UN Comtrade {label}: {len(dropped)} partner series no longer in the source's answer were "
+                     f"withdrawn with their unit values (earlier values stay in the history): "
+                     f"{', '.join(dropped[:8])}{more}")
 
 
 class ComtradeCollector(Collector):

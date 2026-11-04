@@ -8,6 +8,7 @@ import { AiBadge, Badge, DemoBadge, FreshnessBadge, Panel, ReliabilityBadge } fr
 import { pickLang, useI18n } from '@/i18n'
 import { fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
+import { PRICE_TYPE_ORDER } from '@/components/prices/utils'
 import type {
   CountryHit, GroupKey, NewsHit, PriceHit, RegulationHit, ReportHit, SearchGroup, SourceHit, VarietyHit,
 } from './types'
@@ -101,6 +102,16 @@ function VarietyCard({ v }: { v: VarietyHit }) {
 
 const rowLinkCls = 'block px-5 py-4 hover:bg-ivory/50 focus-visible:bg-ivory/60 outline-offset-[-2px]'
 
+/** Link of a price-series result. It opens the price page on a type this series really has: without
+ * one the page opens on the first type with any data, where this origin/variety may have nothing. */
+export function priceHitTarget(p: Pick<PriceHit, 'target' | 'price_types'>): string {
+  if (/[?&](price_type|tipo)=/.test(p.target)) return p.target
+  const rank = (k: string) => { const i = (PRICE_TYPE_ORDER as string[]).indexOf(k); return i === -1 ? 99 : i }
+  const pt = [...p.price_types].sort((a, b) => rank(a) - rank(b))[0]
+  if (!pt) return p.target
+  return `${p.target}${p.target.includes('?') ? '&' : '?'}price_type=${encodeURIComponent(pt)}`
+}
+
 function PriceRow({ p }: { p: PriceHit }) {
   const { t, lang } = useI18n()
   const { priceType } = useLabels()
@@ -108,7 +119,7 @@ function PriceRow({ p }: { p: PriceHit }) {
   const variety = lang === 'it' ? p.variety_it : p.variety_en
   return (
     <li>
-      <Link to={p.target} className={clsx(rowLinkCls, 'flex items-center justify-between gap-4')} {...resultProps}>
+      <Link to={priceHitTarget(p)} className={clsx(rowLinkCls, 'flex items-center justify-between gap-4')} {...resultProps}>
         <div className="flex items-start gap-3 min-w-0">
           <LineChart size={20} className="text-gold mt-0.5 shrink-0" />
           <div className="min-w-0">

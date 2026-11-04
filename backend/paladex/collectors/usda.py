@@ -52,7 +52,7 @@ from urllib.parse import urlparse
 from sqlalchemy import func, select
 
 from ..enums import DataStatus, PriceType, Reliability, SourceKind, TradeFlow, Variety
-from ..models import AppSetting, ProductionStat, Report
+from ..models import AppSetting, PriceObservation, ProductionStat, Report
 from ..reference.countries import country_name, lookup_iso3
 from ..reference.varieties import detect_color_grade, normalize_variety
 from .base import (
@@ -468,7 +468,10 @@ def _is_upper_label(text: str) -> bool:
 
 
 def _split_label(body: str, indent: float, section: str) -> tuple[str | None, str | None, str]:
-    """Return (label, iso3, rest). label None = the row continues the previous label."""
+    """Return (label, iso3, rest). label None = the row continues the previous label.
+
+    Only an indented row continues the previous label. A row starting in the label column
+    always names a new label; when it is unknown, iso3 is None so the caller warns and skips it."""
     cells = [c for c in re.split(r"\s{2,}", body.strip()) if c]
     if not cells:
         return None, None, ""
@@ -488,7 +491,8 @@ def _split_label(body: str, indent: float, section: str) -> tuple[str | None, st
         # A label we do not know: US/CA region names are kept as printed (e.g. "DAKOTA");
         # an unknown origin country is returned without ISO3 so the caller can warn.
         return first, {BEEKEEPER: "USA", CANADA: "CAN"}.get(section), " ".join(cells[1:])
-    return None, None, " ".join(cells)
+    # Mixed case ("Laos") or with punctuation ("KOREA, SOUTH"): still a new label, never a continuation.
+    return first, None, " ".join(cells[1:])
 
 
 def describe(descriptor: str) -> tuple[str | None, str | None, bool, str]:
@@ -702,6 +706,8 @@ class _HoneyReportParser:
             if self.in_heading:
                 self.heading_lines.append(line.text.strip())
                 return
+            # e.g. the first half of a wrapped label: what follows must not inherit the previous origin
+            self.carry = None
             self.warn(line, f"unparsed line in '{self.section}' table")
             return
         self.in_heading = False
@@ -933,6 +939,8 @@ ESMIS_FVMHONEY_URL = "https://esmis.nal.usda.gov/api/v1/release/findByIdentifier
 ESMIS_PUBLICATION_URL = "https://esmis.nal.usda.gov/publication/national-honey-report"
 AMS_LATEST_URL = "https://www.ams.usda.gov/mnreports/fvmhoney.pdf"
 AMS_MIRROR_URL = "https://ams-prod.azureedge.us/mnreports/fvmhoney.pdf"
+# In-app link to a report's archived original (served by api/reports.py, byte for byte as downloaded).
+ARCHIVED_REPORT_FILE_URL = "/api/reports/{report_id}/file"
 HONEY_BACKFILL_RELEASES = 24        # newest ESMIS issues downloaded and parsed
 ESMIS_EMPTY_RETRIES = 3             # ESMIS sometimes answers with an empty list; retry, 5 s apart
 REPORT_DATE_MATCH_DAYS = 4          # an AMS issue within this many days of an ESMIS release = same issue
@@ -1024,6 +1032,7 @@ class UsdaHoneyReportCollector(Collector):
             if releases:
                 return releases
             if attempt < ESMIS_EMPTY_RETRIES:
+                ctx.checkpoint()        # do not hold the write lock (archived response) while waiting
                 time.sleep(5)
         ctx.warn("ESMIS returned an empty National Honey Report release list (transient?)")
         return []
@@ -1076,10 +1085,17 @@ class UsdaHoneyReportCollector(Collector):
         issue = parsed.issue_date
         report_key = self._report_key_near(ctx, issue) or issue.isoformat()
         title = f"National Honey Report – {_long_date(issue)}"
-        self._store(ctx, parsed, issue, title=title, source_url=doc.url, raw_document_id=doc.raw_document_id)
-        ctx.add_report(report_key=report_key, title=title, url=doc.url, published_at=issue,
-                       period_label=_period_label(issue.year, issue.month),
-                       raw_document_id=doc.raw_document_id, narrative=parsed.narrative)
+        report, _ = ctx.add_report(report_key=report_key, title=title, url=doc.url, published_at=issue,
+                                   period_label=_period_label(issue.year, issue.month),
+                                   raw_document_id=doc.raw_document_id, narrative=parsed.narrative)
+        # AMS overwrites this URL every month: each price links to the archived copy of the exact file
+        # it was parsed from; the AMS URL is kept in `extra["fetched_from"]` (and as the report's URL).
+        # (If the matched report already archives other bytes, e.g. the ESMIS copy of the issue, the
+        # link would not serve these bytes, so the fetched URL is kept.)
+        source_url = (ARCHIVED_REPORT_FILE_URL.format(report_id=report.id)
+                      if report.raw_document_id == doc.raw_document_id else doc.url)
+        self._store(ctx, parsed, issue, title=title, source_url=source_url, raw_document_id=doc.raw_document_id,
+                    fetched_from=doc.url)
         ctx.checkpoint()
 
     def _report_key_near(self, ctx: CollectContext, d: date) -> str | None:
@@ -1092,7 +1108,8 @@ class UsdaHoneyReportCollector(Collector):
         return rows[0].report_key if rows else None
 
     def _store(self, ctx: CollectContext, parsed: HoneyReportParse, issue: date, *, title: str,
-               source_url: str, raw_document_id: int) -> None:
+               source_url: str, raw_document_id: int, fetched_from: str | None = None) -> None:
+        provenance = {"fetched_from": fetched_from} if fetched_from else {}
         for w in parsed.warnings:
             ctx.warn(f"{title}: {w}")
         if issue.day < 15:
@@ -1124,7 +1141,7 @@ class UsdaHoneyReportCollector(Collector):
                 notes=f"{title}, p.{p.page}: {p.heading[:160]}",
                 extra={"parser_version": parsed.parser_version, "page": p.page, "raw_line": p.raw_line,
                        "printed_in_cents": p.printed_in_cents, "report_section": p.section,
-                       "issue_date": issue.isoformat(), "label_as_printed": p.label},
+                       "issue_date": issue.isoformat(), "label_as_printed": p.label, **provenance},
             )
         for r in parsed.imports:
             if (r.year, r.month) > (issue.year, issue.month):
@@ -1154,7 +1171,7 @@ class UsdaHoneyReportCollector(Collector):
                        "cif_value_usd": r.cif_value, "total_value_usd": r.total_value,
                        "landed_unit_value_usd_per_kg": round(r.total_value / r.kilograms, 4)
                        if r.total_value else None,
-                       "year_to_date": r.ytd, "issue_date": issue.isoformat()},
+                       "year_to_date": r.ytd, "issue_date": issue.isoformat(), **provenance},
             )
 
 
@@ -1360,6 +1377,8 @@ class UsdaFasGatsCollector(Collector):
         todo = select_gats_months(releases, processed, window=GATS_WINDOW_MONTHS, cap=GATS_MAX_MONTHS_PER_RUN)
         if not todo:
             return
+        # Commit the archived release calendar: no write lock is held during the long downloads below.
+        ctx.checkpoint()
         descriptions = _Hs10Descriptions(ctx, headers, state)
         for rel in todo:
             complete, stop = self._collect_month(ctx, rel, headers, descriptions)
@@ -1395,7 +1414,11 @@ class UsdaFasGatsCollector(Collector):
                 continue
             for w in warnings:
                 ctx.warn(w)
-            self._store(ctx, rel, code, iso3, url, lines, n_records, descriptions, ps, pe, label)
+            if self._store(ctx, rel, code, iso3, url, lines, n_records, descriptions, ps, pe, label):
+                complete = False        # per-HS-10 unit values deferred: the month is fetched again
+            # One commit per partner-month, so the SQLite write lock is never held across downloads.
+            # The month is marked processed only by `collect` once every partner is complete.
+            ctx.checkpoint()
             remaining = str(_ci_get(res.headers, "x-ratelimit-remaining") or "")
             if remaining.isdigit() and int(remaining) < GATS_MIN_RATE_REMAINING:
                 ctx.warn(f"api.data.gov quota nearly used up ({remaining} calls left this hour); "
@@ -1405,7 +1428,9 @@ class UsdaFasGatsCollector(Collector):
 
     def _store(self, ctx: CollectContext, rel: GatsRelease, code: str, iso3: str, url: str,
                lines: list[GatsLine], n_records: int, descriptions: _Hs10Descriptions,
-               ps: date, pe: date, label: str) -> None:
+               ps: date, pe: date, label: str) -> bool:
+        """Store one partner-month. Returns True when per-HS-10 unit values were deferred because
+        the HS-10 descriptions could not be loaded (the month must be fetched again)."""
         kg = sum(ln.kg for ln in lines)
         value = sum(ln.value for ln in lines)
         cif_total = None if any(ln.cif_total is None for ln in lines) else sum(ln.cif_total for ln in lines)
@@ -1431,8 +1456,15 @@ class UsdaFasGatsCollector(Collector):
                    "no_honey_lines": no_honey, "partner_records": n_records},
             **common,
         )
+        # Unit-value series this listing still supports (as passed to add_price); any other current
+        # one of this partner-month was withdrawn by a Census revision (line dropped or now zero).
+        published = {f"usda_gats|USA|{iso3}|{ln.hs10}|{rel.yyyymm}" for ln in lines if ln.kg > 0 and ln.value > 0}
+        if kg > 0 and value > 0:
+            published.add(f"usda_gats|USA|{iso3}|0409|{rel.yyyymm}")
+        self._withdraw_unpublished(ctx, rel, code, iso3, label, published)
         if kg <= 0 or value <= 0:
-            return
+            return False
+        deferred = False
         base_terms = "US customs value / net kg (imports for consumption; excludes freight, insurance & duty)"
         ctx.add_price(
             series_key=f"usda_gats|USA|{iso3}|0409|{rel.yyyymm}", price_type=PriceType.IMPORT_UNIT_VALUE,
@@ -1451,6 +1483,11 @@ class UsdaFasGatsCollector(Collector):
             if ln.kg <= 0 or ln.value <= 0:
                 continue
             desc = descriptions.get(ln.hs10)
+            if desc is None and descriptions.failed:
+                # Colour/organic/description are not revision fields: a row stored without them now
+                # would keep them missing for good. Wait for a run where the descriptions load.
+                deferred = True
+                continue
             color, organic = hs10_attributes(desc)
             ctx.add_price(
                 series_key=f"usda_gats|USA|{iso3}|{ln.hs10}|{rel.yyyymm}", price_type=PriceType.IMPORT_UNIT_VALUE,
@@ -1466,6 +1503,27 @@ class UsdaFasGatsCollector(Collector):
                        "release_timestamp": rel.timestamp},
                 **common,
             )
+        return deferred
+
+    def _withdraw_unpublished(self, ctx: CollectContext, rel: GatsRelease, code: str, iso3: str, label: str,
+                              published: set[str]) -> None:
+        """Withdraw the current unit values of this partner-month that the listing no longer supports.
+        They stay in the history (never deleted); the current trade row lists the remaining lines."""
+        pt = PriceType.IMPORT_UNIT_VALUE.value
+        prefix, suffix = f"{pt}|usda_gats|USA|{iso3}|", f"|{rel.yyyymm}"
+        P = PriceObservation
+        current = ctx.session.scalars(select(P.series_key).where(
+            P.source_id == ctx.source.id, P.price_type == pt, P.origin_iso3 == iso3, P.period_label == label,
+            P.is_current.is_(True), P.is_demo.is_(False),
+        )).all()
+        gone = sorted(k for k in current
+                      if k.startswith(prefix) and k.endswith(suffix) and k[len(pt) + 1:] not in published)
+        for key in gone:
+            ctx.retire(P, key)
+        if gone:
+            codes = ", ".join(k[len(prefix):-len(suffix)] for k in gone)
+            ctx.warn(f"GATS {code} {label}: the Census release of {rel.timestamp} no longer reports a quantity and "
+                     f"value for HS {codes}; the unit value(s) published earlier are withdrawn (kept in the history)")
 
 
 def _sum_or_none(values) -> float | None:
@@ -1477,12 +1535,15 @@ class _Hs10Descriptions:
     """HS-10 descriptions of honey lines, from GATS /commodities (~7.6 MB, not hard-coded).
 
     Cached in the collector state and refreshed every `GATS_HS10_REFRESH_DAYS` days, or once
-    per run when an unknown 0409 code shows up. On failure a warning is logged and the lines
-    keep no colour (never guessed)."""
+    per run when an unknown 0409 code shows up. When the list cannot be loaded (`failed`), a
+    warning is logged and the per-HS-10 unit values without a description are deferred to a later
+    run (colour/organic are never guessed, nor stored as missing for good). A code the loaded list
+    simply does not have is stored without colour."""
 
     def __init__(self, ctx: CollectContext, headers: dict, state: dict):
         self.ctx, self.headers, self.state = ctx, headers, state
         self.fetched_this_run = False
+        self.failed = False
         fetched = parse_date(state.get("hs10_fetched"))
         if fetched is None or (date.today() - fetched).days > GATS_HS10_REFRESH_DAYS:
             self._refresh()
@@ -1500,10 +1561,13 @@ class _Hs10Descriptions:
             doc = self.ctx.fetch(GATS_COMMODITIES_URL, headers=self.headers, store=False)
             table = parse_gats_commodities(doc.json())
         except (CollectorError, ValueError) as exc:
-            self.ctx.warn(f"GATS HS-10 descriptions unavailable ({exc}); colour/organic not set this run")
+            self.failed = True
+            self.ctx.warn(f"GATS HS-10 descriptions unavailable ({exc}); per-HS-10 unit values deferred "
+                          "to a later run")
             return
         if not table:
-            self.ctx.warn("GATS commodities list has no 0409 line; colour/organic not set this run")
+            self.failed = True
+            self.ctx.warn("GATS commodities list has no 0409 line; per-HS-10 unit values deferred to a later run")
             return
         self.state["hs10"] = table
         self.state["hs10_fetched"] = date.today().isoformat()

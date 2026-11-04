@@ -2,7 +2,7 @@
 // and the trend of the selected partner (or of the total), one line per source.
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { DemoBadge, ErrorBlock, FreshnessBadge, Loading, Note, Panel, Segmented, Select, SourceLine } from '@/components/ui'
 import { useI18n } from '@/i18n'
@@ -16,17 +16,23 @@ import type { FacetsResponse, FlowsResponse, SeriesResponse, TradeFlow, TradeFre
 /** Markets shown first in the selector (Parodi Group's own markets, then the big buyers). */
 const MARKET_ORDER = ['ITA', 'DEU', 'USA', 'EU27', 'FRA', 'ESP', 'GBR', 'BEL', 'NLD', 'JPN', 'CHN', 'SAU']
 
+/** Market, flow and partner named by a deep link (e.g. from a data-quality issue:
+ * /commercio?reporter=USA&partner=ARG&flow=import). The linked partner is kept only when the linked
+ * market really has that flow: a broken or stale link opens the fallback market on its total, never
+ * on a market/partner pair nobody flagged. */
+export function linkedSelection(sp: URLSearchParams, facets: Pick<FacetsResponse, 'reporters'>): { reporter: string | null; partner: string; flow: TradeFlow } {
+  const reporter = sp.get('reporter')?.toUpperCase() || null
+  const flow: TradeFlow = sp.get('flow') === 'export' ? 'export' : 'import'
+  const resolves = reporter !== null && facets.reporters.some((r) => r.iso3 === reporter && r.flows[flow])
+  return { reporter, flow, partner: resolves ? sp.get('partner')?.toUpperCase() || 'WLD' : 'WLD' }
+}
+
 export function FlowsPanel({ facets, year, metric }: { facets: FacetsResponse; year: number | null; metric: TradeMetric }) {
   const { t, lang } = useI18n()
   const { country } = useLabels()
-  // Deep links (e.g. from a data-quality issue: /commercio?reporter=USA&partner=ARG&flow=import)
-  // open this panel on that market, flow and partner.
+  // Deep links open this panel on the linked market, flow and partner.
   const [sp] = useSearchParams()
-  const linked = {
-    reporter: sp.get('reporter')?.toUpperCase() || null,
-    partner: sp.get('partner')?.toUpperCase() || 'WLD',
-    flow: (sp.get('flow') === 'export' ? 'export' : 'import') as TradeFlow,
-  }
+  const [linked] = useState(() => linkedSelection(sp, facets))
   const [flow, setFlow] = useState<TradeFlow>(linked.flow)
   const reporters = useMemo(() => facets.reporters
     .filter((r) => r.flows[flow])
@@ -139,6 +145,18 @@ export function FlowsPanel({ facets, year, metric }: { facets: FacetsResponse; y
   )
 }
 
+/** Rows that pick the charted partner also work from the keyboard (Tab, then Enter or Space). */
+export function rowKeys(select: () => void, selected: boolean) {
+  return {
+    tabIndex: 0,
+    'aria-current': selected ? ('true' as const) : undefined,
+    onKeyDown: (e: KeyboardEvent<HTMLTableRowElement>) => {
+      if (e.target !== e.currentTarget) return
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select() }
+    },
+  }
+}
+
 function FlowsTable({ d, partner, onPartner, flow }: { d: FlowsResponse; partner: string; onPartner: (p: string) => void; flow: TradeFlow }) {
   const { t, lang } = useI18n()
   const { country } = useLabels()
@@ -159,7 +177,7 @@ function FlowsTable({ d, partner, onPartner, flow }: { d: FlowsResponse; partner
         </thead>
         <tbody>
           {d.rows.map((r) => (
-            <tr key={r.iso3} onClick={() => onPartner(r.iso3)}
+            <tr key={r.iso3} onClick={() => onPartner(r.iso3)} {...rowKeys(() => onPartner(r.iso3), partner === r.iso3)}
               className={clsx('border-b border-line-soft cursor-pointer', partner === r.iso3 ? 'bg-gold-pale/60' : 'hover:bg-ivory/60')}>
               <td className="py-2 pl-2 pr-1 num text-[0.8rem] text-muted">{r.rank}</td>
               <td className="py-2 px-2">
@@ -202,7 +220,7 @@ function FlowsTable({ d, partner, onPartner, flow }: { d: FlowsResponse; partner
             </tr>
           )}
           {total && (
-            <tr onClick={() => onPartner('WLD')} className={clsx('cursor-pointer font-medium', partner === 'WLD' ? 'bg-gold-pale/60' : 'hover:bg-ivory/60')}>
+            <tr onClick={() => onPartner('WLD')} {...rowKeys(() => onPartner('WLD'), partner === 'WLD')} className={clsx('cursor-pointer font-medium', partner === 'WLD' ? 'bg-gold-pale/60' : 'hover:bg-ivory/60')}>
               <td />
               <td className="py-2 px-2" title={d.share_basis === 'world_total' ? t('trade.flows.totalWorld') : t('trade.flows.totalPartners')}>
                 {t('trade.flows.total')}

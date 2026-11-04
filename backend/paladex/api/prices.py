@@ -9,10 +9,18 @@ Rules enforced here (see docs/DEVELOPING.md):
 * Currency conversion uses the per-kg normalised columns stored at ingest
   (`price_per_kg`, `usd_per_kg`, `eur_per_kg`); no exchange rate is guessed here. A row
   without a stored conversion has `value = null` in that currency and keeps its original.
-* Quarterly/annual aggregation is a simple average of the months that exist, with the
-  number of months reported. Gaps are never filled, changes are never extrapolated.
-* Disagreement between sources (>10% for the same origin/variety/type/market/period) is
-  reported, not resolved.
+* Quarterly/annual aggregation averages the months that exist, with the number of months
+  reported. Gaps are never filled, changes are never extrapolated. Customs unit values
+  (import/export) are weighted by the declared volume when every observation carries one
+  (value / weight over the period, `weighting="volume"`); every other price is a simple
+  average (`weighting="simple"`). A weekly row counts in the month of its ISO Thursday.
+* Rows of different period granularity (monthly vs quarterly vs annual) are separate series:
+  an annual figure is never averaged with its own months.
+* Disagreement between sources (>10% for the same origin/variety/colour/organic/type/market/
+  period, one like-for-like line per source) is reported, not resolved.
+* `compare` keeps markets apart (one bar per origin or variety AND market), never averages an
+  aggregate (EU27, World ...) or a source's total line with its own components, and never
+  averages demo series with real ones.
 """
 from __future__ import annotations
 
@@ -25,13 +33,13 @@ import re
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
-from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy import case, func, or_, select
+from sqlalchemy.orm import Session, defer
 
 from ..db import get_db
 from ..enums import DataStatus, PriceType
@@ -59,8 +67,39 @@ STATUS_CAUTION = [
     DataStatus.PROVISIONAL, DataStatus.USER_ENTERED, DataStatus.PUBLISHED, DataStatus.LIVE,
 ]
 PRICE_TYPES = [p.value for p in PriceType]
+# Customs unit values: value / weight, so a period's figure is weighted by the declared volume.
+UNIT_VALUE_TYPES = frozenset({PriceType.IMPORT_UNIT_VALUE.value, PriceType.EXPORT_UNIT_VALUE.value})
+# Aggregate areas used as market (or origin) and what they cover. `compare` never averages an
+# aggregate with its own members (EU27 unit value + Italy's + Germany's would count Italy twice).
+EU27_MEMBERS = frozenset({
+    "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU", "GRC", "HUN", "IRL",
+    "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "POL", "PRT", "ROU", "SVK", "SVN", "ESP", "SWE",
+})
+AGGREGATE_AREAS = frozenset({"EU27", "EU28", "EXTRA_EU", "INTRA_EU", "WLD"})
+# Columns the series/latest/compare/discrepancy builders never read (about 20% of load time).
+_UNUSED_COLUMNS = (defer(M.extra), defer(M.notes), defer(M.value_hash), defer(M.series_key))
 
 Currency = Literal["USD", "EUR", "ORIGINAL"]
+
+
+def _is_member(code: str | None, aggregate: str | None) -> bool:
+    """True when the country `code` is part of the aggregate area `aggregate`."""
+    if not code or code in AGGREGATE_AREAS or aggregate not in AGGREGATE_AREAS:
+        return False
+    if aggregate in ("EU27", "INTRA_EU"):
+        return code in EU27_MEMBERS
+    if aggregate == "EU28":
+        return code in EU27_MEMBERS or code == "GBR"
+    if aggregate == "EXTRA_EU":
+        return code not in EU27_MEMBERS
+    return True     # WLD covers every country
+
+
+def _is_total_line(terms: str | None, variety_raw: Iterable[str | None] | str | None = None) -> bool:
+    """A source's all-lines total (USDA FAS GATS 'HS 0409 total' next to its HTS-10 lines)."""
+    raws = [variety_raw] if isinstance(variety_raw, str) or variety_raw is None else list(variety_raw)
+    return bool(terms and terms.strip().lower().endswith("total")) or any(
+        r and "(all lines)" in r.lower() for r in raws)
 
 
 # ---------------------------------------------------------------------------
@@ -269,18 +308,40 @@ def _mean(vals: list[float]) -> float | None:
     return sum(vals) / len(vals) if vals else None
 
 
+def _wmean(pairs: list[tuple[float, float]]) -> float | None:
+    """Weighted mean of (value, weight) pairs: for unit values, total value / total weight."""
+    total = sum(w for _, w in pairs)
+    return sum(v * w for v, w in pairs) / total if pairs and total > 0 else None
+
+
+def _row_weight(r: PriceObservation) -> float | None:
+    """Declared volume behind a customs unit value (None for quotations, or when not declared)."""
+    return r.volume_kg if r.price_type in UNIT_VALUE_TYPES and r.volume_kg and r.volume_kg > 0 else None
+
+
+def _bucket_date(r: PriceObservation) -> date:
+    """Date that decides a row's month: an ISO week (Monday start) counts in the month of its
+    Thursday, where most of its days fall, so week 36/2026 (31 Aug - 6 Sep) is September."""
+    return r.period_start + timedelta(days=3) if r.frequency == "W" else r.period_start
+
+
 def _combine(items: list[dict], label: str, start: date, end: date, expected: int | None) -> dict:
-    """Simple average of `items` (already converted). Low/high only when every item has them."""
+    """Average of `items` (already converted): volume-weighted when every item carries a declared
+    volume (customs unit values), else a simple average. Low/high only when every item has them."""
     have = [i for i in items if i["value"] is not None]
+    weighted = bool(have) and all(i.get("weight") for i in have)
     lows = [i["low"] for i in have if i["low"] is not None]
     highs = [i["high"] for i in have if i["high"] is not None]
-    origs = [i["original"] for i in items if i.get("original")]
+    o_items = [i for i in items if i.get("original")]
+    origs = [i["original"] for i in o_items]
     original = None
     if origs and len({(o["currency"], o["unit"]) for o in origs}) == 1:
         ol = [o["low"] for o in origs if o["low"] is not None]
         oh = [o["high"] for o in origs if o["high"] is not None]
+        o_weighted = all(i.get("weight") for i in o_items)
         original = {
-            "value": _r(_mean([o["value"] for o in origs])),
+            "value": _r(_wmean([(i["original"]["value"], i["weight"]) for i in o_items]) if o_weighted
+                        else _mean([o["value"] for o in origs])),
             "low": _r(_mean(ol)) if len(ol) == len(origs) else None,
             "high": _r(_mean(oh)) if len(oh) == len(origs) else None,
             "currency": origs[0]["currency"], "unit": origs[0]["unit"],
@@ -288,16 +349,20 @@ def _combine(items: list[dict], label: str, start: date, end: date, expected: in
     latest = max(items, key=lambda i: (i["period_start"], i["published_at"] or "", i["collected_at"] or ""))
     pubs = [i["published_at"] for i in items if i["published_at"]]
     cols = [i["collected_at"] for i in items if i["collected_at"]]
+    value = (_wmean([(i["value"], i["weight"]) for i in have]) if weighted
+             else _mean([i["value"] for i in have]))
     return {
         "period_label": label,
         "period_start": start.isoformat(),
         "period_end": end.isoformat(),
-        "value": _r(_mean([i["value"] for i in have])),
+        "value": _r(value),
         "low": _r(_mean(lows)) if have and len(lows) == len(have) else None,
         "high": _r(_mean(highs)) if have and len(highs) == len(have) else None,
         "original": original,
         "n_points": len(have),
         "expected_points": expected,
+        "weighting": "volume" if weighted else "simple",
+        "volume_kg": _r(sum(i["weight"] for i in have), 1) if weighted else None,
         "periods": sorted({p for i in items for p in i.get("periods", [i["period_label"]])}),
         "fx_missing": len(items) - len(have),
         "published_at": max(pubs) if pubs else None,
@@ -317,6 +382,7 @@ def _row_item(r: PriceObservation, currency: Currency) -> dict:
         "value": c["value"], "low": c["low"], "high": c["high"], "currency": c["currency"],
         "original": {"value": r.price_value, "low": r.price_low, "high": r.price_high,
                      "currency": r.currency, "unit": r.unit},
+        "weight": _row_weight(r),
         "published_at": iso(r.published_at), "collected_at": iso(r.collected_at),
         "source_url": r.source_url, "fx_date": iso(r.fx_date),
         "data_status": r.data_status, "is_demo": r.is_demo,
@@ -324,51 +390,91 @@ def _row_item(r: PriceObservation, currency: Currency) -> dict:
 
 
 def series_key(r: PriceObservation, currency: Currency) -> tuple:
-    key = (r.source_id, r.price_type, r.origin_iso3, r.market_iso3, r.variety, r.color_grade, r.terms, bool(r.organic))
+    # market_location keeps apart prices that differ only by state/province (e.g. USDA producer
+    # prices: origin = market = USA for every state), as in overview.py and countries.py.
+    key = (r.source_id, r.price_type, r.origin_iso3, r.market_iso3, r.market_location, r.variety, r.color_grade,
+           r.terms, bool(r.organic))
+    bf = _base_freq(r.frequency)
+    if bf != "M":
+        # Annual / quarterly rows never merge with monthly ones (UN Comtrade publishes both for one
+        # pair): an annual figure averaged with its own months is not a price. Monthly-based series
+        # (D, W, irregular, M) keep their ids.
+        key += (bf,)
     return key + ((r.currency,) if currency == "ORIGINAL" else ())
+
+
+def _series_key_sql(currency: Currency) -> list:
+    """SQL expressions of `series_key`, in the same order (used to bound queries per series)."""
+    cols = [M.source_id, M.price_type, M.origin_iso3, M.market_iso3, M.market_location, M.variety, M.color_grade,
+            M.terms, func.coalesce(M.organic, False), case((M.frequency == "Q", "Q"), (M.frequency == "A", "A"), else_="M")]
+    return cols + ([M.currency] if currency == "ORIGINAL" else [])
+
+
+def _key_from_sql(row, currency: Currency) -> tuple:
+    """`series_key` rebuilt from a row of `_series_key_sql` columns."""
+    key = tuple(row[:8]) + (bool(row[8]),)
+    if row[9] != "M":
+        key += (row[9],)
+    return key + ((row[10],) if currency == "ORIGINAL" else ())
 
 
 def series_id(key: tuple) -> str:
     return hashlib.sha1("|".join("" if k is None else str(k) for k in key).encode()).hexdigest()[:12]
 
 
+def _base_freq(f: str | None) -> str:
+    """Bucket frequency of a row: daily, weekly and irregular quotes are bucketed by month."""
+    return RANK_FREQ[max(FREQ_RANK.get(f, 2), 2)]  # type: ignore[arg-type]
+
+
 def native_freq(rows: list[PriceObservation]) -> str:
     return max((r.frequency for r in rows), key=lambda f: FREQ_RANK.get(f, 2))
 
 
+def _eff_freq(nat: str, freq: str) -> tuple[str, str]:
+    """(base bucket frequency, effective output frequency) of a series of native frequency `nat`."""
+    base_rank = max(FREQ_RANK.get(nat, 2), 2)
+    return RANK_FREQ[base_rank], RANK_FREQ[max(base_rank, FREQ_RANK[freq])]
+
+
 def build_points(rows: list[PriceObservation], currency: Currency, freq: str) -> tuple[list[dict], str]:
     """Rows of one series -> points at `freq` (or the series' own, coarser frequency)."""
-    nat = native_freq(rows)
-    base_rank = max(FREQ_RANK.get(nat, 2), 2)
-    eff_rank = max(base_rank, FREQ_RANK[freq])
-    base_f, eff_f = RANK_FREQ[base_rank], RANK_FREQ[eff_rank]
+    base_f, eff_f = _eff_freq(native_freq(rows), freq)
 
     # 1) collapse raw rows into their own monthly/quarterly/annual period
     base_groups: dict[str, list[dict]] = defaultdict(list)
     base_bounds: dict[str, tuple[date, date]] = {}
+    finest: dict[str, str] = {}
     for r in rows:
-        label, s, e = bucket(r.period_start, base_f)
+        label, s, e = bucket(_bucket_date(r), base_f)
         base_groups[label].append(_row_item(r, currency))
         base_bounds[label] = (s, e)
+        rf = _base_freq(r.frequency)
+        if FREQ_RANK[rf] < FREQ_RANK[finest.get(label, base_f)]:
+            finest[label] = rf
     base_points = []
     for label in sorted(base_groups):
         s, e = base_bounds[label]
-        p = _combine(base_groups[label], label, s, e, None)
+        # Defence in depth: a bucket built from finer rows always says how many it expected.
+        fin = finest.get(label, base_f)
+        exp = PERIODS_PER_YEAR[base_f] // PERIODS_PER_YEAR[fin] if fin != base_f else None
+        p = _combine(base_groups[label], label, s, e, exp)
         p["_start"] = s
         base_points.append(p)
     if eff_f == base_f:
         for p in base_points:
             p.pop("_start")
-            p["expected_points"] = None
         return base_points, eff_f
 
-    # 2) average the available sub-periods (never fills a missing month)
+    # 2) average the available sub-periods (never fills a missing month); unit values stay
+    #    weighted by each month's volume
     expected = PERIODS_PER_YEAR[base_f] // PERIODS_PER_YEAR[eff_f]
     groups: dict[str, list[dict]] = defaultdict(list)
     bounds: dict[str, tuple[date, date]] = {}
     for p in base_points:
         label, s, e = bucket(p.pop("_start"), eff_f)
         p["period_start"] = date.fromisoformat(p["period_start"])
+        p["weight"] = p["volume_kg"]
         groups[label].append(p)
         bounds[label] = (s, e)
     out = []
@@ -376,6 +482,11 @@ def build_points(rows: list[PriceObservation], currency: Currency, freq: str) ->
         s, e = bounds[label]
         out.append(_combine(groups[label], label, s, e, expected))
     return out, eff_f
+
+
+def _series_weighting(points: list[dict]) -> str:
+    kinds = {p["weighting"] for p in points if p["value"] is not None}
+    return kinds.pop() if len(kinds) == 1 else ("mixed" if kinds else "simple")
 
 
 def _freshness_of(latest: PriceObservation, source: Source | None, freq: str, today: date | None = None) -> dict:
@@ -399,21 +510,38 @@ def _priority_rank(iso3: str | None) -> int:
         return len(PRIORITY_ISO3)
 
 
-def build_series(db: Session, rows: list[PriceObservation], currency: Currency, freq: str) -> list[dict]:
+def build_series(db: Session, rows: list[PriceObservation], currency: Currency, freq: str,
+                 points_for: set[str] | None = None) -> list[dict]:
+    """One entry per series. With `points_for`, only those series ids carry their points; the
+    others carry metadata only (`points_omitted`), which is much cheaper to build and ship."""
     sources = {s.id: s for s in db.scalars(select(Source))}
     groups: dict[tuple, list[PriceObservation]] = defaultdict(list)
     for r in rows:
         groups[series_key(r, currency)].append(r)
     out = []
     for key, grp in groups.items():
+        sid = series_id(key)
         grp.sort(key=lambda r: (r.period_start, r.published_at or date.min))
-        points, eff = build_points(grp, currency, freq)
+        nat = native_freq(grp)
+        omitted = points_for is not None and sid not in points_for
+        if omitted:
+            eff = _eff_freq(nat, freq)[1]
+            labels = sorted({bucket(_bucket_date(r), eff)[0] for r in grp})
+            points: list[dict] = []
+            meta = {"n_points": len(labels), "first_period": labels[0], "last_period": labels[-1],
+                    "weighting": None, "fx_missing_points": None,
+                    "has_range": any(r.price_low is not None and r.price_high is not None for r in grp)}
+        else:
+            points, eff = build_points(grp, currency, freq)
+            meta = {"n_points": len(points), "first_period": points[0]["period_label"],
+                    "last_period": points[-1]["period_label"], "weighting": _series_weighting(points),
+                    "fx_missing_points": sum(1 for p in points if p["value"] is None),
+                    "has_range": any(p["low"] is not None and p["high"] is not None for p in points)}
         latest_row = max(grp, key=lambda r: (r.period_start, r.published_at or date.min, r.collected_at))
         src = sources.get(latest_row.source_id)
-        nat = native_freq(grp)
         pubs = [r.published_at for r in grp if r.published_at]
         out.append({
-            "id": series_id(key),
+            "id": sid,
             "source": source_brief(src),
             "price_type": latest_row.price_type,
             "origin_iso3": latest_row.origin_iso3,
@@ -429,9 +557,10 @@ def build_series(db: Session, rows: list[PriceObservation], currency: Currency, 
             "unit": "kg",
             "native_frequency": nat,
             "freq": eff,
-            "n_points": len(points),
-            "first_period": points[0]["period_label"],
-            "last_period": points[-1]["period_label"],
+            "n_points": meta["n_points"],
+            "first_period": meta["first_period"],
+            "last_period": meta["last_period"],
+            "weighting": meta["weighting"],
             "published_at": iso(max(pubs)) if pubs else None,
             "collected_at": iso(max(r.collected_at for r in grp)),
             "source_url": latest_row.source_url,
@@ -439,10 +568,11 @@ def build_series(db: Session, rows: list[PriceObservation], currency: Currency, 
             "data_statuses": sorted({r.data_status for r in grp}),
             "reliability": latest_row.reliability,
             "is_demo": any(r.is_demo for r in grp),
-            "has_range": any(p["low"] is not None and p["high"] is not None for p in points),
-            "fx_missing_points": sum(1 for p in points if p["value"] is None),
+            "has_range": meta["has_range"],
+            "fx_missing_points": meta["fx_missing_points"],
             "freshness": _freshness_of(latest_row, src, nat),
             "points": points,
+            "points_omitted": omitted,
         })
     out.sort(key=lambda s: (_priority_rank(s["origin_iso3"]), s["origin_iso3"] or "~", s["variety"],
                             s["color_grade"] or "", (s["source"] or {}).get("key", ""), s["id"]))
@@ -476,35 +606,63 @@ def _sources_summary(series: list[dict]) -> list[dict]:
 
 def find_discrepancies(db: Session, rows: list[PriceObservation], currency: Currency,
                        threshold: float = DISCREPANCY_THRESHOLD) -> list[dict]:
-    """Same origin, variety, price type, market and period from >= 2 sources differing > threshold.
+    """Same origin, variety, colour, organic status, price type, market and period from >= 2
+    sources differing > threshold.
 
-    Values are compared per kg in a common currency (USD when `currency` is 'original').
-    Demo rows are only compared with demo rows. Nothing is resolved: every source's value
-    is returned with its provenance.
+    Like for like only: within one source, rows of different lines (`terms`: a total and its
+    HTS-10 sub-lines, drums vs buckets ...) are never averaged together. Each source contributes
+    ONE line: its total/aggregate line when it has one (largest declared volume, or terms ending
+    in "total"), and its other lines are listed apart (`other_lines`), not compared. Values are
+    compared per kg in a common currency (USD when `currency` is 'original'); customs unit values
+    are volume-weighted within the period. Demo rows are only compared with demo rows. Nothing is
+    resolved: every source's value is returned with its provenance.
     """
     cmp_ccy: Currency = "USD" if currency == "ORIGINAL" else currency
     sources = {s.id: s for s in db.scalars(select(Source))}
-    groups: dict[tuple, dict[int, list[PriceObservation]]] = defaultdict(lambda: defaultdict(list))
+    groups: dict[tuple, dict[int, dict[str | None, list[PriceObservation]]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(list)))
     for r in rows:
-        f = RANK_FREQ[max(FREQ_RANK.get(r.frequency, 2), 2)]
-        label, _, _ = bucket(r.period_start, f)
-        groups[(r.price_type, r.origin_iso3, r.variety, r.market_iso3, label, r.is_demo)][r.source_id].append(r)
+        label, _, _ = bucket(_bucket_date(r), _base_freq(r.frequency))
+        gk = (r.price_type, r.origin_iso3, r.variety, r.color_grade, bool(r.organic), r.market_iso3, label, r.is_demo)
+        groups[gk][r.source_id][r.terms].append(r)
+
+    def line_value(rs: list[PriceObservation]) -> tuple[float | None, int, str]:
+        pairs = [(v, _row_weight(r)) for r in rs if (v := convert_row(r, cmp_ccy)["value"]) is not None]
+        if pairs and all(w for _, w in pairs):
+            return _wmean(pairs), len(pairs), "volume"     # type: ignore[arg-type]
+        return _mean([v for v, _ in pairs]), len(pairs), "simple"
+
+    def line_rank(item: tuple[str | None, list[PriceObservation]]) -> tuple:
+        terms, rs = item
+        vols = [r.volume_kg for r in rs]
+        full = all(v is not None and v > 0 for v in vols)
+        return (full, sum(vols) if full else 0.0, _is_total_line(terms), len(rs), terms or "")  # type: ignore[arg-type]
+
     out = []
-    for (pt, origin, variety, market, label, demo), by_src in groups.items():
+    for (pt, origin, variety, color, organic, market, label, demo), by_src in groups.items():
         if len(by_src) < 2:
             continue
         entries = []
-        for sid, rs in by_src.items():
-            vals = [v for v in (convert_row(r, cmp_ccy)["value"] for r in rs) if v is not None]
-            if not vals:
+        for sid, lines in by_src.items():
+            valued = {t: rs for t, rs in lines.items() if any(convert_row(r, cmp_ccy)["value"] is not None for r in rs)}
+            if not valued:
                 continue
+            terms, rs = max(valued.items(), key=line_rank)
+            value, n, weighting = line_value(rs)
+            others = []
+            for t, ors in sorted(valued.items(), key=lambda x: x[0] or ""):
+                if t != terms:
+                    ov, on, _ = line_value(ors)
+                    others.append({"terms": t, "value": _r(ov), "n_rows": on})
             latest = max(rs, key=lambda r: (r.published_at or date.min, r.collected_at))
             entries.append({
                 "source": source_brief(sources.get(sid)),
-                "value": _r(_mean(vals)),
-                "n_rows": len(vals),
-                "color_grades": sorted({r.color_grade for r in rs if r.color_grade}),
-                "terms": sorted({r.terms for r in rs if r.terms}),
+                "value": _r(value),
+                "n_rows": n,
+                "weighting": weighting,
+                "color_grades": [color] if color else [],
+                "terms": [terms] if terms else [],
+                "other_lines": others,
                 "published_at": iso(latest.published_at),
                 "collected_at": iso(latest.collected_at),
                 "source_url": latest.source_url,
@@ -518,8 +676,8 @@ def find_discrepancies(db: Session, rows: list[PriceObservation], currency: Curr
             continue
         entries.sort(key=lambda e: e["value"])
         out.append({
-            "price_type": pt, "origin_iso3": origin, "variety": variety, "market_iso3": market,
-            "period_label": label, "currency": cmp_ccy, "unit": "kg",
+            "price_type": pt, "origin_iso3": origin, "variety": variety, "color_grade": color, "organic": organic,
+            "market_iso3": market, "period_label": label, "currency": cmp_ccy, "unit": "kg",
             "min": lo, "max": hi, "spread_pct": round((hi - lo) / lo * 100, 1),
             "threshold_pct": round(threshold * 100), "is_demo": demo, "entries": entries,
         })
@@ -532,8 +690,35 @@ def find_discrepancies(db: Session, rows: list[PriceObservation], currency: Curr
 # ---------------------------------------------------------------------------
 
 
-def _rows(db: Session, f: PriceFilters, **kw) -> list[PriceObservation]:
-    return list(db.scalars(apply_filters(select(M), f, db, **kw).order_by(M.period_start, M.id)))
+def _rows(db: Session, f: PriceFilters, *conds, **kw) -> list[PriceObservation]:
+    q = apply_filters(select(M), f, db, **kw).where(*conds).options(*_UNUSED_COLUMNS)
+    return list(db.scalars(q.order_by(M.period_start, M.id)))
+
+
+def _latest_rows(db: Session, f: PriceFilters, currency: Currency) -> list[PriceObservation]:
+    """Only the recent stretch of each series that `latest` needs: rows from 1 January of the year
+    before the series' newest period (minus a week, for ISO weeks counted by their Thursday). That
+    covers the previous and the year-ago point at M, Q and A. Bounded per series in SQL, so a
+    series last seen years ago keeps its own last stretch."""
+    inner = apply_filters(select(M.id.label("id"), M.period_start.label("ps"), func.max(M.period_start).over(
+        partition_by=_series_key_sql(currency)).label("max_ps")), f, db, use_from=False).subquery()
+    keep = select(inner.c.id).where(inner.c.ps >= func.date(inner.c.max_ps, "start of year", "-1 year", "-7 days"))
+    return list(db.scalars(select(M).where(M.id.in_(keep)).options(*_UNUSED_COLUMNS).order_by(M.period_start, M.id)))
+
+
+def _series_index(db: Session, f: PriceFilters, currency: Currency) -> dict[str, dict]:
+    """Every series matching `f`, from one grouped query: id -> dimensions and newest period label
+    (as `build_series` would label it), without loading the rows."""
+    cols = _series_key_sql(currency)
+    newest = func.max(case((M.frequency == "W", func.date(M.period_start, "+3 days")), else_=func.date(M.period_start)))
+    demo = func.max(case((M.is_demo.is_(True), 1), else_=0))
+    out = {}
+    for row in db.execute(apply_filters(select(*cols, newest, demo), f, db).group_by(*cols)):
+        key = _key_from_sql(row, currency)
+        last = row[-2] if isinstance(row[-2], date) else date.fromisoformat(str(row[-2])[:10])
+        out[series_id(key)] = {"source_id": row[0], "origin_iso3": row[2], "market_iso3": row[3], "variety": row[5],
+                               "is_demo": bool(row[-1]), "last_period": bucket(last, row[9])[0]}
+    return out
 
 
 @router.get("/facets")
@@ -607,16 +792,20 @@ def series(
     f: PriceFilters = Depends(price_filters),
     currency: str = Query("USD", description="USD | EUR | original"),
     freq: str = Query("M", description="M | Q | A"),
+    ids: list[str] | None = Query(None, description="Series ids whose points to return (repeatable or comma list); "
+                                                    "others come back as metadata only. Default: every series."),
     db: Session = Depends(get_db),
 ):
-    """Time series for ONE price type, one line per (source, origin, market, variety, colour, terms, organic)."""
+    """Time series for ONE price type, one line per (source, origin, market, market location, variety, colour,
+    terms, organic, and period granularity when coarser than monthly)."""
     pt = _require_type(f)
     ccy, fq = _currency(currency), _freq(freq)
     if f.date_from and fq != "M":
         # widen to the start of the quarter/year so the first bucket is not artificially partial
         f.date_from = bucket(f.date_from, fq)[1]
     rows = _rows(db, f)
-    data = build_series(db, rows, ccy, fq)
+    want = set(_split(ids)) if ids else None
+    data = build_series(db, rows, ccy, fq, points_for=want)
     return {
         "price_type": pt,
         "currency": "original" if ccy == "ORIGINAL" else ccy,
@@ -625,6 +814,7 @@ def series(
         "from": iso(f.date_from),
         "to": iso(f.date_to),
         "aggregation": "mean_of_available_months" if fq != "M" else "monthly_mean_of_observations",
+        "weighting": "volume_for_unit_values" if pt in UNIT_VALUE_TYPES else "simple",
         "series": data,
         "sources": _sources_summary(data),
         "discrepancies": find_discrepancies(db, rows, ccy),
@@ -657,11 +847,12 @@ def latest(
     Changes are computed only against the exact previous period and the exact same period one
     year earlier; when either is missing the change is null (never extrapolated). `from` is
     ignored here so the year-ago comparison is always available when it exists; `to` acts as
-    an "as of" date.
+    an "as of" date. Only each series' recent stretch is loaded (`_latest_rows`), so series-level
+    lists such as `variety_raw` describe that stretch.
     """
     pt = _require_type(f)
     ccy, fq = _currency(currency), _freq(freq)
-    rows = _rows(db, f, use_from=False)
+    rows = _latest_rows(db, f, ccy)
     out = []
     for s in build_series(db, rows, ccy, fq):
         pts = {p["period_label"]: p for p in s["points"]}
@@ -701,10 +892,16 @@ def compare(
     currency: str = Query("USD"),
     db: Session = Depends(get_db),
 ):
-    """One bar per origin (or variety): each series' latest point inside the window.
+    """One bar per origin (or variety) AND market: each series' latest point inside the window.
 
     Every bar states its own period(s). When several series fall under one bar (e.g. two
-    varieties from Argentina) the bar is their simple average and lists its components.
+    varieties from Argentina sold in the USA) the bar is their simple average and lists its
+    components. Never averaged together (each left out is listed in `excluded` with a reason):
+    different markets (separate bars); demo and real series (separate bars, `is_demo`); a
+    source's all-lines total and its own sub-lines (`component_of_total`); an aggregate market
+    such as EU27 when bars for its member states are shown (`aggregate_of_shown_markets`); an
+    aggregate origin inside a variety bar that holds its member origins (`aggregate_of_shown_origins`).
+    `key` stays the origin (or variety) code; `id` is unique per bar.
     """
     pt = _require_type(f)
     if by not in ("origin", "variety"):
@@ -724,37 +921,92 @@ def compare(
     win_from = date.fromisoformat(shift_label(anchor_label, "M", -(window - 1)) + "-01")
     win_to = bucket(anchor, "M")[2]
     f_all = PriceFilters(**{**f.__dict__, "date_from": None, "date_to": win_to})
-    all_series = build_series(db, _rows(db, f_all), ccy, "M")
+    sources = {s.id: s for s in db.scalars(select(Source))}
+    index = _series_index(db, f_all, ccy)       # every series up to the window end (one grouped query)
+    # Bars only need the window's rows (an ISO week counts by its Thursday: start 6 days early).
+    all_series = build_series(db, _rows(db, f_all, M.period_start >= win_from - timedelta(days=6)), ccy, "M")
 
-    groups: dict[str, list[dict]] = defaultdict(list)
-    excluded = []
+    def bar_key(c: dict) -> str:
+        return (c["origin_iso3"] or NONE_TOKEN) if by == "origin" else c["variety"]
+
+    excluded: list[dict] = []
+
+    def exclude(c: dict, reason: str, last_period: str | None) -> None:
+        excluded.append({"key": bar_key(c), "series_id": c["series_id"], "variety": c["variety"],
+                         "origin_iso3": c["origin_iso3"], "market_iso3": c["market_iso3"], "source": c["source"],
+                         "last_period": last_period, "is_demo": bool(c.get("is_demo")), "reason": reason})
+
+    comps: list[dict] = []
+    built = set()
     for s in all_series:
-        key = (s["origin_iso3"] or NONE_TOKEN) if by == "origin" else s["variety"]
+        built.add(s["id"])
         in_win = [p for p in s["points"] if p["value"] is not None and win_from.isoformat() <= p["period_start"] <= win_to.isoformat()]
         if not in_win:
-            excluded.append({"key": key, "series_id": s["id"], "variety": s["variety"], "origin_iso3": s["origin_iso3"],
-                             "source": s["source"], "last_period": s["last_period"], "reason": "no_point_in_window"})
+            exclude({**s, "series_id": s["id"]}, "no_point_in_window", index.get(s["id"], {}).get("last_period", s["last_period"]))
             continue
         p = in_win[-1]
-        groups[key].append({
+        comps.append({
             "series_id": s["id"], "origin_iso3": s["origin_iso3"], "variety": s["variety"],
             "color_grade": s["color_grade"], "terms": s["terms"], "organic": s["organic"], "market_iso3": s["market_iso3"],
+            "market_location": s["market_location"], "native_frequency": s["native_frequency"],
             "source": s["source"], "period_label": p["period_label"], "value": p["value"], "low": p["low"], "high": p["high"],
             "published_at": p["published_at"], "source_url": p["source_url"], "data_status": p["data_status"],
             "is_demo": p["is_demo"], "freshness": s["freshness"],
+            "_line": (s["source"] or {}).get("key"), "_total": _is_total_line(s["terms"], s["variety_raw"]),
         })
+    for sid, meta in index.items():
+        if sid not in built:
+            exclude({**meta, "series_id": sid, "source": source_brief(sources.get(meta["source_id"]))},
+                    "no_point_in_window", meta["last_period"])
+
+    # 1) A source's all-lines total replaces its own sub-lines (USDA FAS GATS: HS 0409 total vs its
+    #    HTS-10 colour/organic lines): averaging both would count the same imports twice.
+    with_total = {(c["_line"], c["origin_iso3"], c["market_iso3"], c["is_demo"]) for c in comps if c["_total"]}
+    kept = []
+    for c in comps:
+        if not c["_total"] and (c["_line"], c["origin_iso3"], c["market_iso3"], c["is_demo"]) in with_total:
+            exclude(c, "component_of_total", c["period_label"])
+        else:
+            kept.append(c)
+    # 2) One bar per origin/variety AND market; demo and real series are never averaged together.
+    groups: dict[tuple, list[dict]] = defaultdict(list)
+    for c in kept:
+        groups[(bar_key(c), c["market_iso3"], bool(c["is_demo"]))].append(c)
+    # 3) An aggregate market (EU27, extra-EU, World) is left out when its own members have bars.
+    for gk in [g for g in groups if g[1] in AGGREGATE_AREAS]:
+        if any(k == gk[0] and d == gk[2] and _is_member(m, gk[1]) for k, m, d in groups):
+            for c in groups.pop(gk):
+                exclude(c, "aggregate_of_shown_markets", c["period_label"])
+    # 4) Inside a variety bar, an aggregate origin is left out when its member origins are there.
+    if by == "variety":
+        for gk, cs in groups.items():
+            agg = [c for c in cs if c["origin_iso3"] in AGGREGATE_AREAS
+                   and any(_is_member(o["origin_iso3"], c["origin_iso3"]) for o in cs)]
+            for c in agg:
+                exclude(c, "aggregate_of_shown_origins", c["period_label"])
+            groups[gk] = [c for c in cs if c not in agg]
     bars = []
-    for key, comps in groups.items():
-        vals = [c["value"] for c in comps]
-        periods = sorted({c["period_label"] for c in comps})
+    for (key, market, demo), cs in groups.items():
+        if not cs:
+            continue
+        cs = [{k: v for k, v in c.items() if not k.startswith("_")} for c in cs]
+        vals = [c["value"] for c in cs]
+        periods = sorted({c["period_label"] for c in cs})
+        terms = sorted({c["terms"] for c in cs if c["terms"]})
         bars.append({
-            "key": key, "value": _r(_mean(vals)), "min": min(vals), "max": max(vals), "n_series": len(comps),
+            "key": key, "id": f"{key}|{market or NONE_TOKEN}|{'demo' if demo else 'real'}",
+            "origin_iso3": cs[0]["origin_iso3"] if by == "origin" else None,
+            "variety": key if by == "variety" else None, "market_iso3": market,
+            "value": _r(_mean(vals)), "min": min(vals), "max": max(vals), "n_series": len(cs),
             "period_label": periods[-1], "period_labels": periods, "mixed_periods": len(periods) > 1,
-            "is_demo": any(c["is_demo"] for c in comps),
-            "sources": list({(c["source"] or {}).get("key"): c["source"] for c in comps}.values()),
-            "components": sorted(comps, key=lambda c: -c["value"]),
+            "terms": terms, "mixed_terms": len(terms) > 1,
+            "is_demo": demo,
+            "sources": list({(c["source"] or {}).get("key"): c["source"] for c in cs}.values()),
+            "components": sorted(cs, key=lambda c: -c["value"]),
         })
-    bars.sort(key=lambda b: -b["value"])
+    bars.sort(key=lambda b: (-b["value"], b["id"]))
+    excluded.sort(key=lambda e: (_priority_rank(e["origin_iso3"]), e["origin_iso3"] or "~", e["variety"] or "",
+                                 (e["source"] or {}).get("key", ""), e["series_id"]))
     have = {b["key"] for b in bars}
     excluded = [e for e in excluded if e["key"] not in have] + [e for e in excluded if e["key"] in have]
     return {"by": by, "price_type": pt, "currency": ccy, "unit": "kg", "period": period, "window_months": window,

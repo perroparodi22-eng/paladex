@@ -28,8 +28,9 @@ How this collector works
   the big ZIPs, plus TM bilateral flows (reporter x partner) for the
   ``TM_REPORTERS`` panel. TM's dimension names and element filter codes are unverified, so they
   are probed first (``/dimensions/TM/``, ``/codes/element/TM``) and the dataset fails loudly when
-  the probe does not match. If the login is refused, the run warns and falls back to the bulk
-  path (TM skipped).
+  the probe does not match. If the login is refused, or the API ignores ``page_number`` (page 2
+  repeats a full page 1, so the answer would be truncated), the run warns and falls back to the
+  bulk path (TM skipped, its DateUpdate left unrecorded so it is retried).
 
 What is stored
 --------------
@@ -1175,7 +1176,12 @@ class _FaostatRun:
 
     def _api_query(self, domain: str, params: dict[str, str], *, title: str, entry: CatalogueEntry,
                    reporter_dim: str | None = None, partner_dim: str | None = None) -> list[FaoRow]:
-        """Run one data query, following pages (page_size / page_number) until a short page."""
+        """Run one data query, following pages (page_size / page_number) until a short page.
+
+        Paging is not settled (docs/research/fao.json: page_size/page_number vs limit/offset). If
+        page 2 repeats page 1, the API ignored page_number; page 1 was full, so the answer would be
+        cut at API_PAGE_SIZE rows. That raises _ApiUnavailable (QCL/PP/TCL fall back to the
+        complete bulk download, TM stays unrecorded and is retried) instead of keeping one page."""
         assert self.api is not None
         query = {**params, **API_COMMON_PARAMS}
         source_url = _api_url(f"data/{domain}", query)
@@ -1187,12 +1193,12 @@ class _FaostatRun:
                                              published_at=entry.published)
             page_rows, bad = parse_api_rows(payload, domain, source_url, raw_document_id=doc.raw_document_id or None,
                                             reporter_dim=reporter_dim, partner_dim=partner_dim)
-            self.issues.bad(domain, bad)
             data = payload["data"]
             sig = json.dumps(data[0], sort_keys=True) if data else None
             if page > 1 and sig is not None and sig == first_sig:
-                log.info("[%s] FAOSTAT API ignored page_number for %s; one page kept", self.ctx.source.key, domain)
-                break
+                raise _ApiUnavailable(f"page_number ignored for {domain} {title}: the answer would be truncated "
+                                      f"at {API_PAGE_SIZE} rows")
+            self.issues.bad(domain, bad)
             first_sig = first_sig or sig
             rows.extend(page_rows)
             if len(data) != API_PAGE_SIZE:      # short page, or paging ignored and everything sent

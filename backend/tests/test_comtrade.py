@@ -311,6 +311,149 @@ def test_revised_value_creates_revision(run_with_routes, session_factory, small_
         assert len(uv) == 1 and uv[0].price_value == 3.2 and uv[0].revision == 2
 
 
+def released_getda_a(when) -> bytes:
+    """getda_A.json with every lastReleased set to `when`."""
+    da = json.loads(F("getda_A.json"))
+    for row in da["data"]:
+        row["lastReleased"] = when.isoformat(timespec="seconds")
+    return json.dumps(da).encode()
+
+
+def italy_2025(edit) -> bytes:
+    """preview_A_M_380_2025.json after `edit(doc)`."""
+    doc = json.loads(F("preview_A_M_380_2025.json"))
+    edit(doc)
+    return json.dumps(doc).encode()
+
+
+def rerelease_italy_2025(edit, when=None) -> dict:
+    return keyless_routes(**{
+        getda("A") + r"reporterCode=32,380&period=2025$": released_getda_a(when or utcnow() + timedelta(days=1)),
+        preview("A", 380, "2025", "M"): italy_2025(edit),
+    })
+
+
+def test_same_day_rerelease_with_date_only_stamp_is_fetched(run_with_routes, session_factory, small_panel):
+    """getDa's lastReleased may be date-only (midnight). A re-release published later on the day of
+    our last fetch must still count as newer than that fetch."""
+    run_with_routes("un_comtrade", keyless_routes())
+
+    def revise(doc):
+        for row in doc["data"]:
+            if row["partnerCode"] == 32:
+                row["primaryValue"] = row["cifvalue"] = 7_680_000.0
+
+    midnight = utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    res = run_with_routes("un_comtrade", rerelease_italy_2025(revise, when=midnight))
+    assert res["revised"] == 2 and res["new"] == 0, res        # trade row + its unit value
+    with session_factory() as s:
+        assert trade(s, reporter_iso3="ITA", partner_iso3="ARG", frequency="A")[0].value == 7_680_000.0
+
+
+@pytest.mark.parametrize("net_wgt,reason", [(800.0, "net weight 800 kg < 1,000 kg"), (None, "net weight not reported")])
+def test_unit_value_withdrawn_when_rerelease_no_longer_supports_it(run_with_routes, session_factory, small_panel,
+                                                                   net_wgt, reason):
+    run_with_routes("un_comtrade", keyless_routes())
+
+    def correct_weight(doc):
+        for row in doc["data"]:
+            if row["partnerCode"] == 32:
+                row["netWgt"] = net_wgt
+
+    res = run_with_routes("un_comtrade", rerelease_italy_2025(correct_weight))
+    assert res["new"] == 0 and res["revised"] == 2, res        # trade row revised + unit value withdrawn
+    assert any("unit value withdrawn" in w and f"ARG 2025 ({reason})" in w for w in res["warnings"]), res["warnings"]
+    with session_factory() as s:
+        t = trade(s, reporter_iso3="ITA", partner_iso3="ARG", frequency="A")
+        assert len(t) == 1 and t[0].revision == 2 and t[0].net_weight_kg == net_wgt
+        assert prices(s, price_type=PriceType.IMPORT_UNIT_VALUE.value, origin_iso3="ARG", frequency="A") == []
+        history = s.scalars(select(PriceObservation).where(
+            PriceObservation.series_key == "import_unit_value|0409|A|ITA|ARG|2025")).all()
+        assert [(p.revision, p.is_current, p.price_value) for p in history] == [(1, False, 3.1)]   # kept, not current
+
+
+@pytest.mark.parametrize("truncated", [False, True])
+def test_partner_missing_from_rerelease_is_withdrawn(run_with_routes, session_factory, small_panel, truncated):
+    run_with_routes("un_comtrade", keyless_routes())
+
+    def drop_china(doc):                       # China's flow reallocated away in the re-release
+        doc["data"] = [r for r in doc["data"] if r["partnerCode"] != 156]
+        doc["count"] = len(doc["data"]) + (5 if truncated else 0)
+
+    res = run_with_routes("un_comtrade", rerelease_italy_2025(drop_china))
+    with session_factory() as s:
+        china = trade(s, reporter_iso3="ITA", partner_iso3="CHN", frequency="A")
+        china_uv = prices(s, price_type=PriceType.IMPORT_UNIT_VALUE.value, origin_iso3="CHN", frequency="A")
+        if truncated:                          # incomplete answer: absence proves nothing, nothing withdrawn
+            assert res["revised"] == 0, res
+            assert len(china) == 1 and len(china_uv) == 1
+            assert any("row cap" in w for w in res["warnings"])
+            return
+        assert res["revised"] == 2, res        # CHN trade row + its unit value
+        assert any("no longer in the source's answer" in w and "CHN 2025" in w for w in res["warnings"]), res
+        assert china == [] and china_uv == []
+        assert len(trade(s, reporter_iso3="ITA", frequency="A")) == 12
+        old = s.scalars(select(TradeFlowObservation).where(
+            TradeFlowObservation.series_key == "0409|A|import|ITA|CHN|2025")).all()
+        assert [(o.is_current, o.value) for o in old] == [(False, 2_640_000.0)]   # history kept
+
+
+def test_partner_remap_supersedes_old_series(run_with_routes, session_factory, small_panel):
+    """Without partnerAreas.json, Zambia (894, partnerISO null in preview rows) is stored as 'M894'.
+    When a later run maps it to ZMB, the M894 series must not stay current next to it, or Zambia's
+    trade is counted twice."""
+    res1 = run_with_routes("un_comtrade", keyless_routes(**{REF: (500, b"Internal Server Error")}))
+    assert any("partner reference" in w and "never archived" in w for w in res1["warnings"]), res1["warnings"]
+    with session_factory() as s:
+        assert [t.partner_iso3 for t in trade(s, reporter_iso3="ITA", frequency="A")
+                if t.extra["partner_code"] == 894] == ["M894"]
+
+    res2 = run_with_routes("un_comtrade", keyless_routes(), force=True)
+    assert any("partner 894 2025: M894 -> ZMB" in w for w in res2["warnings"]), res2["warnings"]
+    with session_factory() as s:
+        ita = trade(s, reporter_iso3="ITA", frequency="A", period_label="2025")
+        assert [t.partner_iso3 for t in ita if t.extra["partner_code"] == 894] == ["ZMB"]
+        world = next(t.value for t in ita if t.partner_iso3 == "WLD")
+        assert sum(t.value or 0 for t in ita if t.partner_iso3 != "WLD") <= world
+        old = s.scalars(select(TradeFlowObservation).where(
+            TradeFlowObservation.series_key == "0409|A|import|ITA|M894|2025")).all()
+        assert [(o.is_current, o.value) for o in old] == [(False, 15_000.0)]      # history kept
+
+
+def test_partner_reference_falls_back_to_archived_copy(run_with_routes, session_factory, small_panel):
+    """A failed partnerAreas.json download must not flip the mapping (ZMB -> M894) between runs."""
+    run_with_routes("un_comtrade", keyless_routes())
+    res = run_with_routes("un_comtrade", keyless_routes(**{REF: (500, b"Internal Server Error")}), force=True)
+    assert res["new"] == 0 and res["revised"] == 0, res
+    assert not any("partner reference" in w or "M894" in w for w in res["warnings"]), res["warnings"]
+    with session_factory() as s:
+        assert trade(s, partner_iso3="M894") == [] and len(trade(s, partner_iso3="ZMB")) == 1
+
+
+def test_rows_rejected_by_a_format_change_are_reported(run_with_routes, session_factory, small_panel):
+    """If cmdCode arrives as a number (409) every honey row is rejected as 'another commodity': the
+    run must say so instead of looking healthy while no trade data arrives."""
+    overrides = {}
+    for pattern, name in ((preview("A", 380, "2025", "M"), "preview_A_M_380_2025.json"),
+                          (preview("A", 32, "2025", "X"), "preview_A_X_32_2025.json"),
+                          (preview("M", 380, "202607", "M"), "preview_M_M_380_202607.json"),
+                          (preview("M", 380, "202608", "M"), "preview_M_M_380_202608.json")):
+        doc = json.loads(F(name))
+        for row in doc["data"]:
+            row["cmdCode"] = 409
+        overrides[pattern] = json.dumps(doc).encode()
+    res = run_with_routes("un_comtrade", keyless_routes(**overrides))
+    assert res["status"] == "partial" and res["new"] == 0, res
+    none_kept = [w for w in res["warnings"] if "none kept" in w]
+    assert len(none_kept) == 4 and all("cmd=409" in w for w in none_kept), res["warnings"]
+
+    # A single stray row among good ones is reported too, with its raw codes.
+    doc = json.loads(F("preview_A_M_380_2025.json"))
+    doc["data"][1]["flowCode"] = "RM"
+    parsed = ct.parse_records(json.dumps(doc).encode())
+    assert parsed.skipped_other == 1 and parsed.other_samples == {"flow='RM' cmd='0409'": 1}
+
+
 def test_getda_failure_falls_back(run_with_routes, session_factory, small_panel, sent):
     res = run_with_routes("un_comtrade", keyless_routes(**{
         getda("A") + r"reporterCode=32,380&period=2025$": (500, b"Internal Server Error"),

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from sqlalchemy import select
 
+from paladex.api import prices as prices_api
 from paladex.api.common import set_setting
-from paladex.collectors.base import month_bounds
+from paladex.collectors.base import month_bounds, year_bounds
 from paladex.models import PriceObservation, Source
 from paladex.services import ingest
 
@@ -36,9 +37,16 @@ def sources(db):
 
 def add_price(db, src, *, period: str, value: float, origin="ARG", variety="polyflora", price_type="wholesale_bulk",
               market="USA", currency="USD", unit="kg", low=None, high=None, color=None, per_kg=None, usd="auto",
-              eur="auto", published="auto", demo=False, terms=None, freq="M", source_url=None, variety_raw=None):
-    y, m = int(period[:4]), int(period[5:7])
-    start, end = month_bounds(y, m)
+              eur="auto", published="auto", demo=False, terms=None, freq="M", source_url=None, variety_raw=None,
+              volume=None, organic=False):
+    """`period`: 'YYYY-MM' (month), 'YYYY' (year, use freq='A') or 'YYYY-Www' (ISO week, use freq='W')."""
+    if len(period) == 4:
+        start, end = year_bounds(int(period))
+    elif "-W" in period:
+        start = date.fromisocalendar(int(period[:4]), int(period[6:]), 1)
+        end = start + timedelta(days=6)
+    else:
+        start, end = month_bounds(int(period[:4]), int(period[5:7]))
     per_kg = per_kg if per_kg is not None else ingest.per_kg(value, unit)
     if usd == "auto":
         usd = per_kg if currency == "USD" else per_kg * 1.1
@@ -46,9 +54,10 @@ def add_price(db, src, *, period: str, value: float, origin="ARG", variety="poly
         eur = per_kg if currency == "EUR" else per_kg / 1.1
     _, row = ingest.record(
         db, PriceObservation, source_id=src.id, is_demo=demo,
-        series_key=f"{price_type}|{origin}|{variety}|{color}|{market}|{terms}|{period}",
+        series_key=f"{price_type}|{origin}|{variety}|{color}|{organic}|{market}|{terms}|{freq}|{period}",
         price_type=price_type, origin_iso3=origin, origin_label=origin, market_iso3=market, variety=variety,
-        variety_raw=variety_raw or variety, color_grade=color, terms=terms, price_value=value, price_low=low,
+        variety_raw=variety_raw or variety, color_grade=color, organic=organic, terms=terms, price_value=value,
+        price_low=low, volume_kg=volume,
         price_high=high, currency=currency, unit=unit, price_per_kg=per_kg, usd_per_kg=usd, eur_per_kg=eur,
         period_start=start, period_end=end, period_label=period, frequency=freq,
         published_at=end if published == "auto" else published, source_url=source_url,
@@ -380,3 +389,250 @@ def test_empty_database_degrades_gracefully(api):
     assert api.get("/api/prices/discrepancies").json()["items"] == []
     csv_body = api.get("/api/prices/observations?format=csv&lang=it").content
     assert csv_body.startswith(b"\xef\xbb\xbfPeriodo;")
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: series identity, weighting, like-for-like comparisons, bounded loading
+# ---------------------------------------------------------------------------
+
+GATS_TERMS = "US customs value / net kg (imports for consumption; excludes freight, insurance & duty)"
+
+
+def make_src(db, key: str, reliability: str = "official") -> Source:
+    s = Source(key=key, name=f"Test {key}", publisher=f"Publisher {key}", kind="api", reliability=reliability,
+               category="prices", expected_max_age_days=60)
+    db.add(s)
+    db.flush()
+    return s
+
+
+def test_annual_and_monthly_rows_of_one_pair_are_separate_series(api, db):
+    """UN Comtrade publishes an annual AND monthly unit value for one pair: never one series."""
+    comtrade = make_src(db, "t_comtrade")
+    uv = dict(price_type="import_unit_value", origin="ARG", market="USA", variety="unspecified",
+              terms="CIF customs value / net weight")
+    add_price(db, comtrade, period="2025", value=3.0, freq="A", **uv)
+    add_price(db, comtrade, period="2026-07", value=4.0, **uv)
+    add_price(db, comtrade, period="2026-08", value=4.2, **uv)
+    db.commit()
+
+    d = api.get("/api/prices/series?price_type=import_unit_value&freq=M").json()
+    by_nat = {s["native_frequency"]: s for s in d["series"]}
+    assert len(d["series"]) == 2 and set(by_nat) == {"A", "M"}
+    monthly, annual = by_nat["M"], by_nat["A"]
+    assert monthly["freq"] == "M" and [p["period_label"] for p in monthly["points"]] == ["2026-07", "2026-08"]
+    assert annual["freq"] == "A" and [(p["period_label"], p["value"]) for p in annual["points"]] == [("2025", 3.0)]
+    assert monthly["id"] != annual["id"]
+
+    # at freq=A the monthly series is a partial year, flagged as such, never blended with the annual row
+    a = {s["native_frequency"]: s for s in api.get("/api/prices/series?price_type=import_unit_value&freq=A").json()["series"]}
+    p26 = a["M"]["points"][0]
+    assert p26["period_label"] == "2026" and p26["n_points"] == 2 and p26["expected_points"] == 12
+    assert p26["value"] == pytest.approx(4.1)
+
+    rows = {r["native_frequency"]: r for r in api.get("/api/prices/latest?price_type=import_unit_value").json()["rows"]}
+    assert rows["M"]["period_label"] == "2026-08" and rows["M"]["change_prev_pct"] == pytest.approx(5.0)
+    assert rows["A"]["period_label"] == "2025"
+
+    c = api.get("/api/prices/compare?price_type=import_unit_value&by=origin").json()
+    assert c["anchor_period"] == "2026-08"
+    assert [(b["key"], b["value"], b["n_series"]) for b in c["bars"]] == [("ARG", 4.2, 1)]
+    assert c["bars"][0]["components"][0]["series_id"] == monthly["id"]
+    assert [(e["series_id"], e["last_period"], e["reason"]) for e in c["excluded"]] == [(annual["id"], "2025", "no_point_in_window")]
+
+
+def test_weekly_rows_count_in_their_thursday_month_and_unit_values_are_volume_weighted(api, db):
+    taxud, comext = make_src(db, "t_taxud"), make_src(db, "t_comext")
+    uv = dict(price_type="import_unit_value", origin="ARG", market="ITA", variety="unspecified", currency="EUR",
+              terms="CIF")
+    # ISO week 36/2026 runs 31 Aug - 6 Sep: it belongs to September (its Thursday is 3 Sep)
+    for week, tonnes, v in ((36, 400, 3.2), (37, 20, 4.5), (38, 300, 3.1), (39, 2, 6.0)):
+        add_price(db, taxud, period=f"2026-W{week:02d}", value=v, volume=tonnes * 1000, freq="W", **uv)
+    # monthly customs unit values of another source; quarter must be weighted by each month's volume
+    for month, tonnes, v in (("2026-07", 100, 3.0), ("2026-08", 900, 4.0), ("2026-09", 600, 3.2)):
+        add_price(db, comext, period=month, value=v, volume=tonnes * 1000, **uv)
+    # a unit value without a declared volume falls back to a simple average
+    for week, v in ((37, 2.0), (38, 3.0)):
+        add_price(db, taxud, period=f"2026-W{week:02d}", value=v, freq="W", **{**uv, "origin": "UKR"})
+    db.commit()
+
+    d = api.get("/api/prices/series?price_type=import_unit_value&currency=EUR&source=t_taxud").json()
+    s = {x["origin_iso3"]: x for x in d["series"]}
+    arg = s["ARG"]
+    assert [p["period_label"] for p in arg["points"]] == ["2026-09"]           # W36 is not in August
+    sep = arg["points"][0]
+    assert sep["value"] == pytest.approx(2312 / 722, abs=1e-4)                  # value / weight, not 4.53
+    assert sep["weighting"] == "volume" and sep["volume_kg"] == 722_000 and sep["n_points"] == 4
+    assert arg["weighting"] == "volume" and d["weighting"] == "volume_for_unit_values"
+    ukr = s["UKR"]["points"][0]
+    assert ukr["weighting"] == "simple" and ukr["value"] == pytest.approx(2.5) and ukr["volume_kg"] is None
+
+    q = api.get("/api/prices/series?price_type=import_unit_value&currency=EUR&source=t_comext&freq=Q").json()
+    q3 = q["series"][0]["points"][0]
+    assert q3["period_label"] == "2026-Q3" and q3["weighting"] == "volume"
+    assert q3["value"] == pytest.approx(5820 / 1600, abs=1e-4)                  # not the simple 3.4
+
+    # Comext 3.20 vs TAXUD September 3.20 (weighted): no discrepancy (the simple mean said 4.53)
+    disc = api.get("/api/prices/discrepancies?price_type=import_unit_value&currency=EUR").json()
+    assert disc["total"] == 0
+
+
+def test_discrepancies_compare_one_like_for_like_line_per_source(api, db):
+    gats, comtrade = make_src(db, "t_gats"), make_src(db, "t_comtrade")
+    uv = dict(price_type="import_unit_value", origin="ARG", market="USA", variety="unspecified", period="2026-08")
+    add_price(db, gats, value=2.90, volume=1_000_000, terms=f"{GATS_TERMS}, HS 0409 total",
+              variety_raw="HS 0409 natural honey (all lines)", **uv)
+    add_price(db, gats, value=3.10, volume=400_000, color="white", terms=f"{GATS_TERMS}, HTS 0409000035", **uv)
+    add_price(db, gats, value=2.70, volume=500_000, color="light amber", terms=f"{GATS_TERMS}, HTS 0409000045", **uv)
+    add_price(db, gats, value=4.50, volume=100_000, color="white", organic=True, terms=f"{GATS_TERMS}, HTS 0409000005", **uv)
+    add_price(db, gats, value=3.40, volume=100_000, terms=f"{GATS_TERMS}, HTS 0409000056", **uv)   # uncoloured sub-line
+    add_price(db, comtrade, value=2.95, volume=1_000_000, terms="CIF customs value / net weight", **uv)
+    db.commit()
+
+    d = api.get("/api/prices/discrepancies").json()
+    assert d["total"] == 0                     # total 2.90 vs 2.95; the old blended GATS mean 3.32 said +12.6%
+
+    # a second source publishing a white line 3.50 is compared with GATS' white line (3.10) only
+    add_price(db, comtrade, value=3.50, volume=50_000, color="white", terms="white line", **uv)
+    db.commit()
+    d = api.get("/api/prices/discrepancies").json()
+    assert d["total"] == 1
+    item = d["items"][0]
+    assert (item["color_grade"], item["organic"], item["market_iso3"]) == ("white", False, "USA")
+    assert [(e["source"]["key"], e["value"]) for e in item["entries"]] == [("t_gats", 3.1), ("t_comtrade", 3.5)]
+    assert item["entries"][0]["terms"] == [f"{GATS_TERMS}, HTS 0409000035"]
+
+    # within the uncoloured group GATS contributes its total line; its sub-line is listed apart
+    s = api.get("/api/prices/series?price_type=import_unit_value").json()
+    assert len(s["discrepancies"]) == 1
+    prices_api_rows = prices_api.find_discrepancies(db, list(db.scalars(select(PriceObservation))), "USD", threshold=0.0)
+    unc = next(i for i in prices_api_rows if i["color_grade"] is None)
+    g = next(e for e in unc["entries"] if e["source"]["key"] == "t_gats")
+    assert g["value"] == 2.9 and g["terms"] == [f"{GATS_TERMS}, HS 0409 total"]
+    assert [o["value"] for o in g["other_lines"]] == [3.4]
+
+
+def test_compare_keeps_markets_apart_and_never_averages_aggregates_or_sub_lines(api, db):
+    gats, comtrade, comext = make_src(db, "t_gats"), make_src(db, "t_comtrade"), make_src(db, "t_comext")
+    uv = dict(price_type="import_unit_value", origin="ARG", variety="unspecified", period="2026-08")
+    add_price(db, gats, value=2.90, volume=1_000_000, terms=f"{GATS_TERMS}, HS 0409 total",
+              variety_raw="HS 0409 natural honey (all lines)", **uv)
+    add_price(db, gats, value=3.10, volume=400_000, color="white", terms=f"{GATS_TERMS}, HTS 0409000035", **uv)
+    add_price(db, gats, value=2.70, volume=500_000, color="light amber", terms=f"{GATS_TERMS}, HTS 0409000045", **uv)
+    add_price(db, gats, value=4.50, volume=100_000, color="white", organic=True, terms=f"{GATS_TERMS}, HTS 0409000005", **uv)
+    add_price(db, comtrade, value=2.95, volume=900_000, terms="CIF customs value / net weight", **uv)
+    for market, v in (("EU27", 3.5), ("ITA", 3.6), ("DEU", 3.4)):     # EUR; stored USD = x 1.1
+        add_price(db, comext, value=v, market=market, currency="EUR", volume=200_000, terms="CIF", **uv)
+    db.commit()
+
+    d = api.get("/api/prices/compare?price_type=import_unit_value&by=origin").json()
+    bars = {b["market_iso3"]: b for b in d["bars"]}
+    assert set(bars) == {"USA", "ITA", "DEU"} and all(b["key"] == "ARG" for b in d["bars"])
+    assert len({b["id"] for b in d["bars"]}) == 3
+    usa = bars["USA"]
+    # GATS HS 0409 total + Comtrade only: the HTS-10 lines of the same total are not averaged in
+    assert usa["n_series"] == 2 and usa["value"] == pytest.approx(2.925)
+    assert {(c["source"]["key"], c["market_iso3"]) for c in usa["components"]} == {("t_gats", "USA"), ("t_comtrade", "USA")}
+    assert all(c["terms"] for c in usa["components"]) and usa["mixed_terms"] is True
+    assert bars["ITA"]["value"] == pytest.approx(3.96) and bars["DEU"]["value"] == pytest.approx(3.74)
+    reasons = {(e["market_iso3"], e["reason"]) for e in d["excluded"]}
+    assert ("EU27", "aggregate_of_shown_markets") in reasons
+    sub = [e for e in d["excluded"] if e["reason"] == "component_of_total"]
+    assert len(sub) == 3 and all(e["source"]["key"] == "t_gats" for e in sub)
+
+    # without member-state bars the EU27 bar is legitimate and is shown on its own
+    d = api.get("/api/prices/compare?price_type=import_unit_value&by=origin&market=EU27&market=USA").json()
+    assert {b["market_iso3"] for b in d["bars"]} == {"USA", "EU27"}
+
+
+def test_compare_never_averages_demo_with_real_series(api, db, sources):
+    usda, _ = sources
+    demo_src = db.scalars(select(Source).where(Source.key == "demo")).one()
+    set_setting(db, "show_demo", True)
+    add_price(db, usda, period="2026-09", value=3.0)
+    add_price(db, demo_src, period="2026-09", value=3.5, demo=True)
+    db.commit()
+
+    d = api.get("/api/prices/compare?price_type=wholesale_bulk&by=origin").json()
+    arg = sorted((b for b in d["bars"] if b["key"] == "ARG"), key=lambda b: b["is_demo"])
+    assert [(b["is_demo"], b["value"], b["n_series"]) for b in arg] == [(False, 3.0, 1), (True, 3.5, 1)]
+    for b in d["bars"]:
+        assert {c["is_demo"] for c in b["components"]} == {b["is_demo"]}
+    assert arg[0]["id"] != arg[1]["id"]
+
+
+def test_latest_and_compare_only_load_the_stretch_they_need(api, db, monkeypatch):
+    """Hundreds of series with years of history: same answers, a fraction of the rows."""
+    src = make_src(db, "t_bulk")
+    origins = ["ARG", "UKR", "CHN", "BRA", "VNM", "IND", "MEX", "URY", "TUR", "HUN", "ROU", "ESP"]
+    varieties = ["polyflora", "acacia", "sunflower", "clover", "eucalyptus", "chestnut", "linden", "rapeseed",
+                 "honeydew", "orange_blossom", "buckwheat", "lavender", "dandelion", "manuka", "other", "unspecified",
+                 "organic_polyflora"]
+    rows = []
+
+    def obs(origin, variety, y, m, v):
+        s, e = month_bounds(y, m)
+        return PriceObservation(
+            source_id=src.id, series_key=f"{origin}|{variety}|{y}-{m:02d}", value_hash="x", price_type="wholesale_bulk",
+            origin_iso3=origin, origin_label=origin, market_iso3="USA", variety=variety, price_value=v, currency="USD",
+            unit="kg", price_per_kg=v, usd_per_kg=v, eur_per_kg=v / 1.1, period_start=s, period_end=e,
+            period_label=f"{y}-{m:02d}", frequency="M", published_at=e, data_status="published", reliability="official")
+
+    for i, (o, v) in enumerate((o, v) for o in origins for v in varieties):      # 204 series, 2021-01 .. 2026-08
+        for idx in range(2021 * 12, 2026 * 12 + 8):
+            y, m = divmod(idx, 12)
+            rows.append(obs(o, v, y, m + 1, round(2 + (i % 7) * 0.1 + (idx % 13) * 0.01, 4)))
+    for idx in range(2020 * 12, 2022 * 12 + 3):                                  # last seen 2022-03
+        y, m = divmod(idx, 12)
+        rows.append(obs("SRB", "acacia", y, m + 1, 5.0 + (idx % 5) * 0.1))
+    db.add_all(rows)
+    db.commit()
+    total = len(rows)
+
+    # reference: the unbounded computation over every row
+    every = list(db.scalars(select(PriceObservation)))
+    ref_m = {s["id"]: s for s in prices_api.build_series(db, every, "USD", "M")}
+    ref_a = {s["id"]: s for s in prices_api.build_series(db, every, "USD", "A")}
+
+    seen: list[int] = []
+    real = prices_api.build_series
+
+    def spy(db_, rows_, *a, **kw):
+        seen.append(len(rows_))
+        return real(db_, rows_, *a, **kw)
+
+    monkeypatch.setattr(prices_api, "build_series", spy)
+
+    def check_latest(freq, ref):
+        res = api.get(f"/api/prices/latest?price_type=wholesale_bulk&freq={freq}").json()["rows"]
+        assert len(res) == len(ref) == 205
+        for r in res:
+            s = ref[r["series_id"]]
+            pts = {p["period_label"]: p for p in s["points"]}
+            last = s["points"][-1]
+            prev = pts.get(prices_api.shift_label(last["period_label"], s["freq"], -1))
+            ya = pts.get(prices_api.shift_label(last["period_label"], s["freq"], -prices_api.PERIODS_PER_YEAR[s["freq"]]))
+            assert (r["period_label"], r["latest"]["value"], r["latest"]["n_points"]) == (
+                last["period_label"], last["value"], last["n_points"])
+            assert (r["previous"] or {}).get("value") == (prev or {}).get("value")
+            assert (r["year_ago"] or {}).get("value") == (ya or {}).get("value")
+        return {r["origin_iso3"]: r for r in res}
+
+    by_origin = check_latest("M", ref_m)
+    assert seen[-1] < total / 2                     # bounded per series, not the whole history
+    srb = by_origin["SRB"]
+    assert srb["period_label"] == "2022-03" and srb["is_stale"] is True and srb["year_ago"]["period_label"] == "2021-03"
+    check_latest("A", ref_a)
+    assert seen[-1] < total / 2
+
+    c = api.get("/api/prices/compare?price_type=wholesale_bulk&by=origin").json()
+    assert seen[-1] <= 204 * 4                      # only the window's rows
+    assert c["anchor_period"] == "2026-08" and c["window_from"] == "2026-06-01"
+    expect: dict[str, list[float]] = {}
+    for s in ref_m.values():
+        in_win = [p for p in s["points"] if "2026-06-01" <= p["period_start"] <= "2026-08-31"]
+        if in_win:
+            expect.setdefault(s["origin_iso3"], []).append(in_win[-1]["value"])
+    assert {b["key"]: (b["n_series"], b["value"]) for b in c["bars"]} == {
+        k: (len(v), round(sum(v) / len(v), 4)) for k, v in expect.items()}
+    assert [(e["key"], e["last_period"], e["reason"]) for e in c["excluded"]] == [("SRB", "2022-03", "no_point_in_window")]

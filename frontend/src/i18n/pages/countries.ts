@@ -100,7 +100,7 @@ export default {
     'trade.mirrorHintImp': 'Esportazioni dichiarate dai paesi fornitori con destinazione {c}. Sono dichiarazioni diverse (valori FOB, altre date): non vengono sommate ai dati del paese.',
     'trade.col.declaredBy': 'Dichiarato da',
     'trade.col.year': 'Anno',
-    'trade.noDeclared': 'Il paese non ha dichiarato dati per questo flusso.',
+    'trade.noDeclared': 'Nessuna dichiarazione del paese raccolta finora per questo flusso.',
     'trade.goto': 'Apri il commercio internazionale',
     'trade.fallback': 'UN Comtrade, Eurostat, USDA (dati US Census)',
 
@@ -255,7 +255,7 @@ export default {
     'trade.mirrorHintImp': 'Exports declared by supplying countries with destination {c}. These are different declarations (FOB values, other dates): never added to the country’s own data.',
     'trade.col.declaredBy': 'Declared by',
     'trade.col.year': 'Year',
-    'trade.noDeclared': 'The country has not declared data for this flow.',
+    'trade.noDeclared': 'No declaration by the country has been collected for this flow yet.',
     'trade.goto': 'Open international trade',
     'trade.fallback': 'UN Comtrade, Eurostat, USDA (US Census data)',
 

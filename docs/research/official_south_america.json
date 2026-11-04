@@ -1,0 +1,533 @@
+{
+ "key": "south_america",
+ "region": "South America: Brazil, Argentina, Uruguay, Chile",
+ "sources": [
+  {
+   "country": "Brazil",
+   "name": "Comex Stat API (official Brazilian foreign-trade statistics)",
+   "official_body": "MDIC (Ministério do Desenvolvimento, Indústria, Comércio e Serviços), SECEX",
+   "access_method": "REST JSON API. The query endpoints are POST requests with a JSON body; the metadata endpoints are GET. A web UI with the same data is at comexstat.mdic.gov.br.",
+   "endpoints": [
+    "GET https://api-comexstat.mdic.gov.br/general/dates/updated  -> latest month loaded (use as a cheap daily freshness check)",
+    "POST https://api-comexstat.mdic.gov.br/general?language=en  body: {\"flow\":\"export\",\"monthDetail\":true,\"period\":{\"from\":\"2025-01\",\"to\":\"2026-09\"},\"filters\":[{\"filter\":\"ncm\",\"values\":[\"04090000\"]}],\"details\":[\"country\",\"state\",\"ncm\"],\"metrics\":[\"metricFOB\",\"metricKG\",\"metricStatistic\"]}",
+    "POST https://api-comexstat.mdic.gov.br/general  same body with \"flow\":\"import\"; imports also accept metricFreight, metricInsurance, metricCIF (Brazil buys small volumes of AR/UY honey)",
+    "GET https://api-comexstat.mdic.gov.br/general/filters | /general/details | /general/metrics  -> the valid filter, detail and metric names (call these at startup instead of hard-coding)",
+    "POST https://api-comexstat.mdic.gov.br/cities  -> exporter municipality; filter at HS4 level (filter 'heading' = '0409'); only metricFOB and metricKG",
+    "POST https://api-comexstat.mdic.gov.br/historical-data  -> 1989-1996 data in the old NBM nomenclature (not needed)",
+    "Docs: https://api-comexstat.mdic.gov.br/docs ; UI: https://comexstat.mdic.gov.br"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free Brazilian federal open data (LAI, Lei 12.527/2011). Cite 'Fonte: MDIC/SECEX - Comex Stat'. No restriction on automated use was found.",
+   "update_frequency": "Monthly. MDIC releases the consolidated month in its first week (for example, July 2026 data came out on 6 Aug 2026), and Comex Stat updates the same day. MDIC also publishes weekly preliminary trade-balance figures, but not at NCM level.",
+   "publication_lag": "About 5-8 days after the end of the month, much fresher than Comtrade (2-4 months).",
+   "data_available": "NCM 04090000 'Mel natural' (8 digits; Brazil has no national split). Per month: partner country, state of production (UF), transport mode, customs office (URF), metricFOB (USD FOB), metricKG (net kg), metricStatistic (statistical quantity, kg for honey). For imports, also freight, insurance and CIF in USD. FOB USD divided by kg gives the official export unit value by destination. Coverage: 1997 to the latest month.",
+   "value_for_parodi": "This is the official Brazilian unit value, about one week after month end and split by destination, so Paladex can compare Brazil-to-US and Brazil-to-EU prices directly. Reported context: January 2026 averaged US$3,560.70/t, and the US is about 80-85% of the volume. The state split tells Northeast organic/wild honey (PI/CE/MA/BA) apart from Southern honey (PR/RS/SC). It is also the fastest way to measure the effect of the EU delisting of Brazilian honey from 3 Sep 2026 (see the MAPA entry).",
+   "rate_limits": "Not officially documented. Third-party clients (R comexr, Python comexpy) report frequent rate-limit errors asking callers to retry after about 10 s, plus timeouts. Responses are capped at about 150,000 rows. Keep queries narrow (NCM filter, at most 24 months) and add backoff.",
+   "sample_response": "RECONSTRUCTED, not captured: {\"data\":{\"list\":[{\"year\":\"2026\",\"monthNumber\":\"9\",\"country\":\"Estados Unidos\",\"state\":\"Piauí\",\"ncm\":\"Mel natural\",\"metricFOB\":\"...\",\"metricKG\":\"...\",\"metricStatistic\":\"...\"}]},\"success\":true,\"message\":null,\"language\":\"en\"}. Numbers may come back as strings, and detail columns may arrive as code/name pairs (for example coNcm + ncm), so map the keys dynamically.",
+   "parsing_notes": "Store FOB and KG separately and compute USD/kg yourself; never average unit values across months. Check with /general/dates/updated each day and pull only when it changes. Discover the valid names from /general/filters, /details and /metrics; the R wrapper documents aliases such as hs4 -> 'heading', hs6 -> 'subHeading' and transport -> 'via', and says filter names are case-sensitive. Use language=en for English country names, but map partners by code to ISO3 using the Comex Stat country table. Recent months are revised, so re-pull the trailing 3 months on every run. This research session's proxy blocked api-comexstat.mdic.gov.br; the host must be reachable from the machine running Paladex.",
+   "evidence_urls": [
+    "https://cran.nics.utk.edu/cran/web/packages/comexr/vignettes/querying-trade-data.html",
+    "https://packages.oit.ncsu.edu/cran/web/packages/comexr/readme/README.html",
+    "https://glama.ai/mcp/servers/luizzzvictor/mcp-comexstat",
+    "https://noticiamarajo.com.br/economia/mdic-divulga-balanca-comercial-da-1a-semana-de-agosto-de-2026/",
+    "https://www.agrolink.com.br/noticias/brasil-exporta-3-2-mil-toneladas-de-mel-no-bimestre_512623.html",
+    "https://www.gov.br/pt-br/servicos/consultar-estatisticas-oficiais-do-comercio-exterior-de-bens-brasileiro"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "high"
+  },
+  {
+   "country": "Brazil",
+   "name": "Comex Stat bulk CSV files (base de dados bruta)",
+   "official_body": "MDIC / SECEX",
+   "access_method": "Direct download of yearly semicolon-separated CSVs plus code tables. Use for backfill, and as the fallback when the API throttles.",
+   "endpoints": [
+    "https://balanca.economia.gov.br/balanca/bd/comexstat-bd/ncm/EXP_{YYYY}.csv  (exports; the yearly file is rewritten every month)",
+    "https://balanca.economia.gov.br/balanca/bd/comexstat-bd/ncm/IMP_{YYYY}.csv  (imports)",
+    "https://balanca.economia.gov.br/balanca/bd/tabelas/PAIS.csv and NCM.csv  (code tables; path from memory)",
+    "Landing page: gov.br/mdic, then 'base de dados bruta' (Estatísticas de comércio exterior)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free open government data. Cite MDIC/SECEX.",
+   "update_frequency": "Monthly, the same day as Comex Stat.",
+   "publication_lag": "About 1 week",
+   "data_available": "Columns as remembered: CO_ANO;CO_MES;CO_NCM;CO_UNID;CO_PAIS;SG_UF_NCM;CO_VIA;CO_URF;QT_ESTAT;KG_LIQUIDO;VL_FOB. Import files add VL_FRETE;VL_SEGURO. Filter on CO_NCM=='04090000'. Values in USD, weight in kg. Coverage 1997 onward.",
+   "value_for_parodi": "Robust full-history backfill without hitting the API, with the same official FOB/kg by country and state.",
+   "rate_limits": "None published. Each yearly file is large (hundreds of MB), so stream it and filter rows as you read.",
+   "sample_response": "RECONSTRUCTED: CO_ANO;CO_MES;CO_NCM;CO_UNID;CO_PAIS;SG_UF_NCM;CO_VIA;CO_URF;QT_ESTAT;KG_LIQUIDO;VL_FOB\\n2026;03;04090000;10;249;PI;01;0817600;21000;21000;74000",
+   "parsing_notes": "Third-party R code (datazoom.amazonia, SCAEC/barao) confirms the EXP_YYYY.csv pattern and the kg_liquido/vl_fob/co_pais fields; the full column list above is from memory. The files may be Latin-1 encoded and wrap fields in quotes. Join CO_PAIS to PAIS.csv for ISO3 codes.",
+   "evidence_urls": [
+    "https://rdrr.io/github/datazoompuc/datazoom.amazonia/src/R/comex.R",
+    "https://rdrr.io/github/SCAEC/barao/src/data-raw/comexstat_dados.R",
+    "https://www.gov.br/casacivil/pt-br/assuntos/colegiados/comissao-mista-de-reavaliacao-de-informacoes-cmri/decisoes-de-recurso-de-4a-instancia/2024/decisao-466-2024-nup-18800-007526-2024-46.pdf"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "high"
+  },
+  {
+   "country": "Brazil",
+   "name": "MAPA: EU listing status, PNCRC residue plan, AGROSTAT and agricultural-attaché reports",
+   "official_body": "Ministério da Agricultura e Pecuária (MAPA): SDA/DIPOA, Secretaria de Comércio e Relações Internacionais, adidos agrícolas",
+   "access_method": "Mostly HTML and PDF. AGROSTAT is a web app with Excel export and no documented API. Scrape news and normative pages for 'mel'.",
+   "endpoints": [
+    "https://indicadores.agricultura.gov.br/agrostat/index.htm  (AGROSTAT: export value and volume by product 'Mel natural', country and month; same source data as Comex Stat)",
+    "https://wikisda.agricultura.gov.br/dipoa_baselegal/port_1266-2025_sda_pncrc_animal.pdf  (Portaria SDA/MAPA 1.266 of 16-Apr-2025: PNCRC Animal, covers mel)",
+    "https://wikisda.agricultura.gov.br/Inspe%C3%A7%C3%A3o-Animal/Produto-Origem-Animal/manual_pncrc  (PNCRC manual; annual results are published on the MAPA PNCRC page)",
+    "https://www.gov.br/agricultura/pt-br/assuntos/relacoes-internacionais/adidos-agricolas/belgica-uniao-europeia/UNIOEUROPEIAMERCADOEREGRASPARAEXPORTACAODEMELPARAAUNIOEUROPEIA.pdf",
+    "https://www.gov.br/agricultura/pt-br/assuntos/relacoes-internacionais/adidos-agricolas/estados-unidos/ESTADOSUNIDOSMELBRASILEIROTARIFASDE50EOPORTUNIDADESNOMERCADODOSEUA.pdf",
+    "https://www.gov.br/agricultura/pt-br/assuntos/noticias  (watch for the EU relisting of mel and poultry)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free government publications",
+   "update_frequency": "Event-driven (regulatory notices). AGROSTAT is monthly. PNCRC is annual (plan plus results).",
+   "publication_lag": "Notices same day. AGROSTAT about 1-2 weeks.",
+   "data_available": "Regulatory status, residue-control results (antimicrobials and others in honey), and attaché market notes. The key event, verified from multiple sources: Commission Implementing Regulation (EU) 2026/1189 (Art. 118 of Reg. 2019/6, antimicrobials) removed Brazil from the list of authorised third countries for honey, as well as bovine, equine, poultry, aquaculture and casings, from 3 Sep 2026. Argentina, Uruguay and Paraguay stayed on the list. The DG SANTE audit report dated 28 Sep 2026 was positive for poultry and honey. A MAPA secretary said the EU decision could come in November 2026 and shipments could resume in December 2026. Re-inclusion was not confirmed as of these results.",
+   "value_for_parodi": "Critical for the Italian side. Brazilian honey currently cannot be imported into the EU, so Brazil-origin offers to Parodi Italy are blocked until a relisting amendment to Reg. 2021/405 is published. MAPA is the earliest official source on Brazil's side, and EUR-Lex (already integrated) confirms. US-side context: MAPA attaché note on 50% US tariffs on Brazilian honey.",
+   "rate_limits": "None published",
+   "sample_response": "HTML/PDF. Alert on keywords: 'mel', 'apícola', 'União Europeia', 'reinclusão', '2021/405', 'antimicrobianos'.",
+   "parsing_notes": "Run a keyword scraper on gov.br/agricultura news plus AGROSTAT monthly as a cross-check of Comex Stat. Persist an 'eu_listing_status' flag per origin (BR=delisted since 2026-09-03) and drive it from EUR-Lex.",
+   "evidence_urls": [
+    "https://www.canalrural.com.br/agricultura/agronegocio/alem-da-carne-lista-de-produtos-brasileiros-excluidos-pela-ue-inclui-aves-ovos-e-mel/",
+    "https://www.3tres3.com/en/latest_swine_news/eu-ban-on-certain-brazilian-animal-products-takes-effect_22777/",
+    "https://static.poder360.com.br/uploads/2026/09/relatorio-final-DG-Sante-Comissao-Europeia-producao-carne-aves-mel-28-set-2026.pdf",
+    "https://canalrural.com.br/aves-e-suinos/exportacoes-de-frango-e-mel-para-ue-podem-voltar-em-dezembro-diz-secretario-do-mapa",
+    "https://agrinfo.eu/book-of-reports/provisional-list-of-non-eu-countries-compliant-with-new-eu-antimicrobial-requirements/short_pdf",
+    "https://wikisda.agricultura.gov.br/dipoa_baselegal/port_1266-2025_sda_pncrc_animal.pdf"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "high"
+  },
+  {
+   "country": "Brazil",
+   "name": "IBGE SIDRA: Pesquisa da Pecuária Municipal (PPM), table 74, honey production",
+   "official_body": "IBGE (Instituto Brasileiro de Geografia e Estatística)",
+   "access_method": "REST JSON. Either the legacy SIDRA API (apisidra) or the IBGE Agregados v3 API.",
+   "endpoints": [
+    "GET https://servicodados.ibge.gov.br/api/v3/agregados/74/metadados  -> resolve the variable IDs and the classification-80 category ID for 'Mel de abelha' (do this first)",
+    "GET https://servicodados.ibge.gov.br/api/v3/agregados/74/periodos/-10/variaveis/106|215?localidades=N1[all]|N3[all]&classificacao=80[{HONEY_CAT_ID}]",
+    "GET https://apisidra.ibge.gov.br/values/t/74/n1/all/n3/all/v/106,215/p/last%2010/c80/{HONEY_CAT_ID}?formato=json",
+    "Municipal detail: replace n3/all with n6/all (or localidades=N6[all])",
+    "UI: https://sidra.ibge.gov.br/tabela/74"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free; cite IBGE - PPM",
+   "update_frequency": "Annual. PPM 2025 was released on 30 Sep 2026.",
+   "publication_lag": "About 9 months after the reference year",
+   "data_available": "Honey production in kg (variable 106 'Produção de origem animal', category 'Mel de abelha') and production value in thousand R$ (variable 215 'Valor da produção'), at Brasil, region, state and municipality level. Reported figures: 2024 = 67,313,986 kg (record); 2025 = about 71.3 thousand t (+4.5%, 8th consecutive record), with the Northeast and South tied at about 37% each. Value / quantity gives an implied average farm-gate price in R$/kg.",
+   "value_for_parodi": "The official supply-side anchor for Brazil, and the only official Brazilian honey price proxy (implied R$/kg producer value). Shows which states are expanding. FAOSTAT already gives the national total; IBGE adds state and municipality detail and the value series.",
+   "rate_limits": "None published. Responses for all municipalities are large, so paginate by period.",
+   "sample_response": "RECONSTRUCTED (v3): [{\"id\":\"106\",\"variavel\":\"Produção de origem animal\",\"unidade\":\"Quilogramas\",\"resultados\":[{\"classificacoes\":[{\"id\":\"80\",\"nome\":\"Tipo de produto de origem animal\",\"categoria\":{\"<id>\":\"Mel de abelha\"}}],\"series\":[{\"localidade\":{\"id\":\"1\",\"nivel\":{\"id\":\"N1\",\"nome\":\"Brasil\"},\"nome\":\"Brasil\"},\"serie\":{\"2024\":\"67313986\",\"2025\":\"...\"}}]}]}]. Legacy apisidra returns an array whose first row is the header (NC, NN, MN, V, D1N...) and V holds the value as a string.",
+   "parsing_notes": "Unverified from memory: variable IDs 106/215 and the honey category ID inside classification c80 (I recall about 2685-2687 but could not confirm). Always resolve them from /metadados at runtime. Value units are 'Mil Reais'; convert to USD with the BCB SGS PTAX series (api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados?formato=json, from memory). Special characters in values ('-', '...', 'X') mean zero, not available, or confidential. This session could not reach servicodados.ibge.gov.br (proxy).",
+   "evidence_urls": [
+    "https://agenciadenoticias.ibge.gov.br/pt/agencia-noticias/44534-valor-da-producao-da-pecuaria-e-da-aquicultura-chega-a-r-132-8-bilhoes-em-2024-com-recorde-nas-producoes-de-leite-ovos-de-galinha-e-mel.html?lang=pt-BR",
+    "https://www.ipece.ce.gov.br/wp-content/uploads/sites/45/2025/09/Enfoque_Economico_N302_240925.pdf",
+    "https://movimentoeconomico.com.br/agronegocio/2026/10/19/nordeste-produz-37-do-mel-do-brasil-em-2025-e-empata-com-o-sul-pela-1a-vez/",
+    "https://agenciagov.ebc.com.br/noticias/202609/quantidade-do-gado-diminui-e-produtividade-aumenta-na-agropecuaria-mostra-ibge",
+    "https://rdrr.io/cran/sidrar/man/get_sidra.html"
+   ],
+   "confidence": "from_memory_unverified",
+   "priority": "medium"
+  },
+  {
+   "country": "Argentina",
+   "name": "INDEC: foreign trade query system (comex.indec.gob.ar) and Intercambio Comercial Argentino (ICA)",
+   "official_body": "INDEC (Instituto Nacional de Estadística y Censos)",
+   "access_method": "Web query app with downloadable yearly or monthly ZIP/CSV databases, plus the monthly ICA press release (PDF and XLS).",
+   "endpoints": [
+    "https://comex.indec.gob.ar/#/database  (select Exportación, year, Mensual; NCM 8-digit by country) [INDEC itself cites this URL]",
+    "https://comex.indec.gob.ar/files/zips/exports_{YYYY}_M.zip and imports_{YYYY}_M.zip  (bulk monthly files; URL pattern from memory, verify)",
+    "https://www.indec.gob.ar/uploads/informesdeprensa/ica_{MM}_{hash}.pdf  (ICA, e.g. ica_09_266E5973E036.pdf; the hash is not predictable, so scrape the ICA page)",
+    "https://www.indec.gob.ar/ftp/cuadros/publicaciones/calendario_2sem2026.pdf  (release calendar; next ICA 19-Nov-2026 covering October)",
+    "https://www.indec.gob.ar/uploads/informesdeprensa/complejos_03_2686A1604947.pdf  (Complejos exportadores 2025, includes 'Complejo miel'; semi-annual)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free, cite INDEC. Statistical secrecy (Ley 17.622) suppresses NCM/country cells with fewer than 3 operators; honey has dozens of exporters, so the impact should be low.",
+   "update_frequency": "Monthly. ICA comes out about the 18th-20th of the following month (September 2026 data on 19-Oct-2026). Complejos exportadores is semi-annual.",
+   "publication_lag": "About 19-20 days",
+   "data_available": "NCM 0409.00.00 (8 digits; Argentina's export nomenclature adds a 3-digit SIM suffix plus a check letter, e.g. 0409.00.00.911X for bulk in a 2009 customs note, so filter on the 8-digit prefix). Per month: destination country, net kg, FOB USD. From January 2024 data follows HS2022 (VII Enmienda); the honey code is unchanged. Context: Q1 2026 exports were 29,887 t for US$74 M (about US$2,476/t, +83.9% volume y/y). In 2023: 75,647 t, US$183.5 M.",
+   "value_for_parodi": "Argentina is a top-2 supplier for Parodi in both the EU and the US. This gives the official monthly FOB unit value by destination (US vs Germany/Italy/Spain) about 3 weeks after month end, versus months for Comtrade. It is the direct benchmark against Argentine exporter offers.",
+   "rate_limits": "None published",
+   "sample_response": "RECONSTRUCTED: CSV 'Año;Mes;NCM;Pdes;Kg neto;FOB(u$s)' -> '2026;03;04090000;<INDEC country code>;<kg>;<usd>'. Pdes uses INDEC country codes, so map them with the INDEC country table.",
+   "parsing_notes": "Verify the ZIP URL pattern and columns on first run; the INDEC portal is a JS single-page app, so the download links may come from its internal JSON (inspect the network calls). Cross-check the monthly totals against the ARCA files and SAGyP press notes. The 'Base usuaria' detail runs slightly below the ICA headline (it is provisional), so keep a revision history.",
+   "evidence_urls": [
+    "https://www.indec.gob.ar/uploads/informesdeprensa/opex_09_262EF52B6A56.pdf",
+    "https://www.indec.gob.ar/uploads/informesdeprensa/ica_09_266E5973E036.pdf",
+    "https://www.indec.gob.ar/ftp/cuadros/publicaciones/calendario_2sem2026.pdf",
+    "https://www.indec.gob.ar/uploads/informesdeprensa/complejos_03_2686A1604947.pdf",
+    "https://www.argentina.gob.ar/node/501859",
+    "https://www.cronista.com/economia-politica/comercio-exterior-en-alerta-el-indec-dara-ahora-informacion-menos-desagregada"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "high"
+  },
+  {
+   "country": "Argentina",
+   "name": "ARCA (ex-AFIP) Customs: Información agregada de comercio exterior, monthly files",
+   "official_body": "ARCA (Agencia de Recaudación y Control Aduanero), Dirección General de Aduanas",
+   "access_method": "HTML page with a 'Descarga de archivos mensuales' section (downloadable files; format not confirmed).",
+   "endpoints": [
+    "https://www.arca.gob.ar/operadoresComercioExterior/informacionAgregada/informacion-agregada.asp",
+    "https://www.afip.gob.ar/operadoresComercioExterior/informacionAgregada/informacion-agregada.asp  (legacy mirror)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Published under Leyes 17.622 and 27.275 and Disposición 302/2018. Free.",
+   "update_frequency": "Monthly",
+   "publication_lag": "Not confirmed (probably 2-4 weeks)",
+   "data_available": "Fields seen in the page listing: Aduana (customs office), Posición NCM, País de destino, Medio de transporte, Unidad, Peso neto (kg), Monto FOB (USD). A 'Total Exportación' table also gives an average unit price by NCM position.",
+   "value_for_parodi": "This is customs-level official data. The customs office (Buenos Aires, Rosario, Concepción del Uruguay and others) roughly maps to the producing region, and the monthly average unit price for 0409.00.00 offers an independent check on INDEC.",
+   "rate_limits": "None published",
+   "sample_response": "UNVERIFIED. Expect a tabular file with columns like Aduana | Posición NCM | País de Destino | Medio de transporte | Unidad | Peso neto en kilos | Monto FOB en dólares.",
+   "parsing_notes": "Open the page once to confirm the file format (XLS, CSV or TXT), naming and whether destination country is included. Historical note: AFIP used to set 'valores referenciales' (minimum reference export values) for bulk honey in drums of 300 kg or more (RG 3098/2011, RG 3514/2013, RG 3912/2016) and removed them in May 2017. No current reference values were found.",
+   "evidence_urls": [
+    "https://www.arca.gob.ar/operadoresComercioExterior/informacionAgregada/informacion-agregada.asp",
+    "https://www.afip.gob.ar/operadoresComercioExterior/informacionAgregada/informacion-agregada.asp",
+    "https://globaltradealert.org/intervention/57234-argentina-changes-to-the-reference-prices-set-on-honey",
+    "https://www.argentina.gob.ar/normativa/nacional/resoluci%C3%B3n-3098-2011-182068/texto"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "high"
+  },
+  {
+   "country": "Argentina",
+   "name": "INTA PROAPI: Monitoreo de Precios de la Miel (producer bulk-drum price survey) and Visualizador de Exportaciones Apícolas",
+   "official_body": "INTA (Instituto Nacional de Tecnología Agropecuaria), Programa Nacional Apícola (PROAPI) and its Red de Unidades Demostrativas Apícolas",
+   "access_method": "Periodic PDF reports in the INTA institutional repository (DSpace handles) plus web visualizers (INTA 'Indicadores económicos - Precios regionales'; export-by-destination visualizer).",
+   "endpoints": [
+    "https://repositorio.inta.gob.ar/handle/20.500.12123/24627  (Monitoreo de Precios de la Miel, Nov 2025)",
+    "https://repositorio.inta.gob.ar/handle/20.500.12123/24990  (survey from the first 10 days of Jan 2026)",
+    "DSpace discovery: https://repositorio.inta.gob.ar/discover?query=%22Precios+de+la+Miel%22 (standard DSpace search; OAI-PMH probably at /oai/request, unverified)",
+    "https://inta.gob.ar/documentos/exportaciones-apicolas-por-pais-destino  (Visualizador de Exportaciones Apícolas; based on INDEC and Customs)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free public-institute publications",
+   "update_frequency": "Roughly monthly or bi-monthly (exact calendar not confirmed)",
+   "publication_lag": "Days to a few weeks",
+   "data_available": "Bulk-honey prices received by producers in ARS/kg, split between honey for export in drums and honey for the domestic market, by producing region. Collected from qualified informants with a Forms survey.",
+   "value_for_parodi": "The only official Argentine farm-gate bulk-drum price series. Converted to USD with the official FX rate and compared with the INDEC/ARCA FOB unit value, it gives an exporter-margin and price-pressure indicator that leads FOB offers. Nothing equivalent exists in Comtrade, USDA or FAOSTAT.",
+   "rate_limits": "None published",
+   "sample_response": "PDF tables: Región | Miel a granel en tambor (exportación) $/kg | Mercado interno $/kg | fecha relevamiento.",
+   "parsing_notes": "Harvest new handles from the DSpace repository by query or OAI, then extract the PDF tables (pdfplumber). Convert ARS to USD with the BCRA official rate (api.bcra.gob.ar/estadisticascambiarias/v1.0/Cotizaciones/USD, from memory) using the survey date, and label the ARS series as nominal.",
+   "evidence_urls": [
+    "https://repositorio.inta.gob.ar/handle/20.500.12123/24627",
+    "https://repositorio.inta.gob.ar/handle/20.500.12123/24990",
+    "https://agrarias.campus.mdp.edu.ar/pluginfile.php/16191/mod_folder/intro/Unidad%20I.%20Introducci%C3%B3n%20y%20Mercado%20de%20la%20miel.pdf"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "high"
+  },
+  {
+   "country": "Argentina",
+   "name": "SENASA: residue alerts (Plan CREHA, Lista EAR), export certification incl. Mercosur-EU quota, BPA-free drum varnish authorisations, registries",
+   "official_body": "SENASA (Servicio Nacional de Sanidad y Calidad Agroalimentaria)",
+   "access_method": "HTML pages and PDFs on argentina.gob.ar, plus online registry lookups. No API.",
+   "endpoints": [
+    "https://www.argentina.gob.ar/node/106753  (Plan CREHA Animal: Plan 2025/2024, 'Resumen de resultados 2025')",
+    "https://www.argentina.gob.ar/sites/default/files/ear_09-25_producto.pdf  (Lista EAR Año 2025 N°09 dated 18-Dec-2025: residue-limit exceedances by product, including honey lots with oxytetracycline and phenol, identified by apiary registration)",
+    "https://www.argentina.gob.ar/node/500584  (SENASA certifies the first honey shipment under the Mercosur-EU interim agreement: 20,986 kg bulk from Concordia to Germany at 0% duty)",
+    "https://www.argentina.gob.ar/node/504035  (first BPA-free internal varnishes for honey drums authorised, June 2026, under EU Reg. 2024/3190)",
+    "https://www.argentina.gob.ar/senasa/servicios-en-linea  (public lookup of registered extraction rooms and intermediate honey stores by CUIT)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free public information",
+   "update_frequency": "EAR lists several times a year (N°09 of 2025 in December). CREHA results annually. News is event-driven.",
+   "publication_lag": "Variable",
+   "data_available": "Residue non-compliances in honey (substance, date, establishment or apiary code), sanitary export certification events, authorised drum coatings, registered extraction and storage establishments. Press reports cite SENASA quota certificates of 2,423 t, completing a quarterly quota tranche.",
+   "value_for_parodi": "Supplier risk screening (antibiotic residues at origin before RASFF picks them up) and drum compliance: from 20-Jul-2026 the EU BPA ban (Reg. 2024/3190, corrected by 2026/250) affects the epoxy-lined 300 kg drums Parodi buys in. Quota certificates also show who uses the 0% Mercosur-EU honey quota.",
+   "rate_limits": "None published",
+   "sample_response": "PDF table (EAR): Producto | Analito (e.g. oxitetraciclina) | Valor/LMR | Fecha | Identificación del establecimiento/RENAPA.",
+   "parsing_notes": "Poll the argentina.gob.ar SENASA news listing and CREHA pages weekly and extract PDF tables. Join establishment IDs to supplier master data where possible.",
+   "evidence_urls": [
+    "https://www.argentina.gob.ar/sites/default/files/ear_09-25_producto.pdf",
+    "https://www.argentina.gob.ar/node/106753",
+    "https://www.argentina.gob.ar/node/500584",
+    "https://www.argentina.gob.ar/node/504035",
+    "https://www.elancasti.com.ar/noa-productivo/argentina-cuenta-los-primeros-barnices-libres-bisfenol-autorizados-envases-destinados-exportar-miel-la-ue-n614513",
+    "https://www.lanacion.com.ar/economia/campo/la-argentina-obtuvo-el-primer-certificado-para-exportar-miel-a-la-union-europea-con-arancel-cero-nid05052026/"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "high"
+  },
+  {
+   "country": "Argentina",
+   "name": "SAGyP/MAGyP Apicultura: Síntesis Apícola / Informe Apícola, RENAPA hive register, press releases",
+   "official_body": "Secretaría de Agricultura, Ganadería y Pesca (Ministerio de Economía), Coordinación/Área de Apicultura, Dirección Nacional de Alimentos y Bebidas",
+   "access_method": "PDF bulletins and HTML pages. RENAPA aggregates were historically published on the ministry's open-data portal (datos.agroindustria.gob.ar; current domain not confirmed).",
+   "endpoints": [
+    "https://magyp.gob.ar/apicultura/  ; /apicultura/mercado_mundial.php ; /apicultura/renapa.php ; /apicultura/material_descarga.php",
+    "https://alimentosargentinos.magyp.gob.ar/HomeAlimentos/Apicultura/documentos/SintesisApic{NNN}.pdf  (series; issues 182-187 seen)",
+    "https://alimentosargentinos.magyp.gob.ar/HomeAlimentos/economias-regionales/producciones-regionales/informes/Informe_Apicola_{mes}{YYYY}.pdf  (e.g. Informe_Apicola_mayo2024.pdf)",
+    "https://alimentosargentinos.magyp.gob.ar/HomeAlimentos/economias-regionales/producciones-regionales/informes/Exportaciones_de_miel.pdf",
+    "https://www.argentina.gob.ar/node/501859 and /node/482626  (SAGyP press notes with honey export stats)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free government publications",
+   "update_frequency": "Irregular bulletins (roughly quarterly). RENAPA updates continuously and publishes periodic totals.",
+   "publication_lag": "1-3 months",
+   "data_available": "Exports by destination with tonnes, FOB USD and USD/t (from INDEC/Customs), annual series, and the producer and hive count. RENAPA had 20,413 producers and 4,087,885 hives in production (Oct 2023), and later reports cite about 22,330 producers and more than 4 M hives.",
+   "value_for_parodi": "Ready-made official tables of destination-level USD/t for cross-checking, plus the hive base as a supply-capacity indicator.",
+   "rate_limits": "None published",
+   "sample_response": "PDF table: Destino | Toneladas | FOB US$ | US$/t (e.g. Jan-Oct 2019: total 56,525 t, US$128,243,453; USA 31,270 t at US$2,156.33/t).",
+   "parsing_notes": "Some tables label the unit 'US$/kg' when the values are US$/t, so validate magnitudes. Use these reports as secondary validation of INDEC, not as the primary trade feed.",
+   "evidence_urls": [
+    "https://magyp.gob.ar/apicultura/renapa.php",
+    "https://alimentosargentinos.magyp.gob.ar/HomeAlimentos/Apicultura/documentos/SintesisApic183.pdf",
+    "https://alimentosargentinos.magyp.gob.ar/HomeAlimentos/economias-regionales/producciones-regionales/informes/Informe_Apicola_mayo2024.pdf",
+    "https://alimentosargentinos.magyp.gob.ar/HomeAlimentos/Apicultura/documentos/MIELn187ANEXO.pdf",
+    "https://www.argentina.gob.ar/node/482626"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "medium"
+  },
+  {
+   "country": "Argentina",
+   "name": "Boletín Oficial: honey trade rules (Res. SAGyP 50/2026 Mercosur-EU quota regime, export-duty decrees, Res. 61/2026)",
+   "official_body": "Boletín Oficial de la República Argentina, SAGyP and Poder Ejecutivo",
+   "access_method": "HTML daily gazette (first section). Scrape and filter by keyword.",
+   "endpoints": [
+    "https://www.boletinoficial.gob.ar/detalleAviso/primera/341394/20260430  (Res. SAGyP 50/2026, published 30-Apr-2026: regime to administer Mercosur-EU agricultural TRQs via SACME/SACIM, in force from May 2026)",
+    "https://www.boletinoficial.gob.ar/seccion/primera  (daily scrape for 'miel' | '0409' | 'apícola' | 'contingente')",
+    "Decreto 38/2025 (27-Jan-2025): 0% export duty for regional-economy NCMs in Anexo I; press lists honey, but the Anexo entry was not verified"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free official gazette",
+   "update_frequency": "Daily",
+   "publication_lag": "Same day",
+   "data_available": "Legal texts. Context: honey TRQ under the Mercosur-EU interim agreement ramps up to 45,000 t/yr. The 2026 'year 0' was prorated to about 5,000 t effective, split into trimesters, and allocated first-come-first-served pending a regional mechanism. The first tranche was used up within days in May 2026, mostly by Argentina. Res. 61/2026 updates the quality protocol for retail-packed honey.",
+   "value_for_parodi": "The EU duty on Mercosur honey (17.3% outside the quota) and quota availability change landed cost for Parodi Italy. This tracks the origin-side rules; the EU side is already covered by TAXUD.",
+   "rate_limits": "None published",
+   "sample_response": "HTML notice text with the norm number, date and annexes.",
+   "parsing_notes": "Store alerts with norm ID and effective date, and link them to the TAXUD quota balance for the Mercosur honey order number.",
+   "evidence_urls": [
+    "https://www.boletinoficial.gob.ar/detalleAviso/primera/341394/20260430",
+    "https://abogados.com.ar/regimen-aplicable-a-la-administracion-de-contingentes-arancelarios-de-exportacion-e-importacion-de-productos-agropecuarios-en-el-marco-del-acuerdo-interino-de-comercio-entre-el-mercosur-y-la-union-europea/39048",
+    "https://www.analisisdigital.com.ar/economia/2026/05/14/polemica-en-el-mercosur-se-agoto-en-4-dias-un-cupo-para-exportar-miel-con-arancel-cero-la-union-europea",
+    "https://aldiaargentina.microjuris.com/2025/01/27/legislacion-es-oficial-la-baja-de-retenciones-a-los-principales-cultivos/"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "medium"
+  },
+  {
+   "country": "Argentina",
+   "name": "datos.gob.ar Series de Tiempo API (plus BCRA FX)",
+   "official_body": "Secretaría de Innovación Pública / datos.gob.ar (series from INDEC, BCRA and ministries)",
+   "access_method": "REST JSON/CSV API",
+   "endpoints": [
+    "https://apis.datos.gob.ar/series/api/series/?ids={id1},{id2}&format=csv&start_date=2024-01-01&end_date=2026-10-31&limit=1000",
+    "Example from the official quick-start: https://apis.datos.gob.ar/series/api/series?ids=168.1_T_CAMBIOR_D_0_0_26,103.1_I2N_2016_M_15&format=csv",
+    "https://apis.datos.gob.ar/series/api/search/{catalog}  (search API; full-text parameters not confirmed)",
+    "https://apis.datos.gob.ar/series/api/dump/{catalog}/{dump}  (bulk dumps of all series metadata and values)",
+    "BCRA FX (from memory): https://api.bcra.gob.ar/estadisticascambiarias/v1.0/Cotizaciones/USD?fechadesde=2026-01-01&fechahasta=2026-11-04"
+   ],
+   "auth": "None",
+   "cost_licensing": "Open data, CC BY 4.0 (license from memory)",
+   "update_frequency": "Depends on the series (daily FX, monthly INDEC)",
+   "publication_lag": "Same as the underlying series",
+   "data_available": "Documented parameters: ids, format=json|csv, header=titles|ids|descriptions, start_date, end_date, collapse plus collapse_aggregation, limit (max 1000), decimal, sep. No honey-specific series was found; use it mainly for official ARS/USD and macro deflators.",
+   "value_for_parodi": "Converts the INTA ARS producer prices and frames peso devaluation, which drives Argentine exporters' willingness to sell.",
+   "rate_limits": "limit is at most 1000 rows per call (documented). No published request-rate limit.",
+   "sample_response": "RECONSTRUCTED JSON: {\"data\":[[\"2026-10-01\",<value>]],\"count\":N,\"meta\":[{\"frequency\":\"month\",\"start_date\":\"...\",\"end_date\":\"...\"},{\"field\":{\"id\":\"<series id>\",\"description\":\"...\",\"units\":\"...\"}}],\"params\":{...}}",
+   "parsing_notes": "Find the IDs in the dumps; do not guess them. The meaning of the example ID 168.1_T_CAMBIOR_D_0_0_26 was not verified, so confirm it in the metadata before using it as FX.",
+   "evidence_urls": [
+    "https://datosgobar.github.io/series-tiempo-ar-api/reference/api_reference/",
+    "https://datosgobar.github.io/series-tiempo-ar-api/quick-start",
+    "https://datosgobar.github.io/series-tiempo-ar-api/dumps"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "low"
+  },
+  {
+   "country": "Uruguay",
+   "name": "Uruguay XXI: Sistema de Información de Exportaciones (SIE) and monthly export reports",
+   "official_body": "Uruguay XXI (government export and investment promotion agency), with data from the Dirección Nacional de Aduanas",
+   "access_method": "Interactive web query (no documented API) plus monthly PDF reports.",
+   "endpoints": [
+    "https://herramientas.uruguayxxi.gub.uy/sistema_de_estadistica/  (Avanzada Exportaciones: filter by year with 5-year comparison, category, NCM, country, company, month)",
+    "https://www.uruguayxxi.gub.uy/en/information-center/foreign-trade-reports/  (monthly export reports)",
+    "https://www.uruguayxxi.gub.uy/en/information-center/article/imports-and-exports-information-system/",
+    "Contact for data requests: inteligencia@uruguayxxi.gub.uy"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free public tool. Bulk download or terms for automated access were not confirmed.",
+   "update_frequency": "Monthly (reports in the first days of the following month; the SIE runs on online customs data)",
+   "publication_lag": "About 1-10 days",
+   "data_available": "Exports by NCM 0409.00.00, destination, month and exporting company, in FOB USD and kg (USD/kg derivable). Context: about 10-11 kt per crop, about 90% exported; the reference price was about US$2,400/t in 2025; a 2023/24 report gave an average of US$2,237/t.",
+   "value_for_parodi": "The exporter-company dimension is something Comtrade and Eurostat never give: it shows which Uruguayan packers ship eucalyptus/polyfloral honey to which EU and US buyers, at what USD/kg, within days.",
+   "rate_limits": "None published",
+   "sample_response": "Web table: Año | Mes | NCM | País destino | Empresa | US$ FOB | Kg.",
+   "parsing_notes": "The tool is a web app; inspect its XHR calls to find a JSON backend, or request a dataset from Uruguay XXI. Otherwise extract monthly report PDFs. Respect site terms.",
+   "evidence_urls": [
+    "https://herramientas.uruguayxxi.gub.uy/sistema_de_estadistica/",
+    "https://www.uruguayxxi.gub.uy/en/information-center/article/imports-and-exports-information-system/",
+    "https://www.uruguayxxi.gub.uy/uploads/estatico/IC%20-%20Herramientas%20para%20Exportadores%20_5%C2%BA%20moduloFHE-FINAL-2.pdf",
+    "https://www.elobservador.com.uy/agro/lo-que-esta-pasando-las-exportaciones-miel-uruguaya-y-su-impacto-el-apicultor-n6010762"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "medium"
+  },
+  {
+   "country": "Uruguay",
+   "name": "Dirección Nacional de Aduanas (DNA): open FTP with daily and monthly customs declarations (DUA) in XML",
+   "official_body": "Dirección Nacional de Aduanas (DNA), Ministerio de Economía y Finanzas",
+   "access_method": "Anonymous FTP with XML files (daily and monthly) plus code tables",
+   "endpoints": [
+    "ftp://ftp.aduanas.gub.uy/DUA%20Diarios%20XML/  (daily: DDIng{yyyymmdd}.xml new records, DDMod{yyyymmdd}.xml modified, DDANU{yyyymmdd}.xml annulled; monthly files use the DM prefix)",
+    "ftp://ftp.aduanas.gub.uy/Datos%20Basicos/  (code tables for countries, customs offices and so on)"
+   ],
+   "auth": "None (anonymous FTP)",
+   "cost_licensing": "Published by DNA as open data (Ley 18.381 access to public information). Free.",
+   "update_frequency": "Daily",
+   "publication_lag": "About 1 day",
+   "data_available": "Declaration-level import and export records (DUA) with NCM, destination and quantities/values; records are keyed by DDNUME_CORRE_PUBLICO. Filter NCM 04090000 for honey export lines (field names other than the key were not verified).",
+   "value_for_parodi": "The freshest official honey export flow in the region: daily, at shipment level. It shows each Uruguayan honey lot leaving, its destination and declared value within a day, and gives early warning of price moves and volumes heading to the EU.",
+   "rate_limits": "None published. Use plain FTP, not HTTPS.",
+   "sample_response": "UNVERIFIED structure. XML records keyed by <DDNUME_CORRE_PUBLICO>; process DDIng, then DDMod, then DDANU (delete and re-insert by key), as DNA instructs.",
+   "parsing_notes": "Apply the files in DNA's order: ingest, then modifications, then annulments, upserting on DDNUME_CORRE_PUBLICO. Map codes through Datos Basicos. Run through a sandboxed parser (untrusted XML; disable external entities).",
+   "evidence_urls": [
+    "https://aduanas.gub.uy/innovaportal/file/25966/1/expediente-2024-5-1-0007509-jaime-ruiz-ramirez.pdf",
+    "https://aduanas.gub.uy/innovaportal/file/25966/1/expediente-2024-5-1-0006876-jaime-castano.pdf"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "medium"
+  },
+  {
+   "country": "Uruguay",
+   "name": "MGAP: DIGEGRA beehive register (RNPC), OPYPA yearbook, DGSG sanitary resolutions (residues, BPA-free containers)",
+   "official_body": "Ministerio de Ganadería, Agricultura y Pesca (MGAP): DIGEGRA, OPYPA, DGSG/DILAVE",
+   "access_method": "HTML and PDF on gub.uy",
+   "endpoints": [
+    "https://www.gub.uy/ministerio-ganaderia-agricultura-pesca/datos-y-estadisticas  (RNPC reports, e.g. .../comunicacion/noticias/informe-datos-del-registro-nacional-propietarios-colmenas-2022 ; .../datos/apicultura-informa-datos-del-rnpc-2021)",
+    "https://www.gub.uy/ministerio-ganaderia-agricultura-pesca/comunicacion/publicaciones/anuario-opypa-2021/analisis-sectorial-cadenas-productivas/sector-apicola  (OPYPA annual sector chapter; new edition each year)",
+    "https://www.gub.uy/ministerio-ganaderia-agricultura-pesca/institucional/normativa/resolucion-n-118026-dgsg-miel-productos-apicultura-sean-exportados-union  (Res. DGSG 118/026 of 22-May-2026: honey exported to the EU must be in accredited BPA-free containers or varnishes; no export certificate otherwise)",
+    "https://www.gub.uy/ministerio-ganaderia-agricultura-pesca/institucional/normativa/resolucion-n-391018-dgsg-se-disponen-medidas-relacion-control-higienico  (export honey hygiene and traceability)",
+    "https://www.gub.uy/ministerio-ganaderia-agricultura-pesca/datos-y-estadisticas/datos/consumo-miel-uruguay-0  (DIGEGRA honey consumption bulletin)",
+    "https://impo.com.uy/bases/decretos/371-2013  (mandatory national honey traceability system)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free public information",
+   "update_frequency": "RNPC annual (sworn declarations). OPYPA annual. Resolutions event-driven.",
+   "publication_lag": "Months for statistics, same day for norms",
+   "data_available": "Hive owners and hive counts by department (2,183 beekeepers and 585,000 hives in production per the latest declarations, Aug 2026; 565,654 declared hives in the 2020 declarations). Production estimates, the residue monitoring framework (PNRB, run by DILAVE), and export-certification conditions. DIGEGRA's own export figures come from a licensed commercial source (Penta Transaction), so use DNA or Uruguay XXI for trade.",
+   "value_for_parodi": "Uruguayan supply capacity, and the export-certificate rules for drums that directly affect Parodi's EU imports from Uruguay.",
+   "rate_limits": "None published",
+   "sample_response": "HTML/PDF tables: Departamento | Propietarios | Colmenas.",
+   "parsing_notes": "Weekly keyword scrape of the MGAP normativa and news pages for 'miel', 'apícola' and 'colmenas'.",
+   "evidence_urls": [
+    "https://www.gub.uy/ministerio-ganaderia-agricultura-pesca/institucional/normativa/resolucion-n-118026-dgsg-miel-productos-apicultura-sean-exportados-union",
+    "https://www.gub.uy/ministerio-ganaderia-agricultura-pesca/sites/ministerio-ganaderia-agricultura-pesca/files/2021-06/Datos%202021%20Apicultura_0.pdf",
+    "https://www.elobservador.com.uy/agro/los-detalles-del-encuentro-anual-productores-apicolas-n6054164",
+    "https://www.gub.uy/ministerio-ganaderia-agricultura-pesca/comunicacion/publicaciones/anuario-opypa-2021/analisis-sectorial-cadenas-productivas/sector-apicola",
+    "https://www.gub.uy/ministerio-ganaderia-agricultura-pesca/institucional/normativa/resolucion-n-62010-dgsg-27042010-partir-entrada-vigencia-resolucion-se-0"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "medium"
+  },
+  {
+   "country": "Uruguay",
+   "name": "INE Uruguay: Anuario Estadístico Nacional, table 7.1.14 (honey exports by year and month)",
+   "official_body": "Instituto Nacional de Estadística (INE) Uruguay",
+   "access_method": "HTML table on gub.uy (yearbook chapter 7, Sector externo)",
+   "endpoints": [
+    "https://www.gub.uy/instituto-nacional-estadistica/comunicacion/publicaciones/anuario-estadistico-nacional-2025-vol-102/71-sector-externo/7114-valor"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free",
+   "update_frequency": "Annual (yearbook)",
+   "publication_lag": "About 1 year",
+   "data_available": "'Valor y volumen de las exportaciones de miel natural de abeja, según año y mes': USD and tonnes by month.",
+   "value_for_parodi": "An official, consistent long monthly history for Uruguay, useful to backfill and validate the DNA and Uruguay XXI feeds.",
+   "rate_limits": "None",
+   "sample_response": "HTML table: Año | Mes | Valor (US$) | Volumen (t).",
+   "parsing_notes": "Use pandas.read_html. The URL slug changes with each yearbook edition.",
+   "evidence_urls": [
+    "https://www.gub.uy/instituto-nacional-estadistica/comunicacion/publicaciones/anuario-estadistico-nacional-2025-vol-102/71-sector-externo/7114-valor"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "low"
+  },
+  {
+   "country": "Chile",
+   "name": "Servicio Nacional de Aduanas: export statistics by tariff code and by country, plus monthly open-data microdata",
+   "official_body": "Servicio Nacional de Aduanas de Chile",
+   "access_method": "Excel downloads (annual and monthly) plus monthly open-data transaction files in the transparency section, also listed on datos.gob.cl",
+   "endpoints": [
+    "https://www.aduana.cl/exportacion-por-codigo-arancelario/aduana/2018-12-14/095532.html  (Excel monthly 2014-2026 and annual; US$ and kg by tariff code)",
+    "https://www.aduana.cl/exportacion-por-pais-y-codigo-arancelario/aduana/2018-12-14/101258.html  (Excel by destination country and tariff code)",
+    "https://www.aduana.cl/transparencia/2016/datosestadmens.html  (monthly import/export transaction open data, exports from 2009)",
+    "https://datos.gob.cl (search 'Aduanas exportaciones')"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free (Ley 20.285 transparency). datos.gob.cl content is typically CC BY (unverified).",
+   "update_frequency": "Monthly",
+   "publication_lag": "About 1 month (estimate)",
+   "data_available": "Chilean 8-digit SACH codes under 0409 (national split for organic vs other honey suspected but not verified; filter on prefix 0409). FOB US$ and kg by country and month. Context: 2024 exports were more than 4,100 t for US$14.7 M, mainly to Germany; H1 2025 was up 76% in volume.",
+   "value_for_parodi": "Chile is a small but EU-listed supplier of organic/ulmo honey (Germany takes about 75% of value). Official monthly FOB/kg by destination for niche and organic sourcing.",
+   "rate_limits": "None published",
+   "sample_response": "Excel: Código arancelario | Glosa | País | US$ FOB | Kg neto (per month).",
+   "parsing_notes": "Chilean tariff codes were re-cut from January 2022 (ODEPA warns of series breaks), so map old and new codes. Download the yearly or monthly Excel files and filter rows starting with 0409.",
+   "evidence_urls": [
+    "https://www.aduana.cl/exportacion-por-codigo-arancelario/aduana/2018-12-14/095532.html",
+    "https://www.aduana.cl/exportacion-por-pais-y-codigo-arancelario/aduana/2018-12-14/101258.html",
+    "https://www.aduana.cl/aduanas-publica-informacion-de-importaciones-y-exportaciones-en-su-web/aduana/2016-09-30/162849.html",
+    "https://www.odepa.gob.cl/?p=142087"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "medium"
+  },
+  {
+   "country": "Chile",
+   "name": "ODEPA: Matriz Detallada de Comercio Exterior and honey market notes",
+   "official_body": "ODEPA (Oficina de Estudios y Políticas Agrarias), Ministerio de Agricultura",
+   "access_method": "Web query tool (matrix with user manual) and HTML/PDF articles",
+   "endpoints": [
+    "https://www.odepa.gob.cl/estadisticas-del-sector/comercio-exterior  (Matriz detallada de comercio exterior, manual, 'Códigos Aduaneros' Excel)",
+    "https://www.odepa.gob.cl/estadisticas-del-sector/balanza-comercial",
+    "https://www.odepa.gob.cl/?p=145734 ; https://www.odepa.gob.cl/?p=140527 ; https://www.odepa.gob.cl/?p=132335  (honey export notes)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free",
+   "update_frequency": "Monthly (matrix). Ad-hoc articles.",
+   "publication_lag": "About 1 month",
+   "data_available": "Silvoagropecuario trade by product and code, with time series exportable to Excel (per the tool description), built from Customs data. Articles split natural vs organic honey (Germany was the only buyer of organic honey in H1 2024).",
+   "value_for_parodi": "A convenient official agri-trade aggregation for Chile, but it duplicates Aduanas.",
+   "rate_limits": "None published",
+   "sample_response": "Excel export: Producto | Código | País | Año | Mes | Volumen | Valor FOB US$.",
+   "parsing_notes": "Use as validation. Note the 2022 code changes and the gaps in changed codes.",
+   "evidence_urls": [
+    "https://www.odepa.gob.cl/?p=52144",
+    "https://www.odepa.gob.cl/estadisticas-del-sector/comercio-exterior",
+    "https://www.odepa.gob.cl/?p=140527"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "low"
+  },
+  {
+   "country": "Chile",
+   "name": "SAG: honey exporter registries (REEM/RAMEX), residue control programme (PCR 2026), apiary register (SIPEC Apícola)",
+   "official_body": "SAG (Servicio Agrícola y Ganadero)",
+   "access_method": "HTML registry pages and PDFs. SIPEC Apícola is a login system with no public API.",
+   "endpoints": [
+    "https://www.sag.gob.cl/ambitos-de-accion/requisitos-para-los-establecimientos-exportadores-de-miel-reem/registros",
+    "https://www.sag.gob.cl/ambitos-de-accion/registro-de-apicultores-de-miel-de-exportacion-ramex/registros",
+    "https://www.sag.cl/sites/default/files/Programa%20de%20Control%20Residuos%202026_0.pdf  (Programa de Control de Residuos en Productos Pecuarios 2026)",
+    "https://www.bcn.cl/leychile/navegar?idNorma=1204143  (General regulation of Ley Apícola 21.489, published 11-Jun-2024)"
+   ],
+   "auth": "None for the public pages",
+   "cost_licensing": "Free",
+   "update_frequency": "Registries continuous. PCR annual.",
+   "publication_lag": "Variable",
+   "data_available": "Lists of authorised honey export establishments and beekeepers, the residue sampling plan, and the hive census (more than 1.2 M registered hives per Agriculture Ministry, Aug 2025; 10,504 beekeepers in 2022).",
+   "value_for_parodi": "Supplier due diligence (registered EU-eligible exporters) and supply base.",
+   "rate_limits": "None published",
+   "sample_response": "HTML/PDF lists: Nombre establecimiento | RUT | Región | N° registro.",
+   "parsing_notes": "Low-frequency scrape (monthly).",
+   "evidence_urls": [
+    "https://www.sag.gob.cl/ambitos-de-accion/requisitos-para-los-establecimientos-exportadores-de-miel-reem",
+    "https://www.sag.cl/sites/default/files/Programa%20de%20Control%20Residuos%202026%20p.pdf",
+    "https://www.odepa.gob.cl/?p=146480"
+   ],
+   "confidence": "from_search_snippets",
+   "priority": "low"
+  }
+ ],
+ "recommendation": "All four countries publish official honey trade data that is fresher and more detailed than Comtrade: unit values by destination within 1 to 20 days of month end, and in Uruguay at single-shipment level each day. Two regulatory events matter more right now than any feed.\n\nLimits of this research:\n- Everything comes from web-search snippets of official pages and of tools that wrap them. I could not open the pages directly: this session's proxy blocked api-comexstat.mdic.gov.br, servicodados.ibge.gov.br and other sites, and Chrome was not available here.\n- Unverified details to smoke-test on the first run: the exact Comex Stat JSON key names, the IBGE honey category ID, the INDEC ZIP file pattern, the ARCA file format, the Chilean code split, and the DNA XML field names.\n- The machine running Paladex must be able to reach these hosts.\n\nWhat to build, in order:\n\n1. **Regulatory watchers (do these now).**\n   - Brazil: Regulation (EU) 2026/1189 removed Brazil from the EU list for honey, effective 3 Sep 2026, so Brazilian honey cannot currently enter the EU. The EU audit came back positive, and MAPA expects a decision in November and shipments again in December 2026; this is not yet confirmed. Watch MAPA news alongside EUR-Lex and keep a per-origin EU-eligibility flag.\n   - Drums: the EU ban on BPA in food-contact materials took effect on 20 Jul 2026 and covers drum varnish. Uruguay's Res. DGSG 118/026 refuses export certificates without BPA-free containers. Argentina's SENASA has authorised the first BPA-free drum varnishes.\n   - Argentina: Res. SAGyP 50/2026 sets the regime for the new Mercosur-EU honey quota (rising to 45,000 t/yr). The 2026 quota is small, first-come-first-served, and the first tranche ran out within days.\n   - Residues: SENASA's residue-exceedance lists (Lista EAR) give early warning of antibiotic problems before RASFF.\n\n2. **Brazil Comex Stat.** New `comexstat.py` collector. Monthly honey exports (NCM 04090000) by country and state, with FOB USD and kg. Released about a week after month end. Check `/general/dates/updated` each day and re-pull the last 3 months. Backfill from the EXP_YYYY.csv files.\n\n3. **Argentina INDEC and ARCA customs files.** NCM 0409.00.00 by destination, monthly, about 19 days after month end. Store unit values in USD per tonne.\n\n4. **INTA PROAPI producer drum price.** The survey gives prices in pesos per kg. Convert with the official BCRA exchange rate, then subtract from the export unit value. This gives an Argentine exporter-margin indicator that no current source provides.\n\n5. **Uruguay.**\n   - Daily customs declarations (DUA XML) from the Aduanas FTP server: the freshest feed in the region.\n   - Uruguay XXI query tool, which adds the exporting company.\n   - INE monthly honey table for backfill.\n   - MGAP hive register for supply.\n\n6. **Annual supply data.** IBGE table 74 (Brazil honey production and production value; 2025 data released 30 Sep 2026), plus hive counts from RENAPA (Argentina), the MGAP register (Uruguay) and SAG (Chile).\n\n7. **Chile.** Aduanas monthly Excel by country and code (filter codes starting 0409). ODEPA and SAG are secondary. Chile is a niche organic origin, mostly sold to Germany.\n\nThird parties to keep secondary only:\n- ABEMEL (Brazil exporters' association) and the press, which republish Comex Stat and AGROSTAT.\n- Alphacast (INDEC mirror) and CEIC.\n- Penta-Transaction (the paid source DIGEGRA licenses for its export figures).\n- The R and Python clients comexr and comexpy, which are useful for checking Comex Stat parameter names.\n\nNormalisation rules:\n- Use the 8-digit code 04090000 as the key everywhere.\n- Strip national suffixes: Argentina's SIM digits, and Chile's possible split between organic and other honey.\n- Store kg and FOB USD as raw values and compute unit values; keep a revision history.\n- Convert BRL with the Brazilian central bank PTAX rate and ARS with the BCRA rate.\n\nSanity-check figures for 2026:\n- Brazil, January export average: about US$3,561 per tonne.\n- Argentina, Q1 average: about US$2,476 per tonne on 29,887 t.\n- Uruguay, 2025 reference price: about US$2,400 per tonne.\n\nExpect validators to flag anything far outside these ranges."
+}

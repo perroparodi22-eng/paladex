@@ -75,7 +75,7 @@ export function BlockEmpty({ what, providers, fallbackSources, extra, compact = 
   const max = compact ? 2 : MAX_PROVIDER_NAMES
   const shown = names.slice(0, max).join(', ')
   const sources = !names.length ? fallbackSources
-    : names.length > max ? t('overview.andMore', { list: shown, n: names.length - max }) : shown
+    : names.length > max ? t(names.length - max === 1 ? 'overview.andOne' : 'overview.andMore', { list: shown, n: names.length - max }) : shown
   return (
     <div className={clsx('flex items-start gap-3', compact ? 'py-1' : 'py-2')}>
       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-line-soft bg-paper text-gold">

@@ -346,6 +346,15 @@ class CollectContext:
         self._track_period(kw.get("published_at"), period_label, period_start)
         return row
 
+    def retire(self, model: type, series_key: str) -> bool:
+        """Withdraw the current observation of `series_key` (the key exactly as stored, e.g. with the
+        price-type prefix `add_price` adds) when the source no longer publishes it. Values are never
+        changed (see `ingest.retire`); the change counts as a revision. The caller says why (warn)."""
+        if not ingest.retire(self.session, model, source_id=self.source.id, series_key=series_key):
+            return False
+        self.counters.revised += 1
+        return True
+
     def add_weather(self, *, series_key: str, region_key: str, country_iso3: str, period_start: date,
                     period_end: date, period_label: str, frequency: str = "M", **kw) -> WeatherObservation:
         kw = self._common(kw)
@@ -470,6 +479,19 @@ def redact_url(url: str) -> str:
         return url
     pairs = [(k, "REDACTED" if k.lower() in _SECRET_QUERY_PARAMS else v) for k, v in pairs]
     return urlunsplit(parts._replace(query=urlencode(pairs)))
+
+
+class _RedactSecretsFilter(logging.Filter):
+    """httpx logs every request URL, query string included, at INFO ('HTTP Request: GET ...').
+    Keys sent as query parameters (e.g. NASS `key=`) are redacted before any handler sees them."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple) and record.args:
+            record.args = tuple(redact_url(str(a)) if isinstance(a, httpx.URL) else a for a in record.args)
+        return True
+
+
+logging.getLogger("httpx").addFilter(_RedactSecretsFilter())
 
 
 def _guess_ext(url: str, ctype: str | None) -> str:

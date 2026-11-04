@@ -28,11 +28,11 @@ function param(sp: URLSearchParams, key: string): string | null {
   return all.length ? all.join(',') : null
 }
 
-export function usePriceFilters() {
-  const [sp, setSp] = useSearchParams()
-
-  const state: PriceFilterState = useMemo(() => ({
-    type: [...PRICE_TYPE_ORDER, 'other'].includes(param(sp, 'tipo') ?? '') ? (param(sp, 'tipo') as PriceTypeKey) : null,
+/** Filter state from the page address (Italian names first, then the English aliases). */
+export function readPriceFilters(sp: URLSearchParams): PriceFilterState {
+  const tipo = param(sp, 'tipo') ?? ''
+  return {
+    type: [...PRICE_TYPE_ORDER, 'other'].includes(tipo) ? (tipo as PriceTypeKey) : null,
     origins: (param(sp, 'origini') ?? '').split(',').map((x) => x.trim()).filter(Boolean),
     variety: param(sp, 'varieta') ?? '',
     market: param(sp, 'mercato') ?? '',
@@ -42,38 +42,47 @@ export function usePriceFilters() {
     unit: oneOf<MassUnit>(sp.get('unita'), ['kg', 'lb'], DEFAULTS.unit),
     range: oneOf<RangePreset>(sp.get('periodo'), ['1y', '3y', '5y', 'all'], DEFAULTS.range),
     freq: oneOf<Freq>(sp.get('freq'), ['M', 'Q', 'A'], DEFAULTS.freq),
-  }), [sp])
+  }
+}
+
+/** New page address after a filter change; `currentType` is the price type shown now. */
+export function patchPriceParams(prev: URLSearchParams, patch: Partial<PriceFilterState>, currentType: PriceTypeKey | null): URLSearchParams {
+  const next = new URLSearchParams(prev)
+  const set = (k: string, v: string | null | undefined, def = '') => {
+    if (v === undefined) return
+    if (ALIASES[k]) next.delete(ALIASES[k])
+    if (v === null || v === def) next.delete(k)
+    else next.set(k, v)
+  }
+  // Changing the price type resets every filter that depends on it: the set of
+  // origins, varieties, markets and sources differs per type, and the chart restarts.
+  // (Not when the default type is first filled in: filters from a shared link survive.)
+  if (patch.type !== undefined && currentType !== null && patch.type !== currentType) {
+    for (const k of ['origini', 'varieta', 'mercato', 'fonte', 'colore']) {
+      next.delete(k)
+      next.delete(ALIASES[k])
+    }
+  }
+  set('tipo', patch.type)
+  if (patch.origins !== undefined) set('origini', patch.origins.join(','))
+  set('varieta', patch.variety)
+  set('mercato', patch.market)
+  set('fonte', patch.source)
+  set('colore', patch.color)
+  set('valuta', patch.ccy, DEFAULTS.ccy)
+  set('unita', patch.unit, DEFAULTS.unit)
+  set('periodo', patch.range, DEFAULTS.range)
+  set('freq', patch.freq, DEFAULTS.freq)
+  return next
+}
+
+export function usePriceFilters() {
+  const [sp, setSp] = useSearchParams()
+
+  const state: PriceFilterState = useMemo(() => readPriceFilters(sp), [sp])
 
   const update = useCallback((patch: Partial<PriceFilterState>) => {
-    setSp((prev) => {
-      const next = new URLSearchParams(prev)
-      const set = (k: string, v: string | null | undefined, def = '') => {
-        if (v === undefined) return
-        if (ALIASES[k]) next.delete(ALIASES[k])
-        if (v === null || v === def) next.delete(k)
-        else next.set(k, v)
-      }
-      // Changing the price type resets every filter that depends on it: the set of
-      // origins, varieties, markets and sources differs per type, and the chart restarts.
-      // (Not when the default type is first filled in: filters from a shared link survive.)
-      if (patch.type !== undefined && state.type !== null && patch.type !== state.type) {
-        for (const k of ['origini', 'varieta', 'mercato', 'fonte', 'colore']) {
-          next.delete(k)
-          next.delete(ALIASES[k])
-        }
-      }
-      set('tipo', patch.type)
-      if (patch.origins !== undefined) set('origini', patch.origins.join(','))
-      set('varieta', patch.variety)
-      set('mercato', patch.market)
-      set('fonte', patch.source)
-      set('colore', patch.color)
-      set('valuta', patch.ccy, DEFAULTS.ccy)
-      set('unita', patch.unit, DEFAULTS.unit)
-      set('periodo', patch.range, DEFAULTS.range)
-      set('freq', patch.freq, DEFAULTS.freq)
-      return next
-    }, { replace: true })
+    setSp((prev) => patchPriceParams(prev, patch, state.type), { replace: true })
   }, [setSp, state.type])
 
   const reset = useCallback(() => update({ origins: [], variety: '', market: '', source: '', color: '' }), [update])

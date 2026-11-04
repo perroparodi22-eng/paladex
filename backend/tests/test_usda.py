@@ -6,7 +6,9 @@ the sandbox that built them could not reach the USDA hosts.
 from __future__ import annotations
 
 import json
+import logging
 import re
+import sqlite3
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
@@ -62,6 +64,22 @@ def one(s, model, *where):
     rows = s.scalars(select(model).where(*where)).all()
     assert len(rows) == 1, rows
     return rows[0]
+
+
+def db_write_possible() -> bool:
+    """True when another connection could start writing right now, i.e. no collector holds
+    the SQLite write lock (a short timeout instead of the app's 10 s busy_timeout)."""
+    from paladex.db import get_engine
+
+    con = sqlite3.connect(get_engine().url.database, timeout=0.2)
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        con.rollback()
+        return True
+    except sqlite3.OperationalError:
+        return False
+    finally:
+        con.close()
 
 
 # =============================================================================================
@@ -255,6 +273,28 @@ def test_unknown_and_unparseable_content_is_warned_never_guessed():
     assert "has no month" in joined
 
 
+@pytest.mark.parametrize("rows,expected", [
+    (["KOREA, SOUTH       Extra Light Amber  $2.40"], ["unknown origin 'KOREA, SOUTH'"]),
+    (["Laos               Extra Light Amber  $2.40"], ["unknown origin 'Laos'"]),
+    (["Dominican Republic  Extra Light Amber  $2.40"], ["unknown origin 'Dominican Republic'"]),
+    # a label wrapped onto a second line: the price on the second line belongs to neither row
+    (["BRAZIL             Organic Mixed Flower (certified",
+      "   by USDA NOP)    Extra Light Amber  $2.40"],
+     ["unparsed line in 'importer' table", "price row without a state/origin label"]),
+])
+def test_unknown_label_row_never_inherits_the_previous_origin(rows, expected):
+    text = "\n".join([
+        "Prices paid to importers for bulk honey, duty paid, containers included, ex-dock or point of entry.",
+        "ARGENTINA          Light Amber      $1.55",
+        *rows,
+    ])
+    p = parse_honey_report_lines(lines_from_text(text))
+    assert [(x.label, x.origin_iso3, x.value) for x in p.prices] == [("ARGENTINA", "ARG", 1.55)]
+    joined = "\n".join(p.warnings)
+    for msg in expected:
+        assert msg in joined, joined
+
+
 def test_narrative_sentence_about_prices_stays_in_the_narrative():
     text = "\n".join([
         "COLONY, HONEY PLANT AND MARKET CONDITIONS",
@@ -354,7 +394,9 @@ def test_honey_report_end_to_end(run_with_routes, session_factory):
         assert round(idaho.price_per_kg, 4) == round(1.90 / LB, 4) == 4.1888       # per-kg conversion
         assert idaho.usd_per_kg == 4.1888
         assert (idaho.market_iso3, idaho.origin_iso3, idaho.market_location) == ("USA", "USA", "Idaho")
-        assert idaho.source_url == usda.AMS_LATEST_URL and idaho.published_at == date(2026, 6, 30)
+        # the AMS file is overwritten monthly: the price links to the archived bytes it was parsed from
+        assert idaho.source_url == f"/api/reports/{reports['2026-06-30'].id}/file"
+        assert idaho.extra["fetched_from"] == usda.AMS_LATEST_URL and idaho.published_at == date(2026, 6, 30)
         assert (idaho.period_start, idaho.period_end, idaho.frequency) == (date(2026, 6, 1), date(2026, 6, 30), "M")
         assert (idaho.data_status, idaho.reliability) == ("published", "official")
         assert idaho.raw_document_id == reports["2026-06-30"].raw_document_id
@@ -408,8 +450,12 @@ def test_honey_report_uses_mirror_when_ams_fails(run_with_routes, session_factor
     assert res["status"] == "partial", res                  # the empty ESMIS list is reported
     assert any("empty National Honey Report release list" in w for w in res["warnings"])
     with session_factory() as s:
-        assert one(s, Report).url == usda.AMS_MIRROR_URL
-        assert count(s, PriceObservation, PriceObservation.source_url == usda.AMS_MIRROR_URL) == 31
+        report = one(s, Report)
+        assert report.url == usda.AMS_MIRROR_URL
+        rows = s.scalars(select(PriceObservation)).all()
+        assert len(rows) == 31
+        assert all(r.source_url == f"/api/reports/{report.id}/file" for r in rows)
+        assert all(r.extra["fetched_from"] == usda.AMS_MIRROR_URL for r in rows)
 
 
 def test_honey_report_bad_latest_file_is_a_warning(run_with_routes, session_factory):
@@ -423,6 +469,75 @@ def test_honey_report_bad_latest_file_is_a_warning(run_with_routes, session_fact
 
 def test_honey_report_offline(run_with_routes):
     assert run_with_routes("usda_honey_report", {})["status"] == "offline"
+
+
+def test_honey_report_states_are_separate_price_series(run_with_routes, api):
+    """Producer prices of different states share origin/market USA, colour and terms: the state
+    (market_location) must keep them apart, never averaged into one line."""
+    assert run_with_routes("usda_honey_report", honey_routes())["status"] == "success"
+    body = api.get("/api/prices/series", params={"price_type": "producer", "source": "usda_honey_report"}).json()
+
+    def june(state: str, variety: str, color: str) -> dict:
+        found = [s for s in body["series"]
+                 if (s["market_location"], s["variety"], s["color_grade"]) == (state, variety, color)]
+        assert len(found) == 1, [(s["market_location"], s["variety"], s["color_grade"]) for s in body["series"]]
+        return {p["period_label"]: p for p in found[0]["points"]}["2026-06"]
+
+    for state, variety, color, usd_lb in [
+        ("Idaho", "clover", "extra light amber", 1.90), ("South Dakota", "clover", "extra light amber", 1.95),
+        ("Montana", "clover", "white", 2.10), ("North Dakota", "clover", "white", 2.10),
+        ("California", "orange_blossom", "extra light amber", 2.425),
+        ("Florida", "orange_blossom", "extra light amber", 2.20),
+    ]:
+        p = june(state, variety, color)
+        assert p["n_points"] == 1, (state, p)
+        assert p["original"]["value"] == usd_lb and p["original"]["unit"] == "lb"
+        assert p["value"] == round(usd_lb / LB, 4)
+    # "DAKOTA" (Sept 2025 issue) is its own series, not joined to South or North Dakota
+    dakota = [s for s in body["series"] if s["market_location"] == "Dakota"]
+    assert len(dakota) == 1 and [p["period_label"] for p in dakota[0]["points"]] == ["2025-09"]
+    latest = api.get("/api/prices/latest", params={"price_type": "producer", "source": "usda_honey_report"}).json()
+    assert len({r["series_id"] for r in latest["rows"]}) == len(latest["rows"]) == len(body["series"])
+
+
+def test_honey_report_price_links_survive_the_monthly_overwrite(run_with_routes, api, session_factory):
+    """AMS overwrites fvmhoney.pdf every month: a price parsed from it keeps a link to the exact
+    archived file, not to whatever the URL serves next month."""
+    assert run_with_routes("usda_honey_report", honey_routes())["status"] == "success"
+    with session_factory() as s:
+        idaho = one(s, PriceObservation, PriceObservation.period_label == "2026-06",
+                    PriceObservation.origin_label == "Idaho")
+        link, fetched_from = idaho.source_url, idaho.extra["fetched_from"]
+    assert fetched_from == usda.AMS_LATEST_URL and link.startswith("/api/reports/")
+    # next month the same URL serves a different issue
+    res = run_with_routes("usda_honey_report", honey_routes(**{
+        usda.AMS_LATEST_URL: (200, fx("fvmhoney_2025-09-30.pdf"), "application/pdf")}))
+    assert res["status"] in ("success", "no_change"), res
+    with session_factory() as s:
+        idaho = one(s, PriceObservation, PriceObservation.period_label == "2026-06",
+                    PriceObservation.origin_label == "Idaho")
+        assert idaho.source_url == link
+    got = api.get(link)
+    assert got.status_code == 200 and got.content == fx("fvmhoney_2026-06-30.pdf")
+    rows = api.get("/api/prices/latest", params={"price_type": "producer", "source": "usda_honey_report"}).json()
+    idaho_row = next(r for r in rows["rows"] if r["market_location"] == "Idaho" and r["period_label"] == "2026-06")
+    assert idaho_row["source_url"] == link
+
+
+def test_esmis_retry_wait_does_not_hold_the_database_write_lock(run_with_routes, monkeypatch):
+    """ESMIS answering with an empty list is retried 5 s apart; other writers (scheduler, the
+    'Aggiorna dati' button, API writes) must not be locked out meanwhile."""
+    waits: list[bool] = []
+
+    def fake_sleep(seconds):
+        if seconds == 5:
+            waits.append(db_write_possible())
+
+    monkeypatch.setattr(usda.time, "sleep", fake_sleep)
+    res = run_with_routes("usda_honey_report", honey_routes(**{
+        usda.ESMIS_FVMHONEY_URL: (200, b'{"results": []}', "application/json")}))
+    assert res["status"] == "partial", res
+    assert waits == [True] * usda.ESMIS_EMPTY_RETRIES
 
 
 # =============================================================================================
@@ -561,15 +676,18 @@ def test_gats_end_to_end(gats_small, run_with_routes, session_factory):
         assert count(s, T, T.is_current.is_(True)) == 6
 
 
-def _run_gats_recording(calls: list, remaining: str = "990") -> dict:
+def _run_gats_recording(calls: list, remaining: str = "990", probe=None) -> dict:
     """Run the GATS collector with respx, recording every request; responses carry the
-    api.data.gov `x-ratelimit-remaining` header."""
+    api.data.gov `x-ratelimit-remaining` header. `probe(request)` runs while each request is
+    in flight."""
     from paladex.collectors.runner import run_collector
 
     with respx.mock(assert_all_called=False) as mock:
         for pattern, (status, body, ctype) in gats_routes().items():
             def handler(request, body=body, status=status, ctype=ctype):
                 calls.append(request)
+                if probe is not None:
+                    probe(request)
                 return httpx.Response(status, content=body,
                                       headers={"content-type": ctype, "x-ratelimit-remaining": remaining})
             if pattern.startswith("^"):
@@ -608,6 +726,95 @@ def test_gats_stops_early_when_quota_runs_low(gats_small, no_sleep, session_fact
         assert count(s, TradeFlowObservation) == 1                    # what was fetched is kept
         state = s.get(AppSetting, "collector_state:usda_fas_gats").value
         assert state.get("processed", {}) == {}                        # month incomplete: retried next run
+
+
+def test_gats_downloads_never_hold_the_database_write_lock(gats_small, no_sleep):
+    """Each partner-month is committed as soon as it is stored, so the minutes spent downloading
+    (21 partners per month, the 7.6 MB /commodities list) never lock other writers out."""
+    seen: list[tuple[str, bool]] = []
+    calls: list[httpx.Request] = []
+
+    def probe(request):
+        if "/censusImports/" in request.url.path or request.url.path.endswith("/commodities"):
+            seen.append((request.url.path, db_write_possible()))
+
+    assert _run_gats_recording(calls, probe=probe)["status"] == "success"
+    assert len(seen) == 1 + 6                                       # /commodities + 3 partners x 2 months
+    assert [path for path, free in seen if not free] == []
+
+
+def _gats_listing(name: str, drop: tuple[str, ...] = ()) -> bytes:
+    return json.dumps([r for r in json.loads(fx(name)) if r["hS10Code"] not in drop]).encode()
+
+
+def test_gats_defers_hs10_unit_values_until_descriptions_load(gats_small, run_with_routes, session_factory):
+    """Without the /commodities descriptions the per-HS-10 unit values would be stored without
+    colour/organic for good (those fields are not revision fields): they wait for a later run."""
+    T, P = TradeFlowObservation, PriceObservation
+    routes = {**gats_routes(), usda.GATS_COMMODITIES_URL: (500, b"oops")}
+    res = run_with_routes("usda_fas_gats", routes)
+    assert res["status"] == "partial", res
+    assert any("deferred" in w for w in res["warnings"]), res["warnings"]
+    with session_factory() as s:
+        assert count(s, T) == 6                                     # trade rows do not need descriptions
+        assert count(s, P) == 3                                     # HS 0409 totals: AR-08, AR-07, VM-08
+        assert count(s, P, P.terms.like("%HTS 0409%")) == 0         # no per-HS-10 row without its colour
+        state = s.get(AppSetting, "collector_state:usda_fas_gats").value
+        assert state.get("processed", {}) == {}                     # both months are fetched again
+
+    res2 = run_with_routes("usda_fas_gats", gats_routes())
+    assert res2["status"] == "success", res2
+    with session_factory() as s:
+        assert count(s, T) == 6 and count(s, P) == 3 + 2 + 2
+        assert count(s, T, T.is_current.is_(False)) == count(s, P, P.is_current.is_(False)) == 0
+        ela = one(s, P, P.origin_iso3 == "ARG", P.period_label == "2026-08", P.terms.like("%HTS 0409000045"))
+        assert (ela.color_grade, ela.organic) == ("extra light amber", False)
+        assert ela.variety_raw == "NATURAL HONEY, NESOI, EXTRA LIGHT AMBER"
+        state = s.get(AppSetting, "collector_state:usda_fas_gats").value
+        assert state["processed"] == {"202608": "2026-10-06T08:00:00", "202607": "2026-09-03T08:30:00"}
+
+
+def test_gats_revision_withdraws_unit_values_no_longer_published(gats_small, run_with_routes, session_factory, api):
+    T, P = TradeFlowObservation, PriceObservation
+    assert run_with_routes("usda_fas_gats", gats_routes())["status"] == "success"
+    line_key = "import_unit_value|usda_gats|USA|ARG|0409000056|202608"
+    total_key = "import_unit_value|usda_gats|USA|ARG|0409|202608"
+    ela_key = "import_unit_value|usda_gats|USA|ARG|0409000045|202608"
+
+    # 1) Census revises August: the 0409000056 line is gone from Argentina's listing
+    dates = fx("gats_release_dates.json").replace(b"2026-10-06T08:00:00", b"2026-11-02T08:30:00")
+    res = run_with_routes("usda_fas_gats", gats_routes(dates, _gats_listing("gats_imports_AR_202608.json",
+                                                                            drop=("0409000056",))))
+    assert res["status"] == "partial" and res["revised"] >= 3, res    # trade row, total, withdrawn line
+    assert [w for w in res["warnings"] if "withdrawn" in w] == [
+        "GATS AR 2026-08: the Census release of 2026-11-02T08:30:00 no longer reports a quantity and value for "
+        "HS 0409000056; the unit value(s) published earlier are withdrawn (kept in the history)"]
+    with session_factory() as s:
+        line = one(s, P, P.series_key == line_key)
+        assert line.is_current is False and line.revision == 1          # kept for history, not deleted
+        assert line.price_value == round(1450000 / 620000, 4)            # values untouched
+        assert line.extra["release_timestamp"] == "2026-10-06T08:00:00"
+        assert one(s, P, P.series_key == total_key, P.is_current.is_(True)).price_value == round(4550000 / 1850000, 4)
+        assert one(s, P, P.series_key == ela_key).is_current is True   # unchanged line untouched
+    latest = api.get("/api/prices/latest", params={"price_type": "import_unit_value", "origin": "ARG"}).json()
+    aug = [r for r in latest["rows"] if r["period_label"] == "2026-08"]
+    assert aug and not any("0409000056" in r["terms"] for r in aug)
+
+    # 2) a later revision leaves no honey line for Argentina in August
+    dates2 = dates.replace(b"2026-11-02T08:30:00", b"2026-11-30T08:30:00")
+    res = run_with_routes("usda_fas_gats", gats_routes(dates2, _gats_listing(
+        "gats_imports_AR_202608.json", drop=("0409000045", "0409000056"))))
+    assert res["status"] == "partial", res
+    assert any("2026-11-30T08:30:00" in w and "HS 0409000045, 0409;" in w for w in res["warnings"]), res
+    with session_factory() as s:
+        trade = one(s, T, T.partner_iso3 == "ARG", T.period_label == "2026-08", T.is_current.is_(True))
+        assert (trade.net_weight_kg, trade.value, trade.extra["no_honey_lines"]) == (0, 0, True)
+        assert count(s, P, P.origin_iso3 == "ARG", P.period_label == "2026-08", P.is_current.is_(True)) == 0
+        assert one(s, P, P.series_key == total_key, P.revision == 2).is_current is False
+        assert count(s, P, P.origin_iso3 == "ARG", P.period_label == "2026-08") == 4   # history kept
+        assert count(s, P, P.origin_iso3 == "ARG", P.period_label == "2026-07", P.is_current.is_(True)) == 2
+    latest = api.get("/api/prices/latest", params={"price_type": "import_unit_value", "origin": "ARG"}).json()
+    assert latest["rows"] and all(r["period_label"] != "2026-08" for r in latest["rows"])
 
 
 def test_gats_without_key_is_skipped(run_with_routes, monkeypatch):
@@ -691,6 +898,16 @@ def test_nass_end_to_end(nass_key, run_with_routes, session_factory):
     with session_factory() as s:
         rows = s.scalars(select(P).where(P.period_label == "2024").order_by(P.id)).all()
         assert [(r.price_value, r.is_current) for r in rows] == [(2.41, False), (2.45, True)]
+
+
+def test_nass_key_never_reaches_the_log(nass_key, run_with_routes, caplog):
+    """httpx logs every request URL (query string included) at INFO, the app's root level."""
+    routes = {usda.NASS_API_URL: (200, fx("nass_honey_national.json"), "application/json")}
+    with caplog.at_level(logging.INFO, logger="httpx"):
+        assert run_with_routes("usda_nass_honey", routes)["status"] == "success"
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("HTTP Request:" in m and "key=REDACTED" in m for m in messages), messages
+    assert all(NASS_KEY not in m for m in messages)
 
 
 def test_nass_without_key_is_skipped(run_with_routes):

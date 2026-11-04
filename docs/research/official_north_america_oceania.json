@@ -1,0 +1,563 @@
+{
+ "key": "north_america_oceania",
+ "region": "North America and Oceania: Canada, Mexico, New Zealand, Australia, plus two US official sources not yet integrated (Census trade API, FDA honey testing and import refusals)",
+ "sources": [
+  {
+   "country": "Mexico",
+   "name": "INEGI monthly merchandise trade cube (Balanza Comercial de Mercancías de México, Mensual) by tariff line (fracción plus NICO) and country",
+   "official_body": "INEGI (national statistics institute), compiled with SAT, Banxico and Secretaría de Economía",
+   "access_method": "Interactive OLAP web query in HTML. There is no documented REST API at tariff-line level. The INEGI open-data files are aggregates without tariff-line detail, so the collector has to automate the OLAP form or export it by hand.",
+   "endpoints": [
+    "https://www.inegi.org.mx/sistemas/Olap/Proyectos/bd/continuas/comex/comex_bcmm_mensual2023.asp",
+    "https://www.inegi.org.mx/programas/comext/",
+    "https://inegi.org.mx/contenidos/programas/comext/doc/descripcion.pdf"
+   ],
+   "auth": "None for the web query",
+   "cost_licensing": "Free. INEGI terms of free use apply: reuse is allowed with attribution (remembered, not checked). The terms do not mention automated scraping, so throttle requests heavily.",
+   "update_frequency": "Monthly",
+   "publication_lag": "About 2 months for the detailed cube. On 2026-11-04 the page showed coverage January 2023 to August 2026. INEGI says the detailed revised figures arrive about 7 months after the reference year closes.",
+   "data_available": "Exports and imports in USD, FOB basis, filterable by year, month, country, type of operation, chapter (2-digit), heading (4), subheading (6), and fracción arancelaria (8) plus NICO (10). Honey is TIGIE fracción 0409.00.01 'Miel natural' (8-digit 04090001). The NICO is probably 00, making 0409000100, but check this. Exports are assigned to the last known destination country. Whether the monthly cube also carries a quantity measure (kg) is not confirmed.",
+   "value_for_parodi": "The official primary source for Mexico, one of Parodi's sourcing origins. It gives monthly honey export value by destination (Germany, US, UK, Saudi Arabia, Switzerland and others) about 2 months after the month, ahead of Comtrade's Mexico data. Comparing values to DE/US against Eurostat and USDA import data tracks Mexican competitiveness during harvest (Yucatán, January to June).",
+   "confidence": "from_search_snippets",
+   "priority": "high",
+   "parsing_notes": "Spanish labels. OLAP, so values change as revisions arrive: re-pull the last 12 months each run. If the cube has no quantity, combine with the Banxico annual volume or DataMéxico. The TIGIE/NICO code list is at snice.gob.mx; NICOs were reorganised in 2023 (DOF 30-06-2023), so map codes across the break.",
+   "sample_response": "RECONSTRUCTED (HTML pivot table): rows=País (Alemania, Estados Unidos...), columns=Mes, cell=Valor (dólares) for Fracción 0409.00.01 / NICO 00, Tipo de operación=Exportación.",
+   "evidence_urls": [
+    "https://www.inegi.org.mx/sistemas/Olap/Proyectos/bd/continuas/comex/comex_bcmm_mensual2023.asp",
+    "https://www.snieg.mx/Documentos/Economico/sesiones/doc_12021ext/3_iin_bal_cmm.pdf"
+   ]
+  },
+  {
+   "country": "Mexico",
+   "name": "DataMéxico (Secretaría de Economía) foreign trade via Tesseract OLAP API, plus the natural-honey product profile",
+   "official_body": "Secretaría de Economía (Ministry of Economy), DataMéxico platform",
+   "access_method": "Tesseract OLAP REST API returning JSON or CSV. Profile pages are HTML.",
+   "endpoints": [
+    "https://api.datamexico.org/ui  (Tesseract UI / API explorer, documented in the SE manual)",
+    "https://api.datamexico.org/tesseract/cubes  (list cubes; cube names NOT verified, discover at runtime)",
+    "https://api.datamexico.org/tesseract/cubes/{cube}  (schema: dimensions, levels, measures)",
+    "https://api.datamexico.org/tesseract/data.jsonrecords?cube={cube}&drilldowns=Month,Country&measures=Trade%20Value&HS6=1040900&Flow=2  (TEMPLATE, parameter names from memory)",
+    "https://www.economia.gob.mx/datamexico/es/profile/product/natural-honey",
+    "https://www.economia.gob.mx/datamexico/en/profile/product/natural-honey-1040900",
+    "https://www.economia.gob.mx/es/profile/product/10409",
+    "https://www.economia.gob.mx/datamexico/files/tesseract.pdf"
+   ],
+   "auth": "None known",
+   "cost_licensing": "Free public government data. No licence text was found; assume Mexican open-data terms with attribution to SE/INEGI (unverified).",
+   "update_frequency": "Monthly",
+   "publication_lag": "About 2 to 3 months. Profiles showed August 2026 national trade figures in early November 2026.",
+   "data_available": "Monthly and annual trade value in USD by HS product (DataMéxico IDs add a section prefix: HS4 0409 = '10409', HS6 040900 = '1040900'), by partner country and by exporting state (Yucatán, Campeche, Jalisco and others). 2024 honey exports were US$56.6M; top 2024 destinations were Germany US$12.5M, US US$11.6M, UK US$5.86M, Saudi Arabia US$4.78M and Switzerland US$3.63M. Quantity in kg is probably not a measure here (unverified).",
+   "value_for_parodi": "The only machine-readable official Mexican feed at product level, broken down by country and state. Useful for monthly Mexico export momentum by destination and for state-level origin mix (Yucatán vs Jalisco honey types).",
+   "confidence": "from_memory_unverified",
+   "priority": "high",
+   "parsing_notes": "Discover cubes with GET /tesseract/cubes, then read the schema for the HS6, Country, Flow (export/import), Month and state levels. Profile pages showed inconsistent 2026 honey figures (April 2026 US$5.4M against a Q2 total of US$3.64M), probably national vs state slices. Validate every series against the INEGI cube before publishing. Tesseract also offers jsonarrays/xlsx/csv format suffixes.",
+   "sample_response": "RECONSTRUCTED: {\"data\":[{\"Month ID\":202608,\"Month\":\"2026-08\",\"Country ID\":\"deu\",\"Country\":\"Alemania\",\"HS6 ID\":1040900,\"HS6\":\"Miel Natural\",\"Trade Value\":1234567.0}],\"source\":[...]}",
+   "evidence_urls": [
+    "https://www.economia.gob.mx/datamexico/files/tesseract.pdf",
+    "https://www.economia.gob.mx/datamexico/en/profile/product/natural-honey",
+    "https://www.economia.gob.mx/datamexico/es/profile/product/natural-honey"
+   ]
+  },
+  {
+   "country": "Mexico",
+   "name": "SIAP livestock production statistics for honey (annual close by state and municipality, monthly progress report, open data)",
+   "official_body": "SIAP (Servicio de Información Agroalimentaria y Pesquera) / SADER (Secretaría de Agricultura y Desarrollo Rural)",
+   "access_method": "HTML query forms (Nube SIAP), with PDF summaries such as Panorama Agroalimentario. Some CSVs are on the SIAP open-data page; whether livestock and honey files are among them is unconfirmed.",
+   "endpoints": [
+    "https://nube.siap.gob.mx/cierre_pecuario/  (also cited as https://nube.siap.gob.mx/cierrepecuario)",
+    "https://infosiap.siap.gob.mx/gobmx/datosAbiertos.php",
+    "https://www.gob.mx/siap  (monthly 'avance mensual de la producción pecuaria')",
+    "https://datamx.io/dataset/estadistica-de-produccion-pecuaria-siap  (third-party mirror of older SIAP CSVs)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free. Mexican open-data 'Libre Uso MX' terms with attribution (remembered).",
+   "update_frequency": "Monthly progress report. Annual close (cierre) for the final figures.",
+   "publication_lag": "The annual close for year N appears around mid-year N+1: the 2025 close was reported in mid-2026. The monthly progress report lags about 1 to 2 months.",
+   "data_available": "Honey (miel) and raw beeswax (cera en greña): production in tonnes, average farm-gate price (MXN/kg), production value (thousand MXN), by state, rural development district and municipality. Hive inventory (colmenas) appears in the SIAP livestock population tables (unverified). Official 2025 close: 60,297 t of honey (+5% vs 57,430 t in 2024) and 1,139 t of wax. Yucatán led with 9,893 t. SADER says 43% of 2025 output was exported.",
+   "value_for_parodi": "Official harvest size and farm-gate price for a sourcing origin. A falling MXN/kg price paid to Yucatán producers (press reports put it at MXN 23 to 31/kg in 2025) is an early signal of export offer prices. Covers both monthly harvest progress and final annual totals.",
+   "confidence": "from_search_snippets",
+   "priority": "high",
+   "parsing_notes": "The Nube pages are server-rendered forms (PHP) driven by year, state and product selectors; scrape the HTML tables. Honey sits under 'Otros productos' (alongside milk and eggs). Convert MXN using Banxico FIX (Banxico SIE API series SF43718). Watch for revisions between the monthly progress figures and the annual close.",
+   "sample_response": "RECONSTRUCTED (HTML table): Entidad | Producción (ton) | Precio (pesos/kg) | Valor (miles de pesos) ; 'Yucatán | 9,893 | ... | ...' ; 'Total nacional | 60,297 | ... | ...'",
+   "evidence_urls": [
+    "https://www.gob.mx/cms/uploads/attachment/file/330747/Cierre_de_la_producci_n_Agropecuaria_2017.pdf",
+    "https://bmeditores.mx/entorno-pecuario/produccion-record-de-miel-durante-2025-al-alcanzar-las-60-mil-toneladas/",
+    "https://bmeditores.mx/top/que-contiene-la-seccion-de-estadistica-pecuaria-del-siap/"
+   ]
+  },
+  {
+   "country": "Mexico",
+   "name": "Banxico Foreign Trade Information Cube (Cubo de Información de Comercio Exterior): value by tariff line and region, annual volume",
+   "official_body": "Banco de México",
+   "access_method": "Interactive HTML web app. No download function was found. Banxico's SIE API covers macro series only, not tariff lines.",
+   "endpoints": [
+    "https://www.banxico.org.mx/CuboComercioExterior/ValorDolares/matrizprodregion",
+    "https://www.banxico.org.mx/CuboComercioExterior/ValorDolares/participacion",
+    "https://www.banxico.org.mx/CuboComercioExterior/ValorDolaresAnual/inicio"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free public data (Banxico terms; attribution).",
+   "update_frequency": "Monthly (value). Annual (volume).",
+   "publication_lag": "About 1 to 2 months for value. Annual volume follows the year close.",
+   "data_available": "Exports and imports in USD by heading, subheading or fracción arancelaria for every partner country. Volume is published annually, only at fracción level, because units differ across lines. For honey (fracción 0409.00.01) the volume is in kg.",
+   "value_for_parodi": "One of the few official ways to get an annual Mexican export unit value (USD per kg) for honey by destination, the value-plus-quantity pair that INEGI and DataMéxico may lack. Use it to benchmark the FOB price of Mexican honey against Argentina, Brazil and Uruguay.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "parsing_notes": "The matrizprodregion page returned 'report could not be loaded' in one crawl, so expect a fragile client-side app. Scrape it with a headless browser or pull it manually once a year.",
+   "evidence_urls": [
+    "https://www.banxico.org.mx/CuboComercioExterior/ValorDolaresAnual/inicio",
+    "https://www.banxico.org.mx/CuboComercioExterior/ValorDolares/matrizprodregion"
+   ]
+  },
+  {
+   "country": "Mexico",
+   "name": "SENASICA toxic-residue monitoring programme for honey, NOM-004-SAG/GAN-2018 honey standard, and the INEGI/SADER National Bee Atlas",
+   "official_body": "SENASICA (national agri-food health, safety and quality service, under SADER), DGIAAP; INEGI; SADER",
+   "access_method": "PDF and HTML documents, plus the Atlas web app",
+   "endpoints": [
+    "https://www.gob.mx/cms/uploads/attachment/file/451677/PNRT2019.pdf",
+    "https://www.gob.mx/cms/uploads/attachment/file/859834/Manual_de_BPP_en_la_Producci_n_de_Miel_2019.pdf",
+    "https://atlas-abejas.agricultura.gob.mx",
+    "https://www.inegi.org.mx/contenidos/saladeprensa/boletines/2024/especiales/AtlasN_Abejas24.pdf",
+    "https://inegi.org.mx/contenidos/programas/ca/2022/doc/inf_api_ca2022.pdf"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free",
+   "update_frequency": "Irregular. Programme documents are versioned (PNRT v04 dated March 2019). Atlas updates came in 2021 and 2024. The agricultural census is periodic (2022).",
+   "publication_lag": "Not applicable (reference and regulatory documents)",
+   "data_available": "Rules of the national residue monitoring programme for animal-origin products, including honey (the honey residue programme dates from 1998 and supports EU market access). Good production practice manual for honey. 2022 Agricultural Census: about 1.7 million colonies and 52,731 beekeeping production units (units with more than 19 colonies), led by Yucatán, Campeche, Chiapas, Veracruz and Puebla. The 2024 Atlas estimates about 48,000 people work in beekeeping.",
+   "value_for_parodi": "Compliance context for Mexican lots entering the EU or US (residue programme, EU third-country listing) and structural capacity data (colonies by state). Not a time series; use it as reference cards in the app.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "parsing_notes": "NOM-004-SAG/GAN-2018 (honey production and specifications) is from memory; confirm in the DOF (dof.gob.mx). No public counts of SENASICA export certificates were found.",
+   "evidence_urls": [
+    "https://www.gob.mx/cms/uploads/attachment/file/451677/PNRT2019.pdf",
+    "https://www.inegi.org.mx/contenidos/saladeprensa/boletines/2024/especiales/AtlasN_Abejas24.pdf",
+    "https://inegi.org.mx/contenidos/programas/ca/2022/doc/inf_api_ca2022.pdf"
+   ]
+  },
+  {
+   "country": "Canada",
+   "name": "Statistics Canada Table 32-10-0353-01 'Production and value of honey' via the Web Data Service (WDS) API",
+   "official_body": "Statistics Canada (survey 3419 'Honey Production, Value and Colonies'; compiled from provincial data, plus a StatCan mail survey for New Brunswick and Prince Edward Island)",
+   "access_method": "REST JSON API (WDS), plus a full-table CSV zip",
+   "endpoints": [
+    "POST https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata  body: [{\"productId\":32100353}]",
+    "POST https://www150.statcan.gc.ca/t1/wds/rest/getDataFromCubePidCoordAndLatestNPeriods  body: [{\"productId\":32100353,\"coordinate\":\"1.1.0.0.0.0.0.0.0.0\",\"latestN\":10}]",
+    "POST https://www150.statcan.gc.ca/t1/wds/rest/getDataFromVectorsAndLatestNPeriods  body: [{\"vectorId\":<id>,\"latestN\":10}]",
+    "GET https://www150.statcan.gc.ca/t1/wds/rest/getFullTableDownloadCSV/32100353/en  -> JSON whose 'object' is the zip URL",
+    "GET https://www150.statcan.gc.ca/n1/tbl/csv/32100353-eng.zip",
+    "GET https://www150.statcan.gc.ca/t1/wds/rest/getChangedCubeList/{YYYY-MM-DD}",
+    "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3210035301"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free, under the Statistics Canada Open Licence (commercial reuse allowed with attribution).",
+   "update_frequency": "Annual",
+   "publication_lag": "Very short: year N is released in mid-December of year N (2025 data on 2025-12-11). 2026 data is expected around mid-December 2026.",
+   "rate_limits": "Remembered, not checked: about 50 requests per second globally and 25 per second per IP. A third-party client notes that WDS takes at most 300 coordinates or vectors per request.",
+   "data_available": "Canada and provinces: number of beekeepers, number of colonies, honey production (pounds; the table may also carry kg), honey value (CAD; scalar factor applies). 2025: 84.1 million lb (+13.2% per StatCan), sales CAD 241.3M, a record 854,653 colonies; the Prairie provinces produced about 80%. Implied average value is about CAD 2.87/lb. Exact member names and units are unverified.",
+   "value_for_parodi": "Clean, keyless API for the size of the Canadian crop and its value per lb. Canada's crop is a key input to the US white and extra-light-amber honey balance; Canadian exports go mainly to the US and Japan. A cheap, reliable annual collector.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "parsing_notes": "Check the coordinate order with getCubeMetadata first. Values exclude the scalar, so apply scalarFactorCode (0=units, 3=thousands). Full-table CSV columns (from memory): REF_DATE, GEO, DGUID, <Estimates dimension>, UOM, UOM_ID, SCALAR_FACTOR, SCALAR_ID, VECTOR, COORDINATE, VALUE, STATUS, SYMBOL, TERMINATED, DECIMALS. AAFC quotes a different 2025 growth rate (+3.81% vs StatCan's +13.2%), which points to revisions, so always reload the full history.",
+   "sample_response": "RECONSTRUCTED: [{\"status\":\"SUCCESS\",\"object\":{\"responseStatusCode\":0,\"productId\":32100353,\"coordinate\":\"1.1.0.0.0.0.0.0.0.0\",\"vectorId\":12345678,\"vectorDataPoint\":[{\"refPer\":\"2025-01-01\",\"refPerRaw\":\"2025-01-01\",\"value\":84100,\"decimals\":0,\"scalarFactorCode\":3,\"symbolCode\":0,\"statusCode\":0,\"securityLevelCode\":0,\"releaseTime\":\"2025-12-11T08:30\",\"frequencyCode\":12}]}}]",
+   "evidence_urls": [
+    "https://www150.statcan.gc.ca/n1/en/surveys/3419",
+    "https://open.canada.ca/data/en/dataset/5f1a3958-a40a-4b52-8c55-69e26547348e",
+    "https://www150.statcan.gc.ca/n1/daily-quotidien/251211/dq251211g-cansim-eng.htm",
+    "https://www.statcan.gc.ca/o1/en/plus/9172-more-honey-more-money-2025",
+    "https://statcan.gc.ca/en/developers/wds/user-guide",
+    "https://stats-can.readthedocs.io/en/latest/_modules/stats_can/scwds.html"
+   ]
+  },
+  {
+   "country": "Canada",
+   "name": "Canadian International Merchandise Trade (CIMT) Web Application plus the open-data bulk ZIPs",
+   "official_body": "Statistics Canada (customs-basis trade, survey 2201)",
+   "access_method": "Interactive web app (HTML tables and charts). The open.canada.ca CKAN record lists annual ZIPs of CSV files for imports, total exports and domestic exports.",
+   "endpoints": [
+    "https://www150.statcan.gc.ca/n1/en/catalogue/71-607-X2021004",
+    "https://open.canada.ca/data/en/dataset/2909a648-5753-4924-878a-b069392d9cde",
+    "https://open.canada.ca/data/api/action/package_show?id=2909a648-5753-4924-878a-b069392d9cde  (CKAN, lists resource URLs such as ...CIMT-CICM_Imp_2025.zip)",
+    "https://www150.statcan.gc.ca/n1/en/surveys/2201"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free, under the Statistics Canada Open Licence and Open Government Licence – Canada.",
+   "update_frequency": "Monthly (web app). The open-data ZIPs are per year and refreshed periodically.",
+   "publication_lag": "About 5 weeks after the reference month (remembered; the trade release is early in the second month).",
+   "data_available": "Imports at HS10 and exports at HS8 (plus HS6), by partner country and province (US state for some views), monthly or annual, value in CAD plus quantity in the customs unit of measure (KGM for heading 0409.00 per the CBSA tariff). Honey: HS6 040900; export code 04090000; import HS10 0409.00.00.xx (suffixes not verified). 2025 exports: US 56.1% (5,354 t), Japan 41% (3,914 t), per AAFC.",
+   "value_for_parodi": "Official monthly CAD value and kg by country gives unit values for Canadian exports to the US (competing white honey) and Canadian imports by origin (Brazil, NZ, Argentina, US). Fresher and more detailed than Comtrade.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "parsing_notes": "The ZIP filename pattern CIMT-CICM_Imp_{YYYY}.zip comes from a search snippet; take exact URLs from the CKAN package_show response. Column headers are unverified, so inspect one file. The web app replaced the legacy CIMT database; HS10 detail exists for imports only.",
+   "evidence_urls": [
+    "https://www150.statcan.gc.ca/n1/en/catalogue/71-607-X2021004",
+    "https://open.canada.ca/data/en/dataset/2909a648-5753-4924-878a-b069392d9cde",
+    "https://open-gov.usebase.io/tariffs/ca/04/040900"
+   ]
+  },
+  {
+   "country": "Canada",
+   "name": "CFIA Honey Authenticity Summary Data (open data) and the annual Food Fraud reports",
+   "official_body": "Canadian Food Inspection Agency (CFIA)",
+   "access_method": "CSV resources on open.canada.ca (CKAN API), plus HTML and PDF reports",
+   "endpoints": [
+    "https://open.canada.ca/data/en/dataset/7ecfee4c-b6f5-45f8-9fd4-16976f55f8d9",
+    "https://open.canada.ca/data/api/action/package_show?id=7ecfee4c-b6f5-45f8-9fd4-16976f55f8d9",
+    "https://publications.gc.ca/collections/collection_2026/acia-cfia/A101-35-2025-eng.pdf",
+    "https://inspection.canada.ca/en/science-and-research/our-research-and-publications/report-1"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free, under the Open Government Licence – Canada.",
+   "update_frequency": "Annual, by fiscal year (CSVs for 2022-23 and 2023-24; the 2023-24 file was updated 2026-04-17).",
+   "publication_lag": "About 1 to 2 years after the sampling year.",
+   "data_available": "Honey authenticity test outcomes (added C4/C3 sugars by stable isotope ratio analysis (SIRA) and NMR), domestic vs imported, satisfactory or unsatisfactory, and enforcement (kg destroyed or removed from Canada). Historical unsatisfactory rates: 2018-19 21.7% (all imported); 2019-20 13.3% targeted and 2% marketplace; 2023 22.9% of imported samples (as reported by the Canadian Honey Council). Whether the files give country of origin is unverified.",
+   "value_for_parodi": "An official adulteration-risk signal on imported bulk honey, which can be cross-referenced with origin and exporter screening. It complements RASFF (EU) and FDA (US) within one supplier risk score.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "parsing_notes": "Sampling is risk-targeted, so rates are not market prevalence; label them that way in the UI. Read the CSV schema from the CKAN resource dictionary.",
+   "evidence_urls": [
+    "https://open.canada.ca/data/en/dataset/7ecfee4c-b6f5-45f8-9fd4-16976f55f8d9",
+    "https://inspection.canada.ca/en/science-and-research/our-research-and-publications/report-1",
+    "https://inspection.canada.ca/eng/1557531883418/1557531883647"
+   ]
+  },
+  {
+   "country": "Canada",
+   "name": "AAFC Statistical Overview of the Canadian Honey and Bee Industry (annual report)",
+   "official_body": "Agriculture and Agri-Food Canada (AAFC), Horticulture section",
+   "access_method": "HTML report plus PDF",
+   "endpoints": [
+    "https://agriculture.canada.ca/en/sector/horticulture/reports/statistical-overview-canadian-honey-and-bee-industry-2025",
+    "https://agriculture.canada.ca/sites/default/files/documents/2026-06/honey-report_2025_rapport-apicole_v1-eng.pdf"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free (Government of Canada terms; Open Government Licence where applicable).",
+   "update_frequency": "Annual",
+   "publication_lag": "About 6 months (the 2025 edition came out in June 2026).",
+   "data_available": "Production, value, colonies and beekeepers by province; exports by destination (value, tonnes); imports by source country (value, volume); trade balance; queen and package bee imports; colony winter-loss context. 2025: 854,653 colonies; Prairie provinces 81% of export value; US 56.1% and Japan 41% of export volume.",
+   "value_for_parodi": "A single official annual summary with import sources (honey from Brazil, Argentina, NZ and others into Canada) and export destinations, useful for validating the StatCan and CIMT collectors.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "parsing_notes": "The HTML tables are easier to parse than the PDF. URL paths change each year (documents/YYYY-MM/...).",
+   "evidence_urls": [
+    "https://agriculture.canada.ca/en/sector/horticulture/reports/statistical-overview-canadian-honey-and-bee-industry-2025"
+   ]
+  },
+  {
+   "country": "New Zealand",
+   "name": "Stats NZ Overseas Merchandise Trade datasets: monthly HS10-by-country CSVs (exports and imports)",
+   "official_body": "Stats NZ (Tatauranga Aotearoa); source data from the NZ Customs Service",
+   "access_method": "Bulk CSV download, one file per month",
+   "endpoints": [
+    "https://www.stats.govt.nz/large-datasets/csv-files-for-download/overseas-merchandise-trade-datasets/",
+    "https://www.stats.govt.nz/information-releases/overseas-merchandise-trade-july-2026/",
+    "https://github.com/STATS-UOA/overseas-merchandise-trade  (community archive of yearly HS10-by-country CSVs from 2000)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free, CC BY 4.0 (Stats NZ standard; remembered).",
+   "update_frequency": "Monthly",
+   "publication_lag": "About 5 to 6 weeks. The listing ran to September 2026 as of early November 2026.",
+   "data_available": "For each month: HS10 values and HS10-by-country values, for exports and for imports. Exports: FOB value in NZD and quantity (kg) at 10-digit level, split into domestic exports and re-exports. Imports: VFD and CIF value in NZD and quantity. Honey statistical keys (NZ Customs, created July 2018 to follow MPI's mānuka definitions): bulk 0409.00.00 key 10H mānuka monofloral, 13B mānuka multifloral, 17E non-mānuka; retail 21C mānuka monofloral, 23K mānuka multifloral, 25F other; default natural-honey keys 33G, 35C and 39F (rarely used).",
+   "value_for_parodi": "Official monthly NZD/kg export unit values by honey type and destination: bulk non-mānuka (key 17E) vs mānuka, to Europe, China, the US and Japan. No other official source in the region separates bulk from retail honey and mānuka from other honey this finely. Fresher than Comtrade.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "parsing_notes": "Column names are remembered, not checked: Month, Country, Harmonised System Code, Harmonised System Description, Unit Qty, Export FOB, Export Qty, Re-export FOB, Re-export Qty, Total Export FOB, Total Export Qty, Status (imports carry Imports VFD, Imports CIF, Imports Qty). HS10 values drop the check letter (0409000010 = key 10H, unverified). Confidential codes and consignments under NZD 1,000 are excluded. Classification changed in 2017 (HS2017) and in 2022. Some 2025 files were reported partly corrupted, so add checksum and row-count checks. Infoshare was being decommissioned from end-2025.",
+   "sample_response": "RECONSTRUCTED CSV row: 202609,DE,0409000017,\"Natural honey; non-manuka, bulk\",KGM,1234567,98765,0,0,1234567,98765,Final",
+   "evidence_urls": [
+    "https://www.stats.govt.nz/large-datasets/csv-files-for-download/overseas-merchandise-trade-datasets/",
+    "https://cms.customs.govt.nz/business/export/clear-your-exports/honey-export-entries/",
+    "https://gazette.govt.nz/notice/id/2018-go2342",
+    "https://figure.nz/table/pIDqZ4I92OK6OZ1Y"
+   ]
+  },
+  {
+   "country": "New Zealand",
+   "name": "MPI Apiculture monitoring data (annual XLSX), with the data.govt.nz CKAN record",
+   "official_body": "Ministry for Primary Industries (MPI), Economic Intelligence Unit, Farm Monitoring",
+   "access_method": "XLSX download (the report was replaced by an annual data workbook in late 2021). Resource URLs can be found through the data.govt.nz CKAN API.",
+   "endpoints": [
+    "https://www.mpi.govt.nz/news-and-resources/economic-intelligence-unit/farm-monitoring/",
+    "https://catalogue.data.govt.nz/dataset/horticulture-arable-and-apiculture-monitoring/resource/fe5d67e2-109f-409a-8702-5872e545253a",
+    "https://catalogue.data.govt.nz/api/3/action/package_show?id=horticulture-arable-and-apiculture-monitoring"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free, CC BY 4.0 under NZGOAL (remembered).",
+   "update_frequency": "Annual (season July to June)",
+   "publication_lag": "About 3 to 9 months after season end.",
+   "data_available": "Registered beekeepers, apiaries and hives; honey production (t) and yield (kg/hive) by region (2024/25 national yield 20.1 kg/hive: North Island 14.4, South Island 32.6); bulk honey price ranges in NZD/kg by type (light clover, non-mānuka, mānuka multifloral and monofloral); export price per kg by type; pollination prices; operating costs. Survey covers 40 to 50% of registered hives. Historical example: light clover bulk NZD 5.00 to 9.25/kg in 2018/19.",
+   "value_for_parodi": "The only official bulk producer price series for NZ honey by type, the counterpart of the USDA AMS and Italian CCIAA price lists. Shows the collapse in non-mānuka bulk prices that has made NZ clover honey a possible low-cost bulk source.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "parsing_notes": "Parse the XLSX with openpyxl; sheet layouts change from year to year, so anchor on header text. Use CKAN package_show to find the newest resource URL automatically.",
+   "evidence_urls": [
+    "https://catalogue.data.govt.nz/dataset/horticulture-arable-and-apiculture-monitoring/resource/fe5d67e2-109f-409a-8702-5872e545253a",
+    "https://www.mpi.govt.nz/news-and-resources/economic-intelligence-unit/farm-monitoring/",
+    "https://www.odt.co.nz/node/2986911"
+   ]
+  },
+  {
+   "country": "New Zealand",
+   "name": "MPI Situation and Outlook for Primary Industries (SOPI), honey export revenue actuals and forecasts",
+   "official_body": "Ministry for Primary Industries (MPI)",
+   "access_method": "PDF report plus a data XLSX",
+   "endpoints": [
+    "https://www.mpi.govt.nz/resources-and-forms/economic-intelligence/situation-and-outlook-for-primary-industries/  (path from memory)",
+    "https://figure.nz/chart/jPhn59ZSuhXHZh7v-tHnSNrSaz64TPTur  (third-party mirror of the SOPI honey series)"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free, CC BY 4.0 (remembered)",
+   "update_frequency": "Twice a year (June and December)",
+   "publication_lag": "Actuals to the June year end; forecasts out 4 years",
+   "data_available": "Honey export revenue in NZD for years ending June, with forecasts to 2030: NZD 426M in the year to June 2025, a forecast NZD 460M for 2026, a peak of NZD 481M in 2021 and NZD 379M in 2023. Actuals come from Stats NZ trade data.",
+   "value_for_parodi": "The government's forward view of NZ honey export value, useful as a sentiment indicator for the mānuka and premium segment. Little direct value for bulk pricing.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "evidence_urls": [
+    "https://figure.nz/chart/jPhn59ZSuhXHZh7v-tHnSNrSaz64TPTur",
+    "https://ruralnewsgroup.co.nz/rural-news/rural-general-news/nz-primary-exports-record-64-billion-farmgate-prices-2026"
+   ]
+  },
+  {
+   "country": "New Zealand",
+   "name": "MPI bee products export rules (GREX notice, mānuka definition, overseas market access requirements (OMAR), export non-conformance)",
+   "official_body": "Ministry for Primary Industries (MPI), market access and food assurance",
+   "access_method": "HTML and PDF regulatory documents",
+   "endpoints": [
+    "https://www.mpi.govt.nz/export/food/honey-and-bee-products/requirements",
+    "https://www.mpi.govt.nz/dmsdocument/26500-Animal-Products-Notice-General-Export-Requirements-for-Bee-Products",
+    "https://www.mpi.govt.nz/export/food/honey-and-bee-products/steps-to-exporting/honey-export-non-conformance"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free",
+   "update_frequency": "When amended (GREX last updated 16 May 2024)",
+   "publication_lag": "Not applicable",
+   "data_available": "Export eligibility rules (only MPI-listed beekeepers may supply exports), MPI's mānuka honey definition and labelling wording, electronic export certificates (AP E-cert), markets that require official assurance, and border-rejection notification within 24 hours. No public counts of certificates issued or test failures were found.",
+   "value_for_parodi": "Regulatory reference cards for NZ-origin lots (documents to request: E-cert, mānuka test results).",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "evidence_urls": [
+    "https://www.mpi.govt.nz/dmsdocument/26500-Animal-Products-Notice-General-Export-Requirements-for-Bee-Products",
+    "https://www.mpi.govt.nz/export/food/honey-and-bee-products/steps-to-exporting"
+   ]
+  },
+  {
+   "country": "New Zealand",
+   "name": "Aotearoa Data Explorer (ADE) SDMX API",
+   "official_body": "Stats NZ",
+   "access_method": "SDMX REST API",
+   "endpoints": [
+    "https://api.data.stats.govt.nz/rest/dataflow/all/all/latest",
+    "https://api.data.stats.govt.nz/rest/data/{agency},{dataflowId},{version}/{key}?startPeriod=...",
+    "https://portal.apis.stats.govt.nz/api-guide"
+   ],
+   "auth": "Free subscription key sent in the Ocp-Apim-Subscription-Key header. A third-party wrapper reports the catalogue endpoint works without a key.",
+   "cost_licensing": "Free, CC BY 4.0",
+   "update_frequency": "Depends on the dataset",
+   "publication_lag": "Depends on the dataset",
+   "rate_limits": "Not documented in the search results. The old host api.stats.govt.nz returns HTTP 502.",
+   "data_available": "ADE replaced NZ.Stat (closed 2024-09-13), and Infoshare is being retired. HS10 trade detail is not confirmed in ADE, so treat the monthly CSVs as the primary trade source.",
+   "value_for_parodi": "An optional machine-readable fallback; the CSV route above is better for honey.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "parsing_notes": "Do not percent-encode path segments: the gateway does not decode them, and an encoded 'all' returns 401 (reported by a third-party wrapper).",
+   "evidence_urls": [
+    "https://portal.apis.stats.govt.nz/api-guide",
+    "https://glama.ai/mcp/servers/pipeworx-io/mcp-stats-nz"
+   ]
+  },
+  {
+   "country": "New Zealand",
+   "name": "American Foulbrood (AFB) Pest Management Plan Management Agency: registered beekeepers and colonies",
+   "official_body": "AFB PMP Management Agency (statutory body under the Biosecurity Act; registry data used by MPI)",
+   "access_method": "PDF governance reports and 'Quick Stats'",
+   "endpoints": [
+    "https://afb.org.nz/wp-content/uploads/2024/08/Report-37-April-2024-to-Apiculture-New-Zealand-Inc-Board.pdf",
+    "https://afb.org.nz"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free",
+   "update_frequency": "Several times a year (board reports)",
+   "publication_lag": "About 1 to 3 months",
+   "data_available": "Registered beekeepers and registered colonies: 9,065 beekeepers (down from 10,103) and 581,979 colonies (-9.9% y/y) as of 2024-04-02.",
+   "value_for_parodi": "Leading indicator of NZ supply contraction after the mānuka boom; colony counts fall ahead of production.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "evidence_urls": [
+    "https://afb.org.nz/wp-content/uploads/2024/08/Report-37-April-2024-to-Apiculture-New-Zealand-Inc-Board.pdf"
+   ]
+  },
+  {
+   "country": "Australia",
+   "name": "NSW DPIRD Performance, Data and Insights (PDI): Honey and Beeswax",
+   "official_body": "NSW Department of Primary Industries and Regional Development (state government)",
+   "access_method": "HTML page each year",
+   "endpoints": [
+    "https://www.dpi.nsw.gov.au/about-us/publications/pdi/2025/honey-and-beeswax",
+    "https://www.dpi.nsw.gov.au/about-us/publications/pdi/2024/honey-and-beeswax",
+    "https://www.dpi.nsw.gov.au/about-us/publications/pdi/2023/honey-and-beeswax"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free (NSW Government copyright; CC BY generally applies, unverified)",
+   "update_frequency": "Annual (financial year July to June)",
+   "publication_lag": "About 4 to 6 months after the financial year ends",
+   "data_available": "National average bulk honey price in AUD/kg: about 4.50 in 2024-25 (-8% y/y, -20% vs the 5-year average); about 4.90 in 2023-24. National honey imports: 10,208 t in 2024-25 (+36% y/y) worth AUD 51.8M, with import unit value down about 30%. China supplied 42% of import volume in 2023-24. NSW gross value of production AUD 52M (-14%). Seasonal drivers (floods in northern NSW and southern Queensland, drought in South Australia).",
+   "value_for_parodi": "The only official-government national bulk honey price for Australia in this research. Also shows Australia absorbing cheap imports (mostly Chinese), a demand signal on the Asian bulk market.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "parsing_notes": "Some results came from a staging host (dpird-web.matrix.squiz.cloud); use dpi.nsw.gov.au. Parse figures out of the prose with regex and review them manually.",
+   "evidence_urls": [
+    "https://dpird-web.matrix.squiz.cloud/about-us/publications/pdi/2025/honey-and-beeswax",
+    "https://www.dpi.nsw.gov.au/about-us/publications/pdi/2023/honey-and-beeswax"
+   ]
+  },
+  {
+   "country": "Australia",
+   "name": "ABS Data API (SDMX): merchandise exports and imports (MERCH_EXP and MERCH_IMP), plus DFAT trade statistical pivot tables",
+   "official_body": "Australian Bureau of Statistics (ABS); Department of Foreign Affairs and Trade (DFAT)",
+   "access_method": "SDMX REST API (ABS) and XLSX pivot tables (DFAT)",
+   "endpoints": [
+    "https://data.api.abs.gov.au/rest/data/ABS,MERCH_EXP,1.0.0/{key}?startPeriod=2025-01&format=jsondata  (template; key dimensions not verified)",
+    "https://data.api.abs.gov.au/rest/dataflow/ABS/MERCH_EXP?references=all  (structure discovery, pattern from memory)",
+    "https://www.abs.gov.au/statistics/application-programming-interfaces-apis/data-api-user-guide",
+    "https://www.dfat.gov.au/trade/trade-and-investment-data-information-and-publications/trade-statistics/trade-statistical-pivot-tables"
+   ],
+   "auth": "None. ABS removed API keys on 2024-11-29 (register-of-interest system).",
+   "cost_licensing": "Free, CC BY 4.0 (ABS; older data.gov.au listings show CC BY 3.0 AU). Detailed AHECC/HS-level extracts are a paid ABS customised-data service.",
+   "update_frequency": "Monthly (ABS); annual (DFAT pivots)",
+   "publication_lag": "About 5 weeks (ABS)",
+   "rate_limits": "Not documented; very large 'all' queries can time out.",
+   "data_available": "Exports and imports by commodity (SITC, apparently only to 3 digits), by country and state, in AUD. Honey cannot be separated: SITC 061 mixes sugars and honey, and the DFAT pivots are SITC 3-digit. The national honey codes exist (AHECC 8-digit 0409.00.xx for exports, HS 10-digit for imports) but were not found as free time series.",
+   "value_for_parodi": "Little value for honey. Rely on Comtrade (already integrated) for Australian HS 0409 data, plus the NSW PDI figures above. Listed so the backend does not waste effort building a collector here.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "evidence_urls": [
+    "https://www.abs.gov.au/statistics/application-programming-interfaces-apis/data-api-user-guide",
+    "https://data.gov.au/data/dataset/merchandise-exports-thousand/resource/514af312-36c5-406c-931f-45b01c0cf027",
+    "https://www.dfat.gov.au/about-us/publications/trade-statistical-pivot-tables",
+    "https://docs.ropensci.org/read.abares/reference/ahecc.html"
+   ]
+  },
+  {
+   "country": "Australia",
+   "name": "DAFF National Residue Survey (NRS): honey results; honey levy and export charge",
+   "official_body": "Department of Agriculture, Fisheries and Forestry (DAFF)",
+   "access_method": "PDF brochures and annual dataset PDFs; HTML levy pages",
+   "endpoints": [
+    "https://www.agriculture.gov.au/agriculture-land/farm-food-drought/food/nrs/nrs-results-publications/industry-brochures/honey",
+    "https://www.agriculture.gov.au/sites/default/files/documents/honey-2023-24.pdf",
+    "https://www.agriculture.gov.au/sites/default/files/documents/honey-residue-testing-annual-datasets-2021-22.pdf",
+    "https://agriculture.gov.au/agriculture-land/farm-food-drought/levies/rates/honey",
+    "https://www.agriculture.gov.au/agriculture-land/farm-food-drought/levies/notices/jul-2025-honey-levy-change"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free, CC BY 4.0 (remembered)",
+   "update_frequency": "Annual",
+   "publication_lag": "About 6 to 12 months",
+   "data_available": "Residue compliance for Australian honey (100% in 2022-23, with a 6-year table); annual datasets list the substances tested. Levy and export charge is 5.6 c/kg from 1 July 2025 (previously 4.6 c/kg); producers above 1,500 kg a year must lodge returns.",
+   "value_for_parodi": "Compliance reference for Australian-origin honey. Levy receipts, if obtainable, would be an official proxy for production volume.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "evidence_urls": [
+    "https://www.agriculture.gov.au/ag-farm-food/food/nrs/nrs-results-publications/industry-brochures/honey",
+    "https://www.agriculture.gov.au/agriculture-land/farm-food-drought/levies/notices/jul-2025-honey-levy-change"
+   ]
+  },
+  {
+   "country": "Australia",
+   "name": "Agriculture Victoria Apiary Business Monitor",
+   "official_body": "Agriculture Victoria (Victorian state government)",
+   "access_method": "DOCX report published once a year",
+   "endpoints": [
+    "https://agriculture.vic.gov.au/livestock-and-animals/honey-bees/apiary-business-monitor-report",
+    "https://agriculture.vic.gov.au/__data/assets/word_doc/0007/1227526/2024-25-Apiary-Business-Monitor-report.docx"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free",
+   "update_frequency": "Annual",
+   "publication_lag": "About 4 to 6 months",
+   "data_available": "Benchmark businesses in 2024-25: honey price AUD 5.7/kg, yield about 34 kg/hive (half of 2023-24), honey 42% of cash income, pollination AUD 225/hive, operating profit AUD 79/hive (-59%).",
+   "value_for_parodi": "A farm-gate cost and price benchmark that shows the floor below which Australian supply contracts.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "evidence_urls": [
+    "https://agriculture.vic.gov.au/livestock-and-animals/honey-bees/apiary-business-monitor-report"
+   ]
+  },
+  {
+   "country": "United States (not yet integrated; North America)",
+   "name": "US Census Bureau International Trade API: monthly imports by HTS10, by country and by port",
+   "official_body": "U.S. Census Bureau, Economic Indicators Division (Foreign Trade)",
+   "access_method": "REST JSON API (array of arrays with a header row)",
+   "endpoints": [
+    "https://api.census.gov/data/timeseries/intltrade/imports/hs?get=CTY_CODE,CTY_NAME,I_COMMODITY,I_COMMODITY_SDESC,GEN_VAL_MO,GEN_QY1_MO,UNIT_QY1,GEN_CIF_MO,CAL_DUT_MO,CON_VAL_MO&I_COMMODITY=0409000035&time=2026-08&key={KEY}",
+    "https://api.census.gov/data/timeseries/intltrade/imports/porths?get=PORT,PORT_NAME,CTY_CODE,GEN_VAL_MO,GEN_QY1_MO&I_COMMODITY=0409000056&time=2026-08&key={KEY}",
+    "https://api.census.gov/data/timeseries/intltrade/imports/hs/variables.json",
+    "https://api.census.gov/data/timeseries/intltrade/exports/hs"
+   ],
+   "auth": "Free API key. The Census examples page says all data queries now require one.",
+   "cost_licensing": "Free, public domain (US government work)",
+   "update_frequency": "Monthly",
+   "publication_lag": "About 35 days (FT-900 schedule)",
+   "rate_limits": "Not documented in the search results; keyed use is generous (remembered).",
+   "data_available": "General and consumption imports: monthly and year-to-date value in USD (customs value), CIF value, calculated duty, quantity 1 (KG) by HTS10 and country, plus port of entry (porths). Honey HTS10 lines (from tariff snippets; confirm against the 2026 HTSUS): 0409.00.00.05 certified organic; .10 comb and retail-packed; .35 white or lighter; .45 extra light amber; .56 light amber; .65 amber or darker.",
+   "value_for_parodi": "The primary source behind USDA FAS GATS, with extras GATS lacks: CIF and duty-paid value, port of entry, and earlier availability. Gives US import unit values by colour grade per origin (Argentina, Brazil, India, Vietnam, Ukraine, Mexico, Uruguay), which matters for the US anti-dumping cases. High value on the US side, though partly overlaps GATS.",
+   "confidence": "from_search_snippets",
+   "priority": "high",
+   "parsing_notes": "Endpoint existence is confirmed; variable names are from memory, so check them against variables.json. Values come back as strings, and the first row is the header. The time parameter is 'YYYY-MM'. COMM_LVL=HS10 filters detail level.",
+   "sample_response": "RECONSTRUCTED: [[\"CTY_CODE\",\"CTY_NAME\",\"I_COMMODITY\",\"GEN_VAL_MO\",\"GEN_QY1_MO\",\"UNIT_QY1\",\"time\"],[\"3570\",\"ARGENTINA\",\"0409000035\",\"4123456\",\"1500000\",\"KG\",\"2026-08\"]]",
+   "evidence_urls": [
+    "https://api.census.gov/data/timeseries/intltrade/imports/hs",
+    "https://api.census.gov/data/timeseries/intltrade/imports/enduse/examples.html",
+    "https://www.unisco.com/hts/04090000"
+   ]
+  },
+  {
+   "country": "United States (not yet integrated; North America)",
+   "name": "FDA honey testing for economically motivated adulteration (FY25 results) and the FDA Data Dashboard import refusals API",
+   "official_body": "U.S. Food and Drug Administration (Human Foods Program; Office of Inspections and Investigations)",
+   "access_method": "HTML and PDF reports; REST API for import refusals",
+   "endpoints": [
+    "https://www.fda.gov/food/economically-motivated-adulteration-food-fraud/fy25-sample-collection-and-analysis-domestically-produced-and-imported-honey-economically-motivated",
+    "https://www.fda.gov/food/hfp-constituent-updates/fda-releases-fy25-sampling-results-economically-motivated-adulteration-honey",
+    "https://api-datadashboard.fda.gov/v1/import_refusals",
+    "https://datadashboard.fda.gov/oii/api/api-definitions-refusals.htm",
+    "https://datadashboard.fda.gov/oii/cd/imprefusals.htm"
+   ],
+   "auth": "None for the reports. The Data Dashboard API needs credentials requested through the OII Unified Logon; the exact header names are unverified.",
+   "cost_licensing": "Free, public domain",
+   "update_frequency": "Sampling reports per assignment, roughly every 1 to 2 years. Import refusals are updated about monthly.",
+   "publication_lag": "The FY25 results were released 2026-04-13. Refusals lag a few weeks.",
+   "data_available": "FY25 sampling: 54 domestic and 48 imported samples, about 4% violative in each group (secondary summaries), tested by carbon isotope ratio analysis (SCIRA) including the protein extract. Violative imports are refused entry and the firm is placed on an Import Alert. Import refusals: firm, FEI number, country, product code, refusal charges, date; filter to honey product codes (industry 36, food sweeteners; exact honey sub-codes need verifying).",
+   "value_for_parodi": "An official US exporter blacklist and risk signal, complementing RASFF and CFIA. Directly relevant to supplier due diligence on Indian, Vietnamese and Chinese packers.",
+   "confidence": "from_search_snippets",
+   "priority": "medium",
+   "evidence_urls": [
+    "https://www.fda.gov/food/hfp-constituent-updates/fda-releases-fy25-sampling-results-economically-motivated-adulteration-honey",
+    "https://datadashboard.fda.gov/oii/api/api-definitions-refusals.htm"
+   ]
+  },
+  {
+   "country": "Canada",
+   "name": "Canadian Honey Council monthly honey export and import tables (third party, compiled from StatCan)",
+   "official_body": "Not official. The Canadian Honey Council is the national industry association; its data comes from Statistics Canada.",
+   "access_method": "Monthly PDF",
+   "endpoints": [
+    "https://honeycouncil.ca/wp-content/uploads/2024/07/Copy-of-MAY-2024-EXPORTS-IMPORTS-HONEY.pdf",
+    "https://honeycouncil.ca/?p=4473"
+   ],
+   "auth": "None",
+   "cost_licensing": "Free to read. Redistribution terms are not stated.",
+   "update_frequency": "Monthly (irregular)",
+   "publication_lag": "About 6 to 8 weeks",
+   "data_available": "Year-to-date honey exports and imports by country in CAD and kg (PDF tables extract poorly).",
+   "value_for_parodi": "A secondary cross-check for the CIMT collector only.",
+   "confidence": "from_search_snippets",
+   "priority": "low",
+   "evidence_urls": [
+    "https://honeycouncil.ca/wp-content/uploads/2024/07/Copy-of-MAY-2024-EXPORTS-IMPORTS-HONEY.pdf"
+   ]
+  }
+ ],
+ "recommendation": "Suggested build order for Paladex, ranked by value to a bulk buyer sourcing from Mexico and selling into Italy and the US:\n\n(1) Mexico, the only sourcing origin in this region, comes first. Build the INEGI monthly trade cube for tariff line 0409.00.01 by country (USD FOB, data to August 2026). The official API alternative is the DataMéxico Tesseract API: discover its cube names at runtime with GET /tesseract/cubes, and check every series against INEGI. Add SIAP for harvest size (2025 close: 60,297 t, Yucatán 9,893 t, 43% exported) and the MXN/kg farm-gate price. Once a year, add the Banxico cube's annual volume by tariff line to get an official export unit value in USD/kg.\n\n(2) US gap-fillers. Add the Census HTS10 import API (CIF value, duty, port of entry, colour-grade lines .05/.10/.35/.45/.56/.65). It is the primary source behind GATS and gives import unit values per origin (Argentina, Brazil, India, Vietnam, Ukraine, Mexico, Uruguay). Add FDA honey adulteration results and the import refusals API to the supplier risk score alongside RASFF.\n\n(3) Canada. The StatCan WDS table 32-10-0353-01 is a keyless JSON API and is released in mid-December for the same year. CIMT gives monthly HS10 import and HS8 export value plus kg by country. CFIA's honey authenticity CSVs add an adulteration signal.\n\n(4) New Zealand. The monthly Stats NZ HS10-by-country CSVs (data to September 2026) are the most detailed honey trade data in the region. They split bulk from retail and mānuka from other honey: keys 10H, 13B and 17E are bulk, 21C, 23K and 25F are retail. The bulk non-mānuka unit value (key 17E) is the useful series for a bulk buyer. The MPI apiculture XLSX adds producer bulk prices by honey type.\n\n(5) Australia is low priority. ABS and DFAT free data stops at SITC 3-digit, where honey is mixed with sugar, so keep using Comtrade. NSW DPIRD's annual page gives the national bulk price (about AUD 4.50/kg in 2024-25) and import tonnage (10,208 t, +36%).\n\nVerification status. I could not open any official page directly in this session. Page fetches to www.statcan.gc.ca and www150.statcan.gc.ca failed because those hosts are outside the session's allowed network domains, and curl was blocked by the proxy. No browser or Chrome tool was available to this subagent. Everything here comes from web search snippets of official pages or from memory, as each entry's confidence field says.\n\nThe backend collectors will need these hosts allowed:\n- www150.statcan.gc.ca\n- open.canada.ca\n- www.inegi.org.mx\n- api.datamexico.org\n- nube.siap.gob.mx\n- www.banxico.org.mx\n- www.stats.govt.nz\n- catalogue.data.govt.nz\n- www.mpi.govt.nz\n- data.api.abs.gov.au\n- api.census.gov\n- api-datadashboard.fda.gov\n\nCheck these on the first run:\n- **StatCan:** the WDS coordinate order and member names, through getCubeMetadata.\n- **CIMT:** the filenames and columns of the open-data ZIPs.\n- **INEGI:** whether the cube has a quantity measure.\n- **DataMéxico:** the cube and level names.\n- **Stats NZ:** the CSV column headers.\n- **Census:** the variable names, against variables.json.\n- **US HTS:** the honey suffix list, against the 2026 HTSUS.\n- **Mexico:** the TIGIE 10-digit code for honey (0409.00.01 plus a NICO).\n\nLicensing: StatCan, open.canada.ca, Stats NZ, MPI and ABS are open licences (StatCan Open Licence, Open Government Licence – Canada, CC BY 4.0) that allow commercial reuse with attribution. US Census and FDA data are public domain. The Mexican portals allow free use with attribution, but INEGI and SIAP have no API at the detail Paladex needs, so they require throttled scraping of web forms."
+}

@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import { AlertTriangle, ExternalLink, Info, Loader2, Sparkles } from 'lucide-react'
 import type { ReactNode, SelectHTMLAttributes } from 'react'
 import { useI18n } from '@/i18n'
-import { fmtAgo, fmtDate, fmtPeriod } from '@/lib/format'
+import { fmtAgo, fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import type { FreshnessStatus, Provenance } from '@/lib/types'
 
@@ -141,7 +141,7 @@ export function StatTile({ label, value, sub, delta, deltaLabel, footer, demo }:
       {sub && <div className="text-sm text-muted">{sub}</div>}
       {delta !== undefined && delta !== null && (
         <div className={clsx('num text-sm', delta > 0 ? 'text-up' : delta < 0 ? 'text-down' : 'text-muted')}>
-          {delta > 0 ? '▲' : delta < 0 ? '▼' : '■'} {new Intl.NumberFormat(lang === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 1 }).format(Math.abs(delta))}% {deltaLabel}
+          {delta > 0 ? '▲' : delta < 0 ? '▼' : '■'} {fmtNumber(Math.abs(delta), lang, 1)}% {deltaLabel}
         </div>
       )}
       {footer && <div className="mt-1 pt-2 border-t border-line-soft">{footer}</div>}

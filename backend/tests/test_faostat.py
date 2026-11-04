@@ -77,7 +77,9 @@ def api_routes(**over) -> dict:
         ("POST", API + "/auth/login"): A("login.json"),
         API + "/en/data/QCL?item=1182&element=2510&": A("QCL_production.json"),
         API + "/en/data/QCL?item=1181&element=2111&": A("QCL_bees.json"),
-        API + "/en/data/PP?item=1182&element=5532,5530&": A("PP.json"),
+        # PP.json holds exactly API_PAGE_SIZE (3) rows, so page 2 is requested: it is empty.
+        r"^https://faostatservices\.fao\.org/api/v1/en/data/PP\?.*&page_number=1$": A("PP.json"),
+        r"^https://faostatservices\.fao\.org/api/v1/en/data/PP\?.*&page_number=2$": A("empty.json"),
         r"^https://faostatservices\.fao\.org/api/v1/en/data/TCL\?.*&page_number=1$": A("TCL_page1.json"),
         r"^https://faostatservices\.fao\.org/api/v1/en/data/TCL\?.*&page_number=2$": A("TCL_page2.json"),
         API + "/en/dimensions/TM/": A("TM_dimensions.json"),
@@ -516,6 +518,30 @@ def test_login_refused_falls_back_to_bulk(with_account, run_with_routes, session
     with session_factory() as s:
         assert _count(s, ProductionStat) == 12 and _count(s, TradeFlowObservation) == 5
         assert get_setting(s, "faostat_dateupdate_TM") is None              # TM retried when the API works
+
+
+def test_api_ignoring_page_number_falls_back_to_bulk(with_account, run_with_routes, session_factory, sent):
+    """Paging is unsettled (page_size/page_number vs limit/offset). If the API ignores page_number,
+    page 2 repeats the full page 1: keeping one page would silently drop rows (here Italy's import
+    value) and record DateUpdate, so they would never be fetched again. Fall back to bulk instead."""
+    routes = api_routes(**{
+        r"^https://faostatservices\.fao\.org/api/v1/en/data/TCL\?.*&page_number=2$": A("TCL_page1.json"),
+    })
+    routes[TCL_ZIP] = make_zip("TCL")
+    res = run_with_routes("faostat", routes)
+    assert res["status"] == "partial", res
+    paging = [w for w in res["warnings"] if "page_number ignored" in w]
+    assert len(paging) == 1 and "TCL" in paging[0] and "public bulk downloads" in paging[0], res["warnings"]
+    assert TCL_ZIP in {str(r.url) for r in sent}
+    with session_factory() as s:
+        tcl = {(t.reporter_iso3, t.flow): t for t in s.scalars(select(TradeFlowObservation).where(
+            TradeFlowObservation.series_key.like("faostat|TCL|%")))}
+        ita = tcl[("ITA", "import")]
+        assert (ita.net_weight_kg, ita.value) == (25_000_000, 95_000_000)   # complete: value not lost
+        assert ita.extra["access"] == "bulk" and ita.source_url == TCL_ZIP
+        assert get_setting(s, "faostat_dateupdate_TCL") == "2025-11-14T00:00:00"   # from the complete bulk load
+        assert get_setting(s, "faostat_dateupdate_TM") is None                     # API dropped: TM retried
+        assert _prod(s, "ARG", "production", 2023).extra["access"] == "api"         # earlier datasets kept
 
 
 def test_tm_probe_mismatch_fails_only_tm(with_account, run_with_routes, session_factory):
