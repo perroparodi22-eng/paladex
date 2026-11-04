@@ -13,6 +13,7 @@ files small: every kept item, and the channel header, is byte-for-byte as served
 | `real_apimondia.xml` | https://apimondia.org/feed/ (`www.` redirects here) | 3 of 10 items (the Brazil "beehives" item, the Dubai congress item, the Romania/Moldova visit) |
 | `real_american_bee_journal.xml` | https://americanbeejournal.com/feed/ | 2 of 10 items (Sioux Honey plant; "garbage containers" column) |
 | `real_gdelt_honey_italian.json` | https://api.gdeltproject.org/api/v2/doc/doc?query=honey%20sourcelang%3Aitalian&mode=ArtList&format=json&maxrecords=75&sort=DateDesc&timespan=7d (18:52 UTC) | complete (2 articles; `miele sourcelang:italian` returned `{}` 10 minutes earlier) |
+| `real_gdelt_too_short.txt` | GDELT DOC API answer (HTTP 200, plain text) to `蜂蜜 (出口 OR 价格 OR 产量) sourcelang:chinese` in the live run of 2026-11-04 (~18:30 UTC) | the text as recorded by that run (body stripped of surrounding whitespace; the raw bytes were not archived) |
 | `real_gdelt_throttle.txt` | GDELT DOC API, HTTP 429 answer to a request sent 120 s after the previous answer (18:54 UTC; `server: GDELT Server`, no Retry-After) | complete |
 
 ## Reconstructed fixtures (NOT captured from live sources)

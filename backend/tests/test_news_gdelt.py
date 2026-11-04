@@ -399,3 +399,9 @@ def test_queries_cover_the_honey_languages():
             "german"} <= langs
     assert any("sourcecountry:india" in q.query for q in news_gdelt.QUERIES)
     assert all(lang in news_gdelt._LANGUAGES for lang in langs)          # GDELT's names map to ISO codes
+
+
+def test_short_reason_keeps_only_the_throttle_sentence():
+    assert news_gdelt.short_reason(THROTTLE[1].decode()) == "Please limit requests to one every 5 seconds"
+    assert news_gdelt.short_reason("Cannot reach api.gdeltproject.org: [Errno 104] Connection reset by peer") \
+        == "Cannot reach api.gdeltproject.org: [Errno 104] Connection reset by peer"

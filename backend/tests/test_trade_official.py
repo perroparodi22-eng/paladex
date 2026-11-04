@@ -427,6 +427,53 @@ def test_comex_backfill_end_to_end(run, session_factory):
         _no_duplicate_current(s)
 
 
+def test_real_comex_period_semantics_captures():
+    """Real answers (2026-11-04): the original query over 2025-10..2026-09 came back empty, one
+    month inside one year came back with rows. The whole-year query below holds 2025-10..2026-09."""
+    assert to.parse_comex_general(F("real_comex_general_empty_2025-10_2026-09.json"), comex_spec(),
+                                  (2025, 10), (2026, 9)).rows == []
+    jan = json.loads(F("real_comex_general_2024-01_country.json"))["data"]["list"]
+    usa = next(r for r in jan if r["country"] == "United States")
+    assert (usa["year"], usa["metricFOB"], usa["metricKG"]) == ("2024", "2819777", "1017440")   # strings
+    assert set(usa) == {"year", "country", "metricFOB", "metricKG"}       # monthDetail false: no month
+
+
+def test_real_comex_backfill_end_to_end(run, session_factory):
+    """Real metadata and a trimmed real answer to the whole-year backfill query (2026-11-04)."""
+    routes = comex_routes("real_comex_dates_updated_2026-10-06.json", **{
+        to.COMEX_FILTERS_URL: F("real_comex_filters.json"), to.COMEX_DETAILS_URL: F("real_comex_details.json"),
+        to.COMEX_METRICS_URL: F("real_comex_metrics.json")})
+    res = run("br_comexstat", routes, post=comex_post({BACKFILL_QUERY: F("real_comex_general_2023-01_2026-12_trimmed.json")}))
+    assert res["status"] == "success" and res["warnings"] == [], res
+    posts = [json.loads(r.content) for r in run.sent if r.method == "POST"]
+    assert [p["period"] for p in posts] == [{"from": "2023-01", "to": "2026-12"}]
+    assert posts[0]["filters"] == [{"filter": "ncm", "values": ["04090000"]}]
+    assert posts[0]["details"] == ["country", "state", "ncm"] and posts[0]["metrics"] == ["metricFOB", "metricKG"]
+    with session_factory() as s:
+        trades = _rows(s, T, "br_comexstat")
+        assert len(trades) == 78                                      # destination-months 2023-10..2026-09
+        assert min(t.period_label for t in trades) == "2024-01"      # 2023-01/02 rows of the answer dropped
+        by = {(t.partner_iso3, t.period_label): t for t in trades}
+        u = by[("USA", "2026-09")]
+        assert (u.value, u.net_weight_kg, len(u.extra["states"])) == (2_432_659, 705_896, 8)
+        assert u.published_at == date(2026, 10, 6) and u.extra["destination_name"] == "United States"
+        assert (by[("USA", "2024-01")].value, by[("USA", "2024-01")].net_weight_kg) == (2_819_777, 1_017_440)
+        # 2024 to the United States: the same totals UN Comtrade republishes for Brazil (78,637,770 USD, 29,984,910 kg)
+        usa_2024 = [t for t in trades if t.partner_iso3 == "USA" and t.period_label.startswith("2024-")]
+        assert len(usa_2024) == 12
+        assert (sum(t.value for t in usa_2024), sum(t.net_weight_kg for t in usa_2024)) == (78_637_770, 29_984_910)
+        assert (by[("DEU", "2026-09")].value, by[("DEU", "2026-09")].net_weight_kg) == (1_324_783, 422_469)
+        assert (by[("CAN", "2026-08")].value, by[("CAN", "2026-08")].net_weight_kg) == (1_002_733, 282_690)
+        # English names outside the shared country table are mapped too
+        assert by[("IMN", "2024-12")].value == 127 and by[("MHL", "2026-09")].net_weight_kg == 198
+        assert by[("BRA", "2024-02")].value == 21                    # "Brazil" as published destination
+        prices = {(p.market_iso3, p.period_label): p for p in _rows(s, P, "br_comexstat")}
+        assert prices[("USA", "2026-09")].price_value == round(2_432_659 / 705_896, 4) == 3.4462
+        assert ("MHL", "2026-09") not in prices and ("BRA", "2024-02") not in prices   # under 1 t
+        raw = _rows(s, RawDocument, "br_comexstat")
+        assert len(raw) == 1 and raw[0].url == to.COMEX_SOURCE_URL
+
+
 def test_comex_new_release_repulls_trailing_months_and_keeps_revisions(run, session_factory):
     assert run("br_comexstat", comex_routes(), post=comex_post(BACKFILL))["status"] == "success"
     res = run("br_comexstat", comex_routes("comex_dates_updated_2026-11-05.json"),
