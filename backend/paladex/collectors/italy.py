@@ -150,6 +150,8 @@ IT_MONTHS: dict[str, int] = {
 _IT_MONTH_ABBR: dict[str, int] = {
     "gen": 1, "feb": 2, "mar": 3, "apr": 4, "mag": 5, "giu": 6, "lug": 7, "ago": 8,
     "set": 9, "sett": 9, "ott": 10, "nov": 11, "dic": 12,
+    # as printed in the real Cuneo "Miele - medie YYYY" headers: Genn. Febb. ... Magg. ... Sett.
+    "genn": 1, "febb": 2, "magg": 5,
 }
 _MONTH_ALT = "|".join(IT_MONTHS)
 _DATE_WORDS_RE = re.compile(rf"\b(\d{{1,2}})\s*(?:°|º)?\s+({_MONTH_ALT})\s+(\d{{4}})\b", re.I)
@@ -236,6 +238,7 @@ def normalize_unit(raw: str | None) -> str | None:
     """Unit-of-measure cell -> 'kg' | 'q' (quintale = 100 kg) | 't'. None when unknown."""
     t = _fold(raw).strip(" .")
     t = re.sub(r"^(?:eur|euro)?\s*/\s*", "", t).strip(" .")
+    t = re.sub(r"^(?:al|alla|allo|per)\s+", "", t).strip(" .")     # 'al kg', 'al Kg.', 'per 100 Kg', 'alla tonn.'
     if re.fullmatch(r"kg|kgs|chilo(?:grammo|grammi)?|kilo(?:grammo|grammi)?|1 ?kg", t):
         return "kg"
     if re.fullmatch(r"q|q\.?\s?l\.?[ei]?|qle|qli|quintal[ei]|100 ?kg", t):
@@ -308,6 +311,18 @@ def normalize_it_variety(raw: str | None) -> tuple[str, bool]:
     return variety, organic
 
 
+# Other hive products quoted next to honey in the same chamber lists (the real Cuneo "Miele -
+# Prodotti dell'alveare" chapter carries "Polline deumidificato" at 21-26 EUR/kg). They are not
+# honey and are never stored as honey prices.
+_NON_HONEY_RE = re.compile(
+    r"\b(polline|pappa reale|propoli\w*|cera d'api|cera\b|sciam[ei]|regin[ae]|nucle[oi]|idromele|aceto di miele)\b"
+)
+
+
+def is_non_honey(label: str | None) -> bool:
+    return bool(_NON_HONEY_RE.search(_fold(label)))
+
+
 # Italian adjectives / country names that name a foreign ORIGIN of the honey.
 _ORIGIN_WORDS: list[tuple[str, str]] = [
     (r"ungheres[ei]|ungheria", "HUN"), (r"argentin[oaie]", "ARG"), (r"ucrain[oaie]", "UKR"),
@@ -371,7 +386,8 @@ def classify_packaging(text: str | None) -> str:
             return "fusto_300kg"
         return "fusto"
     if re.search(r"secch|\blatt[ae]\b", t):
-        return "secchio_25kg" if re.search(r"\b25\s*kg", t) else "secchio"
+        # 'secchio da 25 kg' -> secchio_25kg; 'secchielli da 20-25 kg' is a range, not 25 kg
+        return "secchio_25kg" if re.search(r"(?<![\d-])25\s*kg", t) else "secchio"
     if "sfuso" in t:
         return "sfuso"
     return "non_specificato"
@@ -463,10 +479,23 @@ def _pdf_lines(content: bytes) -> list[list[str]]:
 
 CUNEO_BASE = "https://www.cuneoprezzi.it"
 CUNEO_INDEX_URL = CUNEO_BASE + "/ingrosso/alimentari/"
-CUNEO_LIST_URL = CUNEO_BASE + "/dataentry/site/ingrosso/lists/download/{fmt}?listCategory={id}"
-CUNEO_LIST_PAGE_URL = CUNEO_BASE + "/ingrosso/ALIMENTARI/?listCategory={id}"
-CUNEO_AVERAGES_URL = CUNEO_BASE + "/dataentry/site/ingrosso/medie/download/pdf?category=11&mYear={year}"
+# The ALIMENTARI index itself shows the default chapter (Cereali): the honey lists are linked
+# only from the "Miele" chapter page, category=11 (live check, 4 Nov 2026). Its "Data della
+# rilevazione" menu links every list ('rilevazione mensile del 30 settembre 2026') by its
+# listCategory id; the link texts do not contain the word "Miele".
+CUNEO_HONEY_CATEGORY = 11
+CUNEO_HONEY_URL = CUNEO_BASE + f"/ingrosso/alimentari/?category={CUNEO_HONEY_CATEGORY}"
+# Download links as printed on the list page: html takes 'listCategory=', csv/pdf take 'category='
+# (csv?listCategory=... answers 200 with an empty body).
+CUNEO_LIST_URLS: dict[str, str] = {
+    "html": CUNEO_BASE + "/dataentry/site/ingrosso/lists/download/html?listCategory={id}",
+    "csv": CUNEO_BASE + "/dataentry/site/ingrosso/lists/download/csv?category={id}",
+}
+CUNEO_LIST_PAGE_URL = CUNEO_BASE + "/ingrosso/alimentari/?listCategory={id}"
+CUNEO_AVERAGES_URL = CUNEO_BASE + f"/dataentry/site/ingrosso/medie/download/pdf?category={CUNEO_HONEY_CATEGORY}&mYear={{year}}"
 CUNEO_MAX_LISTS = 3            # newest lists re-checked per run (unchanged ones cost one request)
+CUNEO_LIST_BACKFILL_MONTHS = 24  # older lists dated within this window are downloaded once (min-max quotes)
+CUNEO_MAX_NEW_LISTS = 30       # cap on back-fill list downloads per run
 CUNEO_BACKFILL_YEARS = 5       # complete years read from the averages PDFs
 # Last year's averages PDF keeps changing after New Year (the December list is dated 31 Dec and
 # published days to weeks later): it is re-fetched on every run until one copy fetched on or
@@ -477,10 +506,12 @@ CUNEO_SPEC: dict[str, re.Pattern] = {
     "product": re.compile(r"prodott|\bvoce\b|descrizion|variet|\bmerce\b|qualita"),
     "unit": re.compile(r"^u\.?\s*m\.?$|^um$|unita di misura|\bmisura\b"),
     "min": re.compile(r"\bmin"),
-    "max": re.compile(r"\bmax"),
+    "max": re.compile(r"\bmax|\bmassim"),          # real header: 'Prezzo massimo'
     "vat": re.compile(r"\biva\b|aliquota"),
 }
 _LISTCAT_RE = re.compile(r"listCategory=(\d+)", re.I)
+_CATEGORY_RE = re.compile(r"[?&]category=(\d+)", re.I)
+_LEADING_DASH_RE = re.compile(r"^[-–•·*]\s*")
 _PACK_IN_PARENS_RE = re.compile(r"^(?P<name>.+?)\s*\((?P<pack>[^()]*)\)\s*$")
 _PACK_AFTER_DASH_RE = re.compile(r"^(?P<name>.+?)\s*[-–]\s*(?P<pack>(?:in\s+)?(?:fust|secch|latt).*)$", re.I)
 _PACK_WORD_RE = re.compile(r"fust|secch|latt|\bkg\b|q\.?\s?li|q\.?le|quintal|sfuso", re.I)
@@ -505,13 +536,15 @@ class CuneoList:
     rows: list[dict]
     problems: list[str] = field(default_factory=list)
     no_quote: list[str] = field(default_factory=list)
+    non_honey: list[str] = field(default_factory=list)     # other hive products in the chapter (pollen ...)
     fmt: str = "html"
 
 
 def split_cuneo_label(label: str) -> tuple[str, str | None]:
-    """'Acacia (fusto da 3 q.li)' -> ('Acacia', 'fusto da 3 q.li'). Parentheses that do not
-    describe packaging stay in the name ('Millefiori (biologico)')."""
-    label = _clean(label)
+    """'- Acacia (fusto da 3 q.li)' -> ('Acacia', 'fusto da 3 q.li'). The leading dash of the
+    real lists is dropped. Parentheses that do not describe packaging stay in the name
+    ('Millefiori (biologico)')."""
+    label = _LEADING_DASH_RE.sub("", _clean(label))
     for rx in (_PACK_IN_PARENS_RE, _PACK_AFTER_DASH_RE):
         m = rx.match(label)
         if m and _PACK_WORD_RE.search(m.group("pack")):
@@ -519,30 +552,64 @@ def split_cuneo_label(label: str) -> tuple[str, str | None]:
     return label, None
 
 
-def find_cuneo_lists(content: bytes | str, base_url: str = CUNEO_INDEX_URL) -> list[CuneoListLink]:
-    """'Miele' lists linked from the ALIMENTARI index, newest first (by list date, then id).
+def _cuneo_item_keys(rows: list[dict]) -> None:
+    """Set row["key"]: the slug of the item name ('acacia'), so a month whose label reads
+    'Acacia (quantitativi >10 q.li)' (real list of 30 Sept 2025) continues the 'Acacia (fusto da
+    3 q.li)' series. When one document names the same item twice (two packagings) both keep the
+    slug of their full label instead."""
+    slugs = [_slug(r["name"]) for r in rows]
+    for r, s in zip(rows, slugs, strict=True):
+        r["key"] = _slug(r["label"]) if slugs.count(s) > 1 else s
 
-    Raises SchemaDrift when the index has no 'listCategory=' link at all (layout changed);
-    returns [] when there are lists but none for honey."""
+
+def cuneo_page_category(content: bytes | str) -> str | None:
+    """Chapter shown by a cuneoprezzi.it ingrosso page: '<h2 class="content_data_title"> Miele
+    </h2>' (the current chapter is also the only <strong> entry of the chapter menu)."""
     soup = _soup(content)
-    anchors = [a for a in soup.find_all("a", href=True)]
-    if not any(_LISTCAT_RE.search(a["href"]) for a in anchors):
+    h2 = soup.find("h2", class_="content_data_title")
+    if h2 is not None and _clean(h2.get_text(" ")):
+        return _clean(h2.get_text(" "))
+    return None
+
+
+def find_cuneo_category_url(content: bytes | str, base_url: str, name: str = "miele") -> str | None:
+    """URL of the chapter called `name` in a page's chapter menu ('?category=11' -> 'Miele')."""
+    for a in _soup(content).find_all("a", href=True):
+        if _CATEGORY_RE.search(a["href"]) and "screen=" not in a["href"] and _fold(a.get_text(" ")) == name:
+            return urljoin(base_url, a["href"])
+    return None
+
+
+def find_cuneo_lists(content: bytes | str, base_url: str = CUNEO_HONEY_URL) -> list[CuneoListLink]:
+    """Honey lists linked from a cuneoprezzi.it page, newest first (by list date, then id).
+
+    On the "Miele" chapter page (`cuneo_page_category` == 'Miele') every dated listCategory
+    link is a honey list ('rilevazione mensile del 30 settembre 2026'). On any other page only
+    links whose text or row mentions 'Miele' count. Raises SchemaDrift when the page has no
+    'listCategory=' link at all (layout changed); returns [] when none is a honey list."""
+    soup = _soup(content)
+    anchors = [a for a in soup.find_all("a", href=True) if _LISTCAT_RE.search(a["href"])]
+    if not anchors:
         raise SchemaDrift(
-            "Cuneo ALIMENTARI index: no link containing 'listCategory=' was found; the page layout has changed"
+            "Cuneo: no link containing 'listCategory=<id>' was found on the honey chapter page; the page layout has changed"
         )
+    honey_page = _fold(cuneo_page_category(content)) == "miele"
     found: dict[int, CuneoListLink] = {}
     for a in anchors:
         m = _LISTCAT_RE.search(a["href"])
-        if not m:
-            continue
         text = _clean(a.get_text(" ")) or _clean(a.get("title"))
         row = a.find_parent(["tr", "li"])
         context = _clean(row.get_text(" ")) if row is not None else text
-        if "miele" not in _fold(f"{text} {context}"):
-            continue
-        cid = int(m.group(1))
         list_date = parse_it_date(text) or parse_it_date(context)
-        title = text if "miele" in _fold(text) else context
+        if honey_page:
+            if list_date is None:
+                continue
+            title = text if "miele" in _fold(text) else f"Miele - {text}"
+        else:
+            if "miele" not in _fold(f"{text} {context}"):
+                continue
+            title = text if "miele" in _fold(text) else context
+        cid = int(m.group(1))
         prev = found.get(cid)
         if prev is None or (prev.list_date is None and list_date is not None):
             found[cid] = CuneoListLink(cid, title[:300], list_date, urljoin(base_url, a["href"]))
@@ -602,6 +669,22 @@ def _packaging_from_basis(basis: str | None) -> str | None:
     return m.group(1) if m else None
 
 
+_CONTAINER_RE = re.compile(r"fust|secch|latt|sacch|bidon|cistern|\bibc\b|confez", re.I)
+
+
+def _row_packaging(pack: str | None, basis: str | None) -> tuple[str | None, str | None]:
+    """(packaging words, where they come from). The label's own packaging wins ('secchio da
+    25 kg'). A label condition that names no container ('quantitativi >10 q.li', real list of
+    30 Sept 2025) is read together with the chapter note, which states the container for the
+    whole list ('Prodotto sfuso in fusti da 3 q.li ...')."""
+    note_pack = _packaging_from_basis(basis)
+    if pack and (_CONTAINER_RE.search(pack) or not note_pack):
+        return pack, "label"
+    if pack:
+        return f"{note_pack} ({pack})", "list_note+label"
+    return (note_pack, "list_note") if note_pack else (None, None)
+
+
 def _cuneo_finish(raw_rows: list[dict], context_lines: list[str], header_cells: list[str],
                   has_unit_col: bool, fallback_title: str | None, fmt: str) -> CuneoList:
     """Shared by the HTML and CSV parsers: date/period, basis, units and row validation."""
@@ -611,6 +694,8 @@ def _cuneo_finish(raw_rows: list[dict], context_lines: list[str], header_cells: 
             "Cuneo honey list: survey date not found (expected a title such as "
             "'Miele - rilevazione mensile del 30 settembre 2023')"
         )
+    if "miele" not in _fold(title) and any(_fold(ln) == "miele" for ln in context_lines):
+        title = f"Miele - {title}"                     # real lists: chapter 'Miele' in its own heading
     year, month = _explicit_month(context_lines) or (list_date.year, list_date.month)
     basis = _basis_note(context_lines, title)
     vat_included = _vat_flag(basis)
@@ -625,12 +710,15 @@ def _cuneo_finish(raw_rows: list[dict], context_lines: list[str], header_cells: 
     out = CuneoList(title=title, list_date=list_date, period_year=year, period_month=month,
                     basis_note=basis, vat_included=vat_included, rows=[], fmt=fmt)
     for raw in raw_rows:
-        label = _clean(raw.get("label"))
+        label = _LEADING_DASH_RE.sub("", _clean(raw.get("label")))
         cells = [raw.get(k, "") for k in ("unit", "min", "max", "vat")]
         if not label or _fold(label) in ("prodotto", "totale"):
             continue
         if not any(_clean(c) for c in cells):
-            continue                                   # section heading row
+            continue                                   # section heading row / footnote
+        if is_non_honey(label):
+            out.non_honey.append(label)                # e.g. 'Polline deumidificato (sacchi da 5 kg)'
+            continue
         try:
             low = parse_it_number(raw.get("min"))
             high = parse_it_number(raw.get("max"))
@@ -652,7 +740,7 @@ def _cuneo_finish(raw_rows: list[dict], context_lines: list[str], header_cells: 
             out.problems.append(f"Cuneo '{label}': implausible price {low}-{high} EUR/{unit}; row skipped")
             continue
         name, pack = split_cuneo_label(label)
-        packaging, pack_from = (pack, "label") if pack else (_packaging_from_basis(basis), "list_note")
+        packaging, pack_from = _row_packaging(pack, basis)
         variety, organic = normalize_it_variety(name)
         origin = detect_origin(label)
         if origin.ambiguous:
@@ -664,21 +752,25 @@ def _cuneo_finish(raw_rows: list[dict], context_lines: list[str], header_cells: 
             vat_rate = None
         out.rows.append({
             "label": label, "name": name, "variety": variety, "organic": organic,
-            "packaging": packaging, "packaging_from": pack_from if packaging else None,
+            "packaging": packaging, "packaging_from": pack_from,
             "packaging_code": classify_packaging(packaging), "unit": unit,
             "low": low, "high": high, "value": value, "vat_rate": vat_rate,
             "origin_iso3": origin.iso3 if origin.foreign else MARKET_ISO3,
             "origin_label": origin.label if origin.foreign else "Italia",
         })
+    _cuneo_item_keys(out.rows)
     return out
 
 
 def parse_cuneo_list_html(content: bytes | str, *, fallback_title: str | None = None) -> CuneoList:
     """Parse the 'download/html' version of a Cuneo honey list.
 
-    Expected (reconstructed) layout: a title 'Miele - rilevazione mensile del <data>', a note
-    such as 'Prodotto sfuso in fusti da 3 q.li - franco partenza dal magazzino IVA compresa'
-    and a table Prodotto | U.M. | Prezzo min | Prezzo max | IVA %."""
+    Real layout (captured 4 Nov 2026, tests/fixtures/italy/real_cuneo_list_20353.html): a
+    heading 'Miele', 'rilevazione mensile del 30 settembre 2026', the chapter note 'Prodotto
+    sfuso in fusti da 3 q.li - franco partenza dal magazzino IVA compresa' and a table
+    (blank) | Miele - Prodotti dell'alveare | Unità di misura | Prezzo minimo | Prezzo massimo |
+    IVA | Osservazioni, with rows such as '- Acacia (fusto da 3 q.li) | al kg | 7,00 | 8,00 |
+    10%'. 'n.q.' = not quoted. A footnote may follow the table."""
     soup = _soup(content)
     found = _find_table(soup, CUNEO_SPEC, ("product", "min", "max"))
     if not found:
@@ -691,7 +783,8 @@ def parse_cuneo_list_html(content: bytes | str, *, fallback_title: str | None = 
     for r in raw_rows:
         r["label"] = r.pop("product")
     table.extract()                                    # what is left: title, notes
-    context = [ln for ln in (_clean(x) for x in soup.get_text("\n").split("\n")) if ln]
+    # one line per text node: the real title node holds a line break between 'del' and the date
+    context = [ln for ln in (_clean(x) for x in soup.stripped_strings) if ln]
     return _cuneo_finish(raw_rows, context, rows[h], "unit" in mapping, fallback_title, "html")
 
 
@@ -729,35 +822,50 @@ class CuneoAverages:
     rows: list[dict]           # {label, name, variety, organic, packaging, packaging_code, unit, monthly{m: v}, annual}
     problems: list[str] = field(default_factory=list)
     method: str = "table"      # 'table' (ruled table) or 'words' (x-position bucketing)
+    non_honey: list[str] = field(default_factory=list)
 
 
 def _month_of_header(cell: str | None) -> int | None:
-    """Header cell -> 1..12 for a month, 0 for the annual mean ('Media'), None otherwise."""
+    """Header cell -> 1..12 for a month, 0 for the annual mean ('Media', or 'Anno' in the real
+    PDFs), None otherwise."""
     t = _fold(cell).strip(" .")
-    if t in ("media", "media annua", "media annuale", "media anno"):
+    if t in ("media", "media annua", "media annuale", "media anno", "anno"):
         return 0
     return it_month_number(t)
 
 
-def _find_month_header(rows: list[list[str | None]]) -> tuple[int, dict[int, int], int | None] | None:
+_PRICE_GROUP_RE = re.compile(r"^(?:g\.?\s*p\.?|gruppo\s+prezz\w*)$")
+
+
+def _find_month_header(rows: list[list[str | None]]) -> tuple[int, dict[int, int], int | None, int | None] | None:
+    """(header row, {column: month (0 = annual)}, unit column, price-group column). The real
+    'Miele - medie YYYY' header is: '' | '' | G.P. | Genn. | Febb. | ... | Dic. | Anno, where
+    G.P. ('Gruppo Prezzo') holds 'Prezzo minimo massimo' on every item row."""
     for i, row in enumerate(rows[:6]):
         cmap: dict[int, int] = {}
-        unit_col = None
+        unit_col = group_col = None
         for j, cell in enumerate(row):
             k = _month_of_header(cell)
             if k is not None and k not in cmap.values():
                 cmap[j] = k
             elif CUNEO_SPEC["unit"].search(_fold(cell)):
                 unit_col = j
+            elif _PRICE_GROUP_RE.match(_fold(cell)):
+                group_col = j
         if len({k for k in cmap.values() if k}) == 12:
-            return i, cmap, unit_col
+            return i, cmap, unit_col, group_col
     return None
 
 
-def _averages_row(label: str, cells: dict[int, str], unit: str, problems: list[str]) -> dict | None:
+def _averages_row(label: str, cells: dict[int, str], unit: str, problems: list[str],
+                  non_honey: list[str] | None = None, price_group: str | None = None) -> dict | None:
     """cells: {month(0=annual): text}. Malformed or implausible cells are dropped (warned)."""
-    label = _clean(label)
+    label = _LEADING_DASH_RE.sub("", _clean(label))
     if not label or _month_of_header(label) is not None or _fold(label) in ("prodotto", "u.m."):
+        return None
+    if is_non_honey(label):
+        if non_honey is not None and any(_clean(c) for c in cells.values()):
+            non_honey.append(label)
         return None
     monthly: dict[int, float] = {}
     annual = None
@@ -781,7 +889,8 @@ def _averages_row(label: str, cells: dict[int, str], unit: str, problems: list[s
     name, pack = split_cuneo_label(label)
     variety, organic = normalize_it_variety(name)
     return {"label": label, "name": name, "variety": variety, "organic": organic, "packaging": pack,
-            "packaging_code": classify_packaging(pack), "unit": unit, "monthly": monthly, "annual": annual}
+            "packaging_code": classify_packaging(pack), "unit": unit, "monthly": monthly, "annual": annual,
+            "price_group": _clean(price_group) or None}
 
 
 def _group_lines(words: list[dict], tol: float = 3.0) -> list[tuple[float, list[dict]]]:
@@ -794,29 +903,35 @@ def _group_lines(words: list[dict], tol: float = 3.0) -> list[tuple[float, list[
     return [(top, sorted(ws, key=lambda w: w["x0"])) for top, ws in lines]
 
 
-def _averages_from_words(page, unit: str, problems: list[str]) -> list[dict] | None:
+def _averages_from_words(page, unit: str, problems: list[str], non_honey: list[str] | None = None) -> list[dict] | None:
     """Fallback for unruled tables: locate the month header words and assign each number to
     the nearest column centre. Returns None when the page has no month header."""
     lines = _group_lines(page.extract_words(keep_blank_chars=False, use_text_flow=False))
-    header_idx, cols = None, {}
+    header_idx, cols, group_x0 = None, {}, None
     for i, (_, words) in enumerate(lines):
         found: dict[int, tuple[float, float]] = {}     # month (0 = Media) -> (x centre, x0)
+        gp = None
         for w in words:
             k = _month_of_header(w["text"])
             if k is not None and k not in found:
                 found[k] = ((w["x0"] + w["x1"]) / 2, w["x0"])
+            elif _PRICE_GROUP_RE.match(_fold(w["text"])):
+                gp = w["x0"]
         if len([k for k in found if k]) == 12:
-            header_idx, cols = i, found
+            header_idx, cols, group_x0 = i, found, gp
             break
     if header_idx is None:
         return None
     centres = sorted((c, k) for k, (c, _) in cols.items())
     spacing = min(b[0] - a[0] for a, b in pairwise(centres))
-    label_right = min(x0 for _, x0 in cols.values()) - 1
+    values_left = min(x0 for _, x0 in cols.values()) - 1
+    # 'Prezzo / minimo / massimo' words of the G.P. column are neither label nor value
+    label_right = (group_x0 - 8) if group_x0 is not None else values_left
     rows, pending = [], ""
     for _, words in lines[header_idx + 1:]:
         label = _clean(" ".join(w["text"] for w in words if w["x1"] <= label_right))
-        values = [w for w in words if w["x1"] > label_right]
+        group = _clean(" ".join(w["text"] for w in words if label_right < w["x1"] <= values_left))
+        values = [w for w in words if w["x1"] > values_left]
         if not values:
             pending = _clean(f"{pending} {label}")     # wrapped label: continues on next line
             continue
@@ -832,18 +947,24 @@ def _averages_from_words(page, unit: str, problems: list[str]) -> list[dict] | N
                 break
             cells[k] = w["text"]
         if cells:
-            row = _averages_row(label, cells, unit, problems)
+            row = _averages_row(label, cells, unit, problems, non_honey, group or None)
             if row:
                 rows.append(row)
     return rows
 
 
 def parse_cuneo_averages_pdf(content: bytes, *, year: int | None = None) -> CuneoAverages:
-    """Parse 'Miele - medie YYYY': Prodotto | Gen … Dic | Media, blank cells = no quote.
+    """Parse 'Miele - medie YYYY'. Real layout (2021-2025 PDFs, fetched 4 Nov 2026): one ruled
+    table '' | '' | G.P. | Genn. | Febb. | Mar. | Apr. | Magg. | Giu. | Lug. | Ago. | Sett. |
+    Ott. | Nov. | Dic. | Anno; item rows '- Acacia (fusto da 3 q.li) | Prezzo minimo massimo |
+    - | ... | 8,00 | 8,09'; '-' = no quotation that month. Each monthly figure is the midpoint
+    of that month's list min and max (checked: Sept 2025 acacia 7,50-8,50 -> 8,00; Dec 2025
+    millefiori 5,30-5,80 -> 5,55) and 'Anno' is the mean of the quoted months.
 
-    The unit is taken from the PDF text when stated (€/kg or €/q); otherwise EUR/kg is
-    assumed, as in the chamber's item list ('Miele | kg | mensile'), and the plausibility
-    window rejects values that would only make sense per quintal."""
+    The unit is taken from the PDF text when stated (€/kg or €/q); the real PDFs do not state
+    it and EUR/kg is used, as in every honey row of the monthly lists ('al kg'); the
+    plausibility window rejects values that would only make sense per quintal. Other hive
+    products of the chapter (pollen) are left out."""
     with _open_pdf(content) as pdf:
         full = "\n".join(page.extract_text() or "" for page in pdf.pages)
         m = re.search(r"medi[ae]\D{0,40}?((?:19|20)\d{2})", full, re.I)
@@ -860,8 +981,8 @@ def parse_cuneo_averages_pdf(content: bytes, *, year: int | None = None) -> Cune
                 if not hdr:
                     continue
                 header_found = page_done = True
-                h, cmap, unit_col = hdr
-                label_col = next((j for j in range(len(tbl[h])) if j not in cmap and j != unit_col), 0)
+                h, cmap, unit_col, group_col = hdr
+                label_cols = [j for j in range(len(tbl[h])) if j not in cmap and j not in (unit_col, group_col)]
                 for r in tbl[h + 1:]:
                     cells = {k: (r[j] if j < len(r) else "") or "" for j, k in cmap.items()}
                     row_unit = unit
@@ -870,18 +991,23 @@ def parse_cuneo_averages_pdf(content: bytes, *, year: int | None = None) -> Cune
                         if not row_unit:
                             result.problems.append(f"Cuneo averages: unknown unit {r[unit_col]!r}; row skipped")
                             continue
-                    label = (r[label_col] or "") if label_col < len(r) else ""
-                    row = _averages_row(label, cells, row_unit, result.problems)
+                    # the label sits in the first non-empty label column (the real PDFs have a
+                    # blank first column; chapter headings such as "Miele - Prodotti
+                    # dell'alveare" carry no values and are dropped by _averages_row)
+                    label = next((_clean(r[j]) for j in label_cols if j < len(r) and _clean(r[j])), "")
+                    group = r[group_col] if group_col is not None and group_col < len(r) else None
+                    row = _averages_row(label, cells, row_unit, result.problems, result.non_honey, group)
                     if row:
                         result.rows.append(row)
             if not page_done:
-                rows = _averages_from_words(page, unit, result.problems)
+                rows = _averages_from_words(page, unit, result.problems, result.non_honey)
                 if rows is not None:
                     header_found = True
                     result.method = "words"
                     result.rows.extend(rows)
     if not header_found:
         raise SchemaDrift("Cuneo averages PDF: no header row with the twelve months (Gen ... Dic) was found")
+    _cuneo_item_keys(result.rows)
     return result
 
 
@@ -903,39 +1029,77 @@ class CuneoHoneyCollector(Collector):
     schedule = {"trigger": "cron", "day_of_week": "tue", "hour": 7, "minute": 40}
 
     def collect(self, ctx: CollectContext) -> None:
-        index = ctx.fetch(CUNEO_INDEX_URL, store=False)
-        links = find_cuneo_lists(index.content, index.url)
+        page = ctx.fetch(CUNEO_HONEY_URL, store=False)
+        if _fold(cuneo_page_category(page.content)) != "miele":
+            # the chapter id changed: follow the 'Miele' entry of the chapter menu
+            moved = find_cuneo_category_url(page.content, page.url)
+            if not moved:
+                raise SchemaDrift(f"Cuneo: {CUNEO_HONEY_URL} does not show the 'Miele' chapter and its chapter "
+                                  "menu has no 'Miele' entry; the site layout has changed")
+            ctx.warn(f"Cuneo: the 'Miele' chapter is now at {moved} (expected {CUNEO_HONEY_URL})")
+            page = ctx.fetch(moved, store=False)
+        links = find_cuneo_lists(page.content, page.url)
         if not links:
-            ctx.warn("Cuneo: the ALIMENTARI index lists no 'Miele' price list right now")
-        for link in links[:CUNEO_MAX_LISTS]:
-            self._import_list(ctx, link)
+            ctx.warn("Cuneo: the 'Miele' chapter page links no dated price list right now")
+        for link in self._lists_to_read(ctx, links):
+            self._import_list(ctx, link, newest=link is links[0])
             ctx.checkpoint()
         self._backfill_averages(ctx)
 
+    def _lists_to_read(self, ctx: CollectContext, links: list[CuneoListLink]) -> list[CuneoListLink]:
+        """The newest CUNEO_MAX_LISTS lists (re-checked every run: unchanged bytes are not
+        re-parsed), plus older lists dated within CUNEO_LIST_BACKFILL_MONTHS that were never
+        downloaded (each one once, at most CUNEO_MAX_NEW_LISTS per run)."""
+        today = _today()
+        cutoff = date(today.year - CUNEO_LIST_BACKFILL_MONTHS // 12, today.month, 1)
+        out = list(links[:CUNEO_MAX_LISTS])
+        extra = 0
+        for link in links[CUNEO_MAX_LISTS:]:
+            if link.list_date is None or link.list_date < cutoff:
+                continue
+            if any(_raw_exists(ctx, url.format(id=link.list_category)) for url in CUNEO_LIST_URLS.values()):
+                continue
+            if extra >= CUNEO_MAX_NEW_LISTS:
+                break
+            out.append(link)
+            extra += 1
+        return out
+
     # -- monthly list ----------------------------------------------------------
-    def _import_list(self, ctx: CollectContext, link: CuneoListLink) -> None:
+    def _import_list(self, ctx: CollectContext, link: CuneoListLink, *, newest: bool = True) -> None:
         doc = parser = None
         errors = []
         for fmt, fn in (("html", parse_cuneo_list_html), ("csv", parse_cuneo_list_csv)):
             try:
-                doc = ctx.fetch(CUNEO_LIST_URL.format(fmt=fmt, id=link.list_category),
+                doc = ctx.fetch(CUNEO_LIST_URLS[fmt].format(id=link.list_category),
                                 title=link.title, published_at=link.list_date)
+                if not doc.content.strip():
+                    raise CollectorError("empty response")
                 parser = fn
                 break
             except Offline:
                 raise
             except CollectorError as exc:
+                doc = None
                 errors.append(f"{fmt}: {exc}")
         if doc is None:
             ctx.warn(f"Cuneo list {link.list_category} ({link.title}): download failed ({'; '.join(errors)})")
             return
         if doc.unchanged and not ctx.force:
             return
-        parsed = parser(doc.content, fallback_title=link.title)    # SchemaDrift -> run fails loudly
+        try:
+            parsed = parser(doc.content, fallback_title=link.title)
+        except SchemaDrift as exc:
+            if newest:
+                raise                                  # the current list: the run fails loudly
+            ctx.warn(f"Cuneo list {link.list_category} ({link.title}): {exc}; nothing stored")
+            return
         for p in parsed.problems:
             ctx.warn(p)
         if parsed.no_quote:
             log.info("Cuneo list %s: not quoted this month: %s", link.list_category, ", ".join(parsed.no_quote))
+        if parsed.non_honey:
+            log.info("Cuneo list %s: other hive products left out: %s", link.list_category, ", ".join(parsed.non_honey))
         if not parsed.rows:
             ctx.warn(f"Cuneo list {link.list_category} ({parsed.title}): no quoted honey item")
             return
@@ -945,7 +1109,7 @@ class CuneoHoneyCollector(Collector):
         for r in parsed.rows:
             vat = _vat_words(parsed.vat_included) + (f" (aliquota {r['vat_rate']:g}%)" if r["vat_rate"] else "")
             ctx.add_price(
-                series_key=f"cuneo|{_slug(r['label'])}|{label}",
+                series_key=f"cuneo|{r['key']}|{label}",
                 price_type=PriceType.WHOLESALE_BULK,
                 variety=r["variety"], variety_raw=r["name"][:200], organic=r["organic"],
                 price_value=r["value"], price_low=r["low"], price_high=r["high"],
@@ -960,7 +1124,7 @@ class CuneoHoneyCollector(Collector):
                     "packaging": r["packaging"], "packaging_code": r["packaging_code"],
                     "packaging_from": r["packaging_from"], "drum": r["packaging_code"].startswith("fusto"),
                     "vat_included": parsed.vat_included, "vat_rate_pct": r["vat_rate"],
-                    "basis_note": parsed.basis_note, "list_title": parsed.title,
+                    "basis_note": parsed.basis_note, "list_title": parsed.title, "item_label": r["label"],
                     "list_date": parsed.list_date.isoformat(), "list_category": link.list_category,
                     "list_page_url": CUNEO_LIST_PAGE_URL.format(id=link.list_category),
                     "format": parsed.fmt, "channel": "chamber_wholesale",
