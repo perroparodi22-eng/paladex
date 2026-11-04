@@ -426,6 +426,15 @@ class SupplierQuote(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Milestone 7a (landed-cost calculator). Nullable, so older database files gain them in place
+    # (db.migrate_add_missing_columns). `price_per_kg` stays the per-kg price in `currency`; a price
+    # quoted per pound keeps its figure as typed in `price_quoted` with `price_unit = "lb"`.
+    price_unit: Mapped[str | None] = mapped_column(String(5))         # "kg" | "lb" as quoted (None = kg)
+    price_quoted: Mapped[float | None] = mapped_column(Float)         # the price exactly as quoted, per price_unit
+    destination: Mapped[str | None] = mapped_column(String(3))       # "ITA" (EU customs) | "USA" (None = ITA)
+    # Itemised extra costs: [{"kind": origin|port|broker|inland|bank|other, "amount", "currency",
+    #                         "basis": per_container|per_kg|total|pct_goods, "note"}]
+    cost_items: Mapped[list | None] = mapped_column(JSON)
 
 
 class AlertRule(Base):
