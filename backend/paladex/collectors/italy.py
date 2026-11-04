@@ -1179,13 +1179,16 @@ class CuneoHoneyCollector(Collector):
             ctx.warn(f"Cuneo: no yearly averages PDF could be downloaded ({CUNEO_AVERAGES_URL})")
 
     def _store_averages(self, ctx: CollectContext, parsed: CuneoAverages, year: int, doc, *, final: bool = True) -> None:
-        note = (f"Media pubblicata nel prospetto 'Miele - medie {year}' della CCIAA di Cuneo "
-                "(valore medio, non un intervallo min-max)")
-        annual_note = note if final else (
-            f"{note}. Prospetto scaricato prima del 1/{CUNEO_AVERAGES_SETTLE_MONTH}/{year + 1}: la media annua "
-            "può non comprendere ancora tutti i mesi (provvisoria)")
         for r in parsed.rows:
-            slug = _slug(r["label"])
+            slug = r["key"]
+            group = r.get("price_group")
+            what = ("media tra prezzo minimo e massimo del listino mensile" if _fold(group) == "prezzo minimo massimo"
+                    else f"valore medio (gruppo prezzo: {group or 'non indicato'})")
+            note = (f"Prospetto 'Miele - medie {year}' della CCIAA di Cuneo: {what} "
+                    "(un valore medio, non un intervallo min-max)")
+            annual_note = note if final else (
+                f"{note}. Prospetto scaricato prima del 1/{CUNEO_AVERAGES_SETTLE_MONTH}/{year + 1}: la media annua "
+                "può non comprendere ancora tutti i mesi (provvisoria)")
             common = dict(
                 price_type=PriceType.WHOLESALE_BULK, variety=r["variety"], variety_raw=r["name"][:200],
                 organic=r["organic"], currency=CURRENCY, unit=r["unit"],
@@ -1195,7 +1198,8 @@ class CuneoHoneyCollector(Collector):
             )
             extra = {"packaging": r["packaging"], "packaging_code": r["packaging_code"],
                      "drum": r["packaging_code"].startswith("fusto"), "channel": "chamber_wholesale",
-                     "averages_year": year, "parse_method": parsed.method}
+                     "averages_year": year, "parse_method": parsed.method, "price_group": group,
+                     "item_label": r["label"]}
             for month, value in sorted(r["monthly"].items()):
                 label = f"{year}-{month:02d}"
                 # gap filling only: a monthly list quotation (min-max) for this item wins
