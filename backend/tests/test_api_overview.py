@@ -53,16 +53,18 @@ def month_start(months_back: int) -> date:
 
 def add_price_series(db, src: Source, origin: str, variety: str, values: list[float], *, last_months_back: int = 1,
                      published_lag_days: int = 10, price_type: str = "wholesale_bulk", currency: str = "USD",
-                     url: str = "https://example.org/report.pdf") -> None:
+                     url: str = "https://example.org/report.pdf", terms: str | None = None,
+                     market: str = "USA") -> None:
     """`values` oldest -> newest, monthly, the newest one `last_months_back` months ago."""
     n = len(values)
     for i, v in enumerate(values):
         start = month_start(last_months_back + (n - 1 - i))
         _, end = month_bounds(start.year, start.month)
         ingest.record(
-            db, PriceObservation, source_id=src.id, series_key=f"{price_type}|{origin}|{variety}|{currency}|{start:%Y-%m}",
-            price_type=price_type, origin_iso3=origin, origin_label=origin, market_iso3="USA", variety=variety,
-            price_value=v, currency=currency, unit="kg", price_per_kg=v,
+            db, PriceObservation, source_id=src.id,
+            series_key=f"{price_type}|{origin}|{variety}|{currency}|{terms}|{start:%Y-%m}",
+            price_type=price_type, origin_iso3=origin, origin_label=origin, market_iso3=market, variety=variety,
+            terms=terms, price_value=v, currency=currency, unit="kg", price_per_kg=v,
             usd_per_kg=v if currency == "USD" else None, eur_per_kg=round(v / 1.1, 4),
             period_start=start, period_end=end, period_label=f"{start:%Y-%m}", frequency="M",
             published_at=end + timedelta(days=published_lag_days), source_url=url,

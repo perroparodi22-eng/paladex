@@ -487,6 +487,7 @@ def _tile(ctx: Ctx, s: PriceSeries) -> dict:
     return {
         "id": "|".join("" if k is None else str(k) for k in s.key),
         "label": series_label(ctx, s),
+        "label_hint": ctx.label_hint(s),
         "origin_iso3": s.origin_iso3, "origin_label": last.origin_label, "variety": s.variety,
         "variety_raw": last.variety_raw, "price_type": s.price_type, "market_iso3": s.market_iso3,
         "market_location": s.market_location, "color_grade": s.color_grade, "organic": s.organic,
