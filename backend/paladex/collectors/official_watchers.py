@@ -84,6 +84,12 @@ the expected shape, together with the date and summary inside its own block. The
   can be checked against the real bytes under ``data/raw/<source>/``.
 * **Unparseable values stay empty.** A value the text does not state unambiguously (an MEP
   amount, a validity date) is left empty. The candidates found go in ``extra``, with a warning.
+* **Dates are not lost.** Storing is final (append-only), so a news item whose listing gives no
+  date is stored only once its article page has been read for the date; while that page cannot be
+  read (or the per-run budget is spent) the item waits, and the feed keeps reading its back-fill
+  pages until nothing is left over.
+* **A crash is contained.** An unexpected error in one feed rolls back that feed's uncommitted
+  rows and fails the run, but the other feeds still run and are stored.
 * **No events are hard-coded.** Nothing about known events (EU de-listing of Brazil, the Indian
   MEP and its expiry, the Mercosur-EU quota) is written in this module. They are collected from
   the official pages at run time.
@@ -151,7 +157,7 @@ def clean(value: Any) -> str:
     non-breaking spaces replaced, whitespace collapsed. "" for non-strings."""
     if not isinstance(value, str):
         return ""
-    value = unicodedata.normalize("NFC", value).replace("\xa0", " ").replace("​", "")
+    value = unicodedata.normalize("NFC", value).replace("\xa0", " ").replace("\u200b", "")
     return re.sub(r"\s+", " ", value).strip()
 
 
@@ -211,7 +217,7 @@ _HONEY_PRODUCT_ES_RE = re.compile(r"(?<!luna de )\bmiel(?:es)?\b|\bapicolas?\b|\
 def find_dates(text: str | None, lang: str) -> list[tuple[int, date]]:
     """Every date written in `text`, with its position: dd/mm/yyyy, dd.mm.yyyy and dd-mm-yyyy
     (day first, as in BR, AR and IN), ISO yyyy-mm-dd, and long forms in the language ("3 de
-    novembro de 2026", "Martes 03 de noviembre de 2026", "31st December, 2026", "June 30, 2027")."""
+    novembro de 2026", "Martes 03 de noviembre de 2026", "31st March, 2027", "June 30, 2027")."""
     t = fold(text)
     if not t:
         return []
@@ -266,7 +272,8 @@ _EN_MONTHS = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "ju
               "september": 9, "october": 10, "november": 11, "december": 12, "jan": 1, "feb": 2, "mar": 3,
               "apr": 4, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12}
 _MONTHS = {"pt": _PT_MONTHS, "es": _ES_MONTHS, "en": _EN_MONTHS}
-_ISO_DATE_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+# (?!\d), not \b: an ISO timestamp ("2026-11-02T15:20:00-03:00") is a date too.
+_ISO_DATE_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})(?!\d)")
 _NUM_DATE_RE = re.compile(r"\b(\d{1,2})[./-](\d{1,2})[./-](\d{4})\b")
 _LONG_DMY_RE = re.compile(r"\b(?P<d>\d{1,2})(?:st|nd|rd|th|o)?\s+(?:de\s+|of\s+)?(?P<mon>[a-z]{3,10}\.?),?\s+(?:de\s+|del\s+)?(?P<y>\d{4})\b")
 _LONG_MDY_RE = re.compile(r"\b(?P<mon>[a-z]{3,10}\.?)\s+(?P<d>\d{1,2})(?:st|nd|rd|th)?,?\s+(?P<y>\d{4})\b")
@@ -430,9 +437,10 @@ def _snippet(content: bytes, n: int = 160) -> str:
 
 class _FeedRunner:
     """Runs the independent feeds of one collector. Each feed is committed on its own. At the end
-    the run fails (``CollectorError``) if any feed failed. If every feed failed only because a host
-    could not be reached, the first ``Offline`` is re-raised instead, so the runner can tell "this
-    PC is offline" from "this host is down"."""
+    the run fails (``CollectorError``) if any feed failed, crashes included (a crashed feed's
+    uncommitted rows are rolled back). If every feed failed only because a host could not be
+    reached, the first ``Offline`` is re-raised instead, so the runner can tell "this PC is
+    offline" from "this host is down"."""
 
     def __init__(self, ctx: CollectContext):
         self.ctx = ctx
@@ -449,6 +457,13 @@ class _FeedRunner:
         except CollectorError as exc:
             log.warning("[%s] feed %s failed: %s", self.ctx.source.key, label, exc)
             self.errors.append(f"{label}: {exc}")
+        except Exception as exc:  # a parser bug in one feed must not skip the others (logged below)
+            # Unexpected: whatever this feed wrote since the last checkpoint is not trusted (and the
+            # session may need a rollback after a database error). The run still fails.
+            log.exception("[%s] feed %s crashed", self.ctx.source.key, label)
+            self.ctx.session.rollback()
+            self.ctx.counters.restore_committed()
+            self.errors.append(f"{label}: {type(exc).__name__}: {exc}")
         else:
             self.ok += 1
         self.ctx.checkpoint()
@@ -769,6 +784,7 @@ def run_news_feed(ctx: CollectContext, feed: NewsFeed, state: dict) -> None:
     checked: dict[str, str] = dict(state.get(checked_key) or {})
     budget = MAX_ARTICLE_FETCHES
     postponed = 0
+    unread = 0
     for it in items.values():
         ref = url_reference(feed.ref_prefix, it.url)
         if ref in known:
@@ -782,21 +798,24 @@ def run_news_feed(ctx: CollectContext, feed: NewsFeed, state: dict) -> None:
                 continue
             if it.url in checked:
                 continue
+        # The article page is needed to look for honey in its body, or to read the date that the
+        # listing does not give. Storing is final (append-only): an item stored without the date
+        # its page states would stay undated for good, so it waits for a later run instead.
+        if not kws or it.published_at is None:
             if budget <= 0:
                 postponed += 1
                 continue
             budget -= 1
             article = _open_article(ctx, feed, it)
             if article is None:
+                unread += 1              # warned by _open_article; retried next run
                 continue
+        if not kws:
             kws = feed.keywords.matches(article.text)
             if not kws:
                 checked[it.url] = t.isoformat()
                 continue
             matched_in = "article"
-        elif it.published_at is None and budget > 0:
-            budget -= 1
-            article = _open_article(ctx, feed, it)        # the listing gave no date: read it on the page
         published = it.published_at or (article.published_at if article else None)
         description = it.description or (article.description if article else None)
         topic_text = " ".join(x for x in (it.title, description, it.section) if x)
@@ -817,7 +836,12 @@ def run_news_feed(ctx: CollectContext, feed: NewsFeed, state: dict) -> None:
     if postponed:
         ctx.warn(f"{feed.label}: {postponed} article(s) to check were postponed to the next run "
                  f"(at most {MAX_ARTICLE_FETCHES} per run)")
-    state[complete_key] = t.isoformat()
+    # Work left over (postponed or unreadable articles) may sit on a back-fill page beyond the
+    # `pages` of a normal run: the feed stays in back-fill mode until nothing is left.
+    if postponed or unread:
+        state.pop(complete_key, None)
+    else:
+        state[complete_key] = t.isoformat()
     state[checked_key] = dict(sorted(checked.items(), key=lambda kv: kv[1])[-BODY_CHECKED_MAX:])
 
 
@@ -892,24 +916,26 @@ class DouAct:
         return bool(_MAPA_HIERARCHY_RE.search(fold(self.hierarchy)) or re.search(r"\bmapa\b", fold(self.title)))
 
 
-def parse_dou_search(content: bytes) -> tuple[list[DouAct], list[str]]:
+def parse_dou_search(content: bytes, url: str | None = None) -> tuple[list[DouAct], list[str]]:
     """Results of one DOU search page, from the JSON in the results <script>.
 
     Raises ``SchemaDrift`` when the script, its JSON or its ``jsonArray`` is missing, or when no
-    result carries ``urlTitle`` and ``title``. An empty ``jsonArray`` is a valid answer."""
+    result carries ``urlTitle`` and ``title``. An empty ``jsonArray`` is a valid answer. `url`
+    (the page read) is named in the error."""
     soup = BeautifulSoup(content, "lxml")
+    where = f"DOU search ({url})" if url else "DOU search"
     tag = soup.find("script", id=DOU_SCRIPT_ID)
     if tag is None:
-        raise SchemaDrift(f"DOU search: the results script #{DOU_SCRIPT_ID} is missing (page title "
+        raise SchemaDrift(f"{where}: the results script #{DOU_SCRIPT_ID} is missing (page title "
                           f"{_page_title(soup)!r}); the search page has changed")
     try:
         obj = json.loads(tag.string or tag.get_text() or "")
     except ValueError as exc:
-        raise SchemaDrift(f"DOU search: the results script is not JSON ({exc})") from exc
+        raise SchemaDrift(f"{where}: the results script is not JSON ({exc})") from exc
     arr = obj.get("jsonArray") if isinstance(obj, dict) else None
     if not isinstance(arr, list):
         keys = sorted(obj)[:10] if isinstance(obj, dict) else type(obj).__name__
-        raise SchemaDrift(f"DOU search: no 'jsonArray' list in the results script (keys: {keys})")
+        raise SchemaDrift(f"{where}: no 'jsonArray' list in the results script (keys: {keys})")
     acts: list[DouAct] = []
     problems: list[str] = []
     for i, r in enumerate(arr):
@@ -937,7 +963,7 @@ def parse_dou_search(content: bytes) -> tuple[list[DouAct], list[str]]:
             edition=clean(str(r.get("editionNumber") or "")) or None, page=clean(str(r.get("numberPage") or "")) or None,
         ))
     if arr and not acts:
-        raise SchemaDrift(f"DOU search: none of the {len(arr)} results has 'urlTitle' and 'title' "
+        raise SchemaDrift(f"{where}: none of the {len(arr)} results has 'urlTitle' and 'title' "
                           f"(keys of the first: {sorted(arr[0])[:12] if isinstance(arr[0], dict) else type(arr[0]).__name__})")
     return acts, problems
 
@@ -987,7 +1013,7 @@ class BrMapaHoneyCollector(Collector):
         for q in DOU_QUERIES:
             params = {"q": q, "s": DOU_SECTION, "exactDate": window, "sortType": "0", "delta": str(DOU_PAGE_SIZE)}
             doc = ctx.fetch(DOU_SEARCH_URL, params=params, headers=HTML_HEADERS, title=f"DOU search {q} ({window})")
-            acts, problems = parse_dou_search(doc.content)          # SchemaDrift propagates
+            acts, problems = parse_dou_search(doc.content, doc.url)  # SchemaDrift propagates
             for p in problems:
                 ctx.warn(p)
             if len(acts) >= DOU_PAGE_SIZE:
@@ -1181,11 +1207,11 @@ def _bo_rubro(a: Tag) -> str | None:
     return clean(prev.get_text(" "))[:120] or None if prev is not None else None
 
 
-def parse_bo_section(content: bytes | str, *, require: bool = True) -> list[BoAviso]:
+def parse_bo_section(content: bytes | str, *, require: bool = True, url: str | None = None) -> list[BoAviso]:
     """Notices (avisos) listed on a Boletín Oficial first-section page.
 
     With ``require``, raises ``SchemaDrift`` when there is none: the latest edition always has
-    notices, so an empty list means the layout changed."""
+    notices, so an empty list means the layout changed. `url` (the page read) is named in the error."""
     soup = _soup(content)
     out: dict[str, BoAviso] = {}
     for a in soup.find_all("a", href=True):
@@ -1204,7 +1230,7 @@ def parse_bo_section(content: bytes | str, *, require: bool = True) -> list[BoAv
             out[aviso_id] = BoAviso(aviso_id=aviso_id, pub_date=pub, lines=lines[:6], rubro=_bo_rubro(a))
     if require and not out:
         raise SchemaDrift(f"Boletín Oficial: no notice link (/detalleAviso/primera/<id>/<yyyymmdd>) on the section "
-                          f"page (page title {_page_title(soup)!r}); the layout has changed")
+                          f"page {url or ''} (page title {_page_title(soup)!r}); the layout has changed")
     return list(out.values())
 
 
@@ -1339,7 +1365,7 @@ class ArSenasaHoneyCollector(Collector):
     # ------------------------------------------------------- Boletín Oficial
     def _boletin(self, ctx: CollectContext, state: dict) -> None:
         doc = ctx.fetch(BO_LATEST_URL, headers=HTML_HEADERS, title="Boletín Oficial, primera sección (latest edition)")
-        avisos = parse_bo_section(doc.content)                        # SchemaDrift propagates
+        avisos = parse_bo_section(doc.content, url=doc.url)           # SchemaDrift propagates
         latest = max(a.pub_date for a in avisos)
         last_read = _iso_date(state.get("bo_last_edition"))
         listed = list(avisos)
@@ -1442,7 +1468,7 @@ _DGFT_HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
 
 @dataclass
 class DgftNotification:
-    number: str | None                   # normalised "09/2026-27"
+    number: str | None                   # normalised "nn/yyyy-yy" (two-digit number at least)
     number_raw: str
     description: str
     notified_on: date | None
@@ -1490,7 +1516,7 @@ def parse_dgft_notifications(content: bytes | str, page_url: str) -> tuple[list[
 
     The table is the one whose header names a number, a description and a date column (synonyms in
     ``_DGFT_HEADER_SYNONYMS``). Without such a header, rows are read by content instead: a cell
-    shaped like "09/2026-27", a date cell, and the longest cell as description. Raises
+    shaped like "nn/yyyy-yy", a date cell, and the longest cell as description. Raises
     ``SchemaDrift`` when no row has a notification number, or none has a date."""
     soup = _soup(content)
     problems: list[str] = []
@@ -1536,7 +1562,7 @@ def parse_dgft_notifications(content: bytes | str, page_url: str) -> tuple[list[
                           f"{_page_title(soup)!r}); the page layout or URL has changed")
     if not any(n.number for n in out):
         raise SchemaDrift(f"DGFT notifications: {len(out)} rows but none with a notification number like "
-                          f"'09/2026-27'; the table columns have changed")
+                          f"'nn/yyyy-yy'; the table columns have changed")
     if not any(n.notified_on for n in out):
         raise SchemaDrift(f"DGFT notifications: {len(out)} rows but none with a readable date; the date "
                           f"column or its format has changed")
@@ -1550,7 +1576,7 @@ def dgft_is_honey(n: DgftNotification) -> bool:
     return bool(HONEY_EN.matches(n.description))
 
 
-# Minimum export price: "US$ 1,400 per MT", "USD 1400/MT", "US $ 2000 per metric tonne" (or per kg).
+# Minimum export price: "US$ 1,234 per MT", "USD 1234/MT", "US $ 2345 per metric tonne" (or per kg).
 def _money_re(suffix: str = "") -> str:
     return (rf"(?:US\s?\$|USD|US\s?dollars?|U\.S\.\s?\$)\s*(?P<val{suffix}>[0-9][0-9,]*(?:\.[0-9]+)?)\s*(?:/-)?\s*"
             rf"(?:/|per|a)\s*(?P<unit{suffix}>M\.?T\.?|metric\s+tonnes?|metric\s+tons?|tonnes?|tons?|kgs?|kilograms?)(?![a-z])")
@@ -1564,7 +1590,8 @@ _UNTIL = r"(?:till|until|up\s*to|upto)"
 _VALID_RE = re.compile(rf"\b{_UNTIL}\s+(?:the\s+)?(?P<d>{_DATE_EN})", re.I)
 _EXTENDED_RE = re.compile(rf"\bextend(?:ed|s|ing)?\b[^.;]{{0,220}}?\b{_UNTIL}\s+(?:the\s+)?(?P<d>{_DATE_EN})", re.I)
 _EFFECT_FROM_RE = re.compile(rf"\bwith\s+effect\s+from\s+(?:the\s+)?(?P<d>{_DATE_EN})"
-                             rf"|\bcomes?\s+into\s+force\s+(?:on|from)\s+(?:the\s+)?(?P<d2>{_DATE_EN})", re.I)
+                             rf"|\bcomes?\s+into\s+force\s+(?:on|from)\s+(?:the\s+)?(?P<d2>{_DATE_EN})"
+                             rf"|\bw\.\s?e\.\s?f\.?\s*(?:the\s+)?(?P<d3>{_DATE_EN})", re.I)
 _IMMEDIATE_RE = re.compile(r"\bwith\s+immediate\s+effect\b", re.I)
 
 
@@ -1597,8 +1624,8 @@ def parse_mep_terms(text: str, notified_on: date | None) -> MepTerms:
       new one of a "from US$ X ... to US$ Y" phrase; otherwise None, with the candidates listed.
     * validity end: the date after "extended ... till/up to"; otherwise the single date after
       "till/until/up to"; otherwise None, with the candidates listed.
-    * effective date: "with effect from <date>" / "comes into force on <date>"; "with immediate
-      effect" means the notification date (``effective_basis`` says which)."""
+    * effective date: "with effect from <date>" / "w.e.f. <date>" / "comes into force on <date>";
+      "with immediate effect" means the notification date (``effective_basis`` says which)."""
     t = clean(text)
     terms = MepTerms()
     if not t:
@@ -1638,7 +1665,8 @@ def parse_mep_terms(text: str, notified_on: date | None) -> MepTerms:
     elif len(all_valid) > 1:
         terms.problems.append(f"several validity dates ({all_valid}); validity not stored")
 
-    effective = {d for m in _EFFECT_FROM_RE.finditer(t) if (d := parse_local_date(m["d"] or m["d2"], "en"))}
+    effective = {d for m in _EFFECT_FROM_RE.finditer(t)
+                 if (d := parse_local_date(m["d"] or m["d2"] or m["d3"], "en"))}
     if len(effective) == 1:
         terms.effective_date = next(iter(effective))
         terms.effective_basis = "with effect from"
