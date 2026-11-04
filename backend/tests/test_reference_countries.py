@@ -40,9 +40,12 @@ def test_codes_are_unique_and_well_formed():
     assert len([c["fao_code"] for c in cs if c["fao_code"]]) == len({c["fao_code"] for c in cs if c["fao_code"]})
     for c in cs:
         assert len(c["iso3"]) == 3 and c["iso3"].isupper() and len(c["iso2"]) == 2 and c["iso2"].isupper()
+        assert c["name_en"] and c["name_it"]
+    curated = [c for c in cs if c["region"] is not None]     # the rest: ISO list, no coordinates/profile
+    assert len(cs) >= 249 and len(curated) >= 100
+    for c in curated:
         assert -90 <= c["lat"] <= 90 and -180 <= c["lon"] <= 180
-        assert c["name_en"] and c["name_it"] and c["region"]
-    assert {c["region"] for c in cs} == {"South America", "North America", "Central America & Caribbean", "Europe",
+    assert {c["region"] for c in curated} == {"South America", "North America", "Central America & Caribbean", "Europe",
                                          "Middle East", "Asia", "Africa", "Oceania"}
 
 

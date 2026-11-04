@@ -690,7 +690,7 @@ def test_classify_census_country():
     assert c("5590", "SINGAPORE") == ("SGP", "name")                # code not in the table: mapped by name
     assert c("6140", "NEW ZEALAND") == ("NZL", "name")              # code not in the table: mapped by name
     assert c("4801", "MONTENEGRO") == (None, "conflict")            # table and published name disagree
-    assert c("5682", "TOKELAU") == (None, "unknown")
+    assert c("5682", "TOKELAU") == ("TKL", "name")                  # every ISO country is known by name
     assert c("-", "SOMETHING ELSE") == (None, "unknown")
     assert c("9999", "NOWHERE") == (None, "unknown")
 
