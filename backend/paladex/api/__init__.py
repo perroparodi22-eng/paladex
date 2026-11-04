@@ -20,6 +20,11 @@ SECTION_MODULES = [
     "paladex.api.quality",
     "paladex.api.search",
     "paladex.api.regulations",
+    "paladex.api.quotes",        # Milestone 7: supplier quotes + landed cost
+    "paladex.api.alerts",        # Milestone 7: alert rules and events
+    "paladex.api.archive",       # Milestone 7: historical comparisons, revision history
+    "paladex.api.assistant",     # Milestone 6: AI assistant + daily briefing
+    "paladex.api.harvest",       # Milestone 5: production, weather anomalies
 ]
 
 

@@ -12,6 +12,11 @@ const Trade = lazy(() => import('@/pages/Trade'))
 const Sources = lazy(() => import('@/pages/Sources'))
 const SearchPage = lazy(() => import('@/pages/Search'))
 const Regulations = lazy(() => import('@/pages/Regulations'))
+const Harvest = lazy(() => import('@/pages/Harvest'))
+const Quotes = lazy(() => import('@/pages/Quotes'))
+const Alerts = lazy(() => import('@/pages/Alerts'))
+const Archive = lazy(() => import('@/pages/Archive'))
+const Assistant = lazy(() => import('@/pages/Assistant'))
 const Later = lazy(() => import('@/pages/Later'))
 
 export default function App() {
@@ -27,12 +32,12 @@ export default function App() {
           <Route path="/commercio" element={<Trade />} />
           <Route path="/fonti" element={<Sources />} />
           <Route path="/cerca" element={<SearchPage />} />
-          <Route path="/raccolti" element={<Later section="harvest" />} />
+          <Route path="/raccolti" element={<Harvest />} />
           <Route path="/normative" element={<Regulations />} />
-          <Route path="/offerte" element={<Later section="quotes" />} />
-          <Route path="/avvisi" element={<Later section="alerts" />} />
-          <Route path="/archivio" element={<Later section="archive" />} />
-          <Route path="/assistente" element={<Later section="assistant" />} />
+          <Route path="/offerte" element={<Quotes />} />
+          <Route path="/avvisi" element={<Alerts />} />
+          <Route path="/archivio" element={<Archive />} />
+          <Route path="/assistente" element={<Assistant />} />
           <Route path="*" element={<Later section="notfound" />} />
         </Routes>
       </Suspense>
