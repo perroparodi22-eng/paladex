@@ -250,12 +250,19 @@ def merge(conn: sqlite3.Connection) -> dict:
         if t not in snap_tables or t not in main_tables:
             continue
         offset = conn.execute(f'SELECT COALESCE(MAX(id), 0) FROM main."{t}"').fetchone()[0]
+        # The series already held locally, in a small indexed temp table: the anti-join below then
+        # costs one index lookup per snapshot row whatever indexes (and statistics) the local
+        # database has. (A correlated NOT EXISTS on the big table let SQLite pick the is_demo
+        # index and scan every local row for every snapshot row: minutes on a full database.)
+        conn.execute("DROP TABLE IF EXISTS temp.starter_have")
+        conn.execute(f'CREATE TEMP TABLE starter_have AS SELECT DISTINCT series_key, source_id FROM main."{t}" WHERE is_demo = 0')
+        conn.execute("CREATE INDEX temp.ix_starter_have ON starter_have (series_key, source_id)")
         conn.execute("DROP TABLE IF EXISTS temp.starter_rows")
         conn.execute(
             f'CREATE TEMP TABLE starter_rows AS SELECT s.id AS id, mp.local_id AS local_source FROM snap."{t}" s '
             f"JOIN temp.starter_src_map mp ON mp.snap_id = s.source_id "
-            f"WHERE s.is_demo = 0 AND NOT EXISTS (SELECT 1 FROM main.\"{t}\" l "
-            f"WHERE l.series_key = s.series_key AND l.source_id = mp.local_id AND l.is_demo = 0)"
+            f"WHERE s.is_demo = 0 AND NOT EXISTS (SELECT 1 FROM temp.starter_have h "
+            f"WHERE h.series_key = s.series_key AND h.source_id = mp.local_id)"
         )
         exprs = []
         cols = common(t)
@@ -277,6 +284,7 @@ def merge(conn: sqlite3.Connection) -> dict:
         total = conn.execute(f'SELECT COUNT(*) FROM snap."{t}" WHERE is_demo = 0').fetchone()[0]
         kept_local[t] = total - cur.rowcount
         conn.execute("DROP TABLE temp.starter_rows")
+        conn.execute("DROP TABLE temp.starter_have")
 
     # 3. Reports and regulations: unique per source and report key / reference.
     for t in UNIQUE_TABLES:

@@ -123,6 +123,9 @@ def _import_starter_data(verbose: bool = False) -> dict | None:
     if res and verbose:
         n = sum(res["inserted"].values())
         when = (res.get("data_collected_until") or "")[:16].replace("T", " ")
+        if n == 0:
+            print("  I dati iniziali sono già tutti presenti. / The initial data is already all here.\n", flush=True)
+            return res
         print(f"  Dati reali pronti: {n} valori dalle fonti ufficiali (raccolti fino al {when} UTC).\n"
               f"  Ora l'applicazione li aggiorna da sola in background.\n"
               f"  Real data ready: {n} values from the official sources (collected up to {when} UTC);"
