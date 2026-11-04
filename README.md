@@ -25,7 +25,7 @@ A private, local intelligence platform for the global honey market: prices, inte
 * **Windows:** doppio clic su **`Avvia Paladex.bat`**.
 * **Mac:** doppio clic su **`Avvia Paladex.command`**.
 
-Il primo avvio richiede qualche minuto. Poi il browser si apre da solo su <http://127.0.0.1:8765>. Per chiudere l'applicazione basta chiudere la finestra nera.
+Il primo avvio richiede qualche minuto; la prima raccolta completa dei dati (tutte le fonti, compreso lo storico) dura circa 30–40 minuti e procede da sola in background mentre l'applicazione è aperta. Poi il browser si apre da solo su <http://127.0.0.1:8765>. Per chiudere l'applicazione basta chiudere la finestra nera.
 
 I dati si aggiornano da soli mentre l'applicazione è aperta, e all'avvio se l'ultimo aggiornamento risale a più di 6 ore prima. Il pulsante **"Aggiorna dati"** in alto aggiorna tutto subito. La pagina **Fonti e qualità dati** mostra, per ogni fonte, quando è stata controllata e se ci sono problemi.
 
@@ -39,6 +39,8 @@ I dati si aggiornano da soli mentre l'applicazione è aperta, e all'avvio se l'u
 | `PALADEX_CENSUS_API_KEY` *(facoltativa)* | Importazioni USA dal Census Bureau (funziona anche senza chiave, con limite giornaliero) | <https://api.census.gov/data/key_signup.html> |
 | `PALADEX_FAOSTAT_USERNAME` / `PASSWORD` *(facoltativi)* | FAOSTAT via API e flussi bilaterali (senza account si usano i file pubblici) | <https://www.fao.org/faostat/en/#developer> |
 | `PALADEX_LLM_PROVIDER` + `PALADEX_ANTHROPIC_API_KEY` (oppure `PALADEX_OPENAI_API_KEY`) | Riassunti e traduzioni delle notizie (in seguito: assistente e sintesi giornaliera) | console.anthropic.com oppure platform.openai.com (a pagamento, in base all'uso) |
+
+Facoltativo: per leggere il prezzo minimo all'export del miele indiano (avvisi DGFT scansionati) installare il programma gratuito **Tesseract OCR** (Windows: installer «UB Mannheim»; Mac: `brew install tesseract`).
 
 Senza chiavi l'applicazione funziona comunque: le fonti che le richiedono vengono saltate (o usate in versione ridotta) e la pagina Fonti lo segnala.
 

@@ -186,7 +186,8 @@ def test_area_resolution_china_and_aggregates():
     assert fs.resolve_area("231", None, "United States of America").iso3 == "USA"   # API rows: FAO code
     smn = fs.resolve_area("186", "'891", "Serbia and Montenegro")            # predecessor, per research
     assert (smn.iso3, smn.canonical) == ("SRB", False)
-    assert fs.resolve_area("178", "'232", "Eritrea").outcome == "unmapped"
+    assert fs.resolve_area("178", "'232", "Eritrea").iso3 == "ERI"            # every ISO country is known
+    assert fs.resolve_area("15", "'058", "Belgium-Luxembourg").outcome == "unmapped"   # historical FAO area
     assert fs.resolve_area("106", "'032", "Italy").outcome == "conflict"      # M49 and FAO code disagree
     assert fs.resolve_area("", None, "Viet Nam").iso3 == "VNM"
 
@@ -300,7 +301,7 @@ def test_bulk_end_to_end(run_with_routes, session_factory, sent):
     res = run_with_routes("faostat", bulk_routes())
     assert res["status"] == "partial", res                     # data stored, with warnings below
     warnings = " | ".join(res["warnings"])
-    assert "Eritrea (178)" in warnings and "not in Paladex's country table" in warnings
+    assert "Eritrea (178)" not in warnings                     # every ISO country is recognised
     assert "unknown flag 'Z'" in warnings
     assert "'1000 EUR'" in warnings
     assert "n.a." in warnings and "non-positive price" in warnings
@@ -310,7 +311,7 @@ def test_bulk_end_to_end(run_with_routes, session_factory, sent):
 
     with session_factory() as s:
         # --- production / colonies
-        assert _count(s, ProductionStat) == 12
+        assert _count(s, ProductionStat) == 13   # Eritrea included
         arg = _prod(s, "ARG", "production", 2023)
         assert (arg.value, arg.unit, arg.flag_raw, arg.data_status) == (72500.0, "t", "E", "estimate")
         assert arg.published_at == date(2025, 12, 31) and arg.source_url == QCL_ZIP
@@ -415,7 +416,7 @@ def test_schema_drift_fails_loudly_and_keeps_other_datasets(run_with_routes, ses
     assert res["status"] == "failed"
     assert "TCL" in res["error"] and "missing column" in res["error"]
     with session_factory() as s:
-        assert _count(s, ProductionStat) == 12 and _count(s, PriceObservation) == 5   # checkpointed before
+        assert _count(s, ProductionStat) == 13 and _count(s, PriceObservation) == 5   # checkpointed before
         assert _count(s, TradeFlowObservation) == 0
         assert get_setting(s, "faostat_dateupdate_TCL") is None                      # retried next run
         assert get_setting(s, "faostat_dateupdate_QCL") == "2025-12-31T00:00:00"
@@ -437,7 +438,7 @@ def test_whole_catalogue_drift_fails(run_with_routes):
 
 def test_token_api_path(with_account, run_with_routes, session_factory, sent):
     res = run_with_routes("faostat", api_routes())
-    assert res["status"] == "partial", res               # Eritrea (TM partner) is outside the country table
+    assert res["status"] == "success", res               # every ISO country is known (Eritrea included)
     assert not any("zip" in str(r.url).lower() for r in sent)           # no bulk ZIP with an account
     logins = [r for r in sent if r.url.path.endswith("/auth/login")]
     assert len(logins) == 1                                              # token cached for the run
@@ -466,7 +467,7 @@ def test_token_api_path(with_account, run_with_routes, session_factory, sent):
         assert "page_number" not in tcl[("ITA", "import")].source_url
         tm = {t.partner_iso3: t for t in s.scalars(select(TradeFlowObservation).where(
             TradeFlowObservation.series_key.like("faostat|TM|%")))}
-        assert set(tm) == {"ARG", "UKR", "CHN"}                           # no 351 aggregate, no Eritrea
+        assert set(tm) == {"ARG", "UKR", "CHN", "ERI"}                    # no 351 aggregate
         assert (tm["ARG"].reporter_iso3, tm["ARG"].flow) == ("ITA", "import")
         assert (tm["ARG"].net_weight_kg, tm["ARG"].value) == (4_200_000, 12_600_000)
         assert tm["UKR"].data_status == "estimate" and tm["CHN"].extra["fao_partner_code"] == "41"
@@ -516,7 +517,7 @@ def test_login_refused_falls_back_to_bulk(with_account, run_with_routes, session
     assert all(PASSWORD not in w and USER not in w for w in res["warnings"])
     assert {str(r.url) for r in sent if r.url.host == "bulks-faostat.fao.org"} == {CATALOGUE, QCL_ZIP, PP_ZIP, TCL_ZIP}
     with session_factory() as s:
-        assert _count(s, ProductionStat) == 12 and _count(s, TradeFlowObservation) == 5
+        assert _count(s, ProductionStat) == 13 and _count(s, TradeFlowObservation) == 5   # all ISO countries
         assert get_setting(s, "faostat_dateupdate_TM") is None              # TM retried when the API works
 
 

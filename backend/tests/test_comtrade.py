@@ -195,7 +195,8 @@ def test_partner_reference_enriches_mapping():
     assert ref[899].iso3 is None and ref[899].desc == "Areas, nes"
     assert ct.resolve_partner(238, None, ref) == ("FLK", True)     # ISO from the reference file
     assert ct.resolve_partner(472, None, ref) == (None, True)      # isGroup -> skipped
-    assert ct.resolve_partner(238, None, None) == ("M238", False)  # without the reference: unknown
+    assert ct.resolve_partner(238, None, None) == ("FLK", True)    # every ISO country is known locally too
+    assert ct.resolve_partner(997, None, None) == ("M997", False)  # a code nobody knows: kept as M-code
     with pytest.raises(CollectorError):
         ct.parse_partner_reference(b"<html>nope</html>")
 
@@ -438,11 +439,15 @@ def test_partner_missing_from_rerelease_is_withdrawn(run_with_routes, session_fa
         assert [(o.is_current, o.value) for o in old] == [(False, 2_640_000.0)]   # history kept
 
 
-def test_partner_remap_supersedes_old_series(run_with_routes, session_factory, small_panel):
-    """Without partnerAreas.json, the Falkland Islands (238, partnerISO null in preview rows) is stored as 'M238'.
-    When a later run maps it to FLK, the M238 series must not stay current next to it, or the Falklands'
-    trade is counted twice."""
-    res1 = run_with_routes("un_comtrade", keyless_routes(**{REF: (500, b"Internal Server Error")}))
+def test_partner_remap_supersedes_old_series(run_with_routes, session_factory, small_panel, monkeypatch):
+    """Without partnerAreas.json, a partner the local country table does not know (simulated here for the
+    Falkland Islands, 238, partnerISO null in preview rows) is stored as 'M238'. When a later run maps it to
+    FLK, the M238 series must not stay current next to it, or that trade is counted twice."""
+    from paladex.reference import countries as ref_countries
+
+    with monkeypatch.context() as m:
+        m.delitem(ref_countries._BY_M49, 238)
+        res1 = run_with_routes("un_comtrade", keyless_routes(**{REF: (500, b"Internal Server Error")}))
     assert any("partner reference" in w and "never archived" in w for w in res1["warnings"]), res1["warnings"]
     with session_factory() as s:
         assert [t.partner_iso3 for t in trade(s, reporter_iso3="ITA", frequency="A")

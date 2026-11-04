@@ -70,6 +70,43 @@ Everything integrated is **free**. Optional costs:
 * Open-Meteo commercial plan, only if chosen for weather;
 * Comtrade Premium, only if raw data were to be redistributed, which is not planned.
 
-## 5. Verification status
+## 5. Verification status (live run, 4 November 2026)
 
-The development sandbox could not reach any of these hosts. Collectors were built from official documentation, official client code and indexed examples, and tested against reconstructed fixtures (each fixture folder has a README saying so). **The first run on the target PC is the real verification.** The *Fonti e qualità dati* page shows each source's status, errors and data counts after the first collection.
+Every collector was run against the real sources on 4 Nov 2026. Parsers were corrected on the real responses, and real captured files replaced the reconstructed test fixtures (see each `tests/fixtures/<module>/README.md`).
+
+**Rows stored in a fresh database from real sources:**
+
+| Source | Rows |
+|---|---|
+| ECB | 221,789 |
+| EU TAXUD weekly | 23,155 |
+| FAOSTAT | 20,900 |
+| Eurostat Comext | 15,182 |
+| UN Comtrade (keyless quota reached) | 5,116 |
+| USDA National Honey Report | 2,719 |
+| Brazil Comex Stat | 1,411 |
+| CCIAA Cuneo | 447 |
+| RASFF | 48 |
+| US Federal Register | 33 |
+| US HTS | 34 |
+| EUR-Lex | 21 |
+| EU duties (UK XI mirror) | 16 |
+| ISMEA | 14 |
+| Osservatorio Nazionale Miele | 7 |
+| Brazil MAPA | 5 |
+| India DGFT | 5 |
+| CCIAA Siena | 2 |
+| Argentina SENASA | 2 |
+| Trade press (ABJ, Apimondia, Bee Culture) | 28 |
+
+**Waiting for free keys:** USDA FAS GATS, USDA NASS and the US Census trade API.
+
+**Limits seen from the development network:** GDELT throttles shared IPs heavily; the Argentine Boletín Oficial and the European Parliament refused connections; the UN Comtrade keyless quota runs out after about 5,000 rows a day. All of these are expected to behave better from the owner's own PC and connection.
+
+**Gaps in the sources themselves:**
+* The USDA ESMIS archive has no National Honey Report issues between Oct 2025 and Aug 2026; only the latest issue is reachable.
+* ISMEA's honey series has not been updated since June 2026.
+* The Osservatorio's full monthly tables require a MieleInforma login.
+
+**OCR:** India's minimum-export-price notices are scanned images. Their terms are read only if the free Tesseract OCR program is installed, and are kept only when two readings agree.
+
