@@ -65,9 +65,12 @@ def run_with_routes(db, monkeypatch):
     """Run a collector with mocked HTTP. `routes` maps a URL (exact, or a regex string starting
     with '^') to bytes | (status, bytes) | (status, bytes, content_type). A key may also be a
     `(method, url)` tuple, e.g. `("POST", "https://...")`, to mock a non-GET request."""
-    from paladex.collectors import base
+    from paladex.collectors import base, runner
 
     monkeypatch.setattr(base.time, "sleep", lambda *_: None)
+    # Unrouted URLs raise ConnectError: by default that means "this PC is offline" (OFFLINE run).
+    # A test checking a host-specific failure patches `runner.is_online` to return True.
+    monkeypatch.setattr(runner, "is_online", lambda *a, **k: False)
 
     def _run(key: str, routes: dict, force: bool = False):
         from paladex.collectors.runner import run_collector

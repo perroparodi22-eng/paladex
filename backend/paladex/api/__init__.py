@@ -19,6 +19,7 @@ SECTION_MODULES = [
     "paladex.api.reports",
     "paladex.api.quality",
     "paladex.api.search",
+    "paladex.api.regulations",
 ]
 
 

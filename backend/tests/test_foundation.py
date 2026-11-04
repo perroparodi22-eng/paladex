@@ -118,3 +118,19 @@ def test_migration_adds_missing_columns(tmp_path):
 
         assert c.execute(text("SELECT title FROM regulations WHERE id=1")).scalar() == "T"
     assert dbmod.migrate_add_missing_columns(engine) == []   # idempotent
+
+
+def test_api_keys_in_urls_never_reach_the_log(caplog):
+    """httpx logs every request URL at INFO; with the app's logging set-up the NASS `key=` value
+    must be redacted (ARCHITECTURE §6: keys are stripped)."""
+    import logging
+
+    import httpx
+
+    import paladex.main  # noqa: F401  (the app's logging configuration)
+
+    caplog.set_level(logging.INFO)
+    with httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, content=b"{}"))) as client:
+        client.get("https://quickstats.nass.usda.gov/api/api_GET/", params={"key": "SECRET123", "commodity_desc": "HONEY"})
+    assert "quickstats.nass.usda.gov" in caplog.text
+    assert "SECRET123" not in caplog.text and "key=REDACTED" in caplog.text

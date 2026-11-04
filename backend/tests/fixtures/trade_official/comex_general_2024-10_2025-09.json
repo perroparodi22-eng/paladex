@@ -1,0 +1,30 @@
+{
+ "data": {
+  "list": [
+   {
+    "year": "2025",
+    "monthNumber": "3",
+    "country": "United States",
+    "state": "Piauí",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": "2480000",
+    "metricKG": "800000"
+   },
+   {
+    "year": "2024",
+    "monthNumber": "11",
+    "country": "Germany",
+    "state": "Santa Catarina",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": 115200,
+    "metricKG": 38400
+   }
+  ]
+ },
+ "success": true,
+ "message": null,
+ "processo_info": null,
+ "language": "en"
+}

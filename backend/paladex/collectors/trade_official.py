@@ -42,8 +42,8 @@ there). That is why both collectors check the live API before they trust it:
 Freshness and revisions. Comex Stat is checked with one cheap ``GET /general/dates/updated``
 (state stored in ``app_settings['collector_state:br_comexstat']``). Only a new release triggers a
 re-pull of the trailing 3 months (36 months on the first run, in queries of at most 12 months).
-Census is re-queried for the trailing 3 months (one small request). When the answer is byte-for-byte
-the same as before, nothing else is done. The full 36-month window is pulled again once a year after
+Census is re-queried for the trailing 3 months (one small request after the ``variables.json``
+probe). When the answer is byte-for-byte the same as before, nothing else is done. The full 36-month window is pulled again once a year after
 the June annual revision. Every changed number is stored as a new revision (``services.ingest``),
 and a flow the source no longer reports is withdrawn (kept in the history, never deleted).
 
@@ -66,9 +66,10 @@ import re
 import time
 import unicodedata
 from collections import defaultdict
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import date
-from typing import Any, Callable, Iterable
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from dateutil.parser import isoparse
@@ -77,7 +78,14 @@ from sqlalchemy import select
 from ..enums import DataStatus, PriceType, Reliability, SourceKind, TradeFlow, Variety
 from ..models import AppSetting, PriceObservation, TradeFlowObservation, utcnow
 from ..reference.countries import AGGREGATES, country_name, lookup_iso3
-from .base import CollectContext, Collector, CollectorError, MissingKey, Offline, month_bounds
+from .base import (
+    CollectContext,
+    Collector,
+    CollectorError,
+    MissingKey,
+    Offline,
+    month_bounds,
+)
 
 log = logging.getLogger(__name__)
 
@@ -358,7 +366,7 @@ _COMEX_FOB_KEYS = ("metricFOB", "vlFob", "VL_FOB", "FOB")
 _COMEX_KG_KEYS = ("metricKG", "kgLiquido", "KG_LIQUIDO", "KG")
 
 _RATE_LIMIT_RE = re.compile(r"too many|rate.?limit|limite de (requisi|acesso)|muitas requisi|try again|"
-                            r"tente novamente|aguarde", re.I)
+                            r"tente novamente|aguarde", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -393,8 +401,8 @@ class ComexRow:
     country_iso3: str | None        # ISO alpha-3 published by Comex Stat itself, if any
     state: str | None
     state_code: str | None
-    fob_usd: float
-    kg: float
+    fob_usd: float | None           # None only on a bad (unusable) row
+    kg: float | None
 
     @property
     def period(self) -> str:
@@ -405,7 +413,10 @@ class ComexRow:
 class ComexParse:
     rows: list[ComexRow]
     problems: list[str]
-    bad_months: set[str] = field(default_factory=set)   # months with an unusable row: not stored
+    # Rows with unusable numbers: their destination-month is not stored (a partial sum of states
+    # would be presented as the total). A bad row without a destination blocks its whole month.
+    bad_rows: list[ComexRow] = field(default_factory=list)
+    bad_months: set[str] = field(default_factory=set)
 
 
 def _comex_payload(content: bytes, what: str) -> Any:
@@ -566,6 +577,21 @@ def is_comex_rate_limited(status: int, content: bytes) -> bool:
     return False
 
 
+def _comex_error_text(content: bytes) -> str:
+    try:
+        doc = json.loads(content.decode("utf-8-sig"))
+        if isinstance(doc, dict):
+            return str(doc.get("message") or doc.get("error") or doc)[:200]
+    except (UnicodeDecodeError, ValueError):
+        pass
+    return content[:200].decode("utf-8", errors="replace").strip()
+
+
+def month_label_span(body: dict) -> str:
+    period = body.get("period") or {}
+    return f"{period.get('from')}..{period.get('to')}"
+
+
 def _key_in(keys: set[str], candidates: Iterable[str]) -> str | None:
     for c in candidates:
         if c in keys:
@@ -581,9 +607,10 @@ def parse_comex_general(content: bytes, spec: ComexSpec, start: Month, end: Mont
     """Parse a `POST /general` answer into one row per month x country (x state).
 
     Fails loudly (CollectorError) on schema drift: no year/month/country/FOB/KG column, or rows of
-    another product (the NCM filter was ignored). A malformed row is reported and its month is
-    marked bad (that month is not stored, so a partial total is never presented as the total).
-    Rows outside the requested months are dropped.
+    another product (the NCM filter was ignored). A row with unusable numbers is reported in
+    `bad_rows` (its destination-month is then not stored, so a partial sum of states is never
+    presented as the total); one without a destination marks its whole month bad. Rows outside
+    the requested months are dropped.
     """
     doc = _comex_payload(content, "general")
     items = _comex_list(doc, "general")
@@ -622,7 +649,7 @@ def parse_comex_general(content: bytes, spec: ComexSpec, start: Month, end: Mont
                 continue
             v = str(r[k]).strip()
             digits = re.sub(r"\D", "", v)
-            if (digits and len(digits) >= 4 and digits != HONEY_NCM) or (not digits and not re.search(r"honey|mel\b|miel", v, re.I)):
+            if (digits and len(digits) >= 4 and digits != HONEY_NCM) or (not digits and not re.search(r"honey|mel\b|miel", v, re.IGNORECASE)):
                 raise CollectorError(f"Comex Stat ignored the NCM {HONEY_NCM} filter (row {i} is {v!r}); nothing stored")
         year, month = _int_from(r.get(k_year)), _month_from(r.get(k_month))
         if year is None or month is None:
@@ -632,12 +659,6 @@ def parse_comex_general(content: bytes, spec: ComexSpec, start: Month, end: Mont
         if not lo <= _midx((year, month)) <= hi:
             outside.add(label)
             continue
-        fob, kg = _num(r.get(k_fob)), _num(r.get(k_kg))
-        if fob is None or kg is None or fob < 0 or kg < 0:
-            out.problems.append(f"Comex Stat row {i} ({label}): invalid FOB={r.get(k_fob)!r} / KG={r.get(k_kg)!r}; "
-                                f"month {label} not stored")
-            out.bad_months.add(label)
-            continue
         cname = str(r[k_cname]).strip() if k_cname and r.get(k_cname) not in (None, "") else None
         ccode = str(r[k_ccode]).strip() if k_ccode and r.get(k_ccode) not in (None, "") else None
         ciso = str(r[k_ciso]).strip().upper() if k_ciso and r.get(k_ciso) not in (None, "") else None
@@ -645,17 +666,24 @@ def parse_comex_general(content: bytes, spec: ComexSpec, start: Month, end: Mont
             out.problems.append(f"Comex Stat row {i} ({label}): no destination country; month {label} not stored")
             out.bad_months.add(label)
             continue
-        out.rows.append(ComexRow(
+        fob, kg = _num(r.get(k_fob)), _num(r.get(k_kg))
+        row = ComexRow(
             year=year, month=month, country_name=cname, country_code=ccode,
             country_iso3=ciso if ciso and re.fullmatch(r"[A-Z]{3}", ciso) else None,
             state=str(r[k_sname]).strip() if k_sname and r.get(k_sname) not in (None, "") else None,
             state_code=str(r[k_scode]).strip() if k_scode and r.get(k_scode) not in (None, "") else None,
             fob_usd=fob, kg=kg,
-        ))
+        )
+        if fob is None or kg is None or fob < 0 or kg < 0:
+            out.problems.append(f"Comex Stat row {i} ({label}, {cname or ccode}): invalid FOB={r.get(k_fob)!r} / "
+                                f"KG={r.get(k_kg)!r}; that destination-month is not stored")
+            out.bad_rows.append(row)
+            continue
+        out.rows.append(row)
     if outside:
         out.problems.append(f"Comex Stat returned months outside the requested {month_label(start)}..{month_label(end)} "
                             f"({', '.join(sorted(outside))}); ignored")
-    if rows and not out.rows and not out.bad_months:
+    if rows and not out.rows and not out.bad_rows and not out.bad_months:
         raise CollectorError("Comex Stat: no row of the answer could be read (format changed?); nothing stored")
     return out
 
@@ -690,7 +718,8 @@ class BrComexStatCollector(Collector):
     category = "trade"
     country_iso3 = "BRA"
     language = "pt"
-    expected_update = "Monthly, in the first week after the month (same day as the MDIC trade-balance release)"
+    expected_update = "Mensile, nella prima settimana dopo il mese (insieme al comunicato MDIC sulla bilancia commerciale)"
+    expected_update_en = "Monthly, in the first week after the month (same day as the MDIC trade-balance release)"
     expected_max_age_days = 40
     terms_note = ("Fonte: MDIC/SECEX – Comex Stat. Brazilian federal open data (Lei 12.527/2011), free "
                   "reuse citing the source. FOB values in USD and net weight in kg, by destination and "
@@ -716,9 +745,10 @@ class BrComexStatCollector(Collector):
         if ctx.force or not have_rows or not state.get("backfill_done"):
             start = shift_month(latest, -(COMEX_BACKFILL_MONTHS - 1))
         else:
+            # The trailing 3 months of this release, extended back to the first month not seen yet
+            # when releases were missed (no gap), but never beyond the backfill window.
             prev = parse_month_label(state.get("latest_month")) or latest
-            oldest_new = prev if _midx(prev) < _midx(latest) else latest
-            start = shift_month(oldest_new, -(COMEX_REPULL_MONTHS - 1))
+            start = min(shift_month(latest, -(COMEX_REPULL_MONTHS - 1)), shift_month(prev, 1), key=_midx)
             start = max(start, shift_month(latest, -(COMEX_BACKFILL_MONTHS - 1)), key=_midx)
         for ws, we in month_windows(start, latest, COMEX_MAX_MONTHS_PER_QUERY):
             self._pull_window(ctx, state, spec, release, ws, we)
@@ -780,22 +810,33 @@ class BrComexStatCollector(Collector):
         parsed = parse_comex_general(content, spec, ws, we)
         for p in parsed.problems:
             ctx.warn(p)
-        if not parsed.rows and not parsed.bad_months:
+        if not parsed.rows and not parsed.bad_rows and not parsed.bad_months:
             ctx.warn(f"Comex Stat returned no honey export rows for {month_label(ws)}..{month_label(we)}")
             return
+        # Months that cannot be fully trusted: not used to withdraw rows the answer seems to lack.
+        unsure_months: set[str] = set(parsed.bad_months)
+        blocked: set[tuple[str, str]] = set()           # (iso3, period) with an unusable row
+        for bad in parsed.bad_rows:
+            iso = map_comex_partner(bad)
+            unsure_months.add(bad.period)
+            if iso is None:
+                parsed.bad_months.add(bad.period)
+            else:
+                blocked.add((iso, bad.period))
         aggs: dict[tuple[str, str], _ComexAgg] = {}
-        unmapped_months: set[str] = set()
         for row in parsed.rows:
             if row.period in parsed.bad_months:
                 continue
             iso = map_comex_partner(row)
             if iso is None:
-                unmapped_months.add(row.period)
+                unsure_months.add(row.period)
                 label = row.country_name or row.country_code or "?"
                 state.setdefault("unknown_partners", {})[label] = row.country_code
                 _warn_once(ctx, state, f"partner:{label}",
                            f"Comex Stat destination {label!r} (code {row.country_code}) has no ISO3 mapping; its rows "
                            "are skipped until it is added to trade_official._EXTRA_NAMES_RAW")
+                continue
+            if (iso, row.period) in blocked:
                 continue
             agg = aggs.get((iso, row.period))
             if agg is None:
@@ -817,7 +858,7 @@ class BrComexStatCollector(Collector):
                  "filters": body["filters"]}
         for (iso, period), agg in sorted(aggs.items(), key=lambda kv: (kv[0][1], kv[0][0])):
             present.add(self._store(ctx, release, raw_id, spec, query, agg))
-        months = {r.period for r in parsed.rows} - parsed.bad_months - unmapped_months
+        months = {r.period for r in parsed.rows} - unsure_months
         gone = _retire_absent(ctx, prefix="comexstat|BRA|", months=months, present=present,
                               price_key=lambda p, lab: f"{PriceType.EXPORT_UNIT_VALUE.value}|comexstat|{p}|BRA|{lab}")
         if gone:
@@ -1114,7 +1155,8 @@ class UsCensusTradeCollector(Collector):
     category = "trade"
     country_iso3 = "USA"
     language = "en"
-    expected_update = "Monthly, about 5 weeks after the month (FT-900 release); annual revision in June"
+    expected_update = "Mensile, circa 5 settimane dopo il mese (comunicato FT-900); revisione annuale a giugno"
+    expected_update_en = "Monthly, about 5 weeks after the month (FT-900 release); annual revision in June"
     expected_max_age_days = 50
     terms_note = ("Source: U.S. Census Bureau, International Trade API (public domain). SAME underlying "
                   "statistics as USDA FAS GATS: the two sources must never be added together. Value = customs "
@@ -1183,12 +1225,15 @@ class UsCensusTradeCollector(Collector):
         if api_key:
             params["key"] = api_key         # Census accepts the key only as a query parameter: redacted on storage
         doc = ctx.fetch(CENSUS_URL, params=params, headers=JSON_HEADERS, store=False,
-                        accept_status=(200, 204, 400, 401, 403, 404))
+                        accept_status=(200, 204, 400, 401, 403, 404, 429))
         public_url = _drop_key(doc.url)
+        if doc.status_code == 429:          # still limited after the polite retries: transient, not drift
+            hint = "" if api_key else f"; a free key raises the limit (PALADEX_CENSUS_API_KEY, {CENSUS_KEY_SIGNUP})"
+            raise CollectorError(f"The US Census API rate limit was reached{hint}; the data will be pulled on the next run")
         looks_html = doc.content.lstrip()[:1] == b"<"
         if doc.status_code in (401, 403) or (doc.status_code == 200 and looks_html):
             text = doc.content[:2000].decode("utf-8", errors="replace")
-            if doc.status_code in (401, 403) or re.search(r"\bkey\b", text, re.I):
+            if doc.status_code in (401, 403) or re.search(r"\bkey\b", text, re.IGNORECASE):
                 if api_key:
                     raise CollectorError("The US Census API rejected the API key (invalid or not activated yet); "
                                          "check PALADEX_CENSUS_API_KEY")
@@ -1266,36 +1311,47 @@ class UsCensusTradeCollector(Collector):
 
     def _hs10_lines(self, ctx: CollectContext, state: dict, get_vars: list[str], api_key: str | None,
                     ws: Month, we: Month, have_totals: bool) -> tuple[dict[tuple[str, str], list[CensusRecord]], str]:
-        """HS-10 colour/organic lines of the window, by (CTY_CODE, period). Best effort: the totals
-        are stored even when the detail is unavailable. Returns (lines, status)."""
+        """HS-10 colour/organic lines of the window, by (CTY_CODE, period). Returns (lines, status).
+
+        A query Census refuses for good (HTTP 400/404, an HTML page: `CensusError`) or an answer in an
+        unexpected shape degrades to "unavailable": the totals are still stored. A transient failure
+        (rate limit, server error, timeout, offline) propagates and fails the window instead,
+        because a trade row stored without its lines could never get them later (append-only)."""
         if not have_totals:
             return {}, "none"
+        errors: list[str] = []
+
+        def lines_for(commodity: str) -> list[CensusRecord]:
+            try:
+                q = self._query(ctx, get_vars, "HS10", commodity, ws, we, api_key)
+            except CensusError as exc:              # refused for good; transient errors propagate
+                errors.append(f"{commodity}: {exc}")
+                return []
+            if q is None:
+                return []
+            try:
+                return parse_census_imports(q.content, level="HS10", start=ws, end=we).records
+            except CollectorError as exc:           # an HS-10 answer in an unexpected shape
+                errors.append(f"{commodity}: {exc}")
+                return []
+
         recs: list[CensusRecord] = []
-        mode = state.get("hs10_mode", "wildcard")
-        try:
-            if mode == "wildcard":
-                q = self._query(ctx, get_vars, "HS10", HONEY_HS10_WILDCARD, ws, we, api_key)
-                if q is not None:
-                    recs = parse_census_imports(q.content, level="HS10", start=ws, end=we).records
-                if not recs:
-                    # HS6 has rows, so the HS-10 lines exist: the wildcard is not supported.
-                    log.info("[%s] HS-10 wildcard query returned nothing; switching to one query per line", self.key)
-                    mode = state["hs10_mode"] = "per_code"
-            if mode == "per_code":
-                for code in HONEY_HS10_CODES:
-                    q = self._query(ctx, get_vars, "HS10", code, ws, we, api_key)
-                    if q is not None:
-                        recs += parse_census_imports(q.content, level="HS10", start=ws, end=we).records
-        except (MissingKey, Offline):
-            raise
-        except CollectorError as exc:
-            _warn_once(ctx, state, "hs10_unavailable",
-                       f"Census HS-10 detail unavailable ({exc}); HS 0409 totals are stored without the line split")
-            return {}, "unavailable"
+        if state.get("hs10_mode", "wildcard") == "wildcard":
+            recs = lines_for(HONEY_HS10_WILDCARD)
+            # HS6 has rows, so HS-10 lines exist: nothing back means the prefix wildcard is unsupported.
+            state["hs10_mode"] = "wildcard" if recs else "per_code"
+            if not recs:
+                log.info("[%s] HS-10 wildcard query gave nothing; switching to one query per HS-10 line", self.key)
+        if state.get("hs10_mode") == "per_code":
+            for code in HONEY_HS10_CODES:
+                recs += lines_for(code)
         if not recs:
-            _warn_once(ctx, state, "hs10_empty",
-                       "Census returned no HS-10 honey line; HS 0409 totals are stored without the line split")
+            detail = f" ({'; '.join(errors)[:300]})" if errors else ""
+            _warn_once(ctx, state, "hs10_unavailable",
+                       f"Census HS-10 honey lines unavailable{detail}; HS 0409 totals are stored without the line split")
             return {}, "unavailable"
+        if errors:
+            log.warning("[%s] some HS-10 queries failed: %s", self.key, "; ".join(errors)[:500])
         out: dict[tuple[str, str], list[CensusRecord]] = defaultdict(list)
         for r in recs:
             out[(r.cty_code, r.period)].append(r)
@@ -1317,7 +1373,10 @@ class UsCensusTradeCollector(Collector):
                       "cif_value_usd": ln.con_cif, "calculated_duty_usd": ln.cal_dut}
                      for ln in sorted(line_recs, key=lambda x: x.commodity)]
             line_sum = sum(ln.con_val for ln in line_recs)
-            if line_recs and abs(line_sum - con_val) > max(0.01 * con_val, 1.0):
+            if not line_recs:
+                lines = None
+                flags["hs10_missing_for_partner"] = True
+            elif abs(line_sum - con_val) > max(0.01 * con_val, 1.0):
                 flags["hs10_sum_differs_from_total"] = True
         p_start, p_end = month_bounds(agg.year, agg.month)
         published_name = agg.names[0] if agg.names else ""
@@ -1385,8 +1444,21 @@ def _newest_in(content: bytes) -> Month | None:
 
 
 __all__ = [
-    "BrComexStatCollector", "UsCensusTradeCollector", "parse_comex_updated", "parse_comex_names",
-    "resolve_comex_spec", "comex_query_body", "parse_comex_general", "is_comex_rate_limited", "map_comex_partner",
-    "resolve_country_name", "parse_census_variables", "census_get_list", "parse_census_table",
-    "parse_census_imports", "classify_census_country", "month_windows", "CENSUS_COUNTRIES",
+    "CENSUS_COUNTRIES",
+    "BrComexStatCollector",
+    "UsCensusTradeCollector",
+    "census_get_list",
+    "classify_census_country",
+    "comex_query_body",
+    "is_comex_rate_limited",
+    "map_comex_partner",
+    "month_windows",
+    "parse_census_imports",
+    "parse_census_table",
+    "parse_census_variables",
+    "parse_comex_general",
+    "parse_comex_names",
+    "parse_comex_updated",
+    "resolve_comex_spec",
+    "resolve_country_name",
 ]

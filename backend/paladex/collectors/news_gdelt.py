@@ -208,11 +208,11 @@ class GdeltNewsCollector(Collector):
                     ctx.checkpoint()
                 except IntegrityError:
                     ctx.session.rollback()
-                    ctx.counters.new = ctx.counters.committed_new
+                    ctx.counters.restore_committed()
                     ctx.counters.count("unchanged")
                 except Exception as exc:  # noqa: BLE001 - one bad item must not lose the batch
                     ctx.session.rollback()
-                    ctx.counters.new = ctx.counters.committed_new
+                    ctx.counters.restore_committed()
                     ctx.warn(f"Articolo non salvato ({item['url'][:120]}): {type(exc).__name__}: {exc}"[:400])
         if ok == 0:
             raise CollectorError("GDELT: nessuna ricerca è andata a buon fine (vedi avvisi)")

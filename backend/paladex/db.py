@@ -18,13 +18,19 @@ class Base(DeclarativeBase):
 _engine: Engine | None = None
 _SessionLocal: sessionmaker[Session] | None = None
 
+# How long a writer waits for another writer's transaction before "database is locked".
+# Collectors are serialised among themselves (collectors.runner._write_lock), but a short API
+# write (settings, source switch, demo seed) can still arrive while a collector holds a batch
+# open between two checkpoints: it waits for that batch instead of failing with HTTP 500.
+SQLITE_BUSY_TIMEOUT_MS = 60_000
+
 
 def _configure_sqlite(dbapi_conn, _record):  # pragma: no cover - trivial
     cur = dbapi_conn.cursor()
     cur.execute("PRAGMA journal_mode=WAL")      # readers never block the collector
     cur.execute("PRAGMA synchronous=NORMAL")
     cur.execute("PRAGMA foreign_keys=ON")
-    cur.execute("PRAGMA busy_timeout=10000")
+    cur.execute(f"PRAGMA busy_timeout={int(SQLITE_BUSY_TIMEOUT_MS)}")
     cur.close()
 
 

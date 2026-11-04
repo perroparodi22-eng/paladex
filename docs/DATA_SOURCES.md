@@ -10,6 +10,8 @@ This file summarises `docs/research/*.json`, which holds the full research per s
 |---|---|---|---|---|---|
 | **USDA AMS National Honey Report** (FVMHONEY) | PDF (latest URL overwritten monthly), ESMIS JSON API for the archive | none | **Bulk prices paid to importers by origin and colour** (USD/lb, duty paid, ex-dock); prices paid to US and Canadian beekeepers by state, floral source and colour; US imports by origin (CBP ACE kg/value) | monthly, at month end · import tables lag 1 month | US public domain. Layout changed in Jan 2025, so the parser is versioned |
 | USDA FAS GATS (US Census) | REST JSON | free api.data.gov key | Monthly US honey imports by origin and HS-10 line (kg, customs value, CIF) giving a **customs unit value USD/kg** | monthly · ~5–6 weeks | public; 1,000 req/h |
+| US Census Bureau International Trade API (`us_census_trade`) | REST JSON (array of arrays) | optional free key | Monthly US honey imports by origin (HS 0409, every country plus the published world total): customs value and kg (same basis as GATS), general imports, CIF value, dutiable value and **calculated duty**, HS-10 lines. Gives a **customs unit value USD/kg**. **The underlying data are the same as GATS**: every row says so (`extra.same_underlying_data_as`), and the two are never added together | monthly · ~5 weeks; annual revision in June; the API gives no release date | public domain |
+| **Brazil MDIC/SECEX Comex Stat** (`br_comexstat`) | REST JSON (POST queries) | none | Monthly Brazilian honey exports (NCM 04090000) by destination and state of production (FOB USD, net kg). Gives an **export unit value USD/kg by destination** | monthly · ~1 week (a cheap daily release check; trailing 3 months re-pulled) | Brazilian open data (Lei 12.527/2011), cite MDIC/SECEX |
 | USDA NASS Quick Stats | REST JSON | free key | US production, colonies, yield, **price received by beekeepers** | annual (mid-March) | public; the app must show "This product uses the NASS API but is not endorsed or certified by NASS." |
 | USDA MyMarketNews API (slug 2901) | REST JSON | free key | same report; structured sections unverified, history only from late 2025 | monthly | public. Optional; the PDF route is primary |
 | **Eurostat Comext DS-045409** | REST JSON-stat | none | EU27 and member-state imports and exports of CN 04090000 by partner (EUR, 100 kg) giving an **EU import unit value EUR/kg by origin** | monthly (mid-month release) · ~6–7 weeks; recent months revised | CC BY 4.0 |
@@ -33,7 +35,7 @@ This file summarises `docs/research/*.json`, which holds the full research per s
 
 ## 2. Which sources have APIs, which need documents
 
-* **Official APIs (JSON):** Eurostat Comext, EC TAXUD weekly, UN Comtrade, USDA FAS GATS, USDA NASS, ESMIS (USDA archive), FAOSTAT (token), Federal Register, CELLAR SPARQL, ECB, GDELT.
+* **Official APIs (JSON):** Eurostat Comext, EC TAXUD weekly, UN Comtrade, USDA FAS GATS, US Census International Trade API, Brazil Comex Stat, USDA NASS, ESMIS (USDA archive), FAOSTAT (token), Federal Register, CELLAR SPARQL, ECB, GDELT.
 * **RSS / Atom:** trade press, Google News (opt-in), and WordPress sites (Informamiele, if its feed is enabled).
 * **Document extraction (PDF / HTML):** USDA National Honey Report (PDF tables), ONM bulletins and annual report, CCIAA Cuneo (HTML/CSV), ISMEA (HTML), CCIAA Siena (PDF), DG AGRI market overview (PDF).
 
@@ -45,7 +47,8 @@ This file summarises `docs/research/*.json`, which holds the full research per s
   * the ONM annual report gives import prices by origin into Italy, annually.
 * **Customs unit values (a proxy, never a quote):**
   * EU by origin: monthly (Comext) and weekly provisional (TAXUD);
-  * US by origin: monthly (GATS);
+  * US by origin: monthly (GATS, and the same Census data directly from the Census API, kept as a separate source and never added to GATS);
+  * Brazil by destination: monthly, about one week after the month (Comex Stat export unit values);
   * world: annual (Comtrade, FAOSTAT).
 * **Production:** FAOSTAT (annual, ~1–2 years old), NASS (US, annual), ONM (Italy, annual plus a preliminary report).
 * **Not available from any free source:** real-time spot prices, supplier offers (entered manually in the Supplier quotes tool, Milestone 7), and Chinese domestic prices.

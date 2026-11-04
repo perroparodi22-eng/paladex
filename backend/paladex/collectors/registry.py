@@ -20,6 +20,7 @@ COLLECTOR_MODULES: list[str] = [
     "paladex.collectors.eu",              # European Commission / Eurostat Comext
     "paladex.collectors.italy",           # Osservatorio Nazionale Miele / Italian price lists
     "paladex.collectors.comtrade",        # UN Comtrade HS 0409
+    "paladex.collectors.trade_official",  # national official trade stats: Brazil Comex Stat, US Census
     "paladex.collectors.faostat",         # FAOSTAT production / producer prices
     "paladex.collectors.news_gdelt",      # GDELT DOC 2.0 (multilingual news, commercial use allowed)
     "paladex.collectors.news_feeds",      # RSS / Atom news (Google News feeds are opt-in)

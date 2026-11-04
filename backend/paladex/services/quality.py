@@ -18,8 +18,10 @@ Checks (each issue has a stable `dedup_key`, so re-running updates instead of du
                      sources that differ by > 15 % (both values are listed, neither discarded)
 * MISSING (gaps)     monthly price series with missing months in the last 12 months, between
                      the first and last point of that window (info)
-* PARSE_WARNING      suspicious HS 0409 trade rows: unit value outside 0.3-30 USD/kg, or zero
-                     weight with a value (warning)
+* PARSE_WARNING      suspicious HS 0409 trade rows: unit value outside 0.3-30 USD/kg (upper
+                     bound raised for premium origins, e.g. New Zealand manuka 150, Australia
+                     100; the origin is the partner of imports and the reporter of exports), or
+                     zero weight with a value (warning)
 
 Issues that are no longer detected are resolved automatically (`resolved_at`); if they come
 back they are reopened. Demonstration rows (`is_demo`) and the demo source are ignored.
@@ -71,6 +73,8 @@ DISCREPANCY_REL_DIFF = 0.15
 MISSING_WINDOW_MONTHS = 12
 TRADE_UV_MIN_USD = 0.3
 TRADE_UV_MAX_USD = 30.0
+# Premium origins (manuka / jarrah, mostly retail-packed): official lanes are regularly 30-80 USD/kg.
+TRADE_UV_MAX_USD_BY_ORIGIN: dict[str, float] = {"NZL": 150.0, "AUS": 100.0}
 HONEY_HS_PREFIX = "0409"
 
 # Every dedup_key written here starts with one of these; only these are auto-resolved, so
@@ -106,6 +110,12 @@ KEY_HELP: dict[str, dict[str, str]] = {
         "signup_url": "https://api.data.gov/signup/",
         "it": "Chiave gratuita api.data.gov: compila il modulo (nome ed e-mail) e la chiave arriva per posta elettronica.",
         "en": "Free api.data.gov key: fill in the form (name and e-mail) and the key is e-mailed to you.",
+    },
+    "census_api_key": {
+        "service": "US Census Bureau API",
+        "signup_url": "https://api.census.gov/data/key_signup.html",
+        "it": "Chiave gratuita US Census (facoltativa): inserisci nome ed e-mail e la chiave arriva per posta elettronica.",
+        "en": "Free US Census key (optional): enter your name and e-mail address and the key is e-mailed to you.",
     },
     "anthropic_api_key": {
         "service": "Anthropic (Claude)",
@@ -212,6 +222,20 @@ def explain_error(error: str | None) -> dict[str, str]:
     e = (error or "").lower()
     if "api key" in e or "key not configured" in e:
         return {"it": "manca la chiave di accesso alla fonte.", "en": "the access key for the source is missing."}
+    if e.startswith("interrupted"):
+        return {"it": "l'aggiornamento è stato interrotto (applicazione chiusa durante la raccolta o database occupato).",
+                "en": "the update was interrupted (the application was closed during the collection, or the database was busy)."}
+    if any(w in e for w in ("certificate verify failed", "certificate_verify_failed", "[ssl", "sslerror",
+                            "ssl handshake", "tls handshake")):
+        return {"it": "non è stato possibile verificare il certificato di sicurezza del sito della fonte.",
+                "en": "the security certificate of the source website could not be verified."}
+    if any(w in e for w in ("name or service not known", "nodename nor servname", "getaddrinfo failed",
+                            "no address associated", "name does not resolve")):
+        return {"it": "l'indirizzo del sito della fonte non esiste più: la fonte potrebbe aver cambiato dominio.",
+                "en": "the address of the source website no longer exists: the source may have changed its domain."}
+    if "while the internet connection works" in e:
+        return {"it": "il sito della fonte non risponde, mentre la connessione internet funziona.",
+                "en": "the source website does not answer, while the internet connection works."}
     if "no internet" in e or "cannot reach" in e or "connecterror" in e or "name resolution" in e:
         return {"it": "non è stato possibile collegarsi al sito della fonte (connessione internet assente o sito irraggiungibile).",
                 "en": "the source website could not be reached (no internet connection or site unreachable)."}
@@ -655,6 +679,11 @@ def _trade_label(r, source_name: str, lang: str) -> str:
     return f"“{source_name}” {reporter} {flow} {'from' if inbound else 'to'} {partner}, {_period(r.period_label, 'en')}"
 
 
+def _trade_origin(r) -> str | None:
+    """Where the honey comes from: the partner of an import, the reporter of an export."""
+    return r.partner_iso3 if r.flow in ("import", "re_import") else r.reporter_iso3
+
+
 def check_trade(session: Session, src_by_id: dict[int, Source], skip_source_ids: set[int]) -> list[Finding]:
     T = TradeFlowObservation
     q = select(T.id, T.source_id, T.hs_code, T.reporter_iso3, T.partner_iso3, T.flow, T.net_weight_kg, T.value,
@@ -692,10 +721,11 @@ def check_trade(session: Session, src_by_id: dict[int, Source], skip_source_ids:
         if usd is None:
             continue  # no FX conversion available: never guess
         uv = usd / r.net_weight_kg
-        if TRADE_UV_MIN_USD <= uv <= TRADE_UV_MAX_USD:
+        uv_max = TRADE_UV_MAX_USD_BY_ORIGIN.get(_trade_origin(r) or "", TRADE_UV_MAX_USD)
+        if TRADE_UV_MIN_USD <= uv <= uv_max:
             continue
-        rng_it = f"{_num(TRADE_UV_MIN_USD, 'it')}–{_num(TRADE_UV_MAX_USD, 'it', 0)}"
-        rng_en = f"{_num(TRADE_UV_MIN_USD, 'en')}–{_num(TRADE_UV_MAX_USD, 'en', 0)}"
+        rng_it = f"{_num(TRADE_UV_MIN_USD, 'it')}–{_num(uv_max, 'it', 0)}"
+        rng_en = f"{_num(TRADE_UV_MIN_USD, 'en')}–{_num(uv_max, 'en', 0)}"
         out.append(Finding(
             dedup_key=f"trade:unit_value:{r.id}",
             issue_type=QualityIssueType.PARSE_WARNING.value,
@@ -710,7 +740,7 @@ def check_trade(session: Session, src_by_id: dict[int, Source], skip_source_ids:
                         f"outside the plausible range {rng_en} USD/kg for honey (HS 0409). "
                         f"Value {_num(usd, 'en', 0)} USD, weight {_num(r.net_weight_kg, 'en', 0)} kg."),
             details={**base, "rule": "unit_value", "unit_value_usd_per_kg": round(uv, 4), "usd_value": usd,
-                     "range_usd_per_kg": [TRADE_UV_MIN_USD, TRADE_UV_MAX_USD]},
+                     "range_usd_per_kg": [TRADE_UV_MIN_USD, uv_max]},
         ))
     return out
 

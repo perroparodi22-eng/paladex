@@ -1,0 +1,40 @@
+{
+ "data": {
+  "list": [
+   {
+    "id": "metricFOB",
+    "text": "US$ FOB",
+    "flow": "both"
+   },
+   {
+    "id": "metricKG",
+    "text": "Net kilograms",
+    "flow": "both"
+   },
+   {
+    "id": "metricStatistic",
+    "text": "Statistical quantity",
+    "flow": "both"
+   },
+   {
+    "id": "metricFreight",
+    "text": "Freight US$",
+    "flow": "import"
+   },
+   {
+    "id": "metricInsurance",
+    "text": "Insurance US$",
+    "flow": "import"
+   },
+   {
+    "id": "metricCIF",
+    "text": "US$ CIF",
+    "flow": "import"
+   }
+  ]
+ },
+ "success": true,
+ "message": null,
+ "processo_info": null,
+ "language": "en"
+}

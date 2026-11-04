@@ -701,7 +701,9 @@ class XiEuTariffCollector(Collector):
         quotas: dict[str, XiQuota | None] = {}
         written: set[str] = set()
         keys_this_run: dict[str, int] = {}
-        for s in selected:
+        # Deterministic order, so a duplicate key gets the same "|sid" suffix on every run.
+        for s in sorted(selected, key=lambda x: (x.measure.type_id, x.measure.geo_id, x.measure.order_number or "",
+                                                  x.measure.sid)):
             m = s.measure
             children = com.geos.get(m.geo_id).children if m.geo_id in com.geos else None
             if xi_is_group(m.geo_id) and m.geo_id != XI_ERGA_OMNES and children is None:
@@ -761,7 +763,7 @@ class XiEuTariffCollector(Collector):
         except Offline:
             raise
         except CollectorError as exc:
-            ctx.warn(f"XI: geographical area {geo_id}: {exc}")
+            ctx.warn(f"XI: {exc}")
             return None
 
     def _quota(self, ctx: CollectContext, order_number: str, on: date, fallback: XiQuota | None) -> XiQuota | None:

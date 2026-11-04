@@ -100,6 +100,11 @@ class RunCounters:
     newest_period_start: date | None = None
     committed_new: int = 0
     committed_revised: int = 0
+    # Freshness of what the last checkpoint really committed: rows rolled back after it must
+    # not make the source look newer than the database is.
+    committed_newest_published: date | None = None
+    committed_newest_period_label: str | None = None
+    committed_newest_period_start: date | None = None
 
     def count(self, outcome: str) -> None:
         self.seen += 1
@@ -107,6 +112,22 @@ class RunCounters:
             self.new += 1
         elif outcome == "revised":
             self.revised += 1
+
+    def mark_committed(self) -> None:
+        """Called after a successful commit (`CollectContext.checkpoint`)."""
+        self.committed_new = self.new
+        self.committed_revised = self.revised
+        self.committed_newest_published = self.newest_published
+        self.committed_newest_period_label = self.newest_period_label
+        self.committed_newest_period_start = self.newest_period_start
+
+    def restore_committed(self) -> None:
+        """After a rollback: forget the counts and freshness of everything not checkpointed."""
+        self.new = self.committed_new
+        self.revised = self.committed_revised
+        self.newest_published = self.committed_newest_published
+        self.newest_period_label = self.committed_newest_period_label
+        self.newest_period_start = self.committed_newest_period_start
 
 
 class CollectContext:
@@ -245,8 +266,7 @@ class CollectContext:
         """Commit what has been collected so far (use between independent batches so a
         late failure does not discard earlier, valid data)."""
         self.session.commit()
-        self.counters.committed_new = self.counters.new
-        self.counters.committed_revised = self.counters.revised
+        self.counters.mark_committed()
 
     def warn(self, msg: str) -> None:
         log.warning("[%s] %s", self.source.key, msg)

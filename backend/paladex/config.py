@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     usda_nass_api_key: str | None = None
     # api.data.gov key — used by USDA FAS GATS (US Census honey imports by origin)
     data_gov_api_key: str | None = None
+    # US Census Bureau API key (free) — optional for the Census International Trade API collector
+    # (us_census_trade); sent only as the `key` query parameter Census requires, redacted on storage.
+    census_api_key: str | None = None
     # FAOSTAT Developer Portal account (free). Optional: without it FAOSTAT is read from the public
     # bulk downloads; with it the collector uses narrow API queries and adds bilateral trade (TM).
     faostat_username: str | None = None
@@ -81,6 +84,7 @@ class Settings(BaseSettings):
             "usda_mmn_key": bool(self.usda_mmn_api_key),
             "usda_nass_key": bool(self.usda_nass_api_key),
             "data_gov_key": bool(self.data_gov_api_key),
+            "census_key": bool(self.census_api_key),
             "scheduler_enabled": self.scheduler_enabled,
         }
 

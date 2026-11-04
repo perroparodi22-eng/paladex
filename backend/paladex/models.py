@@ -89,6 +89,7 @@ class Source(Base):
     last_new_data_at: Mapped[datetime | None] = mapped_column(DateTime)
     latest_published_at: Mapped[date | None] = mapped_column(Date)    # newest publication date we hold
     latest_period_label: Mapped[str | None] = mapped_column(String(40))
+    latest_period_start: Mapped[date | None] = mapped_column(Date)    # start of that period: the label only moves forward
 
     runs: Mapped[list[CollectionRun]] = relationship(back_populates="source")
 
@@ -191,6 +192,12 @@ class PriceObservation(_ObservationMixin, Base):
     usd_per_kg: Mapped[float | None] = mapped_column(Float)
     eur_per_kg: Mapped[float | None] = mapped_column(Float)
     fx_date: Mapped[date | None] = mapped_column(Date)
+    # How usd/eur were derived (services.fx): "spot" (one ECB rate, fx_date) or "period_avg"
+    # (mean of the ECB daily rates fx_start..fx_end). fx_end < period_end = provisional
+    # (period still open at conversion); the backfill recomputes it once the period has closed.
+    fx_basis: Mapped[str | None] = mapped_column(String(12))
+    fx_start: Mapped[date | None] = mapped_column(Date)
+    fx_end: Mapped[date | None] = mapped_column(Date)
     volume_kg: Mapped[float | None] = mapped_column(Float)  # traded volume behind the price, if given
 
 
@@ -211,6 +218,9 @@ class TradeFlowObservation(_ObservationMixin, Base):
     unit_value_per_kg: Mapped[float | None] = mapped_column(Float)      # value / net weight (same currency)
     usd_value: Mapped[float | None] = mapped_column(Float)
     eur_value: Mapped[float | None] = mapped_column(Float)
+    fx_basis: Mapped[str | None] = mapped_column(String(12))  # as PriceObservation.fx_basis
+    fx_start: Mapped[date | None] = mapped_column(Date)
+    fx_end: Mapped[date | None] = mapped_column(Date)
 
 
 class ProductionStat(_ObservationMixin, Base):

@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import scheduler
 from .api import build_router
+from .collectors import base as _collector_base  # noqa: F401 - installs the httpx log filter that redacts API keys in URLs
 from .config import get_settings
 from .db import init_db
 

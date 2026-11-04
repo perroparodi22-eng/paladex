@@ -414,11 +414,11 @@ class FeedCollector(Collector):
                 ctx.checkpoint()
             except IntegrityError:
                 ctx.session.rollback()
-                ctx.counters.new = ctx.counters.committed_new
+                ctx.counters.restore_committed()
                 ctx.counters.count("unchanged")  # stored meanwhile by a concurrent run
             except Exception as exc:  # noqa: BLE001 - one bad item must not lose the batch
                 ctx.session.rollback()
-                ctx.counters.new = ctx.counters.committed_new
+                ctx.counters.restore_committed()
                 ctx.warn(f"Articolo non salvato ({str(item.get('url', ''))[:120]}): {type(exc).__name__}: {exc}"[:400])
 
 

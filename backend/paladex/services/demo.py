@@ -24,6 +24,7 @@ from ..models import (
     Report,
     Source,
     SupplierQuote,
+    TariffMeasure,
     TradeFlowObservation,
 )
 from . import ingest
@@ -107,7 +108,8 @@ def seed_demo(session: Session, months: int = 48, today: date | None = None) -> 
 
 def purge_demo(session: Session) -> int:
     n = 0
-    for model in (PriceObservation, TradeFlowObservation, ProductionStat, NewsArticle, Report, RegulationItem, SupplierQuote):
+    for model in (PriceObservation, TradeFlowObservation, ProductionStat, NewsArticle, Report, RegulationItem, SupplierQuote,
+                  TariffMeasure):
         res = session.execute(delete(model).where(model.is_demo.is_(True)))
         n += res.rowcount or 0
     return n

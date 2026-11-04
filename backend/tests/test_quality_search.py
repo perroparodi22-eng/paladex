@@ -544,3 +544,30 @@ def test_search_empty_and_no_results(api, search_setup):
     weird = api.get("/api/search", params={"q": "%_\\"})
     assert weird.status_code == 200 and weird.json()["total"] == 0
     assert api.get("/api/search", params={"q": "2026"}).status_code == 200
+
+
+def test_premium_origin_unit_values_are_not_parse_warnings(db):
+    """Manuka lanes (New Zealand) are regularly 30-60+ USD/kg: not a reading error. The origin is
+    the partner of an import and the reporter of an export; other origins keep 0.3-30 USD/kg."""
+    src = make_source(db, "comtrade_like", category="trade")
+
+    def flow(key, reporter, partner, flow_, usd_per_kg):
+        return ingest.record(
+            db, TradeFlowObservation, source_id=src.id, series_key=key, hs_code="0409", reporter_iso3=reporter,
+            partner_iso3=partner, flow=flow_, net_weight_kg=1000, value=usd_per_kg * 1000, currency="USD",
+            period_start=date(2025, 1, 1), period_end=date(2025, 12, 31), period_label="2025", frequency="A",
+            data_status="published", reliability="official",
+        )[1]
+
+    flow("nz-cn", "NZL", "CHN", TradeFlow.EXPORT.value, 40)      # NZ manuka exports to China
+    flow("jp-nz", "JPN", "NZL", TradeFlow.IMPORT.value, 40)      # Japan imports from NZ
+    flow("it-nz", "ITA", "NZL", TradeFlow.IMPORT.value, 62)
+    bad = flow("de-ua", "DEU", "UKR", TradeFlow.IMPORT.value, 45)   # Ukrainian bulk at 45 USD/kg: suspicious
+    cn_nz = flow("cn-nz", "CHN", "NZL", TradeFlow.EXPORT.value, 40)  # export FROM China: the generic bound applies
+    absurd = flow("nz-x", "NZL", "CHN", TradeFlow.EXPORT.value, 400)
+    run(db)
+    found = issues(db, "trade:")
+    assert set(found) == {f"trade:unit_value:{bad.id}", f"trade:unit_value:{cn_nz.id}", f"trade:unit_value:{absurd.id}"}
+    assert found[f"trade:unit_value:{absurd.id}"].details["range_usd_per_kg"] == [0.3, 150.0]
+    assert "0,30–150 USD/kg" in found[f"trade:unit_value:{absurd.id}"].message_it
+    assert found[f"trade:unit_value:{bad.id}"].details["range_usd_per_kg"] == [0.3, 30.0]
