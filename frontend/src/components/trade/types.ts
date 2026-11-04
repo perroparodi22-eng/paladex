@@ -7,13 +7,14 @@ export type TradeFreq = 'A' | 'M'
 
 export interface Provider {
   key: string; name: string; publisher: string | null; enabled: boolean
-  last_run_status: string | null; expected_update?: string | null
+  last_run_status: string | null; expected_update?: string | null; expected_update_en?: string | null
 }
 
 export interface SourceUsed extends SourceBrief {
   freshness: Freshness | null
   latest_published_at: string | null
   expected_update: string | null
+  expected_update_en?: string | null
 }
 
 /** Provenance carried by every trade figure. */
@@ -102,7 +103,7 @@ export interface FacetsResponse {
   sources: (SourceBrief & {
     frequencies: string[]; rows: number; first_period: string | null; last_period: string | null
     latest_period_label: string | null; latest_published_at: string | null; collected_at: string | null
-    is_demo: boolean; expected_update: string | null; freshness: Freshness
+    is_demo: boolean; expected_update: string | null; expected_update_en?: string | null; freshness: Freshness
   })[]
   providers: Provider[]
 }
@@ -156,6 +157,7 @@ export interface TradeSeries {
   is_demo: boolean
   freshness: Freshness | null
   expected_update: string | null
+  expected_update_en?: string | null
 }
 
 export interface SeriesResponse {

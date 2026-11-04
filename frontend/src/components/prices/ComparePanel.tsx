@@ -86,18 +86,27 @@ function BarList({ d, by, name, unit, open, setOpen }: {
   return (
     <ul className="flex flex-col">
       {d.bars.map((b) => {
-        const isOpen = open === b.key
+        const barId = b.id ?? `${b.key}|${b.market_iso3 ?? ''}|${b.is_demo ? 'demo' : ''}`
+        const isOpen = open === barId
+        // Several bars can share an origin (one per market): name the market so they are distinguishable.
+        const sharesKey = d.bars.filter((x) => x.key === b.key).length > 1
         return (
-          <li key={b.key} className="border-b border-line-soft last:border-b-0">
+          <li key={barId} className="border-b border-line-soft last:border-b-0">
             <button
               type="button"
-              onClick={() => setOpen(isOpen ? null : b.key)}
+              onClick={() => setOpen(isOpen ? null : barId)}
               aria-expanded={isOpen}
               className="w-full grid grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)_4.5rem_6.5rem] items-center gap-3 py-2 text-left hover:bg-ivory/50"
             >
               <span className="flex items-center gap-1 min-w-0 font-medium text-charcoal">
                 {isOpen ? <ChevronDown size={15} className="shrink-0 text-muted" /> : <ChevronRight size={15} className="shrink-0 text-muted" />}
-                <span className="truncate">{name(b.key)}</span>
+                <span className="truncate">
+                  {name(b.key)}
+                  {sharesKey && b.market_iso3 && (
+                    <span className="text-muted font-normal"> → {country(b.market_iso3)}</span>
+                  )}
+                </span>
+                {b.is_demo && <span className="shrink-0"><DemoBadge /></span>}
               </span>
               <span className="relative h-[18px]" aria-hidden>
                 <span className="absolute inset-y-0 left-0 bg-forest-600 rounded-r-[3px]" style={{ width: pct(b.value) }} />

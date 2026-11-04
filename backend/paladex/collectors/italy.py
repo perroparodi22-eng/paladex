@@ -27,7 +27,9 @@ Conventions decided here (documented because the sources do not state them):
   are both WHOLESALE_BULK; `extra["packaging_code"]` / `extra["drum"]` let the UI keep drums
   only. Price unit is taken from the "U.M." column ("kg" or "q.le" -> unit "q").
 * Cuneo back-fill: the yearly averages PDF ("Miele - medie YYYY") of the previous
-  `CUNEO_BACKFILL_YEARS` complete years is read once (again only with --force). A monthly
+  `CUNEO_BACKFILL_YEARS` complete years is read until a copy fetched on or after 1 April of
+  the following year is held (last year's PDF is still being completed in January), then
+  left alone (again only with --force). A monthly
   average is stored only where no monthly list observation exists for that item/month (gap
   filling), under its own series key and with `extra["statistic"]` = "monthly_average" or
   "annual_average", because an average is not a min-max quotation.
@@ -41,8 +43,14 @@ Conventions decided here (documented because the sources do not state them):
   "EUR/kg" unit ("tra 4 e 4,5 €/kg", "5,00-6,50 €/kg"). Inside a segment of a sentence
   (split at ";", "mentre", "invece") variety mentions and price mentions must alternate
   one-to-one, otherwise the segment is ambiguous and skipped. Single values ("attorno ai
-  4,00 €/kg") are never stored. Every extracted price is `provisional` and carries the note
-  "estratto dal testo del bollettino" plus the sentence it came from.
+  4,00 €/kg") are never stored. Packaging, organic and origin words belong to the pair whose
+  own phrase holds them, to a parenthetical right after it ("6,5-6,7 €/kg (latta)"), or to
+  the next pair when set off by a comma and leading into it (", in latta il castagno"); a
+  qualifier that could belong to two pairs skips both. The origin is read only in the
+  variety's own clause: a foreign honey named as context ("complice la concorrenza del miele
+  ucraino, il millefiori ...") skips the pair instead of labelling it. Every extracted price
+  is `provisional` and carries the note "estratto dal testo del bollettino" plus the sentence
+  it came from.
 """
 from __future__ import annotations
 
@@ -61,7 +69,7 @@ from bs4 import BeautifulSoup
 from sqlalchemy import select
 
 from ..enums import DataStatus, PriceType, Reliability, SourceKind, Variety
-from ..models import PriceObservation, RawDocument
+from ..models import AppSetting, PriceObservation, RawDocument
 from ..reference.countries import lookup_iso3
 from ..reference.varieties import normalize_variety
 from ..services.ingest import KG_PER_UNIT
@@ -69,6 +77,7 @@ from .base import (
     CollectContext,
     Collector,
     CollectorError,
+    FetchResult,
     Offline,
     month_bounds,
     parse_date,
@@ -458,7 +467,11 @@ CUNEO_LIST_URL = CUNEO_BASE + "/dataentry/site/ingrosso/lists/download/{fmt}?lis
 CUNEO_LIST_PAGE_URL = CUNEO_BASE + "/ingrosso/ALIMENTARI/?listCategory={id}"
 CUNEO_AVERAGES_URL = CUNEO_BASE + "/dataentry/site/ingrosso/medie/download/pdf?category=11&mYear={year}"
 CUNEO_MAX_LISTS = 3            # newest lists re-checked per run (unchanged ones cost one request)
-CUNEO_BACKFILL_YEARS = 5       # complete years read from the averages PDFs (once)
+CUNEO_BACKFILL_YEARS = 5       # complete years read from the averages PDFs
+# Last year's averages PDF keeps changing after New Year (the December list is dated 31 Dec and
+# published days to weeks later): it is re-fetched on every run until one copy fetched on or
+# after the 1st of this month of the following year is held, then left alone (again only with --force).
+CUNEO_AVERAGES_SETTLE_MONTH = 4
 
 CUNEO_SPEC: dict[str, re.Pattern] = {
     "product": re.compile(r"prodott|\bvoce\b|descrizion|variet|\bmerce\b|qualita"),
@@ -883,6 +896,7 @@ class CuneoHoneyCollector(Collector):
     country_iso3 = "ITA"
     language = "it"
     expected_update = "Mensile (rilevazione di fine mese); controllo settimanale"
+    expected_update_en = "Monthly (end-of-month survey); checked weekly"
     expected_max_age_days = 50
     terms_note = ("Listino camerale pubblico, prezzi indicativi all'ingrosso sulla piazza di Cuneo. "
                   "Nessuna licenza esplicita trovata: citare 'CCIAA Cuneo'.")
@@ -955,11 +969,21 @@ class CuneoHoneyCollector(Collector):
 
     # -- back-fill from the yearly averages PDFs ------------------------------------
     def _backfill_averages(self, ctx: CollectContext) -> None:
-        this_year = _today().year
+        """Read the averages PDF of each back-fill year until a copy fetched on or after the
+        year's settle date is held. The PDF is a live document: the previous year's copy
+        fetched in January may still lack December and its 'Media' covers fewer months, so it
+        is fetched again on every run until then (unchanged bytes are not re-parsed; changed
+        values become revisions). Until the settle date the annual mean is `provisional`; the
+        first fetch on or after it re-reads the PDF, which publishes it."""
+        today = _today()
+        this_year = today.year
+        state = _get_state(ctx.session, self.key)
+        checked: dict[str, str] = dict(state.get("averages_checked") or {})
         attempted, failed, have_any = 0, 0, False
         for year in range(this_year - CUNEO_BACKFILL_YEARS, this_year):
             url = CUNEO_AVERAGES_URL.format(year=year)
-            if not ctx.force and _raw_exists(ctx, url):
+            was_final = _averages_final(checked.get(str(year)), year)
+            if not ctx.force and was_final and _raw_exists(ctx, url):
                 have_any = True
                 continue
             attempted += 1
@@ -972,7 +996,11 @@ class CuneoHoneyCollector(Collector):
                 log.info("Cuneo averages %s not available: %s", year, exc)
                 continue
             have_any = True
-            if doc.unchanged and not ctx.force:
+            checked[str(year)] = today.isoformat()
+            state["averages_checked"] = checked
+            _set_state(ctx.session, self.key, state)
+            final = _averages_final(checked[str(year)], year)
+            if doc.unchanged and not ctx.force and (was_final or not final):
                 continue
             try:
                 parsed = parse_cuneo_averages_pdf(doc.content, year=year)
@@ -981,14 +1009,17 @@ class CuneoHoneyCollector(Collector):
                 continue
             for p in parsed.problems:
                 ctx.warn(p)
-            self._store_averages(ctx, parsed, year, doc)
+            self._store_averages(ctx, parsed, year, doc, final=final)
             ctx.checkpoint()
         if attempted and failed == attempted and not have_any:
             ctx.warn(f"Cuneo: no yearly averages PDF could be downloaded ({CUNEO_AVERAGES_URL})")
 
-    def _store_averages(self, ctx: CollectContext, parsed: CuneoAverages, year: int, doc) -> None:
+    def _store_averages(self, ctx: CollectContext, parsed: CuneoAverages, year: int, doc, *, final: bool = True) -> None:
         note = (f"Media pubblicata nel prospetto 'Miele - medie {year}' della CCIAA di Cuneo "
                 "(valore medio, non un intervallo min-max)")
+        annual_note = note if final else (
+            f"{note}. Prospetto scaricato prima del 1/{CUNEO_AVERAGES_SETTLE_MONTH}/{year + 1}: la media annua "
+            "può non comprendere ancora tutti i mesi (provvisoria)")
         for r in parsed.rows:
             slug = _slug(r["label"])
             common = dict(
@@ -1016,13 +1047,38 @@ class CuneoHoneyCollector(Collector):
                 ctx.add_price(series_key=f"cuneo-media|{slug}|{year}", price_value=r["annual"],
                               period_start=start, period_end=end, period_label=str(year), frequency="A",
                               terms=_terms(r["packaging"], "media annua"),
-                              extra={**extra, "statistic": "annual_average"}, **common)
+                              extra={**extra, "statistic": "annual_average"},
+                              **{**common, "notes": annual_note,
+                                 "data_status": DataStatus.PUBLISHED if final else DataStatus.PROVISIONAL})
 
 
 def _raw_exists(ctx: CollectContext, url: str) -> bool:
     return ctx.session.scalar(
         select(RawDocument.id).where(RawDocument.source_id == ctx.source.id, RawDocument.url == url).limit(1)
     ) is not None
+
+
+def _averages_final(last_fetched: str | None, year: int) -> bool:
+    """True when the 'medie {year}' PDF was last fetched (by `_today()`) on or after the settle
+    date, so the copy held is the final one."""
+    fetched = parse_date(last_fetched)
+    return fetched is not None and fetched >= date(year + 1, CUNEO_AVERAGES_SETTLE_MONTH, 1)
+
+
+def _get_state(session, key: str) -> dict:
+    """Per-collector bookkeeping (not observations), same convention as the other collectors."""
+    row = session.get(AppSetting, f"collector_state:{key}")
+    return dict(row.value) if row is not None and isinstance(row.value, dict) else {}
+
+
+def _set_state(session, key: str, value: dict) -> None:
+    full_key = f"collector_state:{key}"
+    value = json.loads(json.dumps(value))       # a fresh object, so the JSON column sees the change
+    row = session.get(AppSetting, full_key)
+    if row is None:
+        session.add(AppSetting(key=full_key, value=value))
+    else:
+        row.value = value
 
 
 def _series_exists(ctx: CollectContext, series_key: str) -> bool:
@@ -1169,6 +1225,7 @@ class IsmeaHoneyCollector(Collector):
     country_iso3 = "ITA"
     language = "it"
     expected_update = "Settimanale (serie stagionale, aggiornamenti irregolari) e mensile"
+    expected_update_en = "Weekly (seasonal series, irregular updates) and monthly"
     expected_max_age_days = 45
     terms_note = ("Pagine pubbliche ISMEA Mercati; termini di riuso non esplicitati. Citare sempre 'Fonte: ISMEA'. "
                   "Prezzi medi all'origine (rete di rilevatori ONM per conto ISMEA), non quotazioni in fusti.")
@@ -1238,6 +1295,9 @@ class OnmPost:
     ref_year: int | None = None
     ref_month: int | None = None
     season: int | None = None
+    # the discovery response (feed / REST API) the post came from, kept so that the exact bytes
+    # can be archived if `content_html` has to stand in for the bulletin page
+    copy_doc: FetchResult | None = None
 
 
 def _season_of(text: str | None) -> int | None:
@@ -1804,6 +1864,7 @@ class OnmInformamieleCollector(Collector):
     country_iso3 = "ITA"
     language = "it"
     expected_update = "Mensile (circa 3 settimane dopo il mese); Report annuale a marzo"
+    expected_update_en = "Monthly (about 3 weeks after the month); annual report in March"
     expected_max_age_days = 60
     terms_note = ("© Osservatorio Nazionale Miele. Pagine pubbliche: dal 2023 solo sintesi; le tabelle complete "
                   "sono su Mieleinforma (registrazione). Prezzi estratti dal testo = provvisori, da verificare. "
@@ -1841,6 +1902,8 @@ class OnmInformamieleCollector(Collector):
             except CollectorError as exc:
                 errors.append(f"{name}: {exc}")
                 continue
+            for p in posts:
+                p.copy_doc = doc
             any_ok = True
             collected.extend(posts)
             if any(p.kind == "monthly" for p in posts):
@@ -1854,7 +1917,7 @@ class OnmInformamieleCollector(Collector):
 
     # -- monthly bulletin -----------------------------------------------------------
     def _bulletin(self, ctx: CollectContext, post: OnmPost) -> None:
-        raw_id = None
+        raw_id, parsed_from = None, post.url
         try:
             doc = ctx.fetch(post.url, title=post.title, published_at=post.published)
             if doc.unchanged and not ctx.force:
@@ -1866,7 +1929,16 @@ class OnmInformamieleCollector(Collector):
             if not post.content_html:
                 ctx.warn(f"ONM bulletin {post.url}: download failed ({exc})")
                 return
-            log.info("ONM bulletin %s: page unavailable (%s); using the feed/API copy", post.url, exc)
+            # The text comes from the discovery response: archive exactly those bytes (only
+            # now, so discovery does not store the feed on every run) and point to them.
+            src = post.copy_doc
+            if src is not None:
+                raw_id, _ = ctx.store_raw(src.url, src.content, src.content_type,
+                                          title=f"{post.title} (copia da feed/API, pagina non disponibile)",
+                                          published_at=post.published)
+                raw_id, parsed_from = raw_id or None, src.url
+            ctx.warn(f"ONM bulletin {post.url}: page unavailable ({exc}); text and prices taken from the "
+                     f"feed/API copy {parsed_from if src is not None else '(not archived)'}")
             page = parse_onm_post(post.content_html)
         y, m = post.ref_year, post.ref_month
         period = f"{y}-{m:02d}"
@@ -1897,7 +1969,7 @@ class OnmInformamieleCollector(Collector):
                 notes=f"{TEXT_EXTRACT_NOTE}: «{p['sentence'][:600]}»",
                 extra={"context_sentence": p["sentence"], "packaging_code": p["packaging_code"],
                        "drum": p["packaging_code"] == "fusto", "extraction": "regex", "needs_review": True,
-                       "price_basis": page.price_basis},
+                       "price_basis": page.price_basis, "parsed_from": parsed_from},
             )
 
     # -- Annual Report ------------------------------------------------------------------
@@ -2116,6 +2188,7 @@ class SienaHoneyCollector(Collector):
     country_iso3 = "ITA"
     language = "it"
     expected_update = "Settimanale (listino del mercoledì)"
+    expected_update_en = "Weekly (Wednesday price list)"
     expected_max_age_days = 21
     terms_note = ("Listino pubblico a titolo puramente informativo (in parte rilevato dall'ufficio prezzi, in parte da "
                   "una commissione). Prezzi locali, non quotazioni in fusti: solo come controllo di coerenza.")

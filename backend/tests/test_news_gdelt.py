@@ -75,3 +75,77 @@ def test_google_news_feeds_are_opt_in(db):
     gn = [s for k, s in srcs.items() if k.startswith("news_gn_")]
     assert gn and all(s.enabled is False for s in gn)
     assert all("personale" in (s.terms_note or "") for s in gn)
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: incremental window (F3) and malformed JSON (F6)
+# ---------------------------------------------------------------------------
+
+
+def test_window_timespan_covers_the_gap_since_last_success():
+    from datetime import datetime, timedelta
+
+    now = datetime(2026, 11, 2, 8, 0)
+    assert news_gdelt.window_timespan(now - timedelta(hours=61), now, False) == "3d"   # weekend off
+    assert news_gdelt.window_timespan(now - timedelta(hours=2), now, False) == "1d"
+    assert news_gdelt.window_timespan(now - timedelta(hours=22), now, False) == "1d"   # + 2 h overlap = 24 h
+    assert news_gdelt.window_timespan(now - timedelta(hours=23), now, False) == "2d"
+    assert news_gdelt.window_timespan(None, now, False) == "7d"
+    assert news_gdelt.window_timespan(now - timedelta(hours=2), now, True) == "7d"
+    assert news_gdelt.window_timespan(now - timedelta(days=12), now, True) == "13d"   # force never shortens
+    assert news_gdelt.window_timespan(now - timedelta(days=200), now, False) == "90d"  # DOC API keeps ~3 months
+    assert news_gdelt.window_timespan(now + timedelta(hours=3), now, False) == "1d"    # clock skew
+
+
+def test_incremental_run_requests_the_whole_gap(run_with_routes, session_factory, monkeypatch):
+    from datetime import timedelta
+
+    from paladex.models import utcnow
+
+    with session_factory() as s:
+        s.scalars(select(Source).where(Source.key == "news_gdelt")).one().last_success_at = utcnow() - timedelta(hours=61)
+    spans = []
+    real = news_gdelt.build_url
+    monkeypatch.setattr(news_gdelt, "build_url", lambda q, t: spans.append(t) or real(q, t))
+    res = run_with_routes("news_gdelt", {API: _payload(ARTICLES)})
+    assert res["status"] == "success", res
+    assert len(spans) == len(news_gdelt.QUERIES) and set(spans) == {"3d"}
+
+
+def test_capped_long_window_is_reported(run_with_routes, session_factory, monkeypatch):
+    from datetime import timedelta
+
+    from paladex.models import utcnow
+
+    with session_factory() as s:
+        s.scalars(select(Source).where(Source.key == "news_gdelt")).one().last_success_at = utcnow() - timedelta(hours=61)
+    monkeypatch.setattr(news_gdelt, "MAX_RECORDS", len(ARTICLES))
+    res = run_with_routes("news_gdelt", {API: _payload(ARTICLES)})
+    assert res["status"] == "partial", res
+    assert any("inglese: commercio" in w and "limite" in w and "3d" in w for w in res["warnings"]), res["warnings"]
+
+
+def test_parse_response_repairs_stray_backslashes_only():
+    body = (b'{"articles":[{"url":"https://x.example/a","title":"Honey \\x prices C:\\\\path \\u00e8 \\"q\\"",'
+            b'"seendate":"20261102T091500Z"}]}')
+    items = news_gdelt.parse_response(body)
+    assert items[0]["title"] == 'Honey \\x prices C:\\path \u00e8 "q"'
+    try:
+        news_gdelt.parse_response(b'{"articles":[{"url":"https://x.example/b","title":"Honey "prices""}]}')
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("an unescaped quote cannot be repaired")
+
+
+def test_malformed_json_skips_only_that_query(run_with_routes, session_factory):
+    import re
+
+    bad = b'{"articles":[{"url":"https://x.example/b","title":"Honey "prices" fall","seendate":"20261102T091500Z"}]}'
+    first = "^" + re.escape(news_gdelt.build_url(news_gdelt.QUERIES[0].query, "7d")) + "$"
+    res = run_with_routes("news_gdelt", {first: bad, API: _payload(ARTICLES)})
+    assert res["status"] == "partial", res
+    assert any("inglese: commercio" in w for w in res["warnings"]), res["warnings"]
+    with session_factory() as s:
+        titles = {r.title for r in s.scalars(select(NewsArticle))}
+    assert any("Argentina" in t for t in titles)          # the other queries still ran

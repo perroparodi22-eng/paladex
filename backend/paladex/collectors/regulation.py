@@ -517,7 +517,8 @@ class FederalRegisterCollector(Collector):
     category = "regulation"
     country_iso3 = "USA"
     language = "en"
-    expected_update = "Every federal business day; honey items are event-driven, so weeks with no new document are normal"
+    expected_update = "Ogni giorno lavorativo federale; i documenti sul miele sono occasionali: settimane senza novità sono normali"
+    expected_update_en = "Every federal business day; honey items are event-driven, so weeks with no new document are normal"
     # Event-driven: AD reviews are yearly per order, tariff actions irregular. Two months without
     # a new honey document is plausible; longer deserves a look at the run log.
     expected_max_age_days = 60
@@ -973,7 +974,8 @@ class EurLexHoneyCollector(Collector):
     reliability = Reliability.OFFICIAL
     category = "regulation"
     language = "en"
-    expected_update = "Weekly check; EU honey acts are rare and event-driven, so months with no new act are normal"
+    expected_update = "Controllo settimanale; gli atti UE sul miele sono rari e occasionali: mesi senza nuovi atti sono normali"
+    expected_update_en = "Weekly check; EU honey acts are rare and event-driven, so months with no new act are normal"
     # Honey legislation changes a few times a year at most (2021/405 list amendments, 2024/1438
     # implementing acts). Six months without a new act is normal.
     expected_max_age_days = 180

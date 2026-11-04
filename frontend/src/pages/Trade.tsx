@@ -9,11 +9,11 @@ import { LeadersChart } from '@/components/trade/LeadersChart'
 import { LeadersTable } from '@/components/trade/LeadersTable'
 import { TradeNotes } from '@/components/trade/TradeNotes'
 import type { FacetsResponse, LeadersResponse, TradeFlow, TradeMetric } from '@/components/trade/types'
-import { useI18n } from '@/i18n'
+import { expectedUpdate, useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 
 export default function Trade() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const facets = useQuery({ queryKey: ['trade', 'facets'], queryFn: () => api.get<FacetsResponse>('/trade/facets') })
   const [yearSel, setYearSel] = useState<number | null>(null)
   const [metric, setMetric] = useState<TradeMetric>('volume')
@@ -78,7 +78,7 @@ export default function Trade() {
                   {f!.providers.map((p) => (
                     <li key={p.key}>
                       <span className="text-charcoal-soft font-medium">{p.publisher || p.name}</span>
-                      {p.expected_update && <span className="text-muted"> — {p.expected_update}</span>}
+                      {expectedUpdate(p, lang) && <span className="text-muted"> — {expectedUpdate(p, lang)}</span>}
                     </li>
                   ))}
                 </ul>

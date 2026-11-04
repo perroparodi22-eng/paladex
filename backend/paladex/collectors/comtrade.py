@@ -1138,7 +1138,8 @@ class ComtradeCollector(Collector):
     category = "trade"
     language = "en"
     # Source.expected_update is String(120)
-    expected_update = "Rolling, per country: annual 6–12+ months after year end; monthly 2–4 months later (EU/US)"
+    expected_update = "Continuo, per paese: annuali 6–12+ mesi dopo la fine dell'anno; mensili 2–4 mesi dopo (UE/USA)"
+    expected_update_en = "Rolling, per country: annual 6–12+ months after year end; monthly 2–4 months later (EU/US)"
     expected_max_age_days = 120
     terms_note = ("Source: UN Comtrade (© United Nations). Internal analysis is allowed; re-publishing the raw "
                   "data outside the company needs a Premium Pro subscription (small extracts up to 100,000 records "

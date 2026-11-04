@@ -113,7 +113,8 @@ def serialize_source(s: Source, counts: dict | None = None) -> dict:
     return {
         "key": s.key, "name": s.name, "publisher": s.publisher, "homepage": s.homepage, "kind": s.kind,
         "reliability": s.reliability, "category": s.category, "country_iso3": s.country_iso3,
-        "expected_update": s.expected_update, "expected_max_age_days": s.expected_max_age_days,
+        "expected_update": s.expected_update, "expected_update_en": s.expected_update_en,
+        "expected_max_age_days": s.expected_max_age_days,
         "terms_note": s.terms_note, "enabled": s.enabled, "requires_key": s.requires_key, "key_missing": key_missing,
         "last_run_at": iso(s.last_run_at), "last_run_status": s.last_run_status,
         "last_success_at": iso(s.last_success_at), "last_new_data_at": iso(s.last_new_data_at),

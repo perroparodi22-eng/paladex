@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import { useState } from 'react'
 import { ChevronDown, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { Badge, FreshnessBadge, ReliabilityBadge } from '@/components/ui'
-import { useI18n } from '@/i18n'
+import { expectedUpdate, useI18n } from '@/i18n'
 import { fmtAgo, fmtDate, fmtDateTime, fmtNumber, fmtPeriod } from '@/lib/format'
 import type { Lang, SourceInfo } from '@/lib/types'
 import { asUtc, errorKey, runTone } from './explain'
@@ -118,8 +118,8 @@ function SourceRow({ s, state }: { s: SourceInfo; state: RowState }) {
             {!s.enabled && <Badge tone="outline">{t('sources.row.disabled')}</Badge>}
           </div>
           <div className="mt-1 text-[0.86rem] text-muted leading-snug">
-              {s.expected_update && (
-              <>{t('sources.row.expected')}: <span className="text-charcoal-soft">{s.expected_update}</span>
+              {expectedUpdate(s, lang) && (
+              <>{t('sources.row.expected')}: <span className="text-charcoal-soft">{expectedUpdate(s, lang)}</span>
                 {(counts.length > 0 || (s.freshness.status === 'never' && !manual)) && <span className="mx-1.5">·</span>}</>
             )}
             {counts.length ? <span className="num">{counts.join(' · ')}</span>

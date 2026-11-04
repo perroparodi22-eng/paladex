@@ -172,7 +172,13 @@ export interface CompareComponent {
 }
 
 export interface CompareBar {
-  key: string
+  key: string                 // origin or variety code (several bars may share it: one per market)
+  id?: string                 // unique per bar (origin|variety × market × demo)
+  origin_iso3?: string | null
+  variety?: string | null
+  market_iso3?: string | null
+  terms?: string | null
+  mixed_terms?: boolean
   value: number
   min: number
   max: number
@@ -200,7 +206,7 @@ export interface CompareResponse {
 
 export interface FacetItem { key: string; count: number }
 export interface CountryFacet extends FacetItem { priority: boolean; name_it: string | null; name_en: string | null }
-export interface SourceFacet extends SourceBrief { count: number; expected_update: string | null; latest_published_at: string | null }
+export interface SourceFacet extends SourceBrief { count: number; expected_update: string | null; expected_update_en?: string | null; latest_published_at: string | null }
 
 export interface FacetsResponse {
   scoped_to: string | null

@@ -11,14 +11,17 @@ Pipeline for one feed item:
    image taken from the excerpt's first <img> when the feed gives none);
 2. canonicalise the link (tracking parameters, AMP variants and fragments removed;
    Google News redirect links replaced only when the feed itself carries the real URL);
-   a link we already hold -> ``"unchanged"``;
+   a link we already hold -> ``"unchanged"`` (gaps are filled: image, publisher and, when
+   it was stored headline-only, the publisher's excerpt with the tags it adds);
 3. honey gate: the headline + excerpt must be about honey / beekeeping (multilingual
    keyword set). Items failing the gate are NOT stored -> ``"filtered"``;
 4. duplicates: an identical normalised headline, or a fuzzy match (rapidfuzz
    token_set_ratio >= 88) against non-duplicate articles dated within ±5 days, is stored
    with ``duplicate_of_id`` pointing at the first-seen article and that article's
    ``duplicate_count`` incremented -> ``"duplicate"`` (so we keep the record of which
-   outlets reported the story);
+   outlets reported the story). A fuzzy match is never a duplicate when the two headlines
+   name different countries, carry different figures, or take opposite sides of a
+   rise/fall or preliminary/final contrast: those are different stories;
 5. otherwise -> stored as ``"new"``.
 
 Every stored article is tagged with countries (ISO3), topics (keys of `TOPICS`) and a
@@ -32,6 +35,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 from typing import Literal
 from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
@@ -332,8 +336,21 @@ def _words(patterns: list[str]) -> re.Pattern:
     return re.compile(r"(?<!\w)(?:" + "|".join(patterns) + r")(?!\w)")
 
 
+def _fwords(patterns: list[str]) -> re.Pattern:
+    """Like `_words`, with each fragment folded like the text it is matched on, so Cyrillic
+    stems can be written naturally (й -> и, ї -> і, ё -> е). Fragments must not use
+    upper-case escapes (\\W, \\S, \\D, \\B), which folding would lower-case."""
+    return _words([fold(p) for p in patterns])
+
+
 def _raw(patterns: list[str]) -> re.Pattern | None:
     return re.compile("|".join(patterns)) if patterns else None
+
+
+def _unfolded(patterns: list[str]) -> re.Pattern | None:
+    """Case-insensitive word match on the original (accented) text. For short English words
+    whose folded form is also a word in another language (Vietnamese "bán" -> "ban")."""
+    return re.compile(r"(?<!\w)(?:" + "|".join(patterns) + r")(?!\w)", re.I) if patterns else None
 
 
 # Phrases that contain honey words but are not about honey (removed before the gate).
@@ -343,8 +360,23 @@ _GATE_EXCLUSIONS = _words([
     r"honey bunny", r"honey blonde", r"honey locusts?", r"honey crisp", r"honey ?pots?", r"honey ?moon\w*",
     r"(?:land of )?milk (?:and|&) honey", r"honey,? i shrunk", r"american honey (?:queen|movie|film)",
     r"mel gibson", r"mel b", r"mel brooks", r"mel tucker", r"mel robbins",
-    r"royal honey", r"honey packets? (?:with|containing) (?:sildenafil|tadalafil)", r"miele (?:spa|group|elettrodomestici)",
+    r"royal honey", r"honey packets? (?:with|containing) (?:sildenafil|tadalafil)",
+    # Miele the appliance maker, PayPal's "Honey" browser extension, Spanish/French honeymoon
+    # (noise sources named in docs/research/news.json)
+    r"miele (?:spa|group|gruppe|& cie|elettrodomestici)", r"paypal(?:'s)? honey",
+    r"honey (?:browser |shopping |coupon |chrome )?extension", r"honey coupons?", r"(?:luna|lune) de miel",
 ])
+# Item-level vetoes: male-enhancement "honey" sachets with hidden drugs (FDA warnings). Removing
+# the phrase is not enough because the item still says "honey" elsewhere.
+_GATE_VETO = _words([r"sildenafil", r"tadalafil", r"male enhancement", r"(?:sexual|libido) enhanc\w*",
+                     r"vip honey", r"royal honey"])
+# An item whose only honey word is "miele" and that talks about appliances is about Miele the brand.
+_APPLIANCE = _words([r"lavatric\w*", r"lavastovigl\w*", r"elettrodomestic\w*", r"asciugatric\w*",
+                     r"aspirapolver\w*", r"dishwashers?", r"washing machines?", r"dryers?", r"appliances?",
+                     r"vacuum cleaners?", r"waschmaschin\w*", r"geschirrspul\w*", r"hausgerat\w*", r"gutersloh"])
+# Ukrainian/Russian "мед." / "мед-" is the abbreviation of "medical" (медичний / медицинский), not
+# honey. Matched on the original text: only an abbreviation is followed by a lower-case word.
+_MED_ABBR = re.compile(r"(?<!\w)[Мм]ед(?:\.(?=\s*[а-яіїєґё])|-(?=\w))")
 
 # Strong terms: any one is enough to pass the gate.
 _GATE_STRONG = _words([
@@ -358,8 +390,13 @@ _GATE_STRONG = _words([
 # Non-Latin scripts / languages without spaces (GDELT queries in ZH, UK, RU, VI, SR).
 # CJK has no word boundaries, so these are matched as plain substrings.
 _GATE_STRONG_RAW = re.compile(
-    r"蜂蜜|养蜂|蜂农|"                                   # Chinese: honey, beekeeping, beekeepers
-    r"(?<!\w)(?:мед|меду|медом|бджіл\w*|бджоли\w*|пасічн\w*|пчел\w*|пасек\w*|пасеч\w*)(?!\w)|"  # UK/RU
+    # Chinese (simplified + traditional): honey, beekeeping, beekeepers, honeybee, bee products,
+    # bee industry; explicit variety honeys only (no generic "..蜜": 闺蜜/甜蜜/蜜月 are not honey)
+    r"蜂蜜|养蜂|養蜂|蜂农|蜂農|蜜蜂|蜂产品|蜂產品|蜂业|蜂業|"
+    r"(?:洋槐|槐花|椴树|椴樹|荆条|荊條|枣花|棗花|百花|油菜|紫云英|荔枝|龙眼|龍眼|葵花)蜜|"
+    # Ukrainian/Russian/Serbian Cyrillic (folded: ё -> е): honey, bee(s), beekeeper(s), apiary
+    # (not медов*: "медовий місяць" is a honeymoon)
+    r"(?<!\w)(?:мед|меду|меда|медом|бджіл\w*|бджол\w*|пасічн\w*|пасік\w*|пчел\w*|пасек\w*|пасеч\w*)(?!\w)|"
     r"(?<!\w)(?:mat ong|nuoi ong)(?!\w)|"                 # Vietnamese (accents folded): honey, beekeeping
     r"(?<!\w)(?:pcel\w*|izvoz meda|meda)(?!\w)"          # Serbian/Croatian (folded): bee*, honey export
 )
@@ -376,11 +413,16 @@ _BEE_CONTEXT = _words([r"bees?", r"api", r"ape", r"abejas?", r"abelhas?", r"bien
 
 def honey_terms(text: str, language: str | None = None) -> list[str]:
     """Honey/beekeeping terms found in `text` (folded matching). Empty list = not about honey."""
-    t = _GATE_EXCLUSIONS.sub(" ", fold(text))
+    t = fold(_MED_ABBR.sub(" ", unicodedata.normalize("NFC", text or "")))
+    if _GATE_VETO.search(t):
+        return []
+    t = _GATE_EXCLUSIONS.sub(" ", t)
     found = [m.group(0) for m in _GATE_STRONG.finditer(t)]
     found += [m.group(0) for m in _GATE_STRONG_RAW.finditer(t)]
     mel = _GATE_MEL_PT if (language or "").startswith("pt") else _GATE_MEL_PHRASES
     found += [m.group(0) for m in mel.finditer(t)]
+    if found and all(f == "miele" for f in found) and _APPLIANCE.search(t):
+        return []  # Miele (the appliance maker), not miele (honey)
     if not found:
         weak = [m.group(0) for m in _GATE_WEAK.finditer(t)]
         bees = [m.group(0) for m in _BEE_CONTEXT.finditer(t)]
@@ -400,10 +442,14 @@ TOPICS: dict[str, dict] = {
                   r"precios?", r"cotizac\w*", r"cotizan?", r"precos?", r"cotac\w*", r"preis(?:e|en)?",
                   r"preisentwicklung", r"honigpreis\w*", r"cheap\w*", r"underpric\w*", r"sottocosto",
                   r"rincar\w*", r"aument\w* (?:dei|del|de los|del) prezz\w*", r"price (?:drop|fall|rise|increase)s?",
-                  r"cents? (?:a|per) pound", r"valor(?:es)? (?:de|por) (?:la )?(?:miel|tonelada|kilo)"],
-        "raw": [r"\d\s*(?:€|eur|euros?|usd|us\$|\$|dollars?|dolares|cents?|centavos|pesos|reais|r\$)?\s*"
-                r"(?:/|per|al|el|por|pro|a)\s*(?:kg|kilo\w*|chilo\w*|lbs?|libbr\w*|libras?|pound|tonn?e?s?\b|"
-                r"tonnellat\w*|tonelad\w*)"],
+                  r"cents? (?:a|per) pound", r"valor(?:es)? (?:de|por) (?:la )?(?:miel|tonelada|kilo)",
+                  # Ukrainian / Russian / Serbian (Cyrillic + Latin) / Vietnamese
+                  r"цін[аиуіо]\w*", r"цен[аыуеоя]\w*", r"подорожча\w*", r"подорожа\w*", r"подешев\w*",
+                  r"cen[aeiu] med[au]", r"otkupn\w* cen\w*", r"gia (?:ban |xuat khau )?mat ong"],
+        "raw": [(r"\d\s*(?:€|eur|euros?|usd|us\$|\$|dollars?|dolares|cents?|centavos|pesos|reais|r\$)?\s*"
+                 r"(?:/|per|al|el|por|pro|a)\s*(?:kg|kilo\w*|chilo\w*|lbs?|libbr\w*|libras?|pound|tonn?e?s?\b|"
+                 r"tonnellat\w*|tonelad\w*)"),
+                r"价|價|跌|涨|漲"],   # Chinese: price, fall, rise (no word boundaries in CJK)
     },
     "production": {
         "it": "Produzione e raccolto", "en": "Production & harvest", "weight": 20,
@@ -411,7 +457,10 @@ TOPICS: dict[str, dict] = {
                   r"yields?", r"produzion[ei]", r"produttiv\w*", r"raccolt[oai]", r"rese", r"resa",
                   r"produccion", r"producida", r"cosechas?", r"zafra", r"rendimientos?", r"producao",
                   r"colheitas?", r"safra", r"ernte\w*", r"produktion", r"honigernte", r"forecasts?", r"outlook",
-                  r"previsioni", r"stime", r"stima", r"estimac\w*", r"estimates?"],
+                  r"previsioni", r"stime", r"stima", r"estimac\w*", r"estimates?",
+                  r"врожа\w*", r"урожа\w*", r"виробництв\w*", r"производств\w*", r"proizvodnj\w*",
+                  r"производњ\w*"],
+        "raw": [r"产量|產量|减产|減產|增产|增產"],
     },
     "trade": {
         "it": "Commercio, export e import", "en": "Trade, exports & imports", "weight": 24,
@@ -421,7 +470,10 @@ TOPICS: dict[str, dict] = {
                   r"commerc(?:io|iale|iali)", r"interscambio", r"exportac\w*", r"exportador\w*", r"exportan?",
                   r"importac\w*", r"importador\w*", r"comercio exterior", r"comercio",
                   r"embarques?", r"ausfuhr\w*", r"einfuhr\w*", r"aussenhandel", r"bulk", r"customs",
-                  r"dogan\w*", r"aduan\w*", r"fob", r"cif", r"trade data", r"balanza comercial"],
+                  r"dogan\w*", r"aduan\w*", r"fob", r"cif", r"trade data", r"balanza comercial",
+                  r"експорт\w*", r"экспорт\w*", r"імпорт\w*", r"импорт\w*", r"митн\w*", r"таможен\w*",
+                  r"извоз\w*", r"увоз\w*", r"izvoz\w*", r"uvoz\w*", r"xuat khau", r"nhap khau"],
+        "raw": [r"出口|进口|進口|贸易|貿易"],
     },
     "adulteration": {
         "it": "Adulterazioni e frodi", "en": "Adulteration & fraud", "weight": 22,
@@ -431,7 +483,9 @@ TOPICS: dict[str, dict] = {
                   r"jarabes?", r"xaropes?", r"sirup", r"authentic\w*", r"inauthentic\w*", r"autentic\w*",
                   r"mislabel\w*", r"nmr", r"irms", r"c4 sugars?", r"exogenous sugars?",
                   r"zuccheri (?:esogeni|aggiunti)", r"from the hives", r"honey laundering", r"transshipp\w*",
-                  r"circumvent\w*", r"triangulat\w*", r"verfalsch\w*", r"gepanscht\w*", r"pansch\w*"],
+                  r"circumvent\w*", r"triangulat\w*", r"verfalsch\w*", r"gepanscht\w*", r"pansch\w*",
+                  r"фальсиф\w*", r"підроб\w*", r"поддел\w*", r"falsifik\w*"],
+        "raw": [r"掺假|摻假|造假|假蜂蜜"],
     },
     "quality": {
         "it": "Qualità e sicurezza alimentare", "en": "Quality & food safety", "weight": 10,
@@ -464,18 +518,25 @@ TOPICS: dict[str, dict] = {
                   r"zolle", r"anti-?dumping", r"dumping", r"countervailing", r"duties", r"import dut(?:y|ies)",
                   r"customs dut(?:y|ies)", r"section 301", r"section 232", r"trade war", r"guerra commerciale",
                   r"guerra comercial", r"handelskrieg", r"retaliat\w*", r"ritorsion\w*", r"represalias?",
-                  r"derechos de importacion", r"diritti doganali", r"derechos de exportacion", r"retenciones"],
+                  r"derechos de importacion", r"diritti doganali", r"derechos de exportacion", r"retenciones",
+                  r"мит[оа]\w*", r"пошлин\w*", r"антидемпінг\w*", r"антидемпинг\w*", r"антидампинг\w*",
+                  r"antidamping\w*", r"carinsk\w*", r"chong ban pha gia"],
+        "raw": [r"反倾销|反傾銷|关税|關稅"],
     },
     "import_restrictions": {
         "it": "Restrizioni all'import", "en": "Import restrictions", "weight": 22,
-        "words": [r"import bans?", r"bans? on (?:honey )?imports?", r"banned", r"bans?", r"embargo\w*",
+        # bare "ban(s)" is matched on the unfolded text: folded Vietnamese "bán" (sell) / "Bản" is "ban"
+        "unfolded": [r"bans?"],
+        "words": [r"import bans?", r"bans? on (?:honey )?imports?", r"banned", r"embargo\w*",
                   r"quotas?", r"contingent[ei]", r"cuotas?", r"cupos?", r"kontingent\w*", r"import alerts?",
                   r"border rejections?", r"rejected at the border", r"respint[oai]", r"respingiment\w*",
                   r"rechaz\w*", r"detention\w*", r"detained", r"seized", r"seizures?", r"sequestr\w*",
                   r"incautac\w*", r"decomis\w*", r"suspend\w* (?:of )?imports?", r"blocco delle importazioni",
                   r"stop alle importazioni", r"import restrictions?", r"restrizion[ei]", r"restriccion\w*",
                   r"safeguards?", r"salvaguardi\w*", r"trq", r"tariff[- ]rate quotas?", r"import licen[cs]\w*",
-                  r"barreras? sanitarias?", r"sanitary barriers?", r"einfuhrverbot\w*", r"importverbot\w*"],
+                  r"barreras? sanitarias?", r"sanitary barriers?", r"einfuhrverbot\w*", r"importverbot\w*",
+                  r"квот\w*", r"заборон\w*", r"запрет\w*", r"забран\w*", r"zabran\w*"],
+        "raw": [r"禁止进口|禁止進口|进口禁令|進口禁令"],
     },
     "companies": {
         "it": "Aziende e fornitori", "en": "Companies & suppliers", "weight": 8,
@@ -513,7 +574,8 @@ TOPICS: dict[str, dict] = {
                   r"storms?", r"grandin\w*", r"granizo", r"hailstorms?", r"maltempo"],
     },
 }
-_TOPIC_RX = {k: (_words(v["words"]), _raw(v.get("raw", []))) for k, v in TOPICS.items()}
+_TOPIC_RX = {k: (_fwords(v["words"]), _raw(v.get("raw", [])), _unfolded(v.get("unfolded", [])))
+             for k, v in TOPICS.items()}
 
 # Signals of low relevance for a bulk importer.
 _PENALTIES: dict[str, tuple[re.Pattern, int]] = {
@@ -545,12 +607,16 @@ _BULK = _words([r"bulk", r"sfuso", r"all'ingrosso", r"ingrosso", r"wholesale", r
                 r"tonnellat[ae]", r"toneladas?", r"tonnen", r"packers?", r"importers?", r"exporters?",
                 r"importator[ei]", r"esportator[ei]", r"exportador(?:es)?", r"importador(?:es)?", r"fob", r"cif",
                 r"cfr", r"trade data", r"customs data", r"per (?:kg|kilo|pound|lb)", r"al (?:kg|chilo)",
-                r"por kilo", r"el kilo"])
-_EU_FOLDED = _words([r"european union", r"unione europea", r"union europea", r"uniao europeia",
-                     r"europaische union", r"european commission", r"commissione europea", r"comision europea",
-                     r"eu-kommission", r"european parliament", r"parlamento europeo", r"brussels", r"bruxelles",
-                     r"bruselas", r"breakfast directive", r"direttiva colazione"])
-_EU_CASED = re.compile(r"(?<![\w-])(?:EU|UE)(?![\w])")
+                r"por kilo", r"el kilo", r"тонн\w*", r"тон"])
+_BULK_RAW = re.compile(r"吨|噸")   # Chinese: tonne(s)
+_EU_FOLDED = _fwords([r"european union", r"unione europea", r"union europea", r"uniao europeia",
+                      r"europaische union", r"european commission", r"commissione europea", r"comision europea",
+                      r"eu-kommission", r"european parliament", r"parlamento europeo", r"brussels", r"bruxelles",
+                      r"bruselas", r"breakfast directive", r"direttiva colazione",
+                      r"євросоюз\w*", r"евросоюз\w*", r"європейськ\w* союз\w*", r"европейск\w* союз\w*",
+                      r"evropsk\w* unij\w*", r"европск\w* униј\w*"])
+_EU_CASED = re.compile(r"(?<![\w-])(?:EU|UE|ЄС|ЕС|ЕУ)(?![\w])")   # + Ukrainian/Russian/Serbian abbreviations
+_EU_RAW = re.compile(r"欧盟|歐盟")
 
 # Extra multilingual country forms (folded); COUNTRY_KEYWORDS (shared reference) is merged in.
 _EXTRA_COUNTRY_KEYWORDS: dict[str, list[str]] = {
@@ -581,6 +647,54 @@ _EXTRA_COUNTRY_KEYWORDS: dict[str, list[str]] = {
     "AUS": ["australiani", "australien"],
     "FRA": ["francese", "francesi", "frankreich"],
 }
+# Native-script stems (Ukrainian / Russian / Serbian Cyrillic and Serbian Latin) for the
+# origins and markets that matter, as regex fragments. Folded at compile time like the text
+# (й -> и, ї -> і, ё -> е) and matched on word boundaries (Python's \w is Unicode).
+_COUNTRY_STEMS: dict[str, list[str]] = {
+    "UKR": [r"україн\w*", r"украин\w*", r"украјин\w*", r"ukrajin\w*"],
+    "CHN": [r"кита[йїюяєе]\w*"],
+    "USA": [r"сша", r"сполучен\w* штат\w*", r"соединенн\w* штат\w*"],   # not Serbian "САД": "сад" = garden
+    "ARG": [r"аргентин\w*"],
+    "BRA": [r"бразил\w*"],
+    "VNM": [r"в['\u02bc]?єтнам\w*", r"вьетнам\w*", r"вијетнам\w*", r"vijetnam\w*"],
+    "IND": [r"інді[яїює]\w*", r"індійськ\w*", r"инди[яию]", r"индией", r"индийск\w*"],
+    "RUS": [r"росі[яїює]\w*", r"російськ\w*", r"росси\w*", r"рф", r"русиј\w*", r"rusij\w*"],
+    "SRB": [r"србиј\w*", r"српск\w*", r"сербі\w*", r"серби\w*", r"сербск\w*", r"srbij\w*", r"srpsk\w*"],
+    "DEU": [r"німеччин\w*", r"німецьк\w*", r"германи\w*", r"немецк\w*", r"немачк\w*", r"nemačk\w*"],
+    "ITA": [r"італі\w*", r"итали\w*", r"итальянск\w*", r"италиј\w*", r"italij\w*"],
+    "POL": [r"польщ\w*", r"польш\w*", r"польськ\w*", r"польск\w*"],
+    "TUR": [r"туреччин\w*", r"турецьк\w*", r"турци\w*", r"турецк\w*", r"турск\w*", r"tursk\w*"],
+    "HUN": [r"угорщин\w*", r"угорськ\w*", r"венгри\w*", r"венгерск\w*", r"мађарск\w*", r"mađarsk\w*",
+            r"madjarsk\w*"],
+    "ROU": [r"румуні\w*", r"румунськ\w*", r"румыни\w*", r"румынск\w*"],
+    "MEX": [r"мексик\w*"],
+}
+# Chinese country names (simplified + traditional). CJK has no word boundaries: plain substrings.
+_CJK_COUNTRIES: dict[str, str] = {
+    "CHN": r"中国|中國|我国",          # 我国 "our country" = China in PRC press
+    "USA": r"美国|美國",
+    "UKR": r"乌克兰|烏克蘭",
+    "ARG": r"阿根廷",
+    "BRA": r"巴西",
+    "VNM": r"越南",
+    "IND": r"印度(?!尼西亚|尼西亞|洋)",   # not Indonesia / the Indian Ocean
+    "URY": r"乌拉圭|烏拉圭",
+    "MEX": r"墨西哥",
+    "TUR": r"土耳其",
+    "HUN": r"匈牙利",
+    "ROU": r"罗马尼亚|羅馬尼亞",
+    "SRB": r"塞尔维亚|塞爾維亞",
+    "RUS": r"俄罗斯|俄羅斯",
+    "DEU": r"德国|德國",
+    "ITA": r"意大利|義大利",
+    "ESP": r"西班牙",
+    "FRA": r"法国|法國",
+    "POL": r"波兰|波蘭",
+    "NZL": r"新西兰|新西蘭|紐西蘭",
+    "CAN": r"加拿大",
+    "AUS": r"澳大利亚|澳大利亞|澳洲",
+    "THA": r"泰国|泰國",
+}
 # Keywords that are also ordinary words: only counted when capitalised in the original text.
 _CASE_SENSITIVE = {"turkey": "Turkey", "chile": "Chile", "polish": "Polish"}
 # Phrases removed before country matching (food, US states, idioms).
@@ -590,6 +704,13 @@ _COUNTRY_EXCLUSIONS = _words([
     r"turkey (?:breast|sandwich\w*|recipe\w*|dinner|meatballs?|burgers?)",
     r"chile (?:peppers?|powder|flakes|lime|de arbol|relleno)", r"honey chile", r"indian summer", r"india pale ale",
     r"german chocolate", r"chinese (?:new year|five spice)",
+    # continental qualifiers: "South/Latin American honey" is not the United States
+    r"(?:south|latin|central|pan)[- ]american honey",
+    # another country's FDA: only "fda" is removed, so the qualifier still tags its own country
+    r"(?:" + "|".join(f"(?<={w}{s} )" for w in (
+        "philippine", "philippines", "thai", "thailand", "taiwan", "taiwanese", "ghana", "ghanaian",
+        "indonesian", "nigerian", "egyptian", "saudi", "korean", "jordan", "china", "chinese")
+        for s in ("", "'s", "'")) + r")fda",
 ])
 _COUNTRY_EXCLUSIONS_CI = re.compile(_COUNTRY_EXCLUSIONS.pattern, re.I)
 _US_CASED = [
@@ -603,17 +724,19 @@ _US_CAPS = re.compile(r"(?<![\w.$])US(?![\w$])")  # not "US$" (a currency, commo
 
 def _compile_countries() -> dict[str, re.Pattern]:
     out: dict[str, re.Pattern] = {}
-    keys = set(COUNTRY_KEYWORDS) | set(_EXTRA_COUNTRY_KEYWORDS)
+    keys = set(COUNTRY_KEYWORDS) | set(_EXTRA_COUNTRY_KEYWORDS) | set(_COUNTRY_STEMS)
     for iso3 in keys:
         words = {fold(w) for w in COUNTRY_KEYWORDS.get(iso3, []) + _EXTRA_COUNTRY_KEYWORDS.get(iso3, [])}
         words -= set(_CASE_SENSITIVE)
-        if words:
-            alternation = "|".join(re.escape(w) for w in sorted(words, key=len, reverse=True))
-            out[iso3] = re.compile(r"(?<!\w)(?:" + alternation + r")(?!\w)")
+        parts = [re.escape(w) for w in sorted(words, key=len, reverse=True)]
+        parts += [fold(p) for p in _COUNTRY_STEMS.get(iso3, [])]
+        if parts:
+            out[iso3] = re.compile(r"(?<!\w)(?:" + "|".join(parts) + r")(?!\w)")
     return out
 
 
 _COUNTRY_RX = _compile_countries()
+_CJK_COUNTRY_RX = {iso3: re.compile(p) for iso3, p in _CJK_COUNTRIES.items()}
 _CASE_SENSITIVE_OWNER = {
     kw: iso3 for iso3, kws in COUNTRY_KEYWORDS.items() for kw in kws if kw in _CASE_SENSITIVE
 }
@@ -628,6 +751,10 @@ def tag_countries(text: str) -> list[str]:
     for iso3, rx in _COUNTRY_RX.items():
         m = rx.search(folded)
         if m:
+            hits[iso3] = m.start()
+    for iso3, rx in _CJK_COUNTRY_RX.items():
+        m = rx.search(folded)
+        if m and (iso3 not in hits or m.start() < hits[iso3]):
             hits[iso3] = m.start()
     cleaned_original = _COUNTRY_EXCLUSIONS_CI.sub(" ", unicodedata.normalize("NFC", text))
     for kw, cased in _CASE_SENSITIVE.items():
@@ -655,13 +782,20 @@ def tag_countries(text: str) -> list[str]:
 def tag_topics(title: str, snippet: str | None = None) -> dict[str, float]:
     """Topic key -> strength (1.0 when found in the headline, 0.6 when only in the excerpt)."""
     t_title, t_snip = fold(title or ""), fold(snippet or "")
+    u_title, u_snip = unicodedata.normalize("NFC", title or ""), unicodedata.normalize("NFC", snippet or "")
     out: dict[str, float] = {}
-    for key, (words, raw) in _TOPIC_RX.items():
-        if words.search(t_title) or (raw is not None and raw.search(t_title)):
+    for key, rx in _TOPIC_RX.items():
+        if _topic_found(rx, t_title, u_title):
             out[key] = 1.0
-        elif words.search(t_snip) or (raw is not None and raw.search(t_snip)):
+        elif _topic_found(rx, t_snip, u_snip):
             out[key] = 0.6
     return out
+
+
+def _topic_found(rx: tuple, folded: str, original: str) -> bool:
+    words, raw, unfolded = rx
+    return bool(words.search(folded) or (raw is not None and raw.search(folded))
+                or (unfolded is not None and unfolded.search(original)))
 
 
 # ---------------------------------------------------------------------------
@@ -714,10 +848,10 @@ def analyse(title: str, snippet: str | None = None, *, language: str | None = No
     if markets:
         score += 5
     folded = fold(text)
-    eu = bool(_EU_FOLDED.search(folded) or _EU_CASED.search(text))
+    eu = bool(_EU_FOLDED.search(folded) or _EU_CASED.search(text) or _EU_RAW.search(folded))
     if eu:
         score += 12 if set(topics) & {"policy", "tariffs", "import_restrictions", "trade", "adulteration"} else 3
-    bulk = bool(_BULK.search(folded))
+    bulk = bool(_BULK.search(folded) or _BULK_RAW.search(folded))
     if bulk:
         score += 10
     src_bonus = SOURCE_BONUS.get(reliability or "", 0)
@@ -819,13 +953,53 @@ def topic_list() -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
+_NUMBER = re.compile(r"\d+")
+# Opposite words: a headline that says one and a near-identical headline that says the other
+# report different facts (direction of a move, stage of a ruling). Folded, multilingual.
+_RISE = {"rise", "rises", "rising", "rose", "up", "increase", "increases", "increased", "jump", "jumps", "surge",
+         "surges", "climb", "climbs", "higher", "gain", "gains", "aumento", "aumentano", "aumenta", "rialzo",
+         "crescita", "salgono", "sube", "suben", "alza", "sobe", "sobem", "steigen", "steigt"}
+_FALL = {"fall", "falls", "falling", "fell", "down", "decrease", "decreases", "decreased", "decline", "declines",
+         "drop", "drops", "plunge", "plunges", "lower", "slump", "slumps", "calo", "calano", "cala", "ribasso",
+         "crollo", "scendono", "cae", "caen", "baja", "bajan", "cai", "caem", "queda", "sinken", "sinkt"}
+_PRELIMINARY = {"preliminary", "preliminare", "preliminari", "preliminar", "provisional", "provvisorio",
+                "provvisori", "proposed", "vorlaufig"}
+_FINAL = {"final", "finale", "finali", "definitivo", "definitivi", "definitive", "definitiva", "endgultig"}
+_CONTRAST_PAIRS = ((_RISE, _FALL), (_PRELIMINARY, _FINAL))
+
+
+def _contrast(ta: set[str], tb: set[str]) -> bool:
+    """True when the two token sets take opposite sides of a contrast pair (rise/fall,
+    preliminary/final). Rewordings on the same side ("rise" vs "climb") are not a contrast."""
+    for x, y in _CONTRAST_PAIRS:
+        sa, sb = (bool(ta & x), bool(ta & y)), (bool(tb & x), bool(tb & y))
+        if sa != sb and any(sa) and any(sb):
+            return True
+    return False
+
+
+@lru_cache(maxsize=4096)
+def _title_countries(title_norm: str) -> frozenset[str]:
+    return frozenset(tag_countries(title_norm))
+
+
 def _is_fuzzy_duplicate(a: str, b: str) -> bool:
+    """`a`, `b`: normalised titles (see `normalise_title`)."""
     ta, tb = a.split(), b.split()
     if min(len(ta), len(tb)) < 4:
         return False
     if min(len(ta), len(tb)) / max(len(ta), len(tb)) < 0.5:
         return False
-    return fuzz.token_set_ratio(a, b) >= FUZZY_THRESHOLD
+    if fuzz.token_set_ratio(a, b) < FUZZY_THRESHOLD:
+        return False
+    # Same wording but a different origin/market, different figures or the opposite direction /
+    # stage is a different story ("... duties on honey from Vietnam" vs "... from Brazil").
+    if _title_countries(a) != _title_countries(b):
+        return False
+    na, nb = set(_NUMBER.findall(a)), set(_NUMBER.findall(b))
+    if na and nb and na != nb:
+        return False
+    return not _contrast(set(ta), set(tb))
 
 
 def find_original(session: Session, title_norm: str, when: datetime, *, is_demo: bool = False,
@@ -851,6 +1025,34 @@ def find_original(session: Session, title_norm: str, when: datetime, *, is_demo:
             if s > best_score:
                 best, best_score = c, s
     return best
+
+
+def _fill_excerpt(session: Session, article: NewsArticle, snippet: str | None, publisher: str | None) -> None:
+    """An article first stored without an excerpt (GDELT gives headlines only) receives the
+    publisher's own excerpt when the same URL later arrives from a feed that carries one.
+
+    Only the gap is filled: url, title, source, publication date and publisher stay as first
+    stored. Tags derived from the text are recomputed with the excerpt (countries and topics
+    are merged, the score only goes up), scored with the stored source's reliability. An AI
+    summary written from the headline alone ("the source provides only the headline") is no
+    longer true, so it is dropped and the article is queued for enrichment again; the AI
+    headline translations stay valid."""
+    excerpt = clean_snippet(snippet, article.title, publisher)
+    if not excerpt:
+        return
+    article.snippet = excerpt
+    src = session.get(Source, article.source_id)
+    r = analyse(article.title, excerpt, language=article.language, reliability=src.reliability if src else None)
+    countries = list(article.countries or [])
+    countries += [c for c in r.countries if c not in countries]
+    article.countries = countries or None
+    topics = set(article.topics or []) | set(r.topics)
+    article.topics = [k for k in TOPICS if k in topics] or None
+    if r.score > (article.relevance_score or 0):
+        article.relevance_score, article.relevance_reason = r.score, r.reason
+    if article.ai_processed_at is not None or article.summary_it or article.summary_en:
+        article.summary_it = article.summary_en = None
+        article.ai_processed_at = None
 
 
 def ingest_article(
@@ -880,6 +1082,8 @@ def ingest_article(
             existing.image_url = normalise_image_url(image_url) or first_image(snippet)
         if existing.publisher is None and publisher:
             existing.publisher = publisher
+        if not existing.snippet:
+            _fill_excerpt(session, existing, snippet, publisher)
         return existing, "unchanged"
 
     lang = normalise_language(language) or normalise_language(source.language)

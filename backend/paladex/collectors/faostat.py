@@ -1400,7 +1400,8 @@ class FaostatCollector(Collector):
     category = "production"
     language = "en"
     # Source.expected_update is String(120)
-    expected_update = "Annual per dataset (production ~Dec, year Y in Dec Y+1; prices/trade lag 1-2 yrs); checked weekly"
+    expected_update = "Annuale per dataset (produzione a dic. dell'anno dopo; prezzi/commercio 1-2 anni dopo); controllo settimanale"
+    expected_update_en = "Annual per dataset (production ~Dec, year Y in Dec Y+1; prices/trade lag 1-2 yrs); checked weekly"
     # Each FAOSTAT dataset is released about once a year (QCL around December, PP and TCL on their
     # own dates). 450 days = one annual cycle plus ~3 months of slack for a late release.
     expected_max_age_days = 450

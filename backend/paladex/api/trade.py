@@ -15,7 +15,9 @@ Data rules enforced here (docs/DEVELOPING.md):
 * **Declared flows only.** A country's declared exports and what its customers declare as
   imports from it ("mirror data") differ (FOB vs CIF, timing, re-exports, confidential trade).
   They are never merged. The mirror view (`basis=mirror`) is a separate, labelled basis.
-* **Totals.** A reporter's World row (partner `WLD`) is the total when it exists. Otherwise the
+* **Totals.** A reporter's World row (partner `WLD`) is the total when it exists. For the EU
+  aggregates (EU27/EU28) the total is the EXTRA_EU row instead (`total_scope="extra_eu"`): their
+  WORLD row also counts intra-EU dispatches. Otherwise the
   partner rows are summed and the figure is flagged `summed_from_partners`. An annual total built
   from monthly rows is flagged `summed_from_months` and needs all twelve months; incomplete years
   are listed apart (`incomplete`) and never ranked against full years.
@@ -33,7 +35,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, case, distinct, extract, func, select
+from sqlalchemy import and_, case, distinct, extract, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -66,6 +68,9 @@ PARTIAL_COVERAGE = 0.6
 DISCREPANCY_THRESHOLD = 0.10
 # World total vs sum of partners: a gap above this share is shown as "not allocated".
 UNALLOCATED_MIN_SHARE = 0.005
+# Sources that store only a requested list of partners (Comext: ~20 main origins), so the gap
+# between their total and the partner sum is mostly partners never collected, not confidential trade.
+PARTIAL_PARTNER_SOURCES = frozenset({"eurostat_comext", "usda_fas_gats"})
 # When a source declares no rhythm, judge freshness by the data's frequency.
 FREQ_MAX_AGE_DAYS = {"A": 550, "M": 75, "W": 21}
 
@@ -206,12 +211,26 @@ def _year_col():
 
 
 def _partner_filter():
-    """Countries, unknown partner codes and the World row; never partner groups (EU27, EXTRA_EU...)."""
-    return T.partner_iso3.not_in(sorted(PSEUDO_AREAS - {"WLD"}))
+    """Countries, unknown partner codes and the reporter's total row: WLD for a country, EXTRA_EU
+    for the EU aggregates (whose WORLD row also counts intra-EU dispatches between member states,
+    so it is never the EU's trade). Never other partner groups."""
+    agg = sorted(AGGREGATE_REPORTERS)
+    return or_(
+        and_(T.reporter_iso3.in_(agg), T.partner_iso3.not_in(sorted(PSEUDO_AREAS - {"EXTRA_EU"}))),
+        and_(T.reporter_iso3.not_in(agg), T.partner_iso3.not_in(sorted(PSEUDO_AREAS - {"WLD"}))),
+    )
 
 
 def _is_world():
-    return case((T.partner_iso3 == "WLD", 1), else_=0)
+    """1 for the reporter's total row (see `_partner_filter`), else 0."""
+    agg = sorted(AGGREGATE_REPORTERS)
+    return case((and_(T.reporter_iso3.in_(agg), T.partner_iso3 == "EXTRA_EU"), 1),
+                (and_(T.reporter_iso3.not_in(agg), T.partner_iso3 == "WLD"), 1), else_=0)
+
+
+def total_scope(reporter: str) -> str:
+    """What a reporter's total covers: 'extra_eu' for the EU aggregates, else 'world'."""
+    return "extra_eu" if reporter in AGGREGATE_REPORTERS else "world"
 
 
 # ---------------------------------------------------------------------------
@@ -314,7 +333,8 @@ class Ctx:
             return (not s.enabled, local, pref, s.name) if country_first else (not s.enabled, pref, local, s.name)
 
         return [{"key": s.key, "name": s.name, "publisher": s.publisher, "enabled": s.enabled,
-                 "last_run_status": s.last_run_status, "expected_update": s.expected_update}
+                 "last_run_status": s.last_run_status, "expected_update": s.expected_update,
+                 "expected_update_en": s.expected_update_en}
                 for s in sorted(rows, key=key)]
 
     def freshness_for(self, sid: int, ref: date | None, freq: str | None) -> dict:
@@ -524,6 +544,7 @@ def sources_used(ctx: Ctx, rows: Iterable[dict]) -> list[dict]:
         out.append({k: v for k, v in s.items() if not k.startswith("_")} | {
             "freshness": f, "latest_published_at": iso(s["_ref"]),
             "expected_update": src.expected_update if src else None,
+            "expected_update_en": src.expected_update_en if src else None,
         })
     return out
 
@@ -624,7 +645,8 @@ def trade_facets(db: Session = Depends(get_db)):
         d = src.setdefault(sid, {**(source_brief(s) or {"key": str(sid)}), "frequencies": [], "rows": 0,
                                  "first_period": None, "last_period": None, "latest_period_label": None,
                                  "latest_published_at": None, "collected_at": None, "is_demo": False,
-                                 "expected_update": s.expected_update if s else None, "_freq": freq})
+                                 "expected_update": s.expected_update if s else None,
+                                 "expected_update_en": s.expected_update_en if s else None, "_freq": freq})
         d["frequencies"].append(freq)
         d["rows"] += n
         d["is_demo"] = d["is_demo"] or bool(demo)
@@ -855,7 +877,8 @@ def partner_breakdown(ctx: Ctx, reporter: str, flow: str, year: int | None = Non
 
     part_sum = pick.parts
     denom = pick.world if pick.uses_world else part_sum
-    share_basis = "world_total" if pick.uses_world else "partner_sum"
+    scope = total_scope(reporter)
+    share_basis = ("extra_eu_total" if scope == "extra_eu" else "world_total") if pick.uses_world else "partner_sum"
 
     def share(v: float | None, d: float | None) -> float | None:
         return round(v / d * 100, 2) if v is not None and d else None
@@ -888,11 +911,18 @@ def partner_breakdown(ctx: Ctx, reporter: str, flow: str, year: int | None = Non
         gap = pick.world.kg - part_sum.kg
         if gap > UNALLOCATED_MIN_SHARE * pick.world.kg:
             gap_usd = (pick.world.usd_total - part_sum.usd_total) if pick.world.usd_total is not None and part_sum.usd_total is not None else None
+            src = ctx.source(pick.source_id)
+            partial_list = bool(src and src.key in PARTIAL_PARTNER_SOURCES)
+            # Never claim the gap is confidential trade when the source only returns a requested
+            # partner list: then it is mostly partners that were not collected.
             out["unallocated"] = {"net_weight_kg": _r(gap, 1), "usd_value": _r(gap_usd, 2),
-                                  "share_volume_pct": share(gap, pick.world.kg)}
+                                  "share_volume_pct": share(gap, pick.world.kg),
+                                  "partner_list_complete": not partial_list,
+                                  "reason": "partners_not_collected" if partial_list else "confidential_or_unspecified"}
     total = candidate_total(ctx, pick, totals)
     out.update(
         available=bool(rows), rows=head, partners_count=len(rows), total=total, share_basis=share_basis,
+        total_scope=scope,
         months_count=pick.periods if pick.freq == "M" else None, complete=pick.complete,
         summed_from_months=pick.summed_from_months, source_key=ctx.source(pick.source_id).key if ctx.source(pick.source_id) else None,
         **provenance(ctx, pick.source_id, pick.total, pick.freq, period_label=str(year)),
@@ -988,6 +1018,7 @@ def build_series(ctx: Ctx, reporter: str, flow: str, partner: str = "WLD", freq:
             "is_demo": any(p["is_demo"] for p in points),
             "freshness": ctx.freshness_for(sid, date.fromisoformat(ref[:10]) if ref else None, freq),
             "expected_update": src.expected_update if src else None,
+            "expected_update_en": src.expected_update_en if src else None,
         })
     series.sort(key=lambda s: (-len(s["points"]), s["source"]["key"] if s["source"] else ""))
 
@@ -1007,6 +1038,8 @@ def build_series(ctx: Ctx, reporter: str, flow: str, partner: str = "WLD", freq:
                                   "values": [{"source": src, "net_weight_kg": v} for src, v in vals]})
     return {
         "reporter": reporter, "partner": partner, "flow": flow, "freq": freq,
+        # partner 'WLD' means the reporter's total, which for the EU aggregates is extra-EU trade
+        "total_scope": total_scope(reporter) if total_mode else None,
         "reporter_names": ctx.names(reporter), "partner_names": ctx.names(partner),
         "available": bool(series), "series": series, "excluded_partial": excluded,
         "discrepancies": discrepancies, "providers": ctx.providers(),
@@ -1103,4 +1136,5 @@ __all__ = [
     "partner_breakdown",
     "router",
     "sources_used",
+    "total_scope",
 ]

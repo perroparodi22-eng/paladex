@@ -5,7 +5,10 @@ README there), not captured from the live sites.
 """
 from __future__ import annotations
 
+import hashlib
+import importlib.util
 from datetime import date
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select
@@ -13,9 +16,10 @@ from sqlalchemy import select
 from conftest import fixture_bytes
 from paladex.collectors import italy as it
 from paladex.collectors.base import CollectorError
-from paladex.models import PriceObservation, Report, Source
+from paladex.models import PriceObservation, RawDocument, Report, Source
 from paladex.services import ingest
 
+FIXTURES = Path(__file__).parent / "fixtures"
 CUNEO_INDEX = it.CUNEO_INDEX_URL
 CUNEO_HTML_15948 = it.CUNEO_LIST_URL.format(fmt="html", id=15948)
 CUNEO_HTML_15702 = it.CUNEO_LIST_URL.format(fmt="html", id=15702)
@@ -286,6 +290,64 @@ def test_cuneo_end_to_end_and_idempotent(run_with_routes, session_factory, today
     assert res2["new"] == 0 and res2["revised"] == 0
 
 
+def _averages_pdf_2025(december: str, media: str) -> bytes:
+    """A one-row 'Miele - medie 2025' PDF, written with the dependency-free PDF writer of the EU
+    fixtures (reportlab, used by make_pdf_fixtures.py, is not a Paladex dependency)."""
+    spec = importlib.util.spec_from_file_location("eu_fixture_builder", FIXTURES / "eu" / "build_fixtures.py")
+    b = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(b)
+    months = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
+    rows = [["Prodotto", *months, "Media"], ["Acacia (fusto da 3 q.li)", *["8,00"] * 11, december, media]]
+    page = (b.text(40, 540, "Miele - medie 2025", 14) + b.text(40, 520, "Prezzi medi mensili in euro al kg", 9)
+            + b.table(24, 500, [180] + [44] * 12 + [50], rows, size=8))
+    return b.build_pdf([page], "Miele - medie 2025")
+
+
+def test_cuneo_last_years_averages_are_read_again_until_settled(run_with_routes, session_factory, monkeypatch):
+    """CUNEO-1: in January last year's averages PDF is still incomplete; later copies are read."""
+    partial = _averages_pdf_2025("", "8,00")             # December not out yet: 'Media' over 11 months
+    complete = _averages_pdf_2025("8,60", "8,05")
+    corrected = _averages_pdf_2025("8,60", "8,10")
+
+    def run(day: date, pdf: bytes) -> dict:
+        monkeypatch.setattr(it, "_today", lambda: day)
+        return run_with_routes("cciaa_cuneo_miele", _cuneo_routes(**{CUNEO_AVG_2025: (200, pdf, "application/pdf")}))
+
+    def acacia_2025(s) -> tuple[list, list]:
+        rows = [r for r in _prices(s, "cciaa_cuneo_miele") if r.series_key.startswith("wholesale_bulk|cuneo-media|")]
+        annual = [r for r in rows if r.frequency == "A" and r.period_label == "2025"]
+        return annual, [r for r in rows if r.period_label == "2025-12"]
+
+    assert run(date(2026, 1, 6), partial)["status"] == "success"
+    with session_factory() as s:
+        annual, dec = acacia_2025(s)
+        assert [(r.price_value, r.data_status) for r in annual] == [(8.0, "provisional")] and dec == []
+        assert "provvisoria" in annual[0].notes
+    # three weeks later the PDF holds December: it is fetched again and the mean is revised
+    res = run(date(2026, 1, 27), complete)
+    assert res["status"] == "success" and res["revised"] == 1 and res["new"] == 1, res
+    with session_factory() as s:
+        annual, dec = acacia_2025(s)
+        assert [(r.price_value, r.data_status, r.revision) for r in annual] == [(8.05, "provisional", 2)]
+        assert [r.price_value for r in dec] == [8.6]
+    # the first run after the settle date reads it once more: same bytes, mean now published
+    res = run(date(2026, 4, 7), complete)
+    assert res["status"] == "success" and res["revised"] == 1 and res["new"] == 0, res
+    with session_factory() as s:
+        annual, _ = acacia_2025(s)
+        assert [(r.price_value, r.data_status) for r in annual] == [(8.05, "published")]
+        assert "provvisoria" not in annual[0].notes
+    # settled: the year is no longer requested (a later edit of the PDF is not picked up)
+    res = run(date(2026, 4, 14), corrected)
+    assert res["status"] == "no_change", res
+    with session_factory() as s:
+        assert [r.price_value for r in acacia_2025(s)[0]] == [8.05]
+        hist = s.scalars(select(PriceObservation).where(PriceObservation.series_key.like("%cuneo-media|acacia%|2025"))
+                         .order_by(PriceObservation.revision)).all()
+        assert [(r.price_value, r.data_status) for r in hist] == [
+            (8.0, "provisional"), (8.05, "provisional"), (8.05, "published")]
+
+
 def test_cuneo_csv_fallback_when_html_download_fails(run_with_routes, session_factory, today_2026):
     routes = _cuneo_routes(**{CUNEO_HTML_15948: (404, b"no"), CUNEO_CSV_15948: fx("cuneo_list_15948.csv")})
     res = run_with_routes("cciaa_cuneo_miele", routes)
@@ -446,10 +508,73 @@ def test_onm_price_extraction_rules():
         "In fusti il millefiori italiano e quello ucraino tra 3,00 e 4,50 €/kg.",            # Italian and foreign
         "Nel mercato all'ingrosso in fusti e in latta il millefiori tra 5 e 6 €/kg.",        # drum or bucket?
         "In fusti l'acacia è a 80-90 €/kg.",                                                 # implausible
+        # a foreign honey named as context, not as the origin of the quoted price (ONM-2)
+        "Nel mercato all'ingrosso, complice la concorrenza del miele ucraino, il millefiori in fusti è quotato tra 4 e 4,50 €/kg.",
+        ("Nel mercato all'ingrosso, nonostante la pressione del miele d'importazione, il millefiori in fusti è "
+         "quotato tra 4 e 4,50 €/kg."),
+        "Il miele ungherese in fusti: acacia 4,8-5,2 €/kg, millefiori 3-3,5 €/kg.",          # origin opens the list
     ):
         assert it.extract_onm_prices([sentence]) == [], sentence
     # the same item twice with different numbers in one bulletin is ambiguous -> dropped
     assert it.extract_onm_prices(["In fusti il millefiori tra 4 e 5 €/kg.", "In fusti il millefiori tra 6 e 7 €/kg."]) == []
+
+
+def _onm_rows(sentence: str) -> list[tuple]:
+    return [(o["variety_raw"], o["low"], o["high"], o["packaging_code"], o["organic"], o["origin_iso3"])
+            for o in it.extract_onm_prices([sentence])]
+
+
+def test_onm_qualifiers_belong_to_their_own_pair():
+    """ONM-1: a qualifier written after a price belongs to that price, not to the next variety."""
+    # (a) '(fusto)' / '(latta)' after each price: the tin prices are not stored as drum prices
+    assert _onm_rows("Sul mercato all'ingrosso il millefiori si scambia tra 4 e 4,5 €/kg (fusto), il castagno tra "
+                     "6,5 e 6,7 €/kg (latta) e l'acacia tra 8,5 e 9 €/kg (latta).") == [
+        ("millefiori", 4.0, 4.5, "fusto", False, "ITA"),
+        ("castagno", 6.5, 6.7, "secchio", False, "ITA"),
+        ("acacia", 8.5, 9.0, "secchio", False, "ITA"),
+    ]
+    # (b) '(bio)' after the castagno price is the castagno's, not the acacia's
+    assert _onm_rows("Sul mercato all'ingrosso il millefiori si scambia tra 4 e 4,5 €/kg, il castagno tra 7 e "
+                     "7,5 €/kg (bio), l'acacia tra 8,5 e 9 €/kg.") == [
+        ("millefiori", 4.0, 4.5, "non_specificato", False, "ITA"),
+        ("castagno", 7.0, 7.5, "non_specificato", True, "ITA"),
+        ("acacia", 8.5, 9.0, "non_specificato", False, "ITA"),
+    ]
+    # (c) '(ungherese)' after the acacia price: Hungarian acacia, Italian millefiori
+    assert _onm_rows("Sul mercato all'ingrosso l'acacia si scambia tra 4,8 e 5,2 €/kg (ungherese), il millefiori "
+                     "tra 4 e 4,5 €/kg.") == [
+        ("acacia", 4.8, 5.2, "non_specificato", False, "HUN"),
+        ("millefiori", 4.0, 4.5, "non_specificato", False, "ITA"),
+    ]
+    # (d) prefix style: ', in latta il castagno' leads into the castagno
+    assert _onm_rows("In fusti il millefiori 4-4,5 €/kg, in latta il castagno 6,5-6,7 €/kg.") == [
+        ("millefiori", 4.0, 4.5, "fusto", False, "ITA"),
+        ("castagno", 6.5, 6.7, "secchio", False, "ITA"),
+    ]
+    # (e) a bare 'in fusto' between two pairs could be either's: never given to the castagno
+    rows = _onm_rows("Sul mercato all'ingrosso il millefiori si scambia a 4-4,5 €/kg in fusto, il castagno a "
+                     "6,5-6,7 €/kg, mentre in latta l'acacia tra 8,5 e 9 €/kg.")
+    assert ("acacia", 8.5, 9.0, "secchio", False, "ITA") in rows
+    assert not [r for r in rows if r[0] == "castagno"]
+    assert all(r[3] == "fusto" for r in rows if r[0] == "millefiori")
+    # a tin named in a later segment is not a fallback for an earlier, unqualified pair
+    assert _onm_rows("All'ingrosso il millefiori tra 4 e 4,5 €/kg; in latta il castagno tra 6,5 e 6,7 €/kg.") == [
+        ("millefiori", 4.0, 4.5, "non_specificato", False, "ITA"),
+        ("castagno", 6.5, 6.7, "secchio", False, "ITA"),
+    ]
+
+
+def test_onm_origin_only_from_the_subjects_own_clause():
+    """ONM-2: the origin is read where it qualifies the variety, never from context words."""
+    assert _onm_rows("Il miele ungherese di acacia in fusti è offerto tra 4,80 e 5,20 €/kg.") == [
+        ("acacia", 4.8, 5.2, "fusto", False, "HUN")]
+    assert _onm_rows("In fusti il millefiori ungherese è offerto tra 3 e 3,5 €/kg.") == [
+        ("millefiori", 3.0, 3.5, "fusto", False, "HUN")]
+    # price-first wording: the adjective after the variety is read too
+    assert _onm_rows("All'ingrosso si pagano 6,50-6,70 €/kg per il castagno ungherese, 4-4,5 €/kg per il millefiori.") == [
+        ("castagno", 6.5, 6.7, "non_specificato", False, "HUN"),
+        ("millefiori", 4.0, 4.5, "non_specificato", False, "ITA"),
+    ]
 
 
 def test_onm_annual_pdf_tables(monkeypatch):
@@ -536,12 +661,32 @@ def test_onm_falls_back_to_wp_json_and_feed_copy(run_with_routes, session_factor
     res = run_with_routes("onm_informamiele", routes)
     assert res["status"] == "partial", res
     assert any("archive unavailable" in w for w in res["warnings"])
+    assert any(ONM_AGOSTO in w and "feed/API copy" in w for w in res["warnings"]), res
     with session_factory() as s:
         reports = _reports(s, "onm_informamiele")
         ago = reports["rilevazione-mensile-2026-08"]
-        assert ago.raw_document_id is None and ago.narrative.startswith("Rimane stazionario")
+        assert ago.narrative.startswith("Rimane stazionario")
         assert ago.published_at == date(2026, 9, 21)
+        # ONM-3: the REST answer the text was taken from is archived as downloaded
+        copy = s.get(RawDocument, ago.raw_document_id)
+        assert copy.url.startswith(it.ONM_WP_API_URL) and copy.content_hash == hashlib.sha256(fx("onm_wp_posts.json")).hexdigest()
         assert len([r for r in _prices(s, "onm_informamiele") if r.period_label == "2026-07"]) == 3
+
+
+def test_onm_feed_copy_prices_point_to_the_archived_feed(run_with_routes, session_factory):
+    """ONM-3: prices text-extracted from the feed copy keep a link to the bytes they came from."""
+    res = run_with_routes("onm_informamiele", _onm_routes(**{ONM_LUGLIO: (500, b"Internal Server Error")}))
+    assert res["status"] == "partial" and any(ONM_LUGLIO in w and "feed/API copy" in w for w in res["warnings"]), res
+    with session_factory() as s:
+        jul = [r for r in _prices(s, "onm_informamiele") if r.period_label == "2026-07"]
+        # the feed copy holds the first market paragraph only (no Hungarian acacia)
+        assert sorted(r.variety for r in jul) == ["acacia", "polyflora"]
+        assert all(r.data_status == "provisional" for r in jul)
+        assert {r.raw_document_id for r in jul} != {None}
+        docs = {s.get(RawDocument, r.raw_document_id).url for r in jul}
+        assert docs == {it.ONM_FEED_URL} and all(r.extra["parsed_from"] == it.ONM_FEED_URL for r in jul)
+        assert all(r.source_url == ONM_LUGLIO for r in jul)
+        assert _reports(s, "onm_informamiele")["rilevazione-mensile-2026-07"].raw_document_id == jul[0].raw_document_id
 
 
 def test_onm_html_listing_fallback(run_with_routes, session_factory):

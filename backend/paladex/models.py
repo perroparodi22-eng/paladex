@@ -74,7 +74,8 @@ class Source(Base):
     category: Mapped[str] = mapped_column(String(30))            # prices | trade | production | news | regulation | weather | fx
     country_iso3: Mapped[str | None] = mapped_column(String(10))
     language: Mapped[str | None] = mapped_column(String(5))
-    expected_update: Mapped[str | None] = mapped_column(String(120))   # human text, e.g. "Monthly (around the 15th)"
+    expected_update: Mapped[str | None] = mapped_column(String(120))   # human text (Italian), e.g. "Mensile (verso il 15)"
+    expected_update_en: Mapped[str | None] = mapped_column(String(200))  # the same in English
     expected_max_age_days: Mapped[int | None] = mapped_column(Integer)  # used by the staleness check
     terms_note: Mapped[str | None] = mapped_column(Text)
     requires_key: Mapped[str | None] = mapped_column(String(60))       # settings attribute name, if a key is needed
@@ -326,6 +327,60 @@ class RegulationItem(Base):
     # Source-specific metadata: official PDF URL, citation, action, agencies, raw document id...
     extra: Mapped[dict | None] = mapped_column(JSON)
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class TariffMeasure(Base):
+    """One official import-duty layer on honey for one origin, as published (EU TARIC via the UK
+    XI mirror, US HTS). Append-only like the observations: a changed duty, validity or quota
+    balance becomes a new revision (`services.tariffs.record_measure`); a measure the source no
+    longer publishes is retired (`is_current=False`), never deleted. `as_of` is the last date the
+    source was checked and still published this exact measure."""
+
+    __tablename__ = "tariff_measures"
+    __table_args__ = (
+        Index("ix_tariff_lookup", "jurisdiction", "origin_iso3", "is_current"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"), index=True)
+    raw_document_id: Mapped[int | None] = mapped_column(ForeignKey("raw_documents.id"))
+    series_key: Mapped[str] = mapped_column(String(300), index=True)  # identity of the measure within a source
+    value_hash: Mapped[str] = mapped_column(String(64))
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    supersedes_id: Mapped[int | None] = mapped_column(Integer)
+
+    jurisdiction: Mapped[str] = mapped_column(String(10), index=True)   # importing side: "EU" | "US"
+    origin_iso3: Mapped[str] = mapped_column(String(12), index=True)    # ISO3, or "ERGA_OMNES" / "ALL"
+    hs_code: Mapped[str] = mapped_column(String(14))                    # "0409000000" (TARIC), "0409.00.00" (HTS)
+    measure_type: Mapped[str] = mapped_column(String(20), index=True)   # mfn | preference | trq_in | trq_out | antidumping | surcharge | other
+    measure_code: Mapped[str | None] = mapped_column(String(40))        # TARIC measure type id ("103"), HTS column / heading
+    description: Mapped[str | None] = mapped_column(Text)               # measure type / heading text as published
+    duty_text: Mapped[str | None] = mapped_column(String(500))          # duty expression as published ("17.30 %", "1.9¢/kg")
+    ad_valorem_pct: Mapped[float | None] = mapped_column(Float)
+    specific_amount: Mapped[float | None] = mapped_column(Float)
+    specific_unit: Mapped[str | None] = mapped_column(String(20))       # "kg", "100kg", "t"
+    specific_currency: Mapped[str | None] = mapped_column(String(3))
+    quota_order_number: Mapped[str | None] = mapped_column(String(20))
+    quota_volume_kg: Mapped[float | None] = mapped_column(Float)
+    quota_balance_kg: Mapped[float | None] = mapped_column(Float)
+    quota_status: Mapped[str | None] = mapped_column(String(20))        # open | critical | exhausted | blocked ...
+    valid_from: Mapped[date | None] = mapped_column(Date)
+    valid_to: Mapped[date | None] = mapped_column(Date)
+    legal_reference: Mapped[str | None] = mapped_column(String(300))    # EU act ("R2658/87"), HTSUS heading ...
+    legal_url: Mapped[str | None] = mapped_column(String(1000))         # EUR-Lex / official text
+    consult_url: Mapped[str | None] = mapped_column(String(1000))       # official consultation page (TARIC, HTS search)
+    source_url: Mapped[str | None] = mapped_column(String(1000))        # the API document the row was read from
+    published_at: Mapped[date | None] = mapped_column(Date)             # publication of the legal act, when given
+    as_of: Mapped[date] = mapped_column(Date, index=True)               # last date the source confirmed this measure
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    data_status: Mapped[str] = mapped_column(String(20), default="published")
+    reliability: Mapped[str] = mapped_column(String(20), default="official")
+    # Source-specific metadata: measure sid, geographical group, excluded countries, legal acts,
+    # special-programme codes, "needs_review" (applicability not parsed unambiguously) ...
+    extra: Mapped[dict | None] = mapped_column(JSON)
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
 
 # ---------------------------------------------------------------------------

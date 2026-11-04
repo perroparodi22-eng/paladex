@@ -6,10 +6,12 @@ there); the numbers are illustrative.
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
+import httpx
 import pytest
+import respx
 from sqlalchemy import func, select
 
 from paladex.collectors import eu
@@ -209,6 +211,36 @@ def test_comext_new_vintage_is_repulled_and_revisions_are_kept(run_with_routes, 
         assert dup == []
 
 
+def test_comext_interrupted_backfill_is_pulled_in_full_again(run_with_routes, session_factory, pin_today, monkeypatch):
+    """COMEXT-1: rows committed by an interrupted first back-fill do not shrink the next pull to 24 months."""
+    fixture = fixture_bytes("eu/comext_honey_2026-10-16.json")
+    routes = {
+        COMEXT_MAIN + r".*sinceTimePeriod=2021-12": fixture,                   # the 60-month back-fill window
+        COMEXT_MAIN: (400, b'{"error": {"label": "this test only serves the 60-month window"}}'),
+        COMEXT_ANY: fixture_bytes("eu/comext_probe_2026-10-16.json"),
+    }
+    real_store = eu.EurostatComextCollector._store_record
+    fail_on = {"ITA"}
+
+    def store_record(self, ctx, doc, release, published, rec, reporter, partner):
+        if reporter in fail_on:
+            raise RuntimeError("database is locked")                          # after DEU and EU27 were committed
+        return real_store(self, ctx, doc, release, published, rec, reporter, partner)
+
+    monkeypatch.setattr(eu.EurostatComextCollector, "_store_record", store_record)
+    res = run_with_routes("eurostat_comext", routes)
+    assert res["status"] == "failed" and "database is locked" in res["error"], res
+    with session_factory() as s:
+        assert {t.reporter_iso3 for t in _rows(s, TradeFlowObservation, "eurostat_comext")} == {"DEU", "EU27"}
+    fail_on.clear()
+    res = run_with_routes("eurostat_comext", routes)
+    assert res["status"] == "success", res
+    with session_factory() as s:
+        assert {t.reporter_iso3 for t in _rows(s, TradeFlowObservation, "eurostat_comext")} == {"DEU", "EU27", "ITA"}
+    res = run_with_routes("eurostat_comext", routes)                         # now complete: the cheap check only
+    assert res["status"] == "no_change", res
+
+
 def test_comext_schema_drift_fails_loudly(run_with_routes, session_factory, pin_today):
     doc = json.loads(fixture_bytes("eu/comext_honey_2026-10-16.json"))
     ind = doc["dimension"]["indicators"]["category"]
@@ -339,6 +371,8 @@ def test_find_honey_reports_on_page():
     # the paragraph holds two documents: its "8 October 2024" belongs to the CDG minutes, not to this deck
     assert autumn.published_at is None and autumn.period_label == "2024 autumn"
     assert autumn.report_key == "c04a9774-5ba3-41f5-b256-08396b2888ec/market-presentation-honey_autumn2024_en.pdf"
+    # undated decks are ordered by the period they name, not ahead of everything
+    assert (autumn.deck_date, overview.deck_date) == (date(2024, 9, 1), date(2026, 1, 29))
 
 
 def test_price_table_rules_are_strict():
@@ -389,6 +423,103 @@ def test_honey_market_non_pdf_is_skipped_and_retried_later(run_with_routes, sess
         assert len(_rows(s, Report, "ec_honey_market")) == 2
 
 
+def _fixture_builder():
+    """tests/fixtures/eu/build_fixtures.py (dependency-free PDF writer), loaded as a module."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("eu_fixture_builder", FIXTURES / "eu" / "build_fixtures.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _deck(title: str, rows: list[list[str]]) -> bytes:
+    """A one-page deck: a page title and one ruled table, as in the January 2026 fixture."""
+    b = _fixture_builder()
+    page = (b.text(60, 540, title, 16) + b.text(60, 515, b.FIXTURE_LINE, 10)
+            + b.table(60, 490, [160] + [90] * (len(rows[0]) - 1), rows))
+    return b.build_pdf([page], title)
+
+
+def test_honey_market_dead_link_does_not_block_other_decks(run_with_routes, session_factory):
+    """DGAGRI-1: one deck answering 404 is skipped; the other decks are still read."""
+    res = run_with_routes("ec_honey_market", _honey_routes(autumn=(404, b"Not found", "text/html")))
+    assert res["status"] == "partial" and any("download failed" in w for w in res["warnings"]), res
+    with session_factory() as s:
+        assert [r.url for r in _rows(s, Report, "ec_honey_market")] == [OVERVIEW_URL]
+        assert len(_rows(s, PriceObservation, "ec_honey_market")) == 9
+    res2 = run_with_routes("ec_honey_market", _honey_routes())        # the dead link is retried
+    assert res2["status"] == "success" and res2["new"] == 1, res2
+
+
+def test_honey_market_every_download_failing_is_a_failure(run_with_routes, session_factory):
+    routes = {**_honey_routes(autumn=(404, b"Not found", "text/html")), OVERVIEW_URL: (404, b"Not found", "text/html")}
+    res = run_with_routes("ec_honey_market", routes)
+    assert res["status"] == "failed" and "could be downloaded" in res["error"], res
+
+
+def test_honey_market_older_deck_never_supersedes_a_newer_one(run_with_routes, session_factory):
+    """DGAGRI-2: the autumn-2024 deck, retried after the January-2026 one, keeps the 2026 figure current."""
+    autumn = _deck("Honey prices at production site - multifloral honey (EUR/kg)",
+                   [["Member State", "2023"], ["Italy", "5,40"]])
+    res = run_with_routes("ec_honey_market", _honey_routes(autumn=(200, b"<html>Service unavailable</html>", "text/html")))
+    assert res["status"] == "partial", res
+    res2 = run_with_routes("ec_honey_market", _honey_routes(autumn=(200, autumn, "application/pdf")))
+    assert res2["status"] == "success" and res2["new"] == 1 and res2["revised"] == 0, res2
+    with session_factory() as s:
+        hist = _rows(s, PriceObservation, "ec_honey_market", origin_iso3="ITA", period_label="2023")
+        assert [(p.price_value, p.is_current, p.published_at) for p in hist] == [(6.1, True, date(2026, 1, 29))]
+        assert hist[0].extra["deck_date"] == "2026-01-29"
+        assert {r.url for r in _rows(s, Report, "ec_honey_market")} == {AUTUMN_URL, OVERVIEW_URL}
+    # the autumn file replaced in place with other figures is still the older deck: no revision
+    replaced = _deck("Honey prices at production site - multifloral honey (EUR/kg)",
+                     [["Member State", "2023"], ["Italy", "6,25"]])
+    res3 = run_with_routes("ec_honey_market", _honey_routes(autumn=(200, replaced, "application/pdf")), force=True)
+    assert res3["revised"] == 0, res3                                # autumn deck (Sept 2024) < January 2026
+    with session_factory() as s:
+        cur = [p for p in _rows(s, PriceObservation, "ec_honey_market", origin_iso3="ITA", period_label="2023") if p.is_current]
+        assert [p.price_value for p in cur] == [6.1]
+
+
+def test_honey_market_force_reextracts_prices_of_a_known_deck(run_with_routes, session_factory, monkeypatch):
+    """DGAGRI-3: after a failed table extraction, --force re-reads the unchanged PDF."""
+    def broken(content):
+        raise ValueError("pdfminer could not read the page")
+
+    real = eu.extract_price_tables
+    monkeypatch.setattr(eu, "extract_price_tables", broken)
+    res = run_with_routes("ec_honey_market", _honey_routes())
+    assert res["status"] == "partial" and any("table extraction failed" in w for w in res["warnings"]), res
+    with session_factory() as s:
+        assert _rows(s, PriceObservation, "ec_honey_market") == []
+    monkeypatch.setattr(eu, "extract_price_tables", real)          # parser fixed (not undo(): keeps the no-sleep patch)
+    res2 = run_with_routes("ec_honey_market", _honey_routes(), force=True)
+    assert res2["status"] == "success" and res2["new"] == 9, res2
+    res3 = run_with_routes("ec_honey_market", _honey_routes(), force=True)
+    assert res3["new"] == 0 and res3["revised"] == 0, res3
+    with session_factory() as s:
+        assert len(_rows(s, PriceObservation, "ec_honey_market", is_current=True)) == 9
+        assert len(_rows(s, Report, "ec_honey_market")) == 2         # no duplicate report for the same bytes
+
+
+def test_import_unit_value_tables_need_origin_rows(tmp_path):
+    """DGAGRI-4: on an import page, member-state rows are importers, not origins."""
+    assert eu._parse_price_table([["Member State", "2023"], ["Germany", "2,10"]], row_headers=eu._ORIGIN_HEADERS) is None
+    by_ms = _deck("Import unit value by Member State (EUR/kg)",
+                  [["Member State", "2023", "2024"], ["Germany", "2,10", "2,05"], ["Italy", "2,30", "2,20"]])
+    assert eu.extract_price_tables(by_ms) == []
+    with_eu_total = _deck("Import unit value by origin (EUR/kg)",
+                          [["Origin", "2023", "2024"], ["China", "1,85", "1,90"], ["EU", "2,40", "2,45"]])
+    assert eu.extract_price_tables(with_eu_total) == []
+    by_origin = _deck("Import unit value by origin (EUR/kg)", [["Origin", "2023", "2024"], ["China", "1,85", "1,90"]])
+    rows = eu.extract_price_tables(by_origin)
+    assert [(r.price_type, r.market_iso3, r.origin_iso3, r.year, r.value) for r in rows] == [
+        (PriceType.IMPORT_UNIT_VALUE, "EU27", "CHN", 2023, 1.85), (PriceType.IMPORT_UNIT_VALUE, "EU27", "CHN", 2024, 1.9)]
+    # producer pages keep accepting member-state tables
+    producer = _deck("Honey prices at production site (EUR/kg)", [["Member State", "2024"], ["Italy", "6,40"]])
+    assert [(r.market_iso3, r.origin_iso3) for r in eu.extract_price_tables(producer)] == [("ITA", "ITA")]
+
+
 # ---------------------------------------------------------------------------
 # RASFF
 # ---------------------------------------------------------------------------
@@ -435,6 +566,82 @@ def test_rasff_end_to_end(run_with_routes, session_factory, pin_today):
     assert res2["status"] == "no_change" and res2["new"] == 0, res2
     with session_factory() as s:
         assert len(_rows(s, RegulationItem, "rasff_honey")) == 3
+
+
+@pytest.fixture()
+def run_rasff(run_with_routes):
+    """Run rasff_honey against `responder(body) -> (status, bytes)`, which sees every POSTed JSON
+    body. Returns (result, bodies). `run_with_routes` provides the database and disables sleeps."""
+    from paladex.collectors.runner import run_collector
+
+    def _run(responder, force: bool = False):
+        bodies: list[dict] = []
+
+        def answer(request):
+            body = json.loads(request.content)
+            bodies.append(body)
+            status, content = responder(body)
+            return httpx.Response(status, content=content, headers={"content-type": "application/json"})
+
+        with respx.mock(assert_all_called=False) as mock:
+            mock.route(method="POST", url__startswith=eu.RASFF_SEARCH_URL).mock(side_effect=answer)
+            mock.route().mock(side_effect=httpx.ConnectError("blocked in tests"))
+            with httpx.Client(follow_redirects=True) as client:
+                res = run_collector("rasff_honey", trigger="test", force=force, client=client)
+        return res, bodies
+
+    return _run
+
+
+def _rasff_notifications() -> list[dict]:
+    return json.loads(fixture_bytes("eu/rasff_search_honey_p1.json"))["notifications"]
+
+
+def _rasff_answer(notifications: list[dict], total_pages: int = 1) -> tuple[int, bytes]:
+    return 200, json.dumps({"totalPages": total_pages, "totalElements": len(notifications),
+                            "notifications": notifications}).encode()
+
+
+def test_rasff_window_reaches_back_to_the_last_complete_run(run_rasff, session_factory, pin_today):
+    """RASFF-1: after more than 30 days without a run, the gap is still read."""
+    late = {**_rasff_notifications()[0], "notifId": 913000, "reference": "2026.8101",
+            "ecValidationDate": "10-11-2026 11:20:00", "subject": "Chloramphenicol in honey from China"}
+
+    def server(body):            # the backend filters on the validation date, as the real one does
+        since = datetime.strptime(body["ecValidDateFrom"][:10], "%d-%m-%Y").date() if "ecValidDateFrom" in body else date.min
+        items = [n for n in [late, *_rasff_notifications()]
+                 if datetime.strptime(n["ecValidationDate"][:10], "%d-%m-%Y").date() >= since]
+        return _rasff_answer(items)
+
+    res, bodies = run_rasff(lambda body: _rasff_answer(_rasff_notifications()))   # run on 2026-11-02
+    assert res["status"] == "success" and bodies[0]["ecValidDateFrom"] == "01-01-2020 00:00:00", res
+    pin_today(date(2026, 12, 21))                                                   # seven weeks later
+    res, bodies = run_rasff(server)
+    assert bodies[0]["ecValidDateFrom"] == "26-10-2026 00:00:00", bodies            # not 21-11-2026
+    assert res["status"] == "success" and res["new"] == 1, res
+    with session_factory() as s:
+        assert "2026.8101" in {r.reference for r in _rows(s, RegulationItem, "rasff_honey")}
+
+
+def test_rasff_interrupted_backfill_is_resumed_in_full(run_rasff, session_factory, pin_today):
+    """RASFF-1: rows checkpointed by an interrupted first back-fill do not make later runs incremental."""
+    first, second = _rasff_notifications()[:2], _rasff_notifications()[2:]
+    pages = {1: _rasff_answer(first, total_pages=2), 2: (503, b'{"error": "unavailable"}')}
+    res, _ = run_rasff(lambda body: pages[body["parameters"]["pageNumber"]])
+    assert res["status"] == "failed" and "503" in res["error"], res
+    with session_factory() as s:
+        assert {r.reference for r in _rows(s, RegulationItem, "rasff_honey")} == {"2026.7712", "2026.7604"}
+    pages[2] = _rasff_answer(second, total_pages=2)
+    res, bodies = run_rasff(lambda body: pages[body["parameters"]["pageNumber"]])
+    assert bodies[0]["ecValidDateFrom"] == "01-01-2020 00:00:00", bodies
+    assert [b["parameters"]["pageNumber"] for b in bodies] == [1, 2]           # page 1 holds nothing new: read on
+    assert res["status"] == "success" and res["new"] == 1, res
+    with session_factory() as s:
+        assert {r.reference for r in _rows(s, RegulationItem, "rasff_honey")} == {"2026.7712", "2026.7604", "2026.7420"}
+    # once the back-fill is complete, runs are incremental again
+    res, bodies = run_rasff(lambda body: pages[body["parameters"]["pageNumber"]])
+    assert res["status"] == "no_change" and [b["parameters"]["pageNumber"] for b in bodies] == [1], res
+    assert bodies[0]["ecValidDateFrom"] == "03-10-2026 00:00:00"
 
 
 def test_rasff_shape_change_fails_run(run_with_routes, session_factory, pin_today):

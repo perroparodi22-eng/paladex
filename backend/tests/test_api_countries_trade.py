@@ -489,3 +489,35 @@ def test_seeded_demo_data_feeds_trade_and_countries(api, db):
     assert {"ARG", "IND", "UKR", "MEX", "HUN"} == {r["iso3"] for r in mirror["rows"]}
     c = get(api, "/api/countries")
     assert c["metrics"]["production"]["countries"] == 6 and c["metrics"]["production"]["is_demo"] is True
+
+
+def test_eu_aggregate_total_is_extra_eu_never_the_world_row(api, db):
+    """Comext WORLD for EU27_2020 counts intra-EU dispatches: the EU's own total is EXTRA_EU."""
+    comext = db.query(Source).filter(Source.key == "eurostat_comext").one()
+    for m in range(1, 13):
+        for partner, kg in (("WLD", 20_000_000), ("EXTRA_EU", 2_000_000), ("USA", 400_000), ("CHE", 300_000)):
+            trade(db, comext, "EU27", partner, Y, kg, flow="export", currency="EUR", value=kg * 5, usd=kg * 5.5, month=m)
+        # a member state keeps its World row as the total
+        for partner, kg in (("WLD", 5_000_000), ("EXTRA_EU", 1_000_000), ("USA", 100_000)):
+            trade(db, comext, "ITA", partner, Y, kg, flow="export", currency="EUR", value=kg * 5, usd=kg * 5.5, month=m)
+    db.commit()
+
+    f = get(api, "/api/trade/flows", reporter="EU27", flow="export", year=Y)
+    assert f["total"]["net_weight_kg"] == 24_000_000                       # 12 x EXTRA_EU, not 12 x WORLD
+    assert f["share_basis"] == "extra_eu_total" and f["total_scope"] == "extra_eu"
+    rows = by_iso(f["rows"])
+    assert rows["USA"]["share_volume_pct"] == 20.0 and rows["CHE"]["share_volume_pct"] == 15.0
+    un = f["unallocated"]
+    assert un["net_weight_kg"] == 24_000_000 - 8_400_000 and un["share_volume_pct"] == 65.0
+    assert un["reason"] == "partners_not_collected" and un["partner_list_complete"] is False
+
+    s = get(api, "/api/trade/series", reporter="EU27", flow="export", freq="A")
+    assert s["total_scope"] == "extra_eu"
+    assert [p["net_weight_kg"] for p in s["series"][0]["points"]] == [24_000_000]
+    sm = get(api, "/api/trade/series", reporter="EU27", flow="export", freq="M")
+    assert {p["net_weight_kg"] for p in sm["series"][0]["points"]} == {2_000_000}
+
+    ita = get(api, "/api/trade/flows", reporter="ITA", flow="export", year=Y)
+    assert ita["total"]["net_weight_kg"] == 60_000_000 and ita["share_basis"] == "world_total"
+    assert ita["total_scope"] == "world" and by_iso(ita["rows"])["USA"]["share_volume_pct"] == 2.0
+    assert get(api, "/api/trade/series", reporter="ITA", flow="export")["series"][0]["points"][0]["net_weight_kg"] == 60_000_000

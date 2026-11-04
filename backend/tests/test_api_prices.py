@@ -409,8 +409,8 @@ def make_src(db, key: str, reliability: str = "official") -> Source:
 def test_annual_and_monthly_rows_of_one_pair_are_separate_series(api, db):
     """UN Comtrade publishes an annual AND monthly unit value for one pair: never one series."""
     comtrade = make_src(db, "t_comtrade")
-    uv = dict(price_type="import_unit_value", origin="ARG", market="USA", variety="unspecified",
-              terms="CIF customs value / net weight")
+    uv = {"price_type": "import_unit_value", "origin": "ARG", "market": "USA", "variety": "unspecified",
+          "terms": "CIF customs value / net weight"}
     add_price(db, comtrade, period="2025", value=3.0, freq="A", **uv)
     add_price(db, comtrade, period="2026-07", value=4.0, **uv)
     add_price(db, comtrade, period="2026-08", value=4.2, **uv)
@@ -443,8 +443,8 @@ def test_annual_and_monthly_rows_of_one_pair_are_separate_series(api, db):
 
 def test_weekly_rows_count_in_their_thursday_month_and_unit_values_are_volume_weighted(api, db):
     taxud, comext = make_src(db, "t_taxud"), make_src(db, "t_comext")
-    uv = dict(price_type="import_unit_value", origin="ARG", market="ITA", variety="unspecified", currency="EUR",
-              terms="CIF")
+    uv = {"price_type": "import_unit_value", "origin": "ARG", "market": "ITA", "variety": "unspecified",
+          "currency": "EUR", "terms": "CIF"}
     # ISO week 36/2026 runs 31 Aug - 6 Sep: it belongs to September (its Thursday is 3 Sep)
     for week, tonnes, v in ((36, 400, 3.2), (37, 20, 4.5), (38, 300, 3.1), (39, 2, 6.0)):
         add_price(db, taxud, period=f"2026-W{week:02d}", value=v, volume=tonnes * 1000, freq="W", **uv)
@@ -476,10 +476,15 @@ def test_weekly_rows_count_in_their_thursday_month_and_unit_values_are_volume_we
     disc = api.get("/api/prices/discrepancies?price_type=import_unit_value&currency=EUR").json()
     assert disc["total"] == 0
 
+    # compare's "latest" anchor follows the same rule: with data up to week 36 the newest month is September
+    c = api.get("/api/prices/compare?price_type=import_unit_value&currency=EUR&source=t_taxud&to=2026-09-06").json()
+    assert c["anchor_period"] == "2026-09" and any(b["key"] == "ARG" for b in c["bars"])
+
 
 def test_discrepancies_compare_one_like_for_like_line_per_source(api, db):
     gats, comtrade = make_src(db, "t_gats"), make_src(db, "t_comtrade")
-    uv = dict(price_type="import_unit_value", origin="ARG", market="USA", variety="unspecified", period="2026-08")
+    uv = {"price_type": "import_unit_value", "origin": "ARG", "market": "USA", "variety": "unspecified",
+          "period": "2026-08"}
     add_price(db, gats, value=2.90, volume=1_000_000, terms=f"{GATS_TERMS}, HS 0409 total",
               variety_raw="HS 0409 natural honey (all lines)", **uv)
     add_price(db, gats, value=3.10, volume=400_000, color="white", terms=f"{GATS_TERMS}, HTS 0409000035", **uv)
@@ -514,7 +519,7 @@ def test_discrepancies_compare_one_like_for_like_line_per_source(api, db):
 
 def test_compare_keeps_markets_apart_and_never_averages_aggregates_or_sub_lines(api, db):
     gats, comtrade, comext = make_src(db, "t_gats"), make_src(db, "t_comtrade"), make_src(db, "t_comext")
-    uv = dict(price_type="import_unit_value", origin="ARG", variety="unspecified", period="2026-08")
+    uv = {"price_type": "import_unit_value", "origin": "ARG", "variety": "unspecified", "period": "2026-08"}
     add_price(db, gats, value=2.90, volume=1_000_000, terms=f"{GATS_TERMS}, HS 0409 total",
               variety_raw="HS 0409 natural honey (all lines)", **uv)
     add_price(db, gats, value=3.10, volume=400_000, color="white", terms=f"{GATS_TERMS}, HTS 0409000035", **uv)

@@ -956,7 +956,8 @@ class UsdaHoneyReportCollector(Collector):
     category = "prices"
     country_iso3 = "USA"
     language = "en"
-    expected_update = "Monthly (issue dated near the end of the month)"
+    expected_update = "Mensile (numero datato verso la fine del mese)"
+    expected_update_en = "Monthly (issue dated near the end of the month)"
     expected_max_age_days = 40
     terms_note = (
         "US Government work (public domain, 17 USC 105). Cite 'USDA AMS Market News, National Honey "
@@ -1345,7 +1346,8 @@ class UsdaFasGatsCollector(Collector):
     category = "trade"
     country_iso3 = "USA"
     language = "en"
-    expected_update = "Monthly, about 5-6 weeks after the month (Census FT-900 release)"
+    expected_update = "Mensile, circa 5-6 settimane dopo il mese (pubblicazione Census FT-900)"
+    expected_update_en = "Monthly, about 5-6 weeks after the month (Census FT-900 release)"
     expected_max_age_days = 70
     terms_note = (
         "US Census Bureau trade statistics via the USDA FAS GATS API (api.data.gov key). US Government "
@@ -1710,7 +1712,8 @@ class UsdaNassHoneyCollector(Collector):
     category = "production"
     country_iso3 = "USA"
     language = "en"
-    expected_update = "Annual (Honey report, mid-March; prior year revised)"
+    expected_update = "Annuale (rapporto Honey a metà marzo; anno precedente rivisto)"
+    expected_update_en = "Annual (Honey report, mid-March; prior year revised)"
     expected_max_age_days = 400
     terms_note = (
         "This product uses the NASS API but is not endorsed or certified by NASS. "

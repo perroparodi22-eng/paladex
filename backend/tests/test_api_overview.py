@@ -505,3 +505,100 @@ def test_yoy_available_whatever_the_publication_lag(api, db, months_back):
     tile = get(api)["prices"]["items"][0]
     assert tile["yoy_pct"] == pytest.approx(25.0) and tile["mom_pct"] == pytest.approx(13.64, abs=0.01)
     assert len(tile["spark"]) == 13
+
+
+# ---------------------------------------------------------------------------
+# series identity (terms, frequency) and query count
+# ---------------------------------------------------------------------------
+
+
+def _price_row(db, src: Source, *, origin: str, variety: str, start: date, freq: str, value: float,
+               terms: str | None = None, price_type: str = "import_unit_value") -> None:
+    if freq == "A":
+        start, end = year_bounds(start.year)
+        label = str(start.year)
+    else:
+        _, end = month_bounds(start.year, start.month)
+        label = f"{start:%Y-%m}"
+    ingest.record(
+        db, PriceObservation, source_id=src.id, series_key=f"{price_type}|{origin}|{variety}|{freq}|{terms}|{label}",
+        price_type=price_type, origin_iso3=origin, origin_label=origin, market_iso3="USA", variety=variety,
+        terms=terms, price_value=value, currency="USD", unit="kg", price_per_kg=value, usd_per_kg=value,
+        eur_per_kg=round(value / 1.1, 4), period_start=start, period_end=end, period_label=label, frequency=freq,
+        published_at=end + timedelta(days=30), source_url="https://example.org/x", data_status="published",
+        reliability=src.reliability,
+    )
+
+
+def test_two_packagings_of_one_variety_are_two_series_not_a_price_move(api, db):
+    onm = make_source(db, "t_onm", "prices", publisher="Osservatorio")
+    # drums and tins of the same honey, both flat for three months
+    add_price_series(db, onm, "ITA", "polyflora", [4.25] * 3, currency="EUR", market="ITA",
+                     terms="fusto 300 kg; mercato all'ingrosso")
+    add_price_series(db, onm, "ITA", "polyflora", [6.25] * 3, currency="EUR", market="ITA",
+                     terms="secchio 25 kg; mercato all'ingrosso")
+    db.commit()
+    d = get(api)
+    tiles = [t for t in d["prices"]["items"] if t["origin_iso3"] == "ITA"]
+    assert len(tiles) == 2 and d["prices"]["series_available"] == 2
+    assert sorted(t["price_per_kg"] for t in tiles) == [4.25, 6.25]
+    for t in tiles:
+        assert t["mom_pct"] == 0.0
+        assert [p["value"] for p in t["spark"]] == [t["price_per_kg"]] * 3        # no zig-zag
+    # the two tiles are told apart by their packaging
+    assert {t["label_hint"] for t in tiles} == {"fusto 300 kg", "secchio 25 kg"}
+    assert len({t["label"] for t in tiles}) == 2
+    assert all(b["kind"] != "price" for b in d["briefing"]["bullets"])
+    assert {r["key"]: r["count"] for r in d["briefing"]["rules"]}["prices"] == 0
+    assert all(c["components"]["price_mom_pct"] in (None, 0.0) for c in d["countries"]["items"])
+
+
+def test_annual_row_is_not_a_point_of_the_monthly_series(api, db):
+    src = make_source(db, "t_comtrade", "prices")
+    jan = TODAY.replace(month=1, day=1)
+    year_before = jan - relativedelta(years=1)
+    # the annual figure for last year is stored first: it shares 1 January with the monthly row
+    _price_row(db, src, origin="ARG", variety="unspecified", start=year_before, freq="A", value=9.0)
+    _price_row(db, src, origin="ARG", variety="unspecified", start=year_before, freq="M", value=2.0)
+    _price_row(db, src, origin="ARG", variety="unspecified", start=jan, freq="M", value=2.5)
+    db.commit()
+    tiles = {t["frequency"]: t for t in get(api, "en")["prices"]["items"]}
+    assert set(tiles) == {"A", "M"}
+    assert tiles["M"]["yoy_pct"] == pytest.approx(25.0) and tiles["M"]["yoy_period_label"] == f"{year_before:%Y-%m}"
+    assert [p["value"] for p in tiles["M"]["spark"]] == [2.0, 2.5]
+    assert tiles["A"]["yoy_pct"] is None and tiles["A"]["mom_pct"] is None
+    assert {tiles["A"]["label_hint"], tiles["M"]["label_hint"]} == {"annual", "monthly"}
+
+
+def test_long_stale_series_history_is_loaded_in_one_query(db):
+    from sqlalchemy import event
+
+    from paladex.api.overview import Ctx, series_changes
+
+    src = make_source(db, "t_fao", "production")
+    y = TODAY.year - 3                                   # newest annual point far outside the bulk window
+    origins = ["ARG", "UKR", "CHN", "BRA", "VNM", "IND", "HUN", "ITA", "MEX", "URY"]
+    varieties = ["polyflora", "acacia", "sunflower", "clover", "eucalyptus"]
+    for o in origins:
+        for v in varieties:
+            _price_row(db, src, origin=o, variety=v, start=date(y - 1, 1, 1), freq="A", value=2.0, price_type="producer")
+            _price_row(db, src, origin=o, variety=v, start=date(y, 1, 1), freq="A", value=2.2, price_type="producer")
+    db.commit()
+
+    statements: list[str] = []
+    engine = db.get_bind()
+
+    def count(conn, cursor, statement, *args):
+        statements.append(statement)
+
+    ctx = Ctx(db, "en")
+    event.listen(engine, "before_cursor_execute", count)
+    try:
+        series = ctx.price_series()
+    finally:
+        event.remove(engine, "before_cursor_execute", count)
+    assert len(series) == 50
+    assert len(statements) <= 4                          # not one query per stale series
+    for s in series:
+        assert [p.period_label for p in s.points] == [str(y - 1), str(y)]
+        assert series_changes(s)["yoy_pct"] == pytest.approx(10.0)

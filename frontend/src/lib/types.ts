@@ -31,7 +31,7 @@ export interface SourceBrief { key: string; name: string; publisher: string | nu
 
 export interface SourceInfo extends SourceBrief {
   kind: string; category: string; country_iso3: string | null
-  expected_update: string | null; expected_max_age_days: number | null; terms_note: string | null
+  expected_update: string | null; expected_update_en?: string | null; expected_max_age_days: number | null; terms_note: string | null
   enabled: boolean; requires_key: string | null; key_missing: boolean
   last_run_at: string | null; last_run_status: string | null; last_success_at: string | null
   last_new_data_at: string | null; latest_published_at: string | null; latest_period_label: string | null

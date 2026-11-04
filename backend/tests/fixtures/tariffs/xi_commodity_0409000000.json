@@ -1,0 +1,1387 @@
+{
+ "data": {
+  "id": "27623",
+  "type": "commodity",
+  "attributes": {
+   "producline_suffix": "80",
+   "description": "Natural honey",
+   "number_indents": 1,
+   "goods_nomenclature_item_id": "0409000000",
+   "bti_url": "https://www.gov.uk/guidance/check-what-youll-need-to-get-a-legally-binding-decision-on-a-commodity-code",
+   "formatted_description": "Natural honey",
+   "description_plain": "Natural honey",
+   "consigned": false,
+   "consigned_from": null,
+   "basic_duty_rate": "<span>17.30</span> %",
+   "meursing_code": false,
+   "declarable": true,
+   "validity_start_date": "1972-01-01T00:00:00.000Z",
+   "validity_end_date": null
+  },
+  "relationships": {
+   "section": {
+    "data": {
+     "id": "1",
+     "type": "section"
+    }
+   },
+   "chapter": {
+    "data": {
+     "id": "27560",
+     "type": "chapter"
+    }
+   },
+   "heading": {
+    "data": {
+     "id": "27622",
+     "type": "heading"
+    }
+   },
+   "import_measures": {
+    "data": [
+     {
+      "id": "3000101",
+      "type": "measure"
+     },
+     {
+      "id": "3000102",
+      "type": "measure"
+     },
+     {
+      "id": "3000103",
+      "type": "measure"
+     },
+     {
+      "id": "3000104",
+      "type": "measure"
+     },
+     {
+      "id": "3000105",
+      "type": "measure"
+     },
+     {
+      "id": "3000106",
+      "type": "measure"
+     },
+     {
+      "id": "3000107",
+      "type": "measure"
+     },
+     {
+      "id": "3000108",
+      "type": "measure"
+     },
+     {
+      "id": "3000109",
+      "type": "measure"
+     },
+     {
+      "id": "3000110",
+      "type": "measure"
+     },
+     {
+      "id": "3000111",
+      "type": "measure"
+     },
+     {
+      "id": "3000112",
+      "type": "measure"
+     },
+     {
+      "id": "3000113",
+      "type": "measure"
+     },
+     {
+      "id": "3000114",
+      "type": "measure"
+     }
+    ]
+   },
+   "export_measures": {
+    "data": []
+   }
+  }
+ },
+ "meta": {
+  "duty_calculator": {
+   "source": "xi",
+   "trade_defence": false,
+   "zero_mfn_duty": false
+  }
+ },
+ "included": [
+  {
+   "id": "3000101-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "17.30 %",
+    "formatted_base": "<span>17.30</span> %"
+   }
+  },
+  {
+   "id": "3000101",
+   "type": "measure",
+   "attributes": {
+    "id": 3000101,
+    "origin": "eu",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2026-01-01T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "103",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "1011",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "R2658/87",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": null
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000101-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "3000102-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "16.00 %",
+    "formatted_base": "<span>16.00</span> %"
+   }
+  },
+  {
+   "id": "3000102",
+   "type": "measure",
+   "attributes": {
+    "id": 3000102,
+    "origin": "uk",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2026-01-01T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "103",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "1011",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "S.I. 2020/1430",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": null
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000102-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "3000103-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "20.00 %",
+    "formatted_base": "<span>20.00</span> %"
+   }
+  },
+  {
+   "id": "3000103",
+   "type": "measure",
+   "attributes": {
+    "id": 3000103,
+    "origin": "uk",
+    "import": true,
+    "excise": false,
+    "vat": true,
+    "effective_start_date": "2021-01-01T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "305",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "1011",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": []
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": null
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000103-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "3000104",
+   "type": "measure",
+   "attributes": {
+    "id": 3000104,
+    "origin": "eu",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2022-01-01T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "410",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "1011",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "R9905/21",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": [
+      {
+       "id": "CD624",
+       "type": "footnote"
+      }
+     ]
+    },
+    "order_number": {
+     "data": null
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    }
+   }
+  },
+  {
+   "id": "3000105-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "0.00 %",
+    "formatted_base": "<span>0.00</span> %"
+   }
+  },
+  {
+   "id": "3000105",
+   "type": "measure",
+   "attributes": {
+    "id": 3000105,
+    "origin": "eu",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2025-10-29T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "143",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "UA",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "D9901/25",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": {
+      "id": "099990",
+      "type": "order_number"
+     }
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000105-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "3000106-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "0.00 %",
+    "formatted_base": "<span>0.00</span> %"
+   }
+  },
+  {
+   "id": "3000106",
+   "type": "measure",
+   "attributes": {
+    "id": 3000106,
+    "origin": "eu",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2021-01-01T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "142",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "XS",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "R9902/09",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": null
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000106-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "3000107-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "0.00 %",
+    "formatted_base": "<span>0.00</span> %"
+   }
+  },
+  {
+   "id": "3000107",
+   "type": "measure",
+   "attributes": {
+    "id": 3000107,
+    "origin": "eu",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2020-08-01T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "142",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "VN",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "D9903/20",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": null
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000107-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "3000108-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "13.80 %",
+    "formatted_base": "<span>13.80</span> %"
+   }
+  },
+  {
+   "id": "3000108",
+   "type": "measure",
+   "attributes": {
+    "id": 3000108,
+    "origin": "eu",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2024-01-01T00:00:00.000Z",
+    "effective_end_date": "2027-12-31T23:59:59.000Z"
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "142",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "2020",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "R9904/12",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": null
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000108-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "3000109-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "8.60 %",
+    "formatted_base": "<span>8.60</span> %"
+   }
+  },
+  {
+   "id": "3000109",
+   "type": "measure",
+   "attributes": {
+    "id": 3000109,
+    "origin": "eu",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2026-01-01T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "143",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "MX",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "D9906/00",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": {
+      "id": "099991",
+      "type": "order_number"
+     }
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000109-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "3000110-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "0.00 %",
+    "formatted_base": "<span>0.00</span> %"
+   }
+  },
+  {
+   "id": "3000110",
+   "type": "measure",
+   "attributes": {
+    "id": 3000110,
+    "origin": "eu",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2026-01-01T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "143",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "9901",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "D9907/26",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": {
+      "id": "099992",
+      "type": "order_number"
+     }
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000110-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "3000111-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "0.00 %",
+    "formatted_base": "<span>0.00</span> %"
+   }
+  },
+  {
+   "id": "3000111",
+   "type": "measure",
+   "attributes": {
+    "id": 3000111,
+    "origin": "eu",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2005-01-01T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "142",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "CL",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "D9908/02",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": null
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000111-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "3000112-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "0.00 %",
+    "formatted_base": "<span>0.00</span> %"
+   }
+  },
+  {
+   "id": "3000112",
+   "type": "measure",
+   "attributes": {
+    "id": 3000112,
+    "origin": "eu",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2016-01-01T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "142",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "MD",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "D9909/14",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": null
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000112-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "3000113-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "0.00 %",
+    "formatted_base": "<span>0.00</span> %"
+   }
+  },
+  {
+   "id": "3000113",
+   "type": "measure",
+   "attributes": {
+    "id": 3000113,
+    "origin": "eu",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2016-01-01T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "142",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "NO",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "D9910/95",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": null
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000113-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "3000114-duty_expression",
+   "type": "duty_expression",
+   "attributes": {
+    "base": "0.00 %",
+    "formatted_base": "<span>0.00</span> %"
+   }
+  },
+  {
+   "id": "3000114",
+   "type": "measure",
+   "attributes": {
+    "id": 3000114,
+    "origin": "eu",
+    "import": true,
+    "excise": false,
+    "vat": false,
+    "effective_start_date": "2026-01-01T00:00:00.000Z",
+    "effective_end_date": null
+   },
+   "relationships": {
+    "measure_type": {
+     "data": {
+      "id": "105",
+      "type": "measure_type"
+     }
+    },
+    "geographical_area": {
+     "data": {
+      "id": "1011",
+      "type": "geographical_area"
+     }
+    },
+    "excluded_countries": {
+     "data": []
+    },
+    "legal_acts": {
+     "data": [
+      {
+       "id": "R2658/87",
+       "type": "legal_act"
+      }
+     ]
+    },
+    "footnotes": {
+     "data": []
+    },
+    "order_number": {
+     "data": null
+    },
+    "measure_conditions": {
+     "data": []
+    },
+    "measure_components": {
+     "data": []
+    },
+    "duty_expression": {
+     "data": {
+      "id": "3000114-duty_expression",
+      "type": "duty_expression"
+     }
+    }
+   }
+  },
+  {
+   "id": "103",
+   "type": "measure_type",
+   "attributes": {
+    "id": "103",
+    "description": "Third country duty",
+    "measure_type_series_id": "C"
+   }
+  },
+  {
+   "id": "142",
+   "type": "measure_type",
+   "attributes": {
+    "id": "142",
+    "description": "Tariff preference",
+    "measure_type_series_id": "C"
+   }
+  },
+  {
+   "id": "143",
+   "type": "measure_type",
+   "attributes": {
+    "id": "143",
+    "description": "Preferential tariff quota",
+    "measure_type_series_id": "C"
+   }
+  },
+  {
+   "id": "105",
+   "type": "measure_type",
+   "attributes": {
+    "id": "105",
+    "description": "Non preferential duty under end-use",
+    "measure_type_series_id": "C"
+   }
+  },
+  {
+   "id": "305",
+   "type": "measure_type",
+   "attributes": {
+    "id": "305",
+    "description": "Value added tax",
+    "measure_type_series_id": "P"
+   }
+  },
+  {
+   "id": "410",
+   "type": "measure_type",
+   "attributes": {
+    "id": "410",
+    "description": "Veterinary control",
+    "measure_type_series_id": "B"
+   }
+  },
+  {
+   "id": "1011",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "1011",
+    "description": "ERGA OMNES",
+    "geographical_area_id": "1011"
+   }
+  },
+  {
+   "id": "UA",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "UA",
+    "description": "Ukraine",
+    "geographical_area_id": "UA"
+   }
+  },
+  {
+   "id": "XS",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "XS",
+    "description": "Serbia",
+    "geographical_area_id": "XS"
+   }
+  },
+  {
+   "id": "VN",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "VN",
+    "description": "Viet Nam",
+    "geographical_area_id": "VN"
+   }
+  },
+  {
+   "id": "2020",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "2020",
+    "description": "GSP - General arrangements",
+    "geographical_area_id": "2020"
+   },
+   "relationships": {
+    "children_geographical_areas": {
+     "data": [
+      {
+       "id": "IN",
+       "type": "geographical_area"
+      },
+      {
+       "id": "PK",
+       "type": "geographical_area"
+      },
+      {
+       "id": "ID",
+       "type": "geographical_area"
+      },
+      {
+       "id": "NG",
+       "type": "geographical_area"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "MX",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "MX",
+    "description": "Mexico",
+    "geographical_area_id": "MX"
+   }
+  },
+  {
+   "id": "9901",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "9901",
+    "description": "Illustrative test group (not a real TARIC group)",
+    "geographical_area_id": "9901"
+   }
+  },
+  {
+   "id": "CL",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "CL",
+    "description": "Chile",
+    "geographical_area_id": "CL"
+   }
+  },
+  {
+   "id": "MD",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "MD",
+    "description": "Moldova, Republic of",
+    "geographical_area_id": "MD"
+   }
+  },
+  {
+   "id": "NO",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "NO",
+    "description": "Norway",
+    "geographical_area_id": "NO"
+   }
+  },
+  {
+   "id": "R2658/87",
+   "type": "legal_act",
+   "attributes": {
+    "validity_start_date": null,
+    "validity_end_date": null,
+    "officialjournal_number": "L 256",
+    "officialjournal_page": 1,
+    "published_date": "1987-09-07",
+    "regulation_code": "R2658/87",
+    "regulation_url": "https://eur-lex.europa.eu/legal-content/EN/AUTO/?uri=CELEX:31987R2658",
+    "description": null
+   }
+  },
+  {
+   "id": "D9901/25",
+   "type": "legal_act",
+   "attributes": {
+    "validity_start_date": null,
+    "validity_end_date": null,
+    "officialjournal_number": "L 999",
+    "officialjournal_page": 1,
+    "published_date": "2099-01-01",
+    "regulation_code": "D9901/25",
+    "regulation_url": "https://eur-lex.europa.eu/legal-content/EN/AUTO/?uri=CELEX:32025D9901",
+    "description": null
+   }
+  },
+  {
+   "id": "R9902/09",
+   "type": "legal_act",
+   "attributes": {
+    "validity_start_date": null,
+    "validity_end_date": null,
+    "officialjournal_number": "L 999",
+    "officialjournal_page": 1,
+    "published_date": "2099-01-01",
+    "regulation_code": "R9902/09",
+    "regulation_url": "https://eur-lex.europa.eu/legal-content/EN/AUTO/?uri=CELEX:32009R9902",
+    "description": null
+   }
+  },
+  {
+   "id": "D9903/20",
+   "type": "legal_act",
+   "attributes": {
+    "validity_start_date": null,
+    "validity_end_date": null,
+    "officialjournal_number": "L 999",
+    "officialjournal_page": 1,
+    "published_date": "2099-01-01",
+    "regulation_code": "D9903/20",
+    "regulation_url": "https://eur-lex.europa.eu/legal-content/EN/AUTO/?uri=CELEX:32020D9903",
+    "description": null
+   }
+  },
+  {
+   "id": "R9904/12",
+   "type": "legal_act",
+   "attributes": {
+    "validity_start_date": null,
+    "validity_end_date": null,
+    "officialjournal_number": "L 999",
+    "officialjournal_page": 1,
+    "published_date": "2099-01-01",
+    "regulation_code": "R9904/12",
+    "regulation_url": "https://eur-lex.europa.eu/legal-content/EN/AUTO/?uri=CELEX:32012R9904",
+    "description": null
+   }
+  },
+  {
+   "id": "R9905/21",
+   "type": "legal_act",
+   "attributes": {
+    "validity_start_date": null,
+    "validity_end_date": null,
+    "officialjournal_number": "L 999",
+    "officialjournal_page": 1,
+    "published_date": "2099-01-01",
+    "regulation_code": "R9905/21",
+    "regulation_url": "https://eur-lex.europa.eu/legal-content/EN/AUTO/?uri=CELEX:32021R9905",
+    "description": null
+   }
+  },
+  {
+   "id": "D9906/00",
+   "type": "legal_act",
+   "attributes": {
+    "validity_start_date": null,
+    "validity_end_date": null,
+    "officialjournal_number": "L 999",
+    "officialjournal_page": 1,
+    "published_date": "2099-01-01",
+    "regulation_code": "D9906/00",
+    "regulation_url": "https://eur-lex.europa.eu/legal-content/EN/AUTO/?uri=CELEX:32000D9906",
+    "description": null
+   }
+  },
+  {
+   "id": "D9907/26",
+   "type": "legal_act",
+   "attributes": {
+    "validity_start_date": null,
+    "validity_end_date": null,
+    "officialjournal_number": "L 999",
+    "officialjournal_page": 1,
+    "published_date": "2099-01-01",
+    "regulation_code": "D9907/26",
+    "regulation_url": "https://eur-lex.europa.eu/legal-content/EN/AUTO/?uri=CELEX:32026D9907",
+    "description": null
+   }
+  },
+  {
+   "id": "D9908/02",
+   "type": "legal_act",
+   "attributes": {
+    "validity_start_date": null,
+    "validity_end_date": null,
+    "officialjournal_number": "L 999",
+    "officialjournal_page": 1,
+    "published_date": "2099-01-01",
+    "regulation_code": "D9908/02",
+    "regulation_url": "https://eur-lex.europa.eu/legal-content/EN/AUTO/?uri=CELEX:32002D9908",
+    "description": null
+   }
+  },
+  {
+   "id": "D9909/14",
+   "type": "legal_act",
+   "attributes": {
+    "validity_start_date": null,
+    "validity_end_date": null,
+    "officialjournal_number": "L 999",
+    "officialjournal_page": 1,
+    "published_date": "2099-01-01",
+    "regulation_code": "D9909/14",
+    "regulation_url": "https://eur-lex.europa.eu/legal-content/EN/AUTO/?uri=CELEX:32014D9909",
+    "description": null
+   }
+  },
+  {
+   "id": "D9910/95",
+   "type": "legal_act",
+   "attributes": {
+    "validity_start_date": null,
+    "validity_end_date": null,
+    "officialjournal_number": "L 999",
+    "officialjournal_page": 1,
+    "published_date": "2099-01-01",
+    "regulation_code": "D9910/95",
+    "regulation_url": "https://eur-lex.europa.eu/legal-content/EN/AUTO/?uri=CELEX:31995D9910",
+    "description": null
+   }
+  },
+  {
+   "id": "S.I. 2020/1430",
+   "type": "legal_act",
+   "attributes": {
+    "regulation_code": "S.I. 2020/1430",
+    "regulation_url": "https://www.legislation.gov.uk/uksi/2020/1430",
+    "published_date": null
+   }
+  },
+  {
+   "id": "CD624",
+   "type": "footnote",
+   "attributes": {
+    "code": "CD624",
+    "description": "Illustrative footnote"
+   }
+  },
+  {
+   "id": "099990",
+   "type": "order_number",
+   "attributes": {
+    "number": "099990"
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "id": "29001",
+      "type": "definition"
+     }
+    }
+   }
+  },
+  {
+   "id": "29001",
+   "type": "definition",
+   "attributes": {
+    "initial_volume": "35000000.0",
+    "balance": "13500000.0",
+    "measurement_unit": "Kilogram (kg)",
+    "validity_start_date": "2026-01-01T00:00:00.000Z",
+    "validity_end_date": "2026-12-31T23:59:59.000Z",
+    "status": "Open",
+    "description": null,
+    "last_allocation_date": "2026-10-27"
+   }
+  },
+  {
+   "id": "099991",
+   "type": "order_number",
+   "attributes": {
+    "number": "099991"
+   },
+   "relationships": {}
+  },
+  {
+   "id": "099992",
+   "type": "order_number",
+   "attributes": {
+    "number": "099992"
+   },
+   "relationships": {}
+  }
+ ]
+}

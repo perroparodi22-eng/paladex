@@ -1,14 +1,15 @@
 // "How to read these data": customs declarations, publication lag, mirror data, unit values.
 import { Panel } from '@/components/ui'
-import { useI18n } from '@/i18n'
+import { expectedUpdate, useI18n } from '@/i18n'
 import { SourcesFooter } from './bits'
 import type { FacetsResponse, SourceUsed } from './types'
 
 export function TradeNotes({ facets, className, wide = false }: { facets: FacetsResponse; className?: string; wide?: boolean }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const sources: SourceUsed[] = facets.sources.map((s) => ({
     key: s.key, name: s.name, publisher: s.publisher, reliability: s.reliability, homepage: s.homepage,
     freshness: s.freshness, latest_published_at: s.latest_published_at, expected_update: s.expected_update,
+    expected_update_en: s.expected_update_en,
   }))
   const items = ['customs', 'lag', 'mirror', 'uv', 'eu']
   return (
@@ -27,8 +28,8 @@ export function TradeNotes({ facets, className, wide = false }: { facets: Facets
           <div className="eyebrow mb-1.5">{t('trade.notes.sources')}</div>
           <SourcesFooter sources={sources} />
           <div className="mt-1.5 flex flex-col gap-0.5 text-[0.78rem] text-muted">
-            {facets.sources.filter((s) => s.expected_update).map((s) => (
-              <div key={s.key}><span className="text-charcoal-soft">{s.publisher || s.name}</span>: {s.expected_update}</div>
+            {facets.sources.filter((s) => expectedUpdate(s, lang)).map((s) => (
+              <div key={s.key}><span className="text-charcoal-soft">{s.publisher || s.name}</span>: {expectedUpdate(s, lang)}</div>
             ))}
           </div>
         </div>

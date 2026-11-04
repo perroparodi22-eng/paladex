@@ -68,6 +68,7 @@ class FeedSpec:
     family: str = "rss"          # "google_news" | "rss"
     expected_max_age_days: int | None = 7
     expected_update: str = "Controllato ogni 3 ore; nuovi articoli quando l'editore pubblica"
+    expected_update_en: str = "Checked every 3 hours; new articles whenever the publisher posts them"
     terms_note: str = ""
     verified: str = "unverified"  # verified | listed | unverified
     max_entry_age_days: int = DEFAULT_MAX_ENTRY_AGE_DAYS
@@ -96,6 +97,17 @@ _EDITIONS = {
 }
 
 
+# Negative terms appended to every Google News search, by language: known noise named in
+# docs/research/news.json (Miele appliances, Honey Singh, PayPal's "Honey" extension, "luna de
+# miel"). The same exclusions as the GDELT queries; the honey gate still filters what slips through.
+_GN_EXCLUDE = {
+    "it": "-lavatrice -lavastoviglie -elettrodomestici",
+    "en": '-"honey singh" -paypal',
+    "es": '-"luna de miel"',
+    "de": "-Miele",
+}
+
+
 def google_news_url(query: str, edition: str, *, window: str = "7d") -> str:
     hl, gl, ceid, _ = _EDITIONS[edition]
     q = f"{query} when:{window}" if window else query
@@ -104,6 +116,9 @@ def google_news_url(query: str, edition: str, *, window: str = "7d") -> str:
 
 def _gn(key: str, label: str, query: str, edition: str, *, max_age: int = 5) -> FeedSpec:
     hl, gl, ceid, ed_label = _EDITIONS[edition]
+    exclude = _GN_EXCLUDE.get(edition.split("-")[0])
+    if exclude:
+        query = f"{query} {exclude}"
     return FeedSpec(
         key=f"news_gn_{key}",
         name=f"Google News · {label} ({ed_label})",
@@ -116,6 +131,7 @@ def _gn(key: str, label: str, query: str, edition: str, *, max_age: int = 5) -> 
         family="google_news",
         expected_max_age_days=max_age,
         expected_update=f"Ricerca «{query}» controllata ogni 3 ore (articoli degli ultimi 7 giorni)",
+        expected_update_en=f"Search «{query}» checked every 3 hours (articles from the last 7 days)",
         terms_note=_GN_TERMS,
         verified="verified",
         max_entry_age_days=30,
@@ -159,6 +175,7 @@ FEEDS: list[FeedSpec] = [
         publisher="Bee Culture (Root Publications)", url="https://www.beeculture.com/feed/", language="en",
         reliability=Reliability.TRADE_PRESS, country="USA", homepage="https://www.beeculture.com/",
         expected_max_age_days=14, expected_update="Notizie e «Catch the Buzz» più volte a settimana; rivista mensile",
+        expected_update_en="News and «Catch the Buzz» several times a week; monthly magazine",
         terms_note="Feed RSS dell'editore (titolo, estratto e link). Il testo completo resta sul sito dell'editore.",
         verified="listed",  # Feedspot beekeeping directory lists beeculture.com/feed (WordPress)
     ),
@@ -167,6 +184,7 @@ FEEDS: list[FeedSpec] = [
         publisher="Dadant & Sons", url="https://americanbeejournal.com/feed/", language="en",
         reliability=Reliability.TRADE_PRESS, country="USA", homepage="https://americanbeejournal.com/",
         expected_max_age_days=45, expected_update="Rivista mensile; articoli online irregolari",
+        expected_update_en="Monthly magazine; online articles at irregular intervals",
         terms_note="Feed RSS dell'editore (titolo, estratto e link).",
         verified="unverified",  # WordPress site (?p= permalinks): standard /feed/ endpoint assumed
     ),
@@ -176,6 +194,7 @@ FEEDS: list[FeedSpec] = [
         url="https://www.apimondia.org/feed/", language="en", reliability=Reliability.INDUSTRY, country=None,
         homepage="https://www.apimondia.org/", expected_max_age_days=60,
         expected_update="Comunicati irregolari (alcuni al mese): congressi, frodi, standard",
+        expected_update_en="Irregular press releases (a few a month): congresses, fraud, standards",
         terms_note="Feed RSS della federazione internazionale degli apicoltori.",
         verified="unverified",  # WordPress site (/category/news/, dated permalinks): /feed/ assumed
     ),
@@ -185,6 +204,7 @@ FEEDS: list[FeedSpec] = [
         reliability=Reliability.TRADE_PRESS, country="USA", homepage="https://www.foodsafetynews.com/",
         expected_max_age_days=120,
         expected_update="Notizie quotidiane sulla sicurezza alimentare; quelle sul miele sono rare",
+        expected_update_en="Daily food-safety news; items about honey are rare",
         terms_note="Feed generale: si conservano solo gli articoli che parlano di miele o apicoltura.",
         verified="verified",  # listed on foodsafetynews.com/subscribe-via-rss-feed/
     ),
@@ -194,6 +214,7 @@ FEEDS: list[FeedSpec] = [
         language="en", reliability=Reliability.TRADE_PRESS, country=None, homepage="https://www.foodnavigator.com/",
         expected_max_age_days=120,
         expected_update="Notizie quotidiane sull'industria alimentare europea; quelle sul miele sono rare",
+        expected_update_en="Daily news on the European food industry; items about honey are rare",
         terms_note="Feed generale: si conservano solo gli articoli che parlano di miele o apicoltura.",
         verified="unverified",  # Arc XP site (sitemaps under /arc/outboundfeeds/); standard Arc RSS path assumed
     ),
@@ -205,6 +226,7 @@ FEEDS: list[FeedSpec] = [
         homepage="https://www.europarl.europa.eu/committees/en/agri/home/highlights",
         expected_max_age_days=None,
         expected_update="Notizie della commissione AGRI più volte a settimana; quelle sul miele sono rare",
+        expected_update_en="AGRI committee news several times a week; items about honey are rare",
         terms_note="Feed ufficiale del Parlamento europeo. Si conservano solo le notizie su miele e apicoltura.",
         verified="listed",  # listed by the Feeder directory for the AGRI committee page
     ),
@@ -417,6 +439,7 @@ def _make_collector(spec: FeedSpec, index: int) -> type[FeedCollector]:
         "country_iso3": spec.country,
         "language": spec.language,
         "expected_update": spec.expected_update,
+        "expected_update_en": spec.expected_update_en,
         "expected_max_age_days": spec.expected_max_age_days,
         "terms_note": spec.terms_note,
         "schedule": _schedule(index),

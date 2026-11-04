@@ -35,9 +35,9 @@ from dateutil.parser import isoparse
 from sqlalchemy import select
 
 from ..enums import DataStatus, PriceType, Reliability, SourceKind, TradeFlow, Variety
-from ..models import AppSetting, RegulationItem, Report, TradeFlowObservation, utcnow
+from ..models import AppSetting, PriceObservation, RegulationItem, Report, TradeFlowObservation, utcnow
 from ..reference.countries import country_name, lookup_iso3
-from .base import CollectContext, Collector, CollectorError, FetchResult, month_bounds, year_bounds
+from .base import CollectContext, Collector, CollectorError, FetchResult, Offline, month_bounds, year_bounds
 
 log = logging.getLogger(__name__)
 
@@ -138,11 +138,19 @@ def _get_state(session, key: str) -> dict:
 def _set_state(session, key: str, value: dict) -> None:
     """Small per-collector bookkeeping (not observations): e.g. the last Comext vintage seen."""
     full_key = f"collector_state:{key}"
+    value = json.loads(json.dumps(value))       # a fresh object, so the JSON column sees the change
     row = session.get(AppSetting, full_key)
     if row is None:
         session.add(AppSetting(key=full_key, value=value))
     else:
         row.value = value
+
+
+def _iso_date(value: Any) -> date | None:
+    try:
+        return date.fromisoformat(str(value)[:10]) if value else None
+    except ValueError:
+        return None
 
 
 def _has_rows(ctx: CollectContext, model) -> bool:
@@ -478,7 +486,8 @@ class EurostatComextCollector(Collector):
     reliability = Reliability.OFFICIAL
     category = "trade"
     language = "en"
-    expected_update = "Monthly, around mid-month (data up to about two months earlier)"
+    expected_update = "Mensile, verso metà mese (dati fino a circa due mesi prima)"
+    expected_update_en = "Monthly, around mid-month (data up to about two months earlier)"
     expected_max_age_days = 45
     terms_note = ("Source: Eurostat (DS-045409). Reuse under CC BY 4.0 (Commission Decision 2011/833/EU) "
                   "with attribution. Recent months are preliminary and revised until about October of "
@@ -489,21 +498,33 @@ class EurostatComextCollector(Collector):
 
     def collect(self, ctx: CollectContext) -> None:
         state = _get_state(ctx.session, self.key)
-        if _has_rows(ctx, TradeFlowObservation) and not ctx.force:
-            if state.get("updated"):
-                probe_updated = self._probe(ctx)
-                if isoparse(probe_updated) == isoparse(state["updated"]):
-                    log.info("[%s] Comext vintage %s unchanged; nothing to pull", self.key, probe_updated)
-                    return
+        t = today()
+        by, bm = _shift_month(t.year, t.month, -(COMEXT_BACKFILL_MONTHS - 1))
+        # The state is written only after a complete pull, so it (not stored rows, which an
+        # interrupted back-fill leaves for the reporters already checkpointed) says whether the
+        # full back-fill has been done. 'since' stands in for 'backfill_since' in older states.
+        backfill_since = str(state.get("backfill_since") or state.get("since") or "")
+        backfilled = bool(state.get("updated")) and bool(backfill_since) and backfill_since <= f"{by:04d}-{bm:02d}"
+        has_rows = _has_rows(ctx, TradeFlowObservation)
+        if backfilled and has_rows and not ctx.force:
+            probe_updated = self._probe(ctx)
+            if isoparse(probe_updated) == isoparse(state["updated"]):
+                log.info("[%s] Comext vintage %s unchanged; nothing to pull", self.key, probe_updated)
+                return
             months = COMEXT_REPULL_MONTHS
         else:
+            if has_rows and not backfilled and not ctx.force:
+                log.info("[%s] no complete %s-month back-fill on record (an earlier one was interrupted?); "
+                         "pulling it again", self.key, COMEXT_BACKFILL_MONTHS)
             months = COMEXT_BACKFILL_MONTHS
-        t = today()
         sy, sm = _shift_month(t.year, t.month, -(months - 1))
-        doc, release = self._pull(ctx, f"{sy:04d}-{sm:02d}")
+        since = f"{sy:04d}-{sm:02d}"
+        doc, release = self._pull(ctx, since)
         self._store(ctx, doc, release)
-        _set_state(ctx.session, self.key, {"updated": release.updated_raw, "since": f"{sy:04d}-{sm:02d}",
-                                           "pulled_at": utcnow().isoformat(timespec="seconds")})
+        _set_state(ctx.session, self.key, {
+            "updated": release.updated_raw, "since": since, "pulled_at": utcnow().isoformat(timespec="seconds"),
+            "backfill_since": since if months == COMEXT_BACKFILL_MONTHS else backfill_since,
+        })
 
     def _probe(self, ctx: CollectContext) -> str:
         t = today()
@@ -800,7 +821,8 @@ class TaxudWeeklyCollector(Collector):
     reliability = Reliability.OFFICIAL
     category = "trade"
     language = "en"
-    expected_update = "Weekly (provisional customs surveillance data; extra-EU imports only)"
+    expected_update = "Settimanale (dati provvisori della sorveglianza doganale; solo importazioni extra-UE)"
+    expected_update_en = "Weekly (provisional customs surveillance data; extra-EU imports only)"
     expected_max_age_days = 21
     terms_note = ("Source: European Commission, DG AGRI Agri-food Data Portal (TAXUD surveillance data). "
                   "Provisional customs-declaration figures, subject to change without notice; they will "
@@ -921,6 +943,23 @@ class HoneyReportLink:
     def report_key(self) -> str:
         return f"{self.uuid}/{self.filename}" if self.filename else self.uuid
 
+    @property
+    def deck_date(self) -> date | None:
+        """When the deck was issued, as far as the page tells: its publication date, else the
+        first day of the period named in its title or filename ('2026-01' -> 1 January 2026,
+        '2024 autumn' -> 1 September 2024). None when neither is known."""
+        if self.published_at:
+            return self.published_at
+        label = self.period_label or ""
+        m = re.fullmatch(r"(\d{4})-(\d{2})", label)
+        if m:
+            return date(int(m.group(1)), int(m.group(2)), 1)
+        m = re.fullmatch(r"(\d{4}) (spring|summer|autumn|winter)", label)
+        return date(int(m.group(1)), _SEASON_START_MONTH[m.group(2)], 1) if m else None
+
+
+_SEASON_START_MONTH = {"spring": 3, "summer": 6, "autumn": 9, "winter": 12}
+
 
 def _clean_text(s: str) -> str:
     return re.sub(r"\s+", " ", s or "").strip()
@@ -1020,7 +1059,7 @@ def find_honey_reports(html: str, page_url: str = HONEY_PAGE_URL) -> list[HoneyR
         prev = found.get(url)
         if prev is None or (len(link.title) > len(prev.title)) or (prev.published_at is None and published):
             found[url] = link
-    return sorted(found.values(), key=lambda r: (r.published_at or date.min, r.url))
+    return sorted(found.values(), key=lambda r: (r.deck_date or date.min, r.url))
 
 
 def _enclosing_block(a, page_url: str, url: str):
@@ -1082,7 +1121,9 @@ _OTHER_UNIT_RE = re.compile(r"(?:eur|€)\s*/\s*(?:100\s*kg|t\b|tonne|lb)", re.I
 _YEAR_RE = re.compile(r"^(19|20)\d{2}$")
 _PRICE_CELL_RE = re.compile(r"^\d{1,3}(?:[.,]\d{1,3})?$")
 _EMPTY_CELL = {"", "-", "–", "—", ":", "n.a.", "n/a", "na", "n.d."}
-_ROW_HEADERS = {"member state", "member states", "ms", "country", "origin", "country of origin"}
+_MS_HEADERS = {"member state", "member states", "ms"}
+_ORIGIN_HEADERS = {"origin", "country of origin"}
+_ROW_HEADERS = _MS_HEADERS | _ORIGIN_HEADERS | {"country"}
 
 
 def _classify_price_page(text: str) -> tuple[PriceType, str] | None:
@@ -1098,17 +1139,17 @@ def _classify_price_page(text: str) -> tuple[PriceType, str] | None:
     return kinds[0] if len(kinds) == 1 else None
 
 
-def _parse_price_table(table: list[list[Any]]) -> list[tuple[str, str, int, float]] | None:
+def _parse_price_table(table: list[list[Any]], row_headers: set[str] = _ROW_HEADERS) -> list[tuple[str, str, int, float]] | None:
     """[(row label, iso3, year, value)] if the table is unambiguous, else None.
 
-    Unambiguous means: header 'Member State'/'Origin'/'Country' followed only by distinct
-    year columns; every row label is a known country (or the EU); every non-empty cell is
-    a plain number. One odd cell rejects the whole table.
+    Unambiguous means: a first header in `row_headers` ('Member State'/'Origin'/'Country' by
+    default) followed only by distinct year columns; every row label is a known country (or
+    the EU); every non-empty cell is a plain number. One odd cell rejects the whole table.
     """
     if not table or len(table) < 2:
         return None
     header = [_clean_text(str(c or "")) for c in table[0]]
-    if header[0].lower() not in _ROW_HEADERS or len(header) < 2:
+    if header[0].lower() not in row_headers or len(header) < 2:
         return None
     years = header[1:]
     if not all(_YEAR_RE.match(y) for y in years) or len(set(years)) != len(years):
@@ -1155,7 +1196,15 @@ def extract_price_tables(content: bytes) -> list[PdfPriceRow]:
             tables = page.extract_tables() or []
             if len(tables) != 1:
                 continue            # several tables on one page: we cannot tell which is which
-            parsed = _parse_price_table(tables[0])
+            if price_type == PriceType.IMPORT_UNIT_VALUE:
+                # Rows must be ORIGINS: a 'Member State' / 'Country' column on an import page names
+                # the importer, and an 'EU' row is the all-origins total, not imports from the EU.
+                # Either way the table is skipped rather than guessed.
+                parsed = _parse_price_table(tables[0], row_headers=_ORIGIN_HEADERS)
+                if parsed and any(iso == "EU27" for _, iso, _, _ in parsed):
+                    parsed = None
+            else:
+                parsed = _parse_price_table(tables[0])
             if not parsed:
                 continue
             for label, iso, year, value in parsed:
@@ -1177,7 +1226,8 @@ class EcHoneyMarketCollector(Collector):
     reliability = Reliability.OFFICIAL
     category = "reports"
     language = "en"
-    expected_update = "Irregular, about twice a year (spring/autumn honey market presentations)"
+    expected_update = "Irregolare, circa due volte l'anno (presentazioni sul mercato del miele in primavera e autunno)"
+    expected_update_en = "Irregular, about twice a year (spring/autumn honey market presentations)"
     expected_max_age_days = 400
     terms_note = ("Commission website content, reusable with attribution under Decision 2011/833/EU unless a "
                   "document says otherwise. Charts may embed third-party data (FAO, Eurostat).")
@@ -1192,29 +1242,45 @@ class EcHoneyMarketCollector(Collector):
             ctx.warn("No 'honey market overview/presentation' PDF found on the DG AGRI honey page; "
                      "the page layout may have changed")
             return
+        failed = 0
         for link in links:
-            self._process(ctx, link)
+            failed += not self._process(ctx, link)
             ctx.checkpoint()
+        if failed == len(links):
+            raise CollectorError(f"None of the {len(links)} DG AGRI honey documents could be downloaded "
+                                 "(see the warnings); nothing new stored")
 
-    def _process(self, ctx: CollectContext, link: HoneyReportLink) -> None:
+    def _process(self, ctx: CollectContext, link: HoneyReportLink) -> bool:
+        """Register one deck and store its unambiguous price tables. False when its download
+        failed (the deck is skipped and retried next run, so one dead link blocks nothing)."""
         key = link.report_key
         existing = ctx.session.scalars(
             select(Report).where(Report.source_id == ctx.source.id, Report.report_key == key)
         ).first()
         if existing is not None and not ctx.force:
             ctx.counters.count("unchanged")
-            return
-        pdf = ctx.fetch(link.url, title=link.title, published_at=link.published_at)
+            return True
+        try:
+            pdf = ctx.fetch(link.url, title=link.title, published_at=link.published_at)
+        except Offline:
+            raise
+        except CollectorError as exc:
+            ctx.warn(f"DG AGRI document {link.filename or link.url}: download failed ({exc}); skipped, retried next run")
+            return False
         if not pdf.content.startswith(b"%PDF"):
             ctx.warn(f"DG AGRI document {link.url} is not a PDF (content-type {pdf.content_type}); skipped")
-            return
-        if existing is not None:
+            return True
+        if existing is not None:                 # only reachable with ctx.force
             if pdf.unchanged:
-                ctx.counters.count("unchanged")
-                return
-            # Same link, new bytes: the Commission replaced the file in place. Keep both
-            # versions, told apart by the sha256 of the new file.
-            key = f"{key}#{hashlib.sha256(pdf.content).hexdigest()[:12]}"
+                # Forced re-parse of bytes already held: use the report that holds them (the
+                # link's own key, or the '#sha' key of an earlier in-place replacement).
+                held = ctx.session.scalars(select(Report).where(
+                    Report.source_id == ctx.source.id, Report.raw_document_id == pdf.raw_document_id)).first()
+                key = held.report_key if held is not None else key
+            else:
+                # Same link, new bytes: the Commission replaced the file in place. Keep both
+                # versions, told apart by the sha256 of the new file.
+                key = f"{key}#{hashlib.sha256(pdf.content).hexdigest()[:12]}"
         narrative = None
         try:
             narrative = extract_pdf_narrative(pdf.content)
@@ -1223,25 +1289,56 @@ class EcHoneyMarketCollector(Collector):
         report, is_new = ctx.add_report(report_key=key, title=link.title, url=link.url, published_at=link.published_at,
                                         period_label=link.period_label, raw_document_id=pdf.raw_document_id,
                                         narrative=narrative)
-        if not is_new:
-            return
+        if not is_new and not ctx.force:
+            return True
         try:
             rows = extract_price_tables(pdf.content)
         except Exception as exc:  # noqa: BLE001
             ctx.warn(f"DG AGRI PDF {link.filename or link.url}: table extraction failed ({type(exc).__name__}: {exc})")
-            return
+            return True
+        deck_date = link.deck_date
+        older: list[str] = []
         for r in rows:
+            series_key = f"dgagri|{r.market_iso3}|{r.origin_iso3}|{r.variety}|{r.year}"
+            # Every deck writes the same series: a figure becomes current only if it comes from a
+            # deck at least as recent as the one behind the current figure (an older deck retried
+            # later, or an undated one, must not override newer, revised figures). The older
+            # deck's figure stays traceable through its report and archived PDF.
+            current = _current_deck_date(ctx, f"{r.price_type.value}|{series_key}")
+            if current is not None and (deck_date is None or deck_date < current):
+                ctx.counters.count("older_vintage")
+                older.append(f"{r.origin_label} {r.year}")
+                continue
             p_start, p_end = year_bounds(r.year)
             ctx.add_price(
-                series_key=f"dgagri|{r.market_iso3}|{r.origin_iso3}|{r.variety}|{r.year}", price_type=r.price_type,
+                series_key=series_key, price_type=r.price_type,
                 variety=r.variety, price_value=r.value, currency="EUR", unit="kg", period_start=p_start,
                 period_end=p_end, period_label=str(r.year), frequency="A", origin_iso3=r.origin_iso3,
                 origin_label=r.origin_label, market_iso3=r.market_iso3, published_at=link.published_at,
                 source_url=link.url, raw_document_id=pdf.raw_document_id, data_status=DataStatus.PUBLISHED,
                 terms="bulk" if r.price_type == PriceType.WHOLESALE_BULK else None,
                 notes=f"Tabella del documento DG AGRI \"{link.title}\", pagina {r.page}.",
-                extra={"report_key": key, "page": r.page},
+                extra={"report_key": key, "page": r.page, "deck_date": deck_date.isoformat() if deck_date else None},
             )
+        if older:
+            msg = (f"DG AGRI PDF {link.filename or link.url}: {len(older)} figure(s) not made current because a more "
+                   f"recent deck already gives them ({', '.join(older[:8])}{', ...' if len(older) > 8 else ''})")
+            if deck_date is None:
+                ctx.warn(msg + "; this deck's date is unknown")
+            else:
+                log.info("[%s] %s", self.key, msg)
+        return True
+
+
+def _current_deck_date(ctx: CollectContext, full_series_key: str) -> date | None:
+    """Date of the deck behind the current (non-demo) row of a DG AGRI price series; None when
+    there is no such row or its deck date is unknown."""
+    row = ctx.session.scalars(select(PriceObservation).where(
+        PriceObservation.source_id == ctx.source.id, PriceObservation.series_key == full_series_key,
+        PriceObservation.is_current.is_(True), PriceObservation.is_demo.is_(False))).first()
+    if row is None:
+        return None
+    return _iso_date((row.extra or {}).get("deck_date")) or row.published_at
 
 
 # ===========================================================================
@@ -1255,6 +1352,7 @@ RASFF_HONEY_CATEGORY_ID = 18451                 # "honey and royal jelly" (live 
 RASFF_PAGE_SIZE = 50                            # the backend rejects 100 and above
 RASFF_MAX_PAGES = 40
 RASFF_LOOKBACK_DAYS = 30
+RASFF_OVERLAP_DAYS = 7                          # re-read before the last complete run (late validations)
 RASFF_BACKFILL_FROM = date(2020, 1, 1)          # RASFF Window search covers 2020 onwards
 RASFF_MIN_INTERVAL = 3.0                        # seconds between calls (rate limit is enforced)
 RASFF_HEADERS = {
@@ -1395,6 +1493,19 @@ def parse_rasff_search(content: bytes) -> RasffPage:
     return page
 
 
+def rasff_since(state: dict, ref: date, force: bool) -> date:
+    """First validation date to ask for.
+
+    Until one full back-fill has been read to the end (`backfill_complete`), and with --force,
+    everything from RASFF_BACKFILL_FROM. Afterwards the last RASFF_LOOKBACK_DAYS, extended back
+    to RASFF_OVERLAP_DAYS before the last complete run, so a gap of any length (PC off, an
+    outage of the backend) is read again."""
+    last = _iso_date(state.get("complete_through"))
+    if force or not state.get("backfill_complete") or last is None:
+        return RASFF_BACKFILL_FROM
+    return min(ref - timedelta(days=RASFF_LOOKBACK_DAYS), min(last, ref) - timedelta(days=RASFF_OVERLAP_DAYS))
+
+
 def _rasff_body(page: int, date_from: date | None) -> dict:
     body: dict[str, Any] = {"parameters": {"pageNumber": page, "itemsPerPage": RASFF_PAGE_SIZE},
                             "productCategory": [RASFF_HONEY_CATEGORY_ID]}
@@ -1412,7 +1523,8 @@ class RasffHoneyCollector(Collector):
     reliability = Reliability.OFFICIAL
     category = "regulation"
     language = "en"
-    expected_update = "Daily (notifications validated on working days); honey notifications are irregular"
+    expected_update = "Giornaliero (notifiche convalidate nei giorni lavorativi); quelle sul miele sono irregolari"
+    expected_update_en = "Daily (notifications validated on working days); honey notifications are irregular"
     expected_max_age_days = 120
     terms_note = ("Source: European Commission, RASFF Window. Public information reusable under Decision "
                   "2011/833/EU. The JSON backend is NOT an officially documented API and may change without "
@@ -1422,9 +1534,13 @@ class RasffHoneyCollector(Collector):
     def collect(self, ctx: CollectContext) -> None:
         ctx.MIN_INTERVAL_PER_HOST = max(ctx.MIN_INTERVAL_PER_HOST, RASFF_MIN_INTERVAL)
         known = set(ctx.session.scalars(select(RegulationItem.reference).where(RegulationItem.source_id == ctx.source.id)))
-        incremental = bool(known) and not ctx.force
-        date_from: date | None = today() - timedelta(days=RASFF_LOOKBACK_DAYS) if incremental else RASFF_BACKFILL_FROM
-        page_no = 1
+        state = _get_state(ctx.session, self.key)
+        t = today()
+        # Incremental (stop at the first page with nothing new) only after a back-fill was read
+        # to the end: stored rows alone may come from an interrupted first back-fill.
+        incremental = bool(state.get("backfill_complete")) and not ctx.force
+        date_from: date | None = rasff_since(state, t, ctx.force)
+        page_no, complete = 1, False
         while page_no <= RASFF_MAX_PAGES:
             doc, date_from = self._search(ctx, page_no, date_from)
             page = parse_rasff_search(doc.content)
@@ -1445,10 +1561,19 @@ class RasffHoneyCollector(Collector):
                 )
             ctx.checkpoint()
             if page_no >= page.total_pages or not page.notifications:
+                complete = True
                 break
             if incremental and not page_has_new:
+                complete = True
                 break               # newest first: the rest is already stored
             page_no += 1
+        if not complete:
+            ctx.warn(f"RASFF: stopped at the {RASFF_MAX_PAGES}-page cap; the same window is read again next run")
+            return
+        # Only a search read to the end moves the window forward.
+        state.update(complete_through=t.isoformat(), backfill_complete=True)
+        _set_state(ctx.session, self.key, state)
+        ctx.checkpoint()
 
     def _search(self, ctx: CollectContext, page_no: int, date_from: date | None) -> tuple[FetchResult, date | None]:
         """One search page. Returns the response and the date filter actually used."""

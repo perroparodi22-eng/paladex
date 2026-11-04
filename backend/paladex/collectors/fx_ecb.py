@@ -43,7 +43,8 @@ class EcbFxCollector(Collector):
     kind = SourceKind.API
     reliability = Reliability.OFFICIAL
     category = "fx"
-    expected_update = "Every TARGET working day around 16:00 CET"
+    expected_update = "Ogni giorno lavorativo TARGET verso le 16:00 CET"
+    expected_update_en = "Every TARGET working day around 16:00 CET"
     expected_max_age_days = 5
     terms_note = "ECB reference rates are published for information purposes; free reuse with attribution."
     schedule = {"trigger": "cron", "hour": 17, "minute": 15}

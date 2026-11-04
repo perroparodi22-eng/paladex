@@ -325,6 +325,11 @@ def _bucket_date(r: PriceObservation) -> date:
     return r.period_start + timedelta(days=3) if r.frequency == "W" else r.period_start
 
 
+def _bucket_date_sql():
+    """`_bucket_date` in SQL (an ISO 'YYYY-MM-DD' string)."""
+    return case((M.frequency == "W", func.date(M.period_start, "+3 days")), else_=func.date(M.period_start))
+
+
 def _combine(items: list[dict], label: str, start: date, end: date, expected: int | None) -> dict:
     """Average of `items` (already converted): volume-weighted when every item carries a declared
     volume (customs unit values), else a simple average. Low/high only when every item has them."""
@@ -710,7 +715,7 @@ def _series_index(db: Session, f: PriceFilters, currency: Currency) -> dict[str,
     """Every series matching `f`, from one grouped query: id -> dimensions and newest period label
     (as `build_series` would label it), without loading the rows."""
     cols = _series_key_sql(currency)
-    newest = func.max(case((M.frequency == "W", func.date(M.period_start, "+3 days")), else_=func.date(M.period_start)))
+    newest = func.max(_bucket_date_sql())
     demo = func.max(case((M.is_demo.is_(True), 1), else_=0))
     out = {}
     for row in db.execute(apply_filters(select(*cols, newest, demo), f, db).group_by(*cols)):
@@ -756,6 +761,7 @@ def facets(f: PriceFilters = Depends(price_filters), db: Session = Depends(get_d
         s = sources.get(sid)
         if s:
             src_facet.append({**source_brief(s), "count": n, "expected_update": s.expected_update,
+                              "expected_update_en": s.expected_update_en,
                               "latest_published_at": iso(s.latest_published_at)})
     src_facet.sort(key=lambda x: -x["count"])
 
@@ -911,7 +917,8 @@ def compare(
         raise HTTPException(422, "compare needs a common currency (USD or EUR)")
     f.date_from = None
     if period == "latest":
-        anchor = db.scalar(apply_filters(select(func.max(M.period_start)), f, db))
+        newest = db.scalar(apply_filters(select(func.max(_bucket_date_sql())), f, db))
+        anchor = None if newest is None else date.fromisoformat(str(newest)[:10])
         if anchor is None:
             return {"by": by, "price_type": pt, "currency": ccy, "unit": "kg", "period": period, "window_months": window,
                     "anchor_period": None, "window_from": None, "window_to": None, "bars": [], "excluded": []}

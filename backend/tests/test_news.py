@@ -659,3 +659,282 @@ def test_runner_hook_calls_enrich(db, monkeypatch):
     monkeypatch.setattr(ai_enrich, "enrich_news", lambda session, *a, **k: called.append(True) or {})
     runner.post_collection_hooks()
     assert called == [True]
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: non-Latin scripts (F1), gate noise (F4, F10), USA over-tagging (F9)
+# ---------------------------------------------------------------------------
+
+
+def test_chinese_headline_is_tagged_and_scored():
+    r = ns.analyse("中国蜂蜜出口价格下跌，美国反倾销税影响", language="zh")
+    assert {"CHN", "USA"} <= set(r.countries)
+    assert {"prices", "trade", "tariffs"} <= set(r.topics)
+    assert r.score >= 60
+    assert ns.tag_countries("中国和越南的蜂蜜") == ["CHN", "VNM"]
+    assert "IND" not in ns.tag_countries("印度尼西亚蜂蜜进口")       # Indonesia is not India
+    assert ns.analyse("中国蜂蜜出口十万吨", language="zh").factors["bulk"] is True
+    assert ns.analyse("欧盟蜂蜜进口新规", language="zh").factors["eu"] is True
+
+
+def test_ukrainian_russian_serbian_headlines_are_tagged():
+    uk = ns.analyse("Україна стала лідером з експорту меду в ЄС", language="uk")
+    assert "UKR" in uk.countries and "trade" in uk.topics and uk.factors["eu"] is True
+    assert uk.score >= 35
+    ru = ns.analyse("Россия: цены на мёд выросли, экспорт в Китай растёт", language="ru")
+    assert {"RUS", "CHN"} <= set(ru.countries) and {"prices", "trade"} <= set(ru.topics)
+    sr = ns.analyse("Srbija: izvoz meda u EU porastao", language="sr")
+    assert "SRB" in sr.countries and "trade" in sr.topics
+    sr_cyr = ns.analyse("Србија повећала извоз меда", language="sr")
+    assert sr_cyr.is_honey and "SRB" in sr_cyr.countries and "trade" in sr_cyr.topics
+    assert "tariffs" in ns.tag_topics("США ввели антидемпінгове мито на китайський мед")
+    assert ns.tag_countries("Италия и Венгрия") == ["ITA", "HUN"]
+    assert ns.tag_countries("Вʼєтнам") == ["VNM"]                       # Ukrainian apostrophe U+02BC
+    assert ns.tag_countries("Индивидуальные пасечники") == []            # "инди..." is not India
+
+
+@pytest.mark.parametrize("title", ["Giá bán mật ong tăng mạnh", "Nhật Bản nhập khẩu mật ong Việt Nam"])
+def test_vietnamese_ban_is_not_an_import_ban(title):
+    assert ns.is_honey_related(title, language="vi")
+    assert "import_restrictions" not in ns.tag_topics(title)
+
+
+def test_english_ban_still_tagged():
+    assert "import_restrictions" in ns.tag_topics("Ban on Chinese honey extended")
+    assert "import_restrictions" in ns.tag_topics("BAN ON HONEY IMPORTS")
+
+
+def test_enrich_includes_foreign_script_items_below_medium(db, llm_on, monkeypatch):
+    from paladex.services import ai_enrich, llm
+
+    gd = _source(db, "news_gdelt")
+    zh, _ = _ingest(db, gd, url="https://x.example/zh", title="蜂蜜节在杭州举行", language="zh")
+    low, _ = _ingest(db, url="https://x.example/en", title="Honey garlic chicken recipe")
+    db.commit()
+    assert zh.relevance_score < ai_enrich.MIN_RELEVANCE
+    sent = []
+
+    def fake(system, user, schema_hint=None, max_tokens=1024, **kw):
+        sent.extend(x["id"] for x in json.loads(user.split("\n", 1)[1]))
+        return {"articles": []}
+
+    monkeypatch.setattr(llm, "complete_json", fake)
+    ai_enrich.enrich_news(db)
+    assert zh.id in sent and low.id not in sent
+
+
+@pytest.mark.parametrize("text,lang", [
+    ("Miele raises prices on dishwashers amid US tariffs", "en"),
+    ("Miele taglia 1.300 posti: la produzione di lavatrici si sposta in Polonia", "it"),
+    ("PayPal Honey extension accused of fraud by YouTubers", "en"),
+    ("PayPal's Honey price tracker", "en"),
+    ("Luna de miel en el Caribe: precios para 2027", "es"),
+    ("FDA warns consumers about honey products laced with sildenafil", "en"),
+    ("Мед. заклади отримали нове обладнання", "uk"),
+])
+def test_gate_rejects_known_noise(text, lang):
+    assert not ns.is_honey_related(text, language=lang)
+
+
+@pytest.mark.parametrize("text,lang", [
+    ("Miele, crollano i prezzi all'origine", "it"),
+    ("Miele argentino: export in crescita", "it"),
+    ("FDA import alert on adulterated honey from India", "en"),
+    ("Українські пасічники продають мед.", "uk"),
+])
+def test_gate_keeps_honey_next_to_noise_rules(text, lang):
+    assert ns.is_honey_related(text, language=lang)
+
+
+def test_google_news_queries_carry_noise_exclusions():
+    from urllib.parse import parse_qs, urlsplit
+
+    from paladex.collectors.news_feeds import FEEDS
+
+    seen = set()
+    for f in FEEDS:
+        if f.family != "google_news":
+            continue
+        q = parse_qs(urlsplit(f.url).query)["q"][0]
+        seen.add(f.language)
+        if f.language == "it":
+            assert "-lavatrice" in q and "-lavastoviglie" in q and "-elettrodomestici" in q, q
+        elif f.language == "en":
+            assert '-"honey singh"' in q and "-paypal" in q, q
+        elif f.language == "es":
+            assert '-"luna de miel"' in q, q
+        elif f.language == "de":
+            assert "-Miele" in q, q
+    assert {"it", "en", "es", "de"} <= seen
+
+
+@pytest.mark.parametrize("text", ["我国蜂产品出口创新高", "洋槐蜜出口价格上涨", "蜜蜂养殖户收入下降",
+                                  "Бджолярі скаржаться на низькі закупівельні ціни",
+                                  "Бджола під загрозою: пасіки гинуть"])
+def test_gate_non_latin_bee_terms(text):
+    assert ns.honey_terms(text)
+
+
+@pytest.mark.parametrize("text", ["闺蜜一起去度蜜月", "甜蜜的生活", "Медична реформа", "Медовий місяць"])
+def test_gate_non_latin_lookalikes(text):
+    assert ns.honey_terms(text) == []
+
+
+def test_country_tagging_continental_american_and_foreign_fda():
+    assert ns.tag_countries("South American honey production hit by drought") == []
+    assert ns.tag_countries("Latin American honey exporters eye EU market") == []
+    assert ns.tag_countries("Brazil and other South American honey exporters") == ["BRA"]
+    assert ns.tag_countries("Philippine FDA warns against unregistered honey products") == []
+    assert ns.tag_countries("Thai FDA seizes fake honey") == ["THA"]
+    assert ns.tag_countries("FDA honey import alert") == ["USA"]
+    assert ns.tag_countries("American Honey Producers Association") == ["USA"]
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: fuzzy dedup guards (F2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("first,second", [
+    ("US sets anti-dumping duties on honey from Vietnam", "US sets anti-dumping duties on honey from Brazil"),
+    ("Honey prices rise in Argentina this week", "Honey prices fall in Argentina this week"),
+    ("EU honey imports from Ukraine hit record", "EU honey imports from China hit record"),
+    ("Prezzo del miele in calo", "Prezzo del miele in aumento"),
+    ("Commerce issues preliminary determination in honey anti-dumping case",
+     "Commerce issues final determination in honey anti-dumping case"),
+    ("Honey import duty raised to 12% on Chinese honey", "Honey import duty raised to 15% on Chinese honey"),
+])
+def test_fuzzy_dedup_keeps_different_stories_apart(db, first, second):
+    _, oa = _ingest(db, url="https://a.example/1", title=first)
+    b, ob = _ingest(db, url="https://b.example/2", title=second)
+    assert (oa, ob) == ("new", "new") and b.duplicate_of_id is None
+
+
+def test_fuzzy_dedup_still_merges_same_direction_rewording(db):
+    _, oa = _ingest(db, url="https://a.example/1", title="Honey prices rise in Argentina as drought cuts the harvest")
+    _, ob = _ingest(db, url="https://b.example/2", title="Honey prices climb in Argentina as drought cuts the harvest")
+    assert (oa, ob) == ("new", "duplicate")
+
+
+def test_api_country_filter_keeps_story_differing_only_by_origin(api, db):
+    now = utcnow()
+    _ingest(db, url="https://a.example/vn", title="US sets anti-dumping duties on honey from Vietnam",
+            published_at=now - timedelta(hours=5))
+    br, _ = _ingest(db, url="https://b.example/br", title="US sets anti-dumping duties on honey from Brazil",
+                    published_at=now - timedelta(hours=2))
+    db.commit()
+    data = api.get("/api/news", params={"country": "BRA"}).json()
+    assert [i["id"] for i in data["items"]] == [br.id]
+    assert "BRA" in {c["key"] for c in data["facets"]["countries"]}
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: AI number guard (F5)
+# ---------------------------------------------------------------------------
+
+_FIXTURE_SOURCE = ("US honey prices fall as imports from Argentina rise\n"
+                   "Bulk white honey traded at 2.10 dollars per pound, down from 2.40 a year earlier, packers said.")
+
+
+@pytest.mark.parametrize("source,output,ok", [
+    ("US honey imports in 2026: Argentina leads", "Argentina accounts for 20% of US honey imports", False),
+    ("US honey imports in 2026: Argentina leads", "Imports rose 6 percent; 202 containers arrived", False),
+    ("Bulk honey at 2.10 dollars per pound", "Honey traded at $210 per tonne", False),
+    ("Bulk honey at 2.10 dollars per pound", "Il miele a 21,0 dollari", False),
+    ("Bulk honey at 2.10 dollars per pound", "Honey at 1 dollar", False),
+    ("Exports of 3,000 tonnes", "Esportazioni di 30 tonnellate", False),
+    (_FIXTURE_SOURCE, "Bulk honey traded at 2.10 USD/lb, 10% lower than last year.", False),
+    (_FIXTURE_SOURCE, "Il miele bianco sfuso è scambiato a 2.10 dollari la libbra, contro 2.40.", True),
+    ("Bulk honey at 2.10 dollars per pound", "Miele sfuso a 2,10 dollari la libbra", True),
+    ("Exports of 3,000 tonnes", "Esportazioni di 3.000 tonnellate", True),
+    ("Exports of 3,000 tonnes", "Exports of 3000 tonnes", True),
+    ("Prices up 20 % this year", "Prices up 20% this year", True),
+    ("In 2025 15 tonnes were exported", "15 tonnes exported in 2025", True),
+    ("Honey prices, 2026, 12 percent higher", "Prices 12 percent higher in 2026", True),
+    ("Export di 1 200 tonnellate", "Exports of 1,200 tonnes", True),
+    ("Export di 1 200 tonnellate", "Export di 1.200 tonnellate", True),
+    ("Honey news", None, True),
+])
+def test_ai_number_guard(source, output, ok):
+    from paladex.services import ai_enrich
+
+    assert ai_enrich._numbers_ok(output, source) is ok
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: excerpt gap-fill (F7) and one enrichment pass at a time (F8)
+# ---------------------------------------------------------------------------
+
+
+def test_feed_excerpt_fills_gap_left_by_gdelt(db):
+    gd = _source(db, "news_gdelt")
+    fsn = _source(db, "news_food_safety_news")
+    url = "https://www.foodsafetynews.com/2026/11/eu-action-finds-widespread-honey-fraud/"
+    pub = (utcnow() - timedelta(hours=6)).replace(microsecond=0)
+    a, o1 = ns.ingest_article(db, gd, url=url, title="EU action finds widespread honey fraud", published_at=pub,
+                              publisher="foodsafetynews.com")
+    assert o1 == "new" and a.snippet is None and not a.countries
+    score_before = a.relevance_score
+    a.summary_it = "Un'azione UE rileva frodi diffuse sul miele. Informazioni limitate: la fonte fornisce solo il titolo."
+    a.title_it = "Un'azione UE rileva frodi diffuse sul miele"
+    a.ai_processed_at = utcnow()
+    db.commit()
+    b, o2 = ns.ingest_article(
+        db, fsn, url=url, title="EU action finds widespread honey fraud (updated)", publisher="Food Safety News",
+        published_at=pub - timedelta(days=1),
+        snippet="Almost half of honey samples imported into the EU from China, Turkey and Ukraine were suspected "
+                "of being adulterated with cheap sugar syrups, according to the European Commission.")
+    assert o2 == "unchanged" and b.id == a.id
+    assert b.snippet.startswith("Almost half of honey samples")
+    assert {"CHN", "TUR", "UKR"} <= set(b.countries)
+    assert "trade" in b.topics and "adulteration" in b.topics
+    assert b.relevance_score > score_before
+    # provenance as first stored
+    assert b.source_id == gd.id and b.published_at == pub and b.title == "EU action finds widespread honey fraud"
+    assert b.url == url and b.publisher == "foodsafetynews.com"
+    # the AI summary was written from the headline only: it is dropped and re-queued (titles kept)
+    assert b.ai_processed_at is None and b.summary_it is None
+    assert b.title_it == "Un'azione UE rileva frodi diffuse sul miele"
+    # a later copy never overwrites an excerpt we already hold
+    c, o3 = ns.ingest_article(db, fsn, url=url, title="x", snippet="Something else entirely about honey " * 3)
+    assert o3 == "unchanged" and c.snippet.startswith("Almost half of honey samples")
+
+
+def test_enrich_runs_are_not_concurrent(db, llm_on, monkeypatch):
+    import threading
+
+    from paladex.db import session_scope
+    from paladex.services import ai_enrich, llm
+
+    for i, origin in enumerate(("Argentina", "Brazil", "Vietnam", "Ukraine")):
+        _ingest(db, url=f"https://x.example/c{i}", title=f"Honey export prices from {origin} hit record high")
+    db.commit()
+    entered, release = threading.Event(), threading.Event()
+    sent = []
+
+    def fake(system, user, schema_hint=None, max_tokens=1024, **kw):
+        ids = [x["id"] for x in json.loads(user.split("\n", 1)[1])]
+        sent.extend(ids)
+        entered.set()
+        release.wait(timeout=5)
+        return {"articles": [{"id": i, "title_it": "Titolo"} for i in ids]}
+
+    monkeypatch.setattr(llm, "complete_json", fake)
+    results = {}
+
+    def first():
+        with session_scope() as s:
+            results["first"] = ai_enrich.enrich_news(s)
+
+    t = threading.Thread(target=first)
+    t.start()
+    assert entered.wait(timeout=5)
+    try:
+        with session_scope() as s:
+            results["second"] = ai_enrich.enrich_news(s)
+    finally:
+        release.set()
+        t.join(timeout=10)
+    assert results["second"].get("skipped") == "already_running"
+    assert results["first"]["processed"] == 4
+    assert len(sent) == len(set(sent)) == 4

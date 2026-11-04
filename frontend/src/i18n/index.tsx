@@ -72,6 +72,11 @@ export function useI18n(): I18nCtx {
   return c
 }
 
+/** A source's publication rhythm in the UI language (`expected_update` is Italian, `expected_update_en` English). */
+export function expectedUpdate(s: { expected_update?: string | null; expected_update_en?: string | null }, lang: Lang): string | null {
+  return (lang === 'en' ? s.expected_update_en || s.expected_update : s.expected_update || s.expected_update_en) || null
+}
+
 /** Pick the right language field from a backend object: pick(row, 'title') -> row.title_it / row.title_en / row.title */
 export function pickLang<T extends Record<string, unknown>>(row: T, field: string, lang: Lang): string | null {
   const v = (row[`${field}_${lang}`] ?? row[field] ?? row[`${field}_${lang === 'it' ? 'en' : 'it'}`]) as string | null | undefined

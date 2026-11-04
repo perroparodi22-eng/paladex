@@ -3,8 +3,12 @@
 Rules (see docs/DEVELOPING.md, "AI output is labelled"):
 * the model only sees the headline and the publisher's own excerpt - never the full
   article, which we do not fetch - and is told not to add any fact;
-* a summary or translated headline that contains a number not present in the headline /
-  excerpt is rejected (cheap guard against invented figures);
+* a summary or translated headline that contains a number whose value is not in the
+  headline / excerpt is rejected (cheap guard against invented or decimal-shifted figures);
+* candidates are recent, non-duplicate articles of medium relevance or more, plus articles in
+  languages the owner does not read (Chinese, Ukrainian, ...) from a lower floor, so they
+  get a translated headline even when keyword tagging missed their topic;
+* one enrichment pass runs at a time (overlapping scheduler hooks skip);
 * AI fields are stored in dedicated columns (`summary_*`, `title_*`, `ai_model`,
   `ai_processed_at`) and the UI always labels them as AI; the source's own excerpt
   (`snippet`) is never modified;
@@ -16,22 +20,33 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 from datetime import timedelta
+from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..models import NewsArticle, utcnow
 from . import llm
+from .news import BASE_SCORE
 
 log = logging.getLogger(__name__)
 
 BATCH_SIZE = 6
 RECENT_DAYS = 10
 MIN_RELEVANCE = 35          # "medium" and above (see services.news.relevance_level)
+# Articles in languages the owner does not read (Chinese, Ukrainian, Vietnamese, Serbian, ...)
+# get a translated headline from a lower floor: their tags can miss what a reader would see.
+READABLE_LANGUAGES = ("it", "en", "es", "pt", "de", "fr")
+FOREIGN_MIN_RELEVANCE = BASE_SCORE
 MAX_CONSECUTIVE_FAILURES = 2
 SUMMARY_MAX_CHARS = 700
+
+# One enrichment pass at a time: post-collection hooks run after every scheduled job on the
+# scheduler's thread pool, so passes can overlap and would send the same articles twice.
+_run_lock = threading.Lock()
 
 SYSTEM_PROMPT = """You assist the owner of Parodi Group, an Italian/US importer of bulk honey, who skims honey-market news every morning.
 For each article you receive ONLY its headline and, when available, the publisher's own short excerpt. You do not see the article.
@@ -48,28 +63,60 @@ Strict rules:
 SCHEMA_BATCH = {"articles": [{"id": 0, "title_it": "...", "title_en": "...", "summary_it": "...", "summary_en": "..."}]}
 
 _LANG_FIELDS = {"it": ("title_it", "summary_it"), "en": ("title_en", "summary_en")}
-_NUM = re.compile(r"\d[\d.,'   ]*\d|\d")
+# A written number: digit groups joined by ONE separator character ("." "," apostrophe, space,
+# no-break space). "2026, 12" (comma + space) is two numbers.
+_NUM = re.compile(r"\d+(?:[.,'’\u00a0\u202f ]\d+)*")
+_SPACE_SEP = re.compile(r"['’\u00a0\u202f ]")
+_EN_FORM = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?")     # 1,200.50 / 2.10
+_EU_FORM = re.compile(r"\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?")     # 1.200,50 / 2,10
+_THOUSANDS_CHUNK = re.compile(r"\d{3}(?!\d)")
 
 
-def _numbers(text: str | None) -> set[str]:
-    """Digit strings in `text`, separators removed ('1.200,50' -> '120050')."""
-    out = set()
-    for m in _NUM.finditer(text or ""):
-        digits = re.sub(r"\D", "", m.group(0))
-        if digits:
-            out.add(digits.lstrip("0") or "0")
+def _values(token: str) -> set[Decimal]:
+    """Possible values of a number written with '.'/',' separators: its English reading and its
+    Italian/European reading. '2.10' can only be 2.1; '3,000' is 3000 or 3; '1.200,50' is 1200.5.
+    Tokens that are neither (dates, codes: '02.11.2026') yield their digit groups."""
+    out: set[Decimal] = set()
+    if _EN_FORM.fullmatch(token):
+        out.add(Decimal(token.replace(",", "")))
+    if _EU_FORM.fullmatch(token):
+        out.add(Decimal(token.replace(".", "").replace(",", ".")))
+    if not out:
+        out.update(Decimal(g) for g in re.split(r"[.,]", token) if g)
     return out
 
 
+def _readings(token: str) -> tuple[set[Decimal], list[set[Decimal]]]:
+    """(values of the whole token, values of each space-separated chunk). '1 200' is 1200 (a
+    thousands group) and also the pair 1, 200; '2025 15' is only the pair 2025, 15."""
+    chunks = [c for c in _SPACE_SEP.split(token) if c]
+    if len(chunks) == 1:
+        return _values(chunks[0]), []
+    whole: set[Decimal] = set()
+    if re.fullmatch(r"\d{1,3}", chunks[0]) and all(_THOUSANDS_CHUNK.match(c) for c in chunks[1:]):
+        whole = _values("".join(chunks))
+    return whole, [_values(c) for c in chunks]
+
+
 def _numbers_ok(output: str | None, source_text: str) -> bool:
+    """True when every number in `output` has the value of a number in `source_text`.
+
+    Values, not digit strings, are compared, so a decimal shift ('2.10' -> '210'), a digit
+    lost or added ('3,000' -> '30', '2026' -> '20%') or an invented figure is rejected, while
+    a faithful restatement ('3,000' -> '3.000', '20 %' -> '20%', '2,10' -> '2.10') passes."""
     if not output:
         return True
-    allowed = _numbers(source_text)
-    for n in _numbers(output):
-        if n in allowed:
+    allowed: set[Decimal] = set()
+    for m in _NUM.finditer(source_text or ""):
+        whole, parts = _readings(m.group(0))
+        allowed |= whole
+        for p in parts:
+            allowed |= p
+    for m in _NUM.finditer(output):
+        whole, parts = _readings(m.group(0))
+        if whole & allowed:
             continue
-        # tolerate a number split differently ("20 %" vs "20%", "3,000" vs "3000") by substring check
-        if any(n in a for a in allowed):
+        if parts and all(p & allowed for p in parts):
             continue
         return False
     return True
@@ -118,7 +165,11 @@ def _candidates(session: Session, limit: int) -> list[NewsArticle]:
             NewsArticle.ai_processed_at.is_(None),
             NewsArticle.duplicate_of_id.is_(None),
             NewsArticle.is_demo.is_(False),
-            NewsArticle.relevance_score >= MIN_RELEVANCE,
+            or_(
+                NewsArticle.relevance_score >= MIN_RELEVANCE,
+                and_(NewsArticle.language.is_not(None), NewsArticle.language.not_in(READABLE_LANGUAGES),
+                     NewsArticle.relevance_score >= FOREIGN_MIN_RELEVANCE),
+            ),
             NewsArticle.collected_at >= since,
         )
         .order_by(NewsArticle.relevance_score.desc(), when.desc())
@@ -129,12 +180,23 @@ def _candidates(session: Session, limit: int) -> list[NewsArticle]:
 def enrich_news(session: Session, limit: int | None = None, *, batch_size: int = BATCH_SIZE) -> dict:
     """Translate + summarise recent relevant articles that have no AI fields yet.
 
-    Returns stats: {"enabled", "candidates", "processed", "rejected_fields", "errors"}.
+    Returns stats: {"enabled", "candidates", "processed", "errors"}, plus
+    "skipped": "already_running" when another pass is in progress (nothing is done).
     """
     settings = get_settings()
     stats = {"enabled": settings.llm_enabled(), "candidates": 0, "processed": 0, "errors": 0}
     if not stats["enabled"]:
         return stats
+    if not _run_lock.acquire(blocking=False):
+        stats["skipped"] = "already_running"
+        return stats
+    try:
+        return _enrich(session, settings, stats, limit, batch_size)
+    finally:
+        _run_lock.release()
+
+
+def _enrich(session: Session, settings, stats: dict, limit: int | None, batch_size: int) -> dict:
     limit = settings.llm_max_articles_per_run if limit is None else limit
     articles = _candidates(session, limit)
     stats["candidates"] = len(articles)

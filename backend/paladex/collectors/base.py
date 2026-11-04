@@ -432,7 +432,9 @@ class Collector(ABC):
     category: str                       # prices | trade | production | news | regulation | weather | fx | reports
     country_iso3: str | None = None
     language: str | None = None
+    # Publication rhythm shown on the Sources page: Italian (the default UI language) and English.
     expected_update: str = ""
+    expected_update_en: str = ""
     expected_max_age_days: int | None = None
     terms_note: str = ""
     requires_key: str | None = None     # name of the Settings attribute holding the key
@@ -451,6 +453,7 @@ class Collector(ABC):
             "key": cls.key, "name": cls.name, "publisher": cls.publisher, "homepage": cls.homepage,
             "kind": cls.kind, "reliability": cls.reliability, "category": cls.category,
             "country_iso3": cls.country_iso3, "language": cls.language, "expected_update": cls.expected_update,
+            "expected_update_en": cls.expected_update_en,
             "expected_max_age_days": cls.expected_max_age_days, "terms_note": cls.terms_note,
             "requires_key": cls.requires_key, "enabled": cls.default_enabled,
         }

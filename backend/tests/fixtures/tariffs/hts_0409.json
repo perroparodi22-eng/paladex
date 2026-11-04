@@ -1,0 +1,53 @@
+[
+ {
+  "htsno": "0409.00.00",
+  "indent": "0",
+  "description": "Natural honey",
+  "superior": null,
+  "units": [],
+  "general": "1.9¢/kg",
+  "special": "Free (A+,AU,BH,CL,CO,D,E,IL,JO,KR,MA,OM,P,PA,PE,S,SG)",
+  "other": "6.6¢/kg",
+  "footnotes": [
+   {
+    "columns": [
+     "general"
+    ],
+    "value": "See 9903.88.15.",
+    "type": "endnote"
+   }
+  ],
+  "quotaQuantity": null,
+  "additionalDuties": null
+ },
+ {
+  "htsno": "0409.00.00.05",
+  "indent": "1",
+  "description": "Certified organic",
+  "superior": null,
+  "units": [
+   "kg"
+  ],
+  "general": "",
+  "special": "",
+  "other": "",
+  "footnotes": [],
+  "quotaQuantity": null,
+  "additionalDuties": null
+ },
+ {
+  "htsno": "0409.00.00.10",
+  "indent": "1",
+  "description": "Other (illustrative description)",
+  "superior": null,
+  "units": [
+   "kg"
+  ],
+  "general": "",
+  "special": "",
+  "other": "",
+  "footnotes": [],
+  "quotaQuantity": null,
+  "additionalDuties": null
+ }
+]

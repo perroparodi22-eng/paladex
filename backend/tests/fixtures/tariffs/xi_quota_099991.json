@@ -1,0 +1,42 @@
+{
+ "data": [
+  {
+   "id": "29002",
+   "type": "definition",
+   "attributes": {
+    "quota_definition_sid": 29002,
+    "quota_order_number_id": "099991",
+    "initial_volume": "30000000.0",
+    "validity_start_date": "2026-01-01T00:00:00.000Z",
+    "validity_end_date": "2026-12-31T23:59:59.000Z",
+    "status": "Critical",
+    "description": null,
+    "balance": "1200000.0",
+    "measurement_unit": "Kilogram (kg)",
+    "monetary_unit": null,
+    "measurement_unit_qualifier": null,
+    "last_allocation_date": "2026-10-28",
+    "critical": "Y"
+   },
+   "relationships": {
+    "order_number": {
+     "data": {
+      "id": "099991",
+      "type": "order_number"
+     }
+    },
+    "quota_balance_events": {
+     "data": []
+    }
+   }
+  }
+ ],
+ "included": [],
+ "meta": {
+  "pagination": {
+   "page": 1,
+   "per_page": 5,
+   "total_count": 1
+  }
+ }
+}
