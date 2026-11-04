@@ -25,7 +25,7 @@ A private, local intelligence platform for the global honey market: prices, inte
 * **Windows:** doppio clic su **`Avvia Paladex.bat`**.
 * **Mac:** doppio clic su **`Avvia Paladex.command`**.
 
-Il primo avvio richiede qualche minuto; la prima raccolta completa dei dati (tutte le fonti, compreso lo storico) dura circa 30–40 minuti e procede da sola in background mentre l'applicazione è aperta. Poi il browser si apre da solo su <http://127.0.0.1:8765>. Per chiudere l'applicazione basta chiudere la finestra nera.
+Il primo avvio richiede qualche minuto (installazione). Poi il browser si apre da solo su <http://127.0.0.1:8765> e mostra **subito i dati reali** già raccolti dalle fonti ufficiali, inclusi nel programma (cartella `starter/`, con la data di raccolta indicata in alto). Intanto Paladex ricontrolla tutte le fonti da questo computer: la prima volta servono circa 30–40 minuti in background, e i dati più recenti compaiono man mano. Per chiudere l'applicazione basta chiudere la finestra nera.
 
 I dati si aggiornano da soli mentre l'applicazione è aperta, e all'avvio se l'ultimo aggiornamento risale a più di 6 ore prima. Il pulsante **"Aggiorna dati"** in alto aggiorna tutto subito. La pagina **Fonti e qualità dati** mostra, per ogni fonte, quando è stata controllata e se ci sono problemi.
 
@@ -48,6 +48,10 @@ Senza chiavi l'applicazione funziona comunque: le fonti che le richiedono vengon
 
 Per provare l'interfaccia prima che arrivino i dati reali, nella pagina **Fonti e qualità dati** si possono caricare **dati dimostrativi**. Sono contrassegnati ovunque con un'etichetta rossa **DEMO** e da una fascia rossa in alto, e si possono eliminare con un clic. **Non sono dati reali.**
 
+### Aggiornare Paladex
+
+Quando arriva una nuova versione: aprire il terminale nella cartella `paladex` ed eseguire `git pull`, poi riavviare con **Avvia Paladex**. I dati già salvati non vengono mai cancellati; i nuovi dati iniziali inclusi nella versione si aggiungono solo dove mancano.
+
 ### Backup
 
 Tutti i dati si trovano nella cartella `data/`. Per fare una copia di sicurezza, copiare quella cartella.
@@ -68,7 +72,7 @@ Tutti i dati si trovano nella cartella `data/`. Per fare una copia di sicurezza,
 * **macOS:** double-click `Avvia Paladex.command`.
 * **Linux:** run `./start.sh`.
 
-The browser opens at <http://127.0.0.1:8765>. Collection runs automatically on a schedule, on start-up when the last run is older than 6 hours, and on demand with the **"Aggiorna dati"** button.
+The browser opens at <http://127.0.0.1:8765> and shows real data straight away: the app ships with data already collected from the official sources (`starter/`, merged once per version at start-up, never overwriting local data, collection date shown at the top). Collection then runs automatically on a schedule, on start-up when the last run is older than 6 hours, and on demand with the **"Aggiorna dati"** button. To update the app: `git pull` in the `paladex` folder, then restart.
 
 ### Command line (advanced)
 
@@ -78,6 +82,8 @@ python -m paladex collect                   # run every collector now
 python -m paladex collect usda_honey_report eurostat_comext --force
 python -m paladex sources                   # status of every source
 python -m paladex seed-demo | purge-demo    # clearly-labelled demo data on/off
+python -m paladex starter-import            # merge the shipped real starter data (serve does it)
+python -m paladex starter-build --from /path/to/paladex.sqlite3   # (developers) rebuild starter/
 python -m paladex serve --no-browser
 ```
 

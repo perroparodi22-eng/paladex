@@ -2,3 +2,4 @@
 * text=auto
 *.bat text eol=crlf
 backend/tests/fixtures/** -text
+starter/*.xz binary

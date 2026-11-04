@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = True
     # Run a full collection shortly after start-up if the last run is older than this.
     startup_collect_if_older_than_hours: int = 6
+    # Real data shipped with the app (built from a normal collection, merged once per version at
+    # start-up so a new installation opens with data instead of empty pages; see services/starter.py).
+    starter_data_enabled: bool = True
+    starter_data_path: Path = Field(default=PROJECT_ROOT / "starter" / "paladex-starter.sqlite3.xz")
     # Generic client name: the company name is never sent to external websites.
     user_agent: str = "Paladex/0.1 (internal research tool)"
     http_timeout_seconds: float = 45.0

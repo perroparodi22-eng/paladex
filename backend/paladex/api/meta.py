@@ -209,8 +209,12 @@ def collect(body: CollectRequest):
 
 
 @router.get("/collect/status")
-def collect_status():
-    return _collect_state_public()
+def collect_status(db: Session = Depends(get_db)):
+    from ..services.starter import first_run_state
+
+    # `first_run` lets the interface explain the first minutes after installation (starter data
+    # shown while this computer's first collection runs, or no data yet).
+    return {**_collect_state_public(), "first_run": first_run_state(db)}
 
 
 class SettingsBody(BaseModel):

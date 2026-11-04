@@ -38,7 +38,22 @@ export interface SourceInfo extends SourceBrief {
   hours_since_check: number | null; freshness: Freshness; counts: Record<string, number>
 }
 
-export interface CollectState { running: boolean; started_at: string | null; keys: string[] | null; results: unknown }
+export interface CollectState {
+  running: boolean
+  started_at: string | null
+  keys: string[] | null
+  results: unknown
+  /** First minutes after installation (GET /collect/status only). */
+  first_run?: FirstRunState
+}
+
+export interface FirstRunState {
+  has_data: boolean
+  /** Collection runs finished on this computer (since the starter data was merged), by status. */
+  local_runs: Record<string, number>
+  /** Real data shipped with the app and merged at start-up, if any. */
+  starter: { built_at: string | null; data_collected_until: string | null; imported_at: string | null } | null
+}
 
 /** Provenance block that every fact row carries in API responses. */
 export interface Provenance {

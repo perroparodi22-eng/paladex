@@ -10,6 +10,7 @@ import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtAgo } from '@/lib/format'
 import type { CollectState, SourceInfo } from '@/lib/types'
+import { FirstRunBanner } from './FirstRunBanner'
 
 interface NavItem { to: string; key: string; icon: ReactNode; end?: boolean }
 
@@ -186,6 +187,7 @@ function TopBar() {
           </button>
         </div>
       </div>
+      <FirstRunBanner status={status.data} />
     </div>
   )
 }
