@@ -628,3 +628,28 @@ def test_expected_sources_list_official_first(api):
                 walk(x)
 
     walk(body)
+
+
+def test_weekly_customs_values_are_not_reported_as_monthly_moves(api):
+    """Real TAXUD weekly cells swing +200 % week to week: never a 'move in a month' in the summary."""
+    from datetime import date, timedelta
+
+    from sqlalchemy import select
+
+    from paladex.db import session_scope
+    from paladex.models import PriceObservation, Source
+    from paladex.services import ingest
+
+    with session_scope() as s:
+        src = s.scalars(select(Source).where(Source.key == "ec_taxud_weekly")).one()
+        start = date.today() - timedelta(days=date.today().weekday()) - timedelta(days=14)
+        for i, v in enumerate((1.5, 4.5)):
+            ps = start + timedelta(days=7 * i)
+            ingest.record(s, PriceObservation, source_id=src.id, series_key=f"w|{i}", price_type="import_unit_value",
+                          origin_iso3="TUR", market_iso3="DEU", variety="unspecified", price_value=v, price_per_kg=v,
+                          eur_per_kg=v, usd_per_kg=v, volume_kg=50_000.0, currency="EUR", unit="kg", frequency="W",
+                          period_start=ps, period_end=ps + timedelta(days=6), period_label=f"2026-W{40 + i}",
+                          data_status="provisional", reliability="official")
+    body = api.get("/api/overview").json()
+    text = str(body["briefing"]) + str(body["countries"])
+    assert "200" not in text or "TUR" not in text

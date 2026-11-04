@@ -35,7 +35,7 @@ import statistics
 import threading
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -66,7 +66,14 @@ STALE_CRITICAL_FACTOR = 3.0
 FAILED_CRITICAL_STREAK = 3
 OUTLIER_WINDOW = 6            # previous points used as reference
 OUTLIER_MIN_HISTORY = 3       # need at least this many previous points to judge
-OUTLIER_MAX_REL_DEV = 0.35    # > 35 % from the median of the window
+OUTLIER_MAX_REL_DEV = 0.35    # > 35 % from the median of the window (quotations)
+# Customs unit values move a lot from lot to lot (mix of qualities, partial months): a wider band,
+# and only bulk-size consignments are judged (small lots are not bulk prices; see api.prices).
+OUTLIER_MAX_REL_DEV_UNIT_VALUE = 0.60
+UNIT_VALUE_TYPES = ("import_unit_value", "export_unit_value")
+BULK_MIN_KG = 10_000.0
+# Weekly surveillance data (TAXUD) is provisional and noisy: not judged point by point.
+OUTLIER_SKIP_FREQUENCIES = ("W",)
 OUTLIER_ROBUST_Z = 4.0        # robust z-score (median / MAD)
 OUTLIER_Z_MIN_REL_DEV = 0.10  # ... but only if the move is also > 10 % (flat series otherwise flag every move)
 DISCREPANCY_REL_DIFF = 0.15
@@ -429,6 +436,7 @@ _PRICE_COLS = (
     PriceObservation.color_grade, PriceObservation.organic, PriceObservation.terms, PriceObservation.currency,
     PriceObservation.frequency, PriceObservation.period_start, PriceObservation.period_end,
     PriceObservation.period_label, PriceObservation.price_per_kg, PriceObservation.usd_per_kg,
+    PriceObservation.volume_kg,
 )
 
 
@@ -478,9 +486,16 @@ def _series_details(r, src: Source | None) -> dict:
 
 
 def check_outliers(rows: list[Any], src_by_id: dict[int, Source]) -> list[Finding]:
+    """Judge only the LATEST period of each series: that is the figure the app shows as current,
+    and the one worth checking against the source. Older swings are history (they stay visible in
+    the charts) and would bury the actionable warnings under thousands of past ones."""
     series: dict[tuple, dict[date, list]] = defaultdict(lambda: defaultdict(list))
     for r in rows:
         if r.price_per_kg is None or r.price_per_kg <= 0:
+            continue
+        if r.frequency in OUTLIER_SKIP_FREQUENCIES:
+            continue
+        if r.price_type in UNIT_VALUE_TYPES and r.volume_kg is not None and r.volume_kg < BULK_MIN_KG:
             continue
         series[_identity(r)][r.period_start].append(r)
     out: list[Finding] = []
@@ -490,7 +505,7 @@ def check_outliers(rows: list[Any], src_by_id: dict[int, Source]) -> list[Findin
             continue
         # one reference value per period (a series may carry several quotes for the same period)
         medians = [statistics.median(p.price_per_kg for p in by_period[d]) for d in periods]
-        for i in range(OUTLIER_MIN_HISTORY, len(periods)):
+        for i in range(len(periods) - 1, len(periods)):
             window = medians[max(0, i - OUTLIER_WINDOW):i]
             med = statistics.median(window)
             if med <= 0:
@@ -503,7 +518,8 @@ def check_outliers(rows: list[Any], src_by_id: dict[int, Source]) -> list[Findin
                     z: float | None = 0.6745 * (x - med) / mad
                 else:
                     z = math.inf if x != med else 0.0
-                by_rel = abs(rel) > OUTLIER_MAX_REL_DEV
+                limit = OUTLIER_MAX_REL_DEV_UNIT_VALUE if r.price_type in UNIT_VALUE_TYPES else OUTLIER_MAX_REL_DEV
+                by_rel = abs(rel) > limit
                 by_z = z is not None and abs(z) > OUTLIER_ROBUST_Z and abs(rel) > OUTLIER_Z_MIN_REL_DEV
                 if not (by_rel or by_z):
                     continue
@@ -644,6 +660,11 @@ def check_missing_months(rows: list[Any], src_by_id: dict[int, Source], today: d
         if not missing:
             continue
         r = sample[ident]
+        # Customs unit values exist only in months with a shipment: a gap on an irregular lane
+        # (Italy importing Serbian honey a few times a year) is no trade, not missing data. Only a
+        # gap in an otherwise regular lane (a single missing month) is worth a note.
+        if r.price_type in UNIT_VALUE_TYPES and len(missing) > 1:
+            continue
         src = src_by_id.get(r.source_id)
         miss_it = ", ".join(_month(_month_from_index(i), "it") for i in missing)
         miss_en = ", ".join(_month(_month_from_index(i), "en") for i in missing)
@@ -686,9 +707,14 @@ def _trade_origin(r) -> str | None:
 
 def check_trade(session: Session, src_by_id: dict[int, Source], skip_source_ids: set[int]) -> list[Finding]:
     T = TradeFlowObservation
+    # Only rows that matter for a bulk buyer: monthly/annual (not provisional weekly cells), from the
+    # last two years, and bulk-size (>= 10 t) for the unit-value range. Odd tiny lots are normal in
+    # customs data and are already kept out of the price views.
+    since = date.today().replace(day=1) - timedelta(days=731)
     q = select(T.id, T.source_id, T.hs_code, T.reporter_iso3, T.partner_iso3, T.flow, T.net_weight_kg, T.value,
                T.currency, T.usd_value, T.period_label).where(
-        T.is_current.is_(True), T.is_demo.is_(False), T.hs_code.like(f"{HONEY_HS_PREFIX}%"))
+        T.is_current.is_(True), T.is_demo.is_(False), T.hs_code.like(f"{HONEY_HS_PREFIX}%"),
+        T.frequency.in_(("M", "A")), T.period_start >= since)
     if skip_source_ids:
         q = q.where(T.source_id.not_in(skip_source_ids))
     out: list[Finding] = []
@@ -700,7 +726,7 @@ def check_trade(session: Session, src_by_id: dict[int, Source], skip_source_ids:
                 "period": r.period_label, "hs_code": r.hs_code, "value": r.value, "currency": r.currency,
                 "net_weight_kg": r.net_weight_kg, "source_key": src.key if src else None,
                 "link": f"/commercio?{link_params}"}
-        if r.value and r.value > 0 and r.net_weight_kg == 0:
+        if r.value and r.value >= 50_000 and r.net_weight_kg == 0:
             out.append(Finding(
                 dedup_key=f"trade:zero_weight:{r.id}",
                 issue_type=QualityIssueType.PARSE_WARNING.value,
@@ -715,7 +741,7 @@ def check_trade(session: Session, src_by_id: dict[int, Source], skip_source_ids:
                 details={**base, "rule": "zero_weight"},
             ))
             continue
-        if not r.net_weight_kg or r.net_weight_kg <= 0 or r.value is None:
+        if not r.net_weight_kg or r.net_weight_kg < BULK_MIN_KG or r.value is None:
             continue
         usd = r.usd_value if r.usd_value is not None else (r.value if (r.currency or "").upper() == "USD" else None)
         if usd is None:

@@ -170,8 +170,10 @@ def test_missing_key_info_issue(db, monkeypatch):
 # ----------------------------------------------------------------------- (d) outliers
 def test_outlier_relative_and_robust_z(db):
     src = make_source(db, "usda_like")
-    values = [2.50, 2.55, 2.48, 2.52, 2.51, 2.49, 4.10, 2.53]
+    # an old spike (now history) is NOT flagged; only each series' latest figure is judged
+    values = [2.50, 2.55, 2.48, 2.52, 9.90, 2.51, 2.49, 2.53, 4.10]
     rows = [add_price(db, src, months_back(len(values) - i), v) for i, v in enumerate(values)]
+    rows[6] = rows[8]          # the latest point, the one flagged below
     # a stable sibling series with normal moves: never flagged
     for i, v in enumerate([3.00, 3.06, 3.10, 3.04, 3.12, 3.18, 3.22, 3.15]):
         add_price(db, src, months_back(8 - i), v, variety="clover")
@@ -185,16 +187,16 @@ def test_outlier_relative_and_robust_z(db):
     assert set(found) == {f"outlier:price:{rows[6].id}", f"outlier:price:{_last_id(db, 'acacia')}"}
     o = found[f"outlier:price:{rows[6].id}"]
     assert o.severity == "warning" and o.entity_type == "price_observation"
-    assert o.details["value"] == 4.1 and o.details["median"] == pytest.approx(2.505)
+    assert o.details["value"] == 4.1 and o.details["median"] == pytest.approx(2.515)
     assert o.details["period"] == rows[6].period_label and o.details["rule"] == "relative"
-    assert "4,10 USD/kg contro una mediana di 2,51 USD/kg" in o.message_it and "(+63,7%)" in o.message_it
-    assert "4.10 USD/kg against a median of 2.51 USD/kg" in o.message_en
+    assert "4,10 USD/kg contro una mediana di" in o.message_it and "(+63,0%)" in o.message_it
+    assert "4.10 USD/kg against a median of" in o.message_en
     assert o.details["link"] == "/prezzi?origin=ARG&variety=polyflora&price_type=wholesale_bulk"
     z = found[f"outlier:price:{_last_id(db, 'acacia')}"]
     assert z.details["rule"] == "robust_z" and z.details["flat_history"] is True
 
     # the publisher corrects the value -> new revision, old issue auto-resolved
-    add_price(db, src, months_back(2), 2.54)
+    add_price(db, src, months_back(1), 2.54)
     run(db, now=NOW + timedelta(minutes=5))
     assert f"outlier:price:{rows[6].id}" not in issues(db, "outlier:")
 
@@ -280,12 +282,14 @@ def add_trade(db, src, key, *, kg, value, currency="USD", usd=None, is_demo=Fals
 
 def test_suspicious_trade_rows(db):
     src = make_source(db, "comtrade_like", category="trade")
-    bad = add_trade(db, src, "a", kg=1000, value=45000)
-    add_trade(db, src, "b", kg=1000, value=3000)
+    bad = add_trade(db, src, "a", kg=20000, value=900000)
+    add_trade(db, src, "b", kg=20000, value=60000)
     cheap = add_trade(db, src, "c", kg=100000, value=10000)
-    zero = add_trade(db, src, "d", kg=0, value=5000)
-    add_trade(db, src, "e", kg=1000, value=90000, currency="EUR")   # no FX: cannot judge, never guess
-    add_trade(db, src, "f", kg=1000, value=90000, currency="EUR", usd=99000, partner="CHN")  # 99 USD/kg
+    zero = add_trade(db, src, "d", kg=0, value=50000)
+    add_trade(db, src, "e", kg=20000, value=1800000, currency="EUR")   # no FX: cannot judge, never guess
+    add_trade(db, src, "f", kg=20000, value=1800000, currency="EUR", usd=1980000, partner="CHN")  # 99 USD/kg
+    add_trade(db, src, "g", kg=1000, value=45000, partner="ARG")       # small lot (< 10 t): not judged
+    add_trade(db, src, "h", kg=0, value=900, partner="ARG")            # tiny value without weight: not judged
     run(db)
     found = issues(db, "trade:")
     keys = set(found)
@@ -554,7 +558,7 @@ def test_premium_origin_unit_values_are_not_parse_warnings(db):
     def flow(key, reporter, partner, flow_, usd_per_kg):
         return ingest.record(
             db, TradeFlowObservation, source_id=src.id, series_key=key, hs_code="0409", reporter_iso3=reporter,
-            partner_iso3=partner, flow=flow_, net_weight_kg=1000, value=usd_per_kg * 1000, currency="USD",
+            partner_iso3=partner, flow=flow_, net_weight_kg=20000, value=usd_per_kg * 20000, currency="USD",
             period_start=date(2025, 1, 1), period_end=date(2025, 12, 31), period_label="2025", frequency="A",
             data_status="published", reliability="official",
         )[1]

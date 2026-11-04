@@ -89,6 +89,10 @@ PRICE_HISTORY_DAYS = 400         # history each series needs before its newest p
 PRICE_BULK_DAYS = 800            # one bulk query covers every series whose newest point is this recent
 PRICE_RECENT_DAYS = 75           # a price move is "news" only if its period started this recently
 PRICE_MOVE_MIN_PCT = 3.0         # briefing threshold for |m/m|
+# Frequencies whose period-to-period change is a real "month" move. Weekly surveillance values
+# (EU TAXUD, provisional, a few lots per cell) swing by tens of percent week to week: they are
+# shown in the price explorer, never reported as a market move in the summary.
+MOVE_FREQUENCIES = ("M",)
 SPARK_POINTS = 13
 
 REPORT_RECENT_DAYS = 14
@@ -883,7 +887,7 @@ def _briefing_prices(ctx: Ctx) -> list[dict]:
     recent_from = ctx.today - timedelta(days=PRICE_RECENT_DAYS)
     moves = []
     for s in ctx.price_series():
-        if s.latest_start < recent_from:
+        if s.latest_start < recent_from or s.frequency not in MOVE_FREQUENCIES:
             continue
         ch = series_changes(s)
         if ch["mom_pct"] is not None and abs(ch["mom_pct"]) >= PRICE_MOVE_MIN_PCT:
@@ -1083,7 +1087,7 @@ def block_countries(ctx: Ctx) -> dict:
     price_move: dict[str, tuple[float, PriceSeries, dict]] = {}
     recent_from = ctx.today - timedelta(days=PRICE_RECENT_DAYS)
     for s in ctx.price_series():
-        if s.origin_iso3 not in pset or s.latest_start < recent_from:
+        if s.origin_iso3 not in pset or s.latest_start < recent_from or s.frequency not in MOVE_FREQUENCIES:
             continue
         ch = series_changes(s)
         if ch["mom_pct"] is None:
