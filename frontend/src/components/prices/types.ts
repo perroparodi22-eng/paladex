@@ -276,4 +276,6 @@ export interface PriceFilterState {
   unit: MassUnit
   range: RangePreset
   freq: Freq
+  /** Show customs unit values of consignments under 10 t (hidden by default: not bulk prices). */
+  small: boolean
 }

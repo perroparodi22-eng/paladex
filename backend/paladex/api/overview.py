@@ -335,7 +335,10 @@ class Ctx:
         cols = (P.source_id, P.price_type, P.origin_iso3, P.variety, P.market_iso3, P.market_location,
                 P.color_grade, P.organic, P.currency, P.terms, P.frequency)
         n = len(cols)
-        base = (P.is_current.is_(True), demo_clause(P, self.db))
+        from .prices import bulk_unit_value_clause
+
+        # Small customs consignments (< 10 t) are not bulk prices: kept out of the tiles and summary.
+        base = (P.is_current.is_(True), demo_clause(P, self.db), bulk_unit_value_clause(P))
         series: dict[tuple, PriceSeries] = {}
         for row in self.db.execute(select(*cols, func.max(P.period_start), func.count()).where(*base).group_by(*cols)):
             key = tuple(row[:n])

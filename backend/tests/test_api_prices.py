@@ -456,7 +456,7 @@ def test_weekly_rows_count_in_their_thursday_month_and_unit_values_are_volume_we
         add_price(db, taxud, period=f"2026-W{week:02d}", value=v, freq="W", **{**uv, "origin": "UKR"})
     db.commit()
 
-    d = api.get("/api/prices/series?price_type=import_unit_value&currency=EUR&source=t_taxud").json()
+    d = api.get("/api/prices/series?price_type=import_unit_value&currency=EUR&source=t_taxud&small=true").json()
     s = {x["origin_iso3"]: x for x in d["series"]}
     arg = s["ARG"]
     assert [p["period_label"] for p in arg["points"]] == ["2026-09"]           # W36 is not in August
@@ -467,7 +467,7 @@ def test_weekly_rows_count_in_their_thursday_month_and_unit_values_are_volume_we
     ukr = s["UKR"]["points"][0]
     assert ukr["weighting"] == "simple" and ukr["value"] == pytest.approx(2.5) and ukr["volume_kg"] is None
 
-    q = api.get("/api/prices/series?price_type=import_unit_value&currency=EUR&source=t_comext&freq=Q").json()
+    q = api.get("/api/prices/series?price_type=import_unit_value&currency=EUR&source=t_comext&freq=Q&small=true").json()
     q3 = q["series"][0]["points"][0]
     assert q3["period_label"] == "2026-Q3" and q3["weighting"] == "volume"
     assert q3["value"] == pytest.approx(5820 / 1600, abs=1e-4)                  # not the simple 3.4
@@ -679,3 +679,33 @@ def test_latest_and_compare_only_load_the_stretch_they_need(api, db, monkeypatch
     assert {b["key"]: (b["n_series"], b["value"]) for b in c["bars"]} == {
         k: (len(v), round(sum(v) / len(v), 4)) for k, v in expect.items()}
     assert [(e["key"], e["last_period"], e["reason"]) for e in c["excluded"]] == [("SRB", "2022-03", "no_point_in_window")]
+
+
+def test_small_customs_consignments_are_not_shown_as_bulk_prices(api):
+    """A 2 t customs consignment (e.g. Chinese honey into Italy at 9.80 EUR/kg) is not a bulk price:
+    hidden from series/latest by default, shown only with ?small=true."""
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from paladex.db import session_scope
+    from paladex.models import PriceObservation, Source
+    from paladex.services import ingest
+
+    with session_scope() as s:
+        src = s.scalars(select(Source).where(Source.key == "eurostat_comext")).one()
+        common = dict(source_id=src.id, price_type="import_unit_value", origin_iso3="CHN", market_iso3="ITA",
+                      variety="unspecified", currency="EUR", unit="kg", frequency="M",
+                      data_status="provisional", reliability="official")
+        for label, value, vol in (("2026-07", 1.67, 23_000.0), ("2026-08", 9.80, 2_300.0)):
+            y, m = map(int, label.split("-"))
+            ingest.record(s, PriceObservation, series_key=f"t|{label}", price_value=value, price_per_kg=value,
+                          eur_per_kg=value, volume_kg=vol, period_start=date(y, m, 1), period_end=date(y, m, 28),
+                          period_label=label, **common)
+    base = "/api/prices/latest?price_type=import_unit_value&origin=CHN&currency=EUR"
+    latest = api.get(base).json()
+    rows = latest["rows"]
+    assert rows, latest
+    assert [r["latest"]["period_label"] for r in rows] == ["2026-07"]       # the 2.3 t August lot is hidden
+    shown = api.get(base + "&small=true").json()["rows"]
+    assert [r["latest"]["period_label"] for r in shown] == ["2026-08"]      # shown on request

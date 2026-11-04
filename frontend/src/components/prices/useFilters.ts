@@ -5,7 +5,7 @@ import type { Ccy, Freq, MassUnit, PriceFilterState, PriceTypeKey, RangePreset }
 import { PRICE_TYPE_ORDER, rangeFrom } from './utils'
 
 const DEFAULTS: Omit<PriceFilterState, 'type'> = {
-  origins: [], variety: '', market: '', source: '', color: '', ccy: 'USD', unit: 'kg', range: '3y', freq: 'M',
+  origins: [], variety: '', market: '', source: '', color: '', ccy: 'USD', unit: 'kg', range: '3y', freq: 'M', small: false,
 }
 
 function oneOf<T extends string>(v: string | null, allowed: readonly T[], fallback: T): T {
@@ -42,6 +42,7 @@ export function readPriceFilters(sp: URLSearchParams): PriceFilterState {
     unit: oneOf<MassUnit>(sp.get('unita'), ['kg', 'lb'], DEFAULTS.unit),
     range: oneOf<RangePreset>(sp.get('periodo'), ['1y', '3y', '5y', 'all'], DEFAULTS.range),
     freq: oneOf<Freq>(sp.get('freq'), ['M', 'Q', 'A'], DEFAULTS.freq),
+    small: sp.get('piccole') === '1',
   }
 }
 
@@ -73,6 +74,7 @@ export function patchPriceParams(prev: URLSearchParams, patch: Partial<PriceFilt
   set('unita', patch.unit, DEFAULTS.unit)
   set('periodo', patch.range, DEFAULTS.range)
   set('freq', patch.freq, DEFAULTS.freq)
+  if (patch.small !== undefined) set('piccole', patch.small ? '1' : '', '')
   return next
 }
 
@@ -95,6 +97,7 @@ export function usePriceFilters() {
     market: state.market || undefined,
     source: state.source || undefined,
     color_grade: state.color || undefined,
+    small: state.small ? 'true' : undefined,
   }), [state])
 
   const from = rangeFrom(state.range)

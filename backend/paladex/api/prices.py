@@ -121,6 +121,22 @@ class PriceFilters:
     color_grades: list[str]
     date_from: date | None
     date_to: date | None
+    include_small: bool = False
+
+
+# Customs unit values of small consignments (samples, retail jars, a few drums) are not bulk
+# prices: below this declared weight they are left out of series, latest values, comparisons and
+# the overview unless the user asks for them (?small=true). Half a 20 t container.
+MIN_BULK_UNIT_VALUE_KG = 10_000.0
+
+
+def bulk_unit_value_clause(model):
+    """SQL condition keeping quotations and bulk-size customs unit values (weight unknown = kept)."""
+    return or_(
+        model.price_type.not_in(UNIT_VALUE_TYPES),
+        model.volume_kg.is_(None),
+        model.volume_kg >= MIN_BULK_UNIT_VALUE_KG,
+    )
 
 
 def _split(values: list[str] | None) -> list[str]:
@@ -164,6 +180,7 @@ def price_filters(
     color_grade: list[str] | None = Query(None),
     date_from: str | None = Query(None, alias="from", description="YYYY, YYYY-MM, YYYY-Qn or ISO date"),
     date_to: str | None = Query(None, alias="to"),
+    small: bool = Query(False, description="Include customs unit values of consignments under 10 t"),
 ) -> PriceFilters:
     if price_type is not None and price_type not in PRICE_TYPES:
         raise HTTPException(422, f"Unknown price_type '{price_type}'. Allowed: {', '.join(PRICE_TYPES)}")
@@ -176,6 +193,7 @@ def price_filters(
         color_grades=_split(color_grade),
         date_from=parse_period_bound(date_from, end=False),
         date_to=parse_period_bound(date_to, end=True),
+        include_small=small,
     )
 
 
@@ -205,6 +223,8 @@ def apply_filters(q, f: PriceFilters, db: Session, *, skip: Iterable[str] = (), 
     """Current, demo-aware rows matching `f`. `skip` drops dimensions (used for facet counts)."""
     skip = set(skip)
     q = q.where(M.is_current.is_(True), demo_clause(M, db))
+    if not f.include_small:
+        q = q.where(bulk_unit_value_clause(M))
     if f.price_type and "price_type" not in skip:
         q = q.where(M.price_type == f.price_type)
     if f.origins and "origin" not in skip:

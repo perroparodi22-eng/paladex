@@ -161,6 +161,13 @@ export function FilterBar({ facets, typeCounts, state, update, reset, hasDimFilt
           <Segmented<Freq> size="sm" value={state.freq} onChange={(v) => update({ freq: v })}
             options={FREQS.map((f) => ({ value: f, label: t(`prices.f.freq.${f}`) }))} />
         </Field>
+        {(state.type === 'import_unit_value' || state.type === 'export_unit_value') && (
+          <label className="flex items-center gap-2 text-sm text-charcoal-soft self-center" title={t('prices.f.smallHint')}>
+            <input type="checkbox" checked={state.small} onChange={(e) => update({ small: e.target.checked })}
+              className="h-4 w-4 accent-forest-700" />
+            {t('prices.f.small')}
+          </label>
+        )}
         {hasDimFilters && (
           <button type="button" className="btn-ghost !py-1.5 ml-auto" onClick={reset}>
             <RotateCcw size={15} /> {t('prices.f.reset')}
