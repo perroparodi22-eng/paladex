@@ -36,8 +36,9 @@ import logging
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from urllib.parse import urlencode
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..enums import AlertType, PriceType, Severity
@@ -59,6 +60,9 @@ log = logging.getLogger(__name__)
 SEED_SETTING = "alerts_default_rules_seeded"
 REPORT_LOOKBACK_DAYS = 14
 PREVIEW_WINDOW_DAYS = 30
+# Backfill guard: a document first collected long after its publication (a collector filling in an
+# archive, a newly added source) is history, not news. Days between publication and collection.
+RECENCY_DAYS = {"news": 14, "regulation": 30, "report": 45}
 MAX_PREVIEW_ITEMS = 25
 META_KEY = "_meta"
 
@@ -235,7 +239,7 @@ def date_text(d: date | datetime | str | None, lang: str) -> str:
             d = date.fromisoformat(d[:10])
         except ValueError:
             return d
-    return f"{d.day} {MONTHS[lang][d.month - 1]} {d.year}" if lang == "it" else f"{d.day} {MONTHS[lang][d.month - 1]} {d.year}"
+    return f"{d.day} {MONTHS[lang][d.month - 1]} {d.year}"
 
 
 def period_text(label: str | None, lang: str) -> str:
@@ -298,8 +302,18 @@ def _source_name(src: Source | None) -> str:
     return src.publisher or src.name
 
 
-def _both(fn) -> tuple[str, str]:
-    return fn("it"), fn("en")
+def _cap(text: str) -> str:
+    """First letter upper case, the rest untouched ("allerta alimentare RASFF" -> "Allerta alimentare RASFF")."""
+    return text[:1].upper() + text[1:]
+
+
+def _fresh_at_collection(published: date | datetime | None, collected: datetime | None, kind: str) -> bool:
+    """False for a document collected more than RECENCY_DAYS after its publication (an archive
+    backfill). Unknown dates pass."""
+    if published is None or collected is None:
+        return True
+    pub = published.date() if isinstance(published, datetime) else published
+    return (collected.date() - pub).days <= RECENCY_DAYS[kind]
 
 
 def _parse_dt(v) -> datetime | None:
@@ -316,36 +330,63 @@ def _parse_dt(v) -> datetime | None:
 # ---------------------------------------------------------------------------
 
 
-def _list_text(items: list[str], lang: str) -> str:
+def _list_text(items: list[str], lang: str, conj: str | None = None) -> str:
     if not items:
         return ""
     if len(items) == 1:
         return items[0]
-    conj = " o " if lang == "it" else " or "
+    conj = conj or (" o " if lang == "it" else " or ")
     return ", ".join(items[:-1]) + conj + items[-1]
 
 
+def _price_type_phrase(key: str | None, lang: str) -> str:
+    """'prezzo all'ingrosso (sfuso)' / 'wholesale (bulk) price' (labels that do not say "price" get it)."""
+    label = _price_type(key, lang).lower()
+    if lang == "en" and "price" not in label and "value" not in label:
+        label += " price"
+    return label
+
+
+def _threshold_text(v, lang: str) -> str:
+    return num(float(v or 0), lang, 1).rstrip("0").rstrip(",.")
+
+
+def _trade_scope(p: dict, lang: str) -> str:
+    """'Unione Europea (27), dal resto del mondo (extra-UE)' / 'Italia, da Argentina' ..."""
+    rep = _country(p.get("reporter"), lang)
+    partner = p.get("partner") or "WLD"
+    flow = p.get("flow", "import")
+    if p.get("reporter") in ("EU27", "EU28") and partner == "WLD":
+        part = "dal resto del mondo (extra-UE)" if lang == "it" else "outside the EU"
+        part = part if flow == "import" else ("verso il resto del mondo (extra-UE)" if lang == "it" else "outside the EU")
+    elif partner == "WLD":
+        part = "totale mondo" if lang == "it" else "world total"
+    elif lang == "it":
+        part = f"{'da' if flow == 'import' else 'verso'} {_country(partner, lang)}"
+    else:
+        part = f"{'from' if flow == 'import' else 'to'} {_country(partner, lang)}"
+    return f"{rep}, {part}"
+
+
 def describe(session: Session, alert_type: str, params: dict, lang: str) -> str:
+    """The rule in plain words, as the owner reads it in the rule list."""
     p = public_params(params)
     it = lang == "it"
     if alert_type == AlertType.PRICE_CHANGE.value:
-        thr = num(float(p.get("threshold_pct") or 0), lang, 1).rstrip("0").rstrip(",.") if p.get("threshold_pct") else "0"
+        thr = _threshold_text(p.get("threshold_pct"), lang)
         d = p.get("direction", "any")
-        move = ({"up": "sale di almeno il", "down": "scende di almeno il", "any": "cambia (in su o in giù) di almeno il"}[d]
-                if it else {"up": "rises by at least", "down": "falls by at least", "any": "moves (up or down) by at least"}[d])
-        scope = []
-        scope.append((f"mercato {_country(p['market'], lang)}" if it else f"market {_country(p['market'], lang)}")
-                     if p.get("market") else ("tutti i mercati" if it else "every market"))
-        col = _color(p.get("color_grade"), lang)
-        scope.append((f"colore {col}" if it else f"colour {col}") if col else ("tutti i colori" if it else "every colour"))
-        pt = _price_type(p.get("price_type"), lang)
+        move = ({"up": "sale di almeno il", "down": "scende di almeno il", "any": "cambia, in su o in giù, di almeno il"}[d]
+                if it else {"up": "rises by at least", "down": "falls by at least", "any": "moves up or down by at least"}[d])
+        mk = (_country(p["market"], lang) if p.get("market") else ("tutti i mercati" if it else "every market"))
+        col = _color(p.get("color_grade"), lang) or ("tutti i colori" if it else "every colour")
+        pt = _price_type_phrase(p.get("price_type"), lang)
+        var = _variety(p.get("variety"), lang).lower()
         if it:
-            return (f"Avvisa quando il {pt.lower()} del miele {_variety(p.get('variety'), lang).lower()} di origine "
-                    f"{_country(p.get('origin'), lang)} ({', '.join(scope)}) {move} {thr}% rispetto al mese precedente. "
-                    f"Usa solo serie mensili, nella valuta della fonte.")
-        return (f"Alerts when the {pt.lower()} of {_variety(p.get('variety'), lang).lower()} honey from "
-                f"{_country(p.get('origin'), lang)} ({', '.join(scope)}) {move} {thr}% on the previous month. "
-                f"Monthly series only, in the source's own currency.")
+            return (f"Avvisa quando il {pt} del miele {var} di origine {_country(p.get('origin'), lang)} "
+                    f"({mk}; {col}) {move} {thr}% rispetto al mese precedente. Usa solo serie mensili, nella valuta "
+                    "della fonte.")
+        return (f"Alerts when the {pt} of {var} honey from {_country(p.get('origin'), lang)} ({mk}; {col}) {move} "
+                f"{thr}% on the previous month. Monthly series only, in the source's own currency.")
     if alert_type == AlertType.NEW_REPORT.value:
         keys = p.get("source_keys") or []
         srcs = {s.key: s for s in session.scalars(select(Source).where(Source.key.in_(keys)))} if keys else {}
@@ -355,58 +396,51 @@ def describe(session: Session, alert_type: str, params: dict, lang: str) -> str:
     if alert_type == AlertType.NEWS_KEYWORD.value:
         parts = []
         if p.get("countries"):
-            names = [_country(c, lang) for c in p["countries"]]
-            parts.append((f"riguarda {_list_text(names, lang)}" if it else f"is about {_list_text(names, lang)}"))
+            names = _list_text([_country(c, lang) for c in p["countries"]], lang)
+            parts.append(f"riguarda {names}" if it else f"is about {names}")
         if p.get("keywords"):
-            kws = [f"«{k}»" if it else f"“{k}”" for k in p["keywords"]]
-            parts.append((f"contiene {_list_text(kws, lang)}" if it else f"contains {_list_text(kws, lang)}"))
+            kws = _list_text([f"«{k}»" if it else f"“{k}”" for k in p["keywords"]], lang)
+            parts.append(f"contiene {kws}" if it else f"contains {kws}")
         rel = int(p.get("min_relevance") or 0)
         if rel:
-            parts.append((f"ha rilevanza almeno {rel}/100" if it else f"has a relevance of at least {rel}/100"))
-        joined = (", " if True else "").join(parts)
-        return (f"Avvisa per ogni nuova notizia (senza contare i duplicati) che {joined}."
-                if it else f"Alerts on every new article (duplicates not counted) that {joined}.")
+            parts.append(f"ha rilevanza almeno {rel}/100" if it else f"has a relevance of at least {rel}/100")
+        joined = _list_text(parts, lang, " e " if it else " and ")
+        return (f"Avvisa per ogni nuova notizia che {joined}. I duplicati della stessa notizia non contano."
+                if it else f"Alerts on every new article that {joined}. Copies of the same story do not count.")
     if alert_type == AlertType.REGULATION.value:
         jur = [_li(JURISDICTION_LABELS.get(j), lang, j) for j in (p.get("jurisdictions") or [])]
         types = [_li(DOC_TYPE_LABELS.get(t), lang, t) for t in (p.get("doc_types") or [])]
-        where = _list_text(jur, lang) if jur else ("di ogni giurisdizione" if it else "from any jurisdiction")
-        what = _list_text(types, lang) if types else ("di ogni tipo" if it else "of any type")
+        where = _list_text(jur, lang) if jur else ("tutte le giurisdizioni" if it else "every jurisdiction")
+        what = _list_text(types, lang) if types else ("tutti i tipi" if it else "every type")
         cty = ""
         if p.get("countries"):
             names = _list_text([_country(c, lang) for c in p["countries"]], lang)
-            cty = f" che riguarda {names}" if it else f" concerning {names}"
+            cty = f", che riguarda {names}" if it else f", concerning {names}"
         if it:
-            txt = f"Avvisa per ogni nuovo documento ufficiale {where if jur else where} ({what}){cty}."
+            txt = f"Avvisa per ogni nuovo documento ufficiale ({where}; {what}){cty}."
             if p.get("include_tariffs"):
-                txt += (f" Anche per ogni modifica dei dazi {where if jur else ''} sul miele: aliquote, contingenti "
-                        "esauriti o riaperti, nuove misure, date di validità.").replace("  ", " ").replace(" sul", " sul")
+                txt += (f" Anche per ogni modifica dei dazi sul miele ({where}): nuove aliquote, contingenti esauriti "
+                        "o riaperti, nuove misure, date di validità.")
             return txt
-        txt = f"Alerts on every new official document {where} ({what}){cty}."
+        txt = f"Alerts on every new official document ({where}; {what}){cty}."
         if p.get("include_tariffs"):
-            txt += (f" Also on every change to {where + ' ' if jur else ''}honey import duties: rates, quotas "
-                    "exhausted or reopened, new measures, validity dates.")
+            txt += (f" Also on every change to honey import duties ({where}): new rates, quotas exhausted or "
+                    "reopened, new measures, validity dates.")
         return txt
     if alert_type == AlertType.TRADE_CHANGE.value:
-        thr = num(float(p.get("threshold_pct") or 0), lang, 1).rstrip("0").rstrip(",.")
+        thr = _threshold_text(p.get("threshold_pct"), lang)
         flow = _li(FLOW_LABELS.get(p.get("flow", "import")), lang)
-        rep = _country(p.get("reporter"), lang)
-        partner = p.get("partner") or "WLD"
-        scope_eu = p.get("reporter") in ("EU27", "EU28") and partner == "WLD"
+        scope = _trade_scope(p, lang)
+        monthly = p.get("freq", "M") == "M"
         if it:
-            part = "dal resto del mondo (extra-UE)" if scope_eu else (
-                ("dal Mondo (totale)" if p.get("flow") == "import" else "verso il Mondo (totale)") if partner == "WLD"
-                else (f"da {_country(partner, lang)}" if p.get("flow") == "import" else f"verso {_country(partner, lang)}"))
-            per = "allo stesso mese dell'anno prima" if p.get("freq", "M") == "M" else "all'anno prima (anni completi)"
-            d = {"up": "aumentano", "down": "calano", "any": "variano"}[p.get("direction", "any")]
-            return (f"Avvisa quando le {flow} di {rep} {part} {d} di almeno il {thr}% rispetto {per}. "
-                    "Confronta i volumi (tonnellate), una fonte alla volta.")
-        part = "from outside the EU" if scope_eu else (
-            "in total" if partner == "WLD" else (f"from {_country(partner, lang)}" if p.get("flow") == "import"
-                                                 else f"to {_country(partner, lang)}"))
-        per = "the same month a year earlier" if p.get("freq", "M") == "M" else "the previous year (full years)"
-        d = {"up": "rise", "down": "fall", "any": "change"}[p.get("direction", "any")]
-        return (f"Alerts when {rep}'s {flow} {part} {d} by at least {thr}% on {per}. "
-                "Compares volumes (tonnes), one source at a time.")
+            per = "allo stesso mese dell'anno prima" if monthly else "all'anno prima (solo anni completi)"
+            d = {"up": "aumenta", "down": "cala", "any": "varia, in su o in giù,"}[p.get("direction", "any")]
+            return (f"Avvisa quando il volume delle {flow} di miele ({scope}) {d} di almeno il {thr}% rispetto {per}. "
+                    "Una fonte alla volta, mai sommate tra loro.")
+        per = "the same month a year earlier" if monthly else "the previous year (full years only)"
+        d = {"up": "rises", "down": "falls", "any": "moves up or down"}[p.get("direction", "any")]
+        return (f"Alerts when the volume of honey {flow} ({scope}) {d} by at least {thr}% on {per}. "
+                "One source at a time, never added together.")
     return ""
 
 
@@ -500,8 +534,6 @@ def _crosses(pct: float, threshold: float, direction: str) -> bool:
 
 
 def _price_link(p: dict, s: dict) -> str:
-    from urllib.parse import urlencode
-
     q = {"tipo": p["price_type"], "origini": s["origin_iso3"], "varieta": s["variety"]}
     if s.get("market_iso3"):
         q["mercato"] = s["market_iso3"]
@@ -510,8 +542,38 @@ def _price_link(p: dict, s: dict) -> str:
     return f"/prezzi?{urlencode(q)}"
 
 
+def _price_message(lg: str, p: dict, s: dict, last: dict, prev: dict, pct: float, threshold: float,
+                   direction: str, src: Source | None) -> tuple[str, str]:
+    """(title, body) of a price-change event in language `lg`."""
+    ccy = s["currency"]
+    lo, po = last.get("original") or {}, prev.get("original") or {}
+    orig = ""
+    if lo.get("unit") and lo.get("unit") != "kg" and po.get("unit") == lo.get("unit"):
+        orig = (f" Valori come pubblicati: {num(lo['value'], lg)} e {num(po['value'], lg)} {lo['currency']}/{lo['unit']}."
+                if lg == "it" else
+                f" As published: {num(lo['value'], lg)} and {num(po['value'], lg)} {lo['currency']}/{lo['unit']}.")
+    thr = ("±" + num(threshold, lg, 1) + "%") if direction == "any" else pct_text(
+        threshold if direction == "up" else -threshold, lg, 1)
+    mk = _country(s["market_iso3"], lg) if s.get("market_iso3") else None
+    pt = _cap(_price_type_phrase(p["price_type"], lg))
+    title = f"{_series_label(s, lg)}: {pct_text(pct, lg)} {at_period(last['period_label'], lg)}"
+    if lg == "it":
+        body = (f"{pt}{f' (mercato {mk})' if mk else ''}: {num(last['value'], lg)} {ccy}/kg "
+                f"{at_period(last['period_label'], lg)}, contro {num(prev['value'], lg)} {ccy}/kg "
+                f"{at_period(prev['period_label'], lg)} ({pct_text(pct, lg)}).{orig} "
+                f"Soglia della regola: {thr}. Fonte: {_source_name(src)}, pubblicato il "
+                f"{date_text(last['published_at'], lg)}.")
+    else:
+        body = (f"{pt}{f' (market {mk})' if mk else ''}: {num(last['value'], lg)} {ccy}/kg "
+                f"{at_period(last['period_label'], lg)}, against {num(prev['value'], lg)} {ccy}/kg "
+                f"{at_period(prev['period_label'], lg)} ({pct_text(pct, lg)}).{orig} "
+                f"Rule threshold: {thr}. Source: {_source_name(src)}, published "
+                f"{date_text(last['published_at'], lg)}.")
+    return title, body
+
+
 def eval_price_change(session: Session, p: dict, since: datetime | None) -> Evaluation:
-    from ..api.prices import build_series, series_key, series_id, shift_label
+    from ..api.prices import build_series, series_id, series_key, shift_label
 
     out = Evaluation()
     rows = _price_rows(session, p)
@@ -553,38 +615,10 @@ def eval_price_change(session: Session, p: dict, since: datetime | None) -> Eval
         last_rows = [r for r in grp if r.period_label == last["period_label"]] or grp
         ref = max(last_rows, key=lambda r: (r.collected_at, r.id))
         src = srcs.get(ref.source_id)
-        ccy = s["currency"]
-        orig_note = {"it": "", "en": ""}
-        lo, po = last.get("original") or {}, prev.get("original") or {}
-        if lo.get("unit") and lo.get("unit") != "kg" and po.get("unit") == lo.get("unit"):
-            for lg in ("it", "en"):
-                orig_note[lg] = (f" Valori come pubblicati: {num(lo['value'], lg)} e {num(po['value'], lg)} {lo['currency']}/{lo['unit']}."
-                                 if lg == "it" else
-                                 f" As published: {num(lo['value'], lg)} and {num(po['value'], lg)} {lo['currency']}/{lo['unit']}.")
-        thr_txt = {lg: pct_text(threshold if direction != "down" else -threshold, lg, 1) if direction != "any"
-                   else ("±" + num(threshold, lg, 1) + "%") for lg in ("it", "en")}
-
-        def title(lg: str) -> str:
-            return f"{_series_label(s, lg)}: {pct_text(pct, lg)} {at_period(last['period_label'], lg)}"
-
-        def body(lg: str) -> str:
-            mk = _country(s["market_iso3"], lg) if s.get("market_iso3") else None
-            pt = _price_type(p["price_type"], lg)
-            if lg == "it":
-                return (f"{pt}{f' (mercato {mk})' if mk else ''}: {num(last['value'], lg)} {ccy}/kg "
-                        f"{at_period(last['period_label'], lg)}, contro {num(prev['value'], lg)} {ccy}/kg "
-                        f"{at_period(prev['period_label'], lg)} ({pct_text(pct, lg)}).{orig_note[lg]} "
-                        f"Soglia della regola: {thr_txt[lg]}. Fonte: {_source_name(src)}, pubblicato il "
-                        f"{date_text(last['published_at'], lg)}.")
-            return (f"{pt}{f' (market {mk})' if mk else ''}: {num(last['value'], lg)} {ccy}/kg "
-                    f"{at_period(last['period_label'], lg)}, against {num(prev['value'], lg)} {ccy}/kg "
-                    f"{at_period(prev['period_label'], lg)} ({pct_text(pct, lg)}).{orig_note[lg]} "
-                    f"Rule threshold: {thr_txt[lg]}. Source: {_source_name(src)}, published "
-                    f"{date_text(last['published_at'], lg)}.")
-
+        msg = {lg: _price_message(lg, p, s, last, prev, pct, threshold, direction, src) for lg in ("it", "en")}
         out.drafts.append(Draft(
             dedup_key=f"price:{s['id']}:{last['period_label']}",
-            title_it=title("it"), title_en=title("en"), body_it=body("it"), body_en=body("en"),
+            title_it=msg["it"][0], title_en=msg["en"][0], body_it=msg["it"][1], body_en=msg["en"][1],
             severity=Severity.WARNING.value if abs(pct) >= 2 * threshold else Severity.INFO.value,
             link=_price_link(p, s), ref_type="price", ref_id=ref.id, observed_at=observed,
             published_at=last["published_at"], period_label=last["period_label"], source=_brief(src),
@@ -614,8 +648,9 @@ def eval_new_report(session: Session, p: dict, since: datetime | None, today: da
         latest_per_source.setdefault(r.source_id, r)
         when = r.published_at or (r.collected_at.date() if r.collected_at else None)
         recent = when is not None and when >= lookback
-        fires = recent if since is None else ((r.collected_at and r.collected_at > since) or recent)
-        if not fires:
+        collected_after = bool(since is not None and r.collected_at and r.collected_at > since
+                               and _fresh_at_collection(r.published_at, r.collected_at, "report"))
+        if not (recent or collected_after):
             continue
         out.total_matches += 1
         src = srcs.get(r.source_id)
@@ -672,9 +707,9 @@ def eval_news_keyword(session: Session, p: dict, since: datetime | None, today: 
     conds = [N.is_demo.is_(False), N.duplicate_of_id.is_(None)]
     if since is not None:
         conds.append(N.collected_at > since)
-    else:
-        conds.append(or_(N.published_at >= datetime.combine(today - timedelta(days=PREVIEW_WINDOW_DAYS), datetime.min.time()),
-                         N.collected_at >= datetime.combine(today - timedelta(days=PREVIEW_WINDOW_DAYS), datetime.min.time())))
+    else:       # preview: articles published in the last PREVIEW_WINDOW_DAYS
+        start = datetime.combine(today - timedelta(days=PREVIEW_WINDOW_DAYS), datetime.min.time())
+        conds.append(func.coalesce(N.published_at, N.collected_at) >= start)
     rel = int(p.get("min_relevance") or 0)
     if rel:
         conds.append(N.relevance_score >= rel)
@@ -684,6 +719,8 @@ def eval_news_keyword(session: Session, p: dict, since: datetime | None, today: 
     rows = session.scalars(select(N).where(*conds).order_by(N.collected_at.desc(), N.id.desc())).all()
     for a in rows:
         if countries and not (countries & set(a.countries or [])):
+            continue
+        if since is not None and not _fresh_at_collection(a.published_at, a.collected_at, "news"):
             continue
         found: list[str] = []
         if patterns:
@@ -733,8 +770,8 @@ def _tariff_changes(old: TariffMeasure, new: TariffMeasure, lg: str) -> list[str
     it = lg == "it"
     out = []
     if old.duty_text != new.duty_text or old.ad_valorem_pct != new.ad_valorem_pct or old.specific_amount != new.specific_amount:
-        out.append((f"dazio da «{old.duty_text or '—'}» a «{new.duty_text or '—'}»" if it
-                    else f"duty from “{old.duty_text or '—'}” to “{new.duty_text or '—'}”"))
+        out.append(f"dazio da «{old.duty_text or '—'}» a «{new.duty_text or '—'}»" if it
+                    else f"duty from “{old.duty_text or '—'}” to “{new.duty_text or '—'}”")
     if old.quota_status != new.quota_status:
         o, n = _li(QUOTA_STATUS.get(old.quota_status or ""), lg, old.quota_status or "—"), \
             _li(QUOTA_STATUS.get(new.quota_status or ""), lg, new.quota_status or "—")
@@ -744,24 +781,24 @@ def _tariff_changes(old: TariffMeasure, new: TariffMeasure, lg: str) -> list[str
             if new.quota_volume_kg:
                 bal += (f" su {tonnes(new.quota_volume_kg, lg)}" if it else f" of {tonnes(new.quota_volume_kg, lg)}")
             bal += ")"
-        out.append((f"stato del contingente da «{o}» a «{n}»{bal}" if it else f"quota status from “{o}” to “{n}”{bal}"))
+        out.append(f"stato del contingente da «{o}» a «{n}»{bal}" if it else f"quota status from “{o}” to “{n}”{bal}")
     if old.quota_volume_kg != new.quota_volume_kg:
-        out.append((f"volume del contingente da {tonnes(old.quota_volume_kg, lg)} a {tonnes(new.quota_volume_kg, lg)}" if it
-                    else f"quota volume from {tonnes(old.quota_volume_kg, lg)} to {tonnes(new.quota_volume_kg, lg)}"))
+        out.append(f"volume del contingente da {tonnes(old.quota_volume_kg, lg)} a {tonnes(new.quota_volume_kg, lg)}" if it
+                    else f"quota volume from {tonnes(old.quota_volume_kg, lg)} to {tonnes(new.quota_volume_kg, lg)}")
     if old.valid_from != new.valid_from or old.valid_to != new.valid_to:
         def rng(m: TariffMeasure) -> str:
             a = date_text(m.valid_from, lg) if m.valid_from else "—"
             b = date_text(m.valid_to, lg) if m.valid_to else ("senza scadenza" if it else "open-ended")
             return f"{a} – {b}"
-        out.append((f"validità da {rng(old)} a {rng(new)}" if it else f"validity from {rng(old)} to {rng(new)}"))
+        out.append(f"validità da {rng(old)} a {rng(new)}" if it else f"validity from {rng(old)} to {rng(new)}")
     if old.measure_type != new.measure_type:
         out.append((f"tipo di misura da «{_li(MEASURE_LABELS.get(old.measure_type), lg, old.measure_type)}» a "
                     f"«{_li(MEASURE_LABELS.get(new.measure_type), lg, new.measure_type)}»") if it else
                    (f"measure type from “{_li(MEASURE_LABELS.get(old.measure_type), lg, old.measure_type)}” to "
                     f"“{_li(MEASURE_LABELS.get(new.measure_type), lg, new.measure_type)}”"))
     if old.legal_reference != new.legal_reference:
-        out.append((f"base legale da {old.legal_reference or '—'} a {new.legal_reference or '—'}" if it
-                    else f"legal basis from {old.legal_reference or '—'} to {new.legal_reference or '—'}"))
+        out.append(f"base legale da {old.legal_reference or '—'} a {new.legal_reference or '—'}" if it
+                    else f"legal basis from {old.legal_reference or '—'} to {new.legal_reference or '—'}")
     return out
 
 
@@ -781,8 +818,9 @@ def eval_regulation(session: Session, p: dict, since: datetime | None, today: da
 
     R = RegulationItem
     conds = [R.is_demo.is_(False)]
+    # Preview: documents published in the last PREVIEW_WINDOW_DAYS (collection date when unknown).
     conds.append(R.collected_at > since if since is not None
-                 else or_(R.published_at >= window.date(), R.collected_at >= window))
+                 else or_(R.published_at >= window.date(), and_(R.published_at.is_(None), R.collected_at >= window)))
     if juris:
         conds.append(R.jurisdiction.in_(juris))
     if types:
@@ -790,6 +828,8 @@ def eval_regulation(session: Session, p: dict, since: datetime | None, today: da
     for r in session.scalars(select(R).where(*conds).order_by(R.published_at.desc().nulls_last(), R.id.desc())):
         if countries and not (countries & set(r.countries or [])):
             continue
+        if since is not None and not _fresh_at_collection(r.published_at, r.collected_at, "regulation"):
+            continue        # an archive backfill (e.g. a newly added source), not a new document
         out.total_matches += 1
         src = srcs.get(r.source_id)
         jl = {lg: _li(JURISDICTION_LABELS.get(r.jurisdiction), lg, r.jurisdiction) for lg in ("it", "en")}
@@ -798,15 +838,15 @@ def eval_regulation(session: Session, p: dict, since: datetime | None, today: da
         def body(lg: str, r=r, src=src, jl=jl, tl=tl) -> str:
             ctys = ", ".join(_country(c, lg) for c in (r.countries or [])) or "—"
             if lg == "it":
-                return (f"{tl[lg].capitalize()} ({jl[lg]}), riferimento {r.reference}. Paesi citati: {ctys}. "
+                return (f"{_cap(tl[lg])} ({jl[lg]}), riferimento {r.reference}. Paesi citati: {ctys}. "
                         f"Pubblicato il {date_text(r.published_at, lg)}. Fonte: {_source_name(src)}.")
-            return (f"{tl[lg].capitalize()} ({jl[lg]}), reference {r.reference}. Countries mentioned: {ctys}. "
+            return (f"{_cap(tl[lg])} ({jl[lg]}), reference {r.reference}. Countries mentioned: {ctys}. "
                     f"Published {date_text(r.published_at, lg)}. Source: {_source_name(src)}.")
 
         sev = Severity.WARNING.value if r.doc_type in ("antidumping", "import_alert", "tariff") else Severity.INFO.value
         out.drafts.append(Draft(
-            dedup_key=f"reg:{r.id}", title_it=f"{jl['it']} · {tl['it'].capitalize()}: {r.title}",
-            title_en=f"{jl['en']} · {tl['en'].capitalize()}: {r.title}", body_it=body("it"), body_en=body("en"),
+            dedup_key=f"reg:{r.id}", title_it=f"{jl['it']} · {_cap(tl['it'])}: {r.title}",
+            title_en=f"{jl['en']} · {_cap(tl['en'])}: {r.title}", body_it=body("it"), body_en=body("en"),
             severity=sev, link=r.url, ref_type="regulation", ref_id=r.id, observed_at=r.collected_at,
             published_at=r.published_at.isoformat() if r.published_at else None, source=_brief(src), source_url=r.url,
         ))
@@ -820,14 +860,23 @@ def eval_regulation(session: Session, p: dict, since: datetime | None, today: da
         rows = session.scalars(select(T).where(*tconds).order_by(T.collected_at.desc(), T.id.desc())).all()
         prev_ids = [m.supersedes_id for m in rows if m.supersedes_id]
         olds = {m.id: m for m in session.scalars(select(T).where(T.id.in_(prev_ids)))} if prev_ids else {}
+        # A brand-new measure counts only from a source that was already being read before the
+        # rule started watching (the first read of a source lists every measure: not news).
+        known_sources: set[int] = set()
+        if since is not None:
+            known_sources = set(session.scalars(select(T.source_id).where(T.collected_at <= since).distinct()))
         for m in rows:
             if countries and m.origin_iso3 not in countries and m.origin_iso3 not in GENERAL_ORIGINS:
                 continue
             old = olds.get(m.supersedes_id) if m.supersedes_id else None
             if old is not None and not _significant_change(old, m):
                 continue          # e.g. a quota balance drawn down: kept in history, not an alert
-            if old is None and since is None and m.revision == 1 and m.collected_at < window:
-                continue
+            if old is None:
+                if since is not None and m.source_id not in known_sources:
+                    continue
+                # preview: only measures that started to apply in the window
+                if since is None and not (m.valid_from and m.valid_from >= window.date()):
+                    continue
             out.total_matches += 1
             src = srcs.get(m.source_id)
             origin = {lg: (("tutte le origini" if lg == "it" else "every origin") if m.origin_iso3 in GENERAL_ORIGINS
@@ -888,6 +937,30 @@ def _trade_ref_id(session: Session, source_id: int | None, reporter: str, partne
         .order_by(T.id.desc()).limit(1))
 
 
+def _trade_what(p: dict, lg: str) -> str:
+    flow_l = _cap(_li(FLOW_LABELS.get(p.get("flow", "import")), lg))
+    return f"{flow_l} di miele ({_trade_scope(p, lg)})" if lg == "it" else f"{flow_l} of honey ({_trade_scope(p, lg)})"
+
+
+def _trade_body(lg: str, p: dict, last: dict, prev: dict, pct: float, threshold: float, src: dict | None) -> str:
+    prov = ""
+    if last.get("data_status") == "provisional":
+        prov = " (dato provvisorio)" if lg == "it" else " (provisional figure)"
+    summed = ""
+    if last.get("summed_from_partners"):
+        summed = " Totale calcolato sommando i paesi partner." if lg == "it" else " Total summed from partner countries."
+    name = (src or {}).get("publisher") or (src or {}).get("name") or "—"
+    if lg == "it":
+        return (f"{_trade_what(p, lg)} {at_period(last['period_label'], lg)}: {tonnes(last['net_weight_kg'], lg)}{prov}, "
+                f"contro {tonnes(prev['net_weight_kg'], lg)} {at_period(prev['period_label'], lg)} "
+                f"({pct_text(pct, lg)}).{summed} Soglia della regola: ±{num(threshold, lg, 1)}%. Fonte: {name}, "
+                f"pubblicato il {date_text(last.get('published_at'), lg)}.")
+    return (f"{_trade_what(p, lg)} {at_period(last['period_label'], lg)}: {tonnes(last['net_weight_kg'], lg)}{prov}, "
+            f"against {tonnes(prev['net_weight_kg'], lg)} {at_period(prev['period_label'], lg)} "
+            f"({pct_text(pct, lg)}).{summed} Rule threshold: ±{num(threshold, lg, 1)}%. Source: {name}, "
+            f"published {date_text(last.get('published_at'), lg)}.")
+
+
 def eval_trade_change(session: Session, p: dict, since: datetime | None) -> Evaluation:
     from ..api.trade import Ctx, build_series
 
@@ -926,44 +999,13 @@ def eval_trade_change(session: Session, p: dict, since: datetime | None) -> Eval
         check["fires"], check["reason"] = True, "fires"
         out.total_matches += 1
         sid = ctx.source_id(src_brief["key"]) if src_brief else None
-        scope_eu = reporter in ("EU27", "EU28") and partner == "WLD"
-
-        def what(lg: str) -> str:
-            flow_l = _li(FLOW_LABELS.get(flow), lg).capitalize()
-            rep = _country(reporter, lg)
-            if lg == "it":
-                part = " extra-UE" if scope_eu else ("" if partner == "WLD" else
-                                                     (f" da {_country(partner, lg)}" if flow == "import" else f" verso {_country(partner, lg)}"))
-                return f"{flow_l} di miele {('di ' + rep) if True else ''}{part}"
-            part = " from outside the EU" if scope_eu else ("" if partner == "WLD" else
-                                                          (f" from {_country(partner, lg)}" if flow == "import" else f" to {_country(partner, lg)}"))
-            return f"{rep} honey {flow_l.lower()}{part}"
-
-        def body(lg: str, last=last, prev=prev, pct=pct) -> str:
-            status = last.get("data_status")
-            prov = (" (dato provvisorio)" if lg == "it" else " (provisional figure)") if status == "provisional" else ""
-            summed = ""
-            if last.get("summed_from_partners"):
-                summed = (" Totale calcolato sommando i paesi partner." if lg == "it" else " Total summed from partner countries.")
-            if lg == "it":
-                return (f"{what(lg)} {at_period(last['period_label'], lg)}: {tonnes(last['net_weight_kg'], lg)}{prov}, "
-                        f"contro {tonnes(prev['net_weight_kg'], lg)} {at_period(prev['period_label'], lg)} "
-                        f"({pct_text(pct, lg)}).{summed} Soglia della regola: {num(threshold, lg, 1)}%. Fonte: "
-                        f"{(src_brief or {}).get('publisher') or (src_brief or {}).get('name') or '—'}, pubblicato il "
-                        f"{date_text(last.get('published_at'), lg)}.")
-            return (f"{what(lg)} {at_period(last['period_label'], lg)}: {tonnes(last['net_weight_kg'], lg)}{prov}, "
-                    f"against {tonnes(prev['net_weight_kg'], lg)} {at_period(prev['period_label'], lg)} "
-                    f"({pct_text(pct, lg)}).{summed} Rule threshold: {num(threshold, lg, 1)}%. Source: "
-                    f"{(src_brief or {}).get('publisher') or (src_brief or {}).get('name') or '—'}, published "
-                    f"{date_text(last.get('published_at'), lg)}.")
-
-        from urllib.parse import urlencode
 
         out.drafts.append(Draft(
             dedup_key=f"trade:{(src_brief or {}).get('key')}:{reporter}:{partner}:{flow}:{freq}:{last_label}",
-            title_it=f"{what('it')}: {pct_text(pct, 'it')} {at_period(last_label, 'it')} su un anno prima",
-            title_en=f"{what('en')}: {pct_text(pct, 'en')} {at_period(last_label, 'en')} year on year",
-            body_it=body("it"), body_en=body("en"),
+            title_it=f"{_trade_what(p, 'it')}: {pct_text(pct, 'it')} {at_period(last_label, 'it')} su un anno prima",
+            title_en=f"{_trade_what(p, 'en')}: {pct_text(pct, 'en')} {at_period(last_label, 'en')} year on year",
+            body_it=_trade_body("it", p, last, prev, pct, threshold, src_brief),
+            body_en=_trade_body("en", p, last, prev, pct, threshold, src_brief),
             severity=Severity.WARNING.value if abs(pct) >= 2 * threshold else Severity.INFO.value,
             link="/commercio?" + urlencode({"reporter": reporter, "partner": partner, "flow": flow}),
             ref_type="trade", ref_id=_trade_ref_id(session, sid, reporter, partner, flow, last.get("period_start")),
@@ -1015,7 +1057,15 @@ def _store(session: Session, rule: AlertRule, drafts: list[Draft]) -> int:
 
 
 def evaluate_rule(session: Session, rule: AlertRule, today: date | None = None) -> int:
-    """Evaluate one rule and store its new events. Returns the number of new events."""
+    """Evaluate one rule and store its new events. Returns the number of new events.
+
+    The first evaluation of a rule is its baseline: what is in the database at that moment is
+    known, not news (a rule seeded on a fresh install, before the first collection, would
+    otherwise report the whole first download). Only `new_report` looks back 14 days."""
+    if rule.last_checked_at is None:
+        now = utcnow()
+        if rule_since(rule) < now:
+            rule.params = with_since(rule.params or {}, now, rule.params)
     ev = evaluate(session, rule.alert_type, rule.params or {}, since=rule_since(rule), today=today)
     n = _store(session, rule, ev.drafts)
     rule.last_checked_at = utcnow()
@@ -1033,7 +1083,7 @@ def evaluate_all(session: Session, today: date | None = None) -> dict:
         try:
             with session.begin_nested():
                 new += evaluate_rule(session, rule, today=today)
-        except Exception:  # noqa: BLE001 - a malformed rule must not block the others
+        except Exception:  # a malformed rule must not block the others
             log.exception("alert rule %s failed", rule.id)
             failed.append(rule.id)
     session.flush()
