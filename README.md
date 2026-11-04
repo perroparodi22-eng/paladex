@@ -16,7 +16,7 @@ A private, local intelligence platform for the global honey market: prices, inte
 
 ### Installazione (una sola volta)
 
-1. Installare **Python 3.11 o superiore** da <https://www.python.org/downloads/>. Su Windows, durante l'installazione spuntare **"Add Python to PATH"**.
+1. Installare **Python 3.11 o superiore** (l'interfaccia è già inclusa: Node.js non serve) da <https://www.python.org/downloads/>. Su Windows, durante l'installazione spuntare **"Add Python to PATH"**.
 2. Copiare la cartella `paladex` sul computer, per esempio in `Documenti`.
 3. *(Facoltativo)* Aprire il file `.env` con il Blocco note e inserire le chiavi gratuite delle fonti dati e, se si desidera, la chiave dell'intelligenza artificiale (vedere più sotto). Al primo avvio il file `.env` viene creato automaticamente da `.env.example`.
 

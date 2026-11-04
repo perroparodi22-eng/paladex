@@ -330,7 +330,9 @@ class Ctx:
         def key(s: Source) -> tuple:
             local = not (country and s.country_iso3 == country)
             pref = prefer.index(s.key) if s.key in prefer else len(prefer)
-            return (not s.enabled, local, pref, s.name) if country_first else (not s.enabled, pref, local, s.name)
+            rank = RELIABILITY_ORDER.index(s.reliability) if s.reliability in RELIABILITY_ORDER else len(RELIABILITY_ORDER)
+            # Within each group, official/government sources before industry, press and aggregators.
+            return (not s.enabled, local, pref, rank, s.name) if country_first else (not s.enabled, pref, local, rank, s.name)
 
         return [{"key": s.key, "name": s.name, "publisher": s.publisher, "enabled": s.enabled,
                  "last_run_status": s.last_run_status, "expected_update": s.expected_update,

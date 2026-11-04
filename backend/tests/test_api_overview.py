@@ -602,3 +602,29 @@ def test_long_stale_series_history_is_loaded_in_one_query(db):
     for s in series:
         assert [p.period_label for p in s.points] == [str(y - 1), str(y)]
         assert series_changes(s)["yoy_pct"] == pytest.approx(10.0)
+
+
+def test_expected_sources_list_official_first(api):
+    """Empty-state 'expected source' lists name government/official sources before third parties."""
+    body = api.get("/api/overview").json()
+    from paladex.db import session_scope
+    from paladex.models import Source
+
+    with session_scope() as s:
+        rel = {x.key: x.reliability for x in s.query(Source).all()}
+    rank = {"official": 0, "industry": 1, "trade_press": 2, "aggregator": 3}
+
+    def walk(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k in ("providers", "expected_sources") and isinstance(v, list) and v and isinstance(v[0], dict):
+                    enabled = [p for p in v if p.get("enabled", True)]
+                    ranks = [rank.get(rel.get(p["key"]), 9) for p in enabled]
+                    assert ranks == sorted(ranks), (k, [p["key"] for p in enabled])
+                else:
+                    walk(v)
+        elif isinstance(o, list):
+            for x in o:
+                walk(x)
+
+    walk(body)

@@ -6,7 +6,7 @@ __pycache__/
 *.egg-info/
 # Node
 node_modules/
-frontend/dist/
+# frontend/dist is committed so the app runs with Python only (rebuild with: cd frontend && npm run build)
 # Local data (never commit the father's database or API keys)
 data/
 *.sqlite3

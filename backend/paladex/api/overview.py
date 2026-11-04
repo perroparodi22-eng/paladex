@@ -294,13 +294,14 @@ class Ctx:
 
     def providers(self, block: str) -> list[dict]:
         cats = PROVIDER_CATEGORIES.get(block, ())
-        out = [
-            {"key": s.key, "name": s.name, "publisher": s.publisher, "enabled": s.enabled,
-             "last_run_status": s.last_run_status}
-            for s in self.sources.values()
-            if s.category in cats and s.key != "demo" and s.kind != SourceKind.MANUAL.value
-        ]
-        return sorted(out, key=lambda p: (not p["enabled"], p["name"]))
+        from .meta import RELIABILITY_RANK
+
+        rows = [s for s in self.sources.values()
+                if s.category in cats and s.key != "demo" and s.kind != SourceKind.MANUAL.value]
+        # Enabled first, then official/government sources before industry, press and aggregators.
+        rows.sort(key=lambda s: (not s.enabled, RELIABILITY_RANK.get(s.reliability, 9), s.name))
+        return [{"key": s.key, "name": s.name, "publisher": s.publisher, "enabled": s.enabled,
+                 "last_run_status": s.last_run_status} for s in rows]
 
     def sources_used(self, source_ids, data_ref: dict[int, tuple[date | None, str | None]] | None = None) -> list[dict]:
         """Sources behind a block, with their freshness. When a source has no run metadata yet
