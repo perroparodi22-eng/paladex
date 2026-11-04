@@ -203,6 +203,15 @@ def test_xi_quota_search_parsing():
     doc["data"][0]["attributes"].update(initial_volume="35000.0", balance="13250.0")
     q, _ = tr.parse_xi_quota_search(as_bytes(doc), "099990", TODAY)
     assert (q.volume_kg, q.balance_kg) == (35_000_000.0, 13_250_000.0)
+    # hectokilograms (TARIC unit DTN) are 100 kg, not kg read off the "(100 kg)" abbreviation
+    doc["data"][0]["attributes"]["measurement_unit"] = "Hectokilogram (100 kg)"
+    doc["data"][0]["attributes"].update(initial_volume="350000.0", balance="132500.0")
+    q, problems = tr.parse_xi_quota_search(as_bytes(doc), "099990", TODAY)
+    assert (q.volume_kg, q.balance_kg) == (35_000_000.0, 13_250_000.0) and not problems
+    for unit, factor in (("Hectokilogram", 100.0), ("100 kg", 100.0), ("Tonne", 1000.0), ("Tonne (1000 kg)", 1000.0),
+                         ("Kilogram (kg)", 1.0), ("kg", 1.0), ("Hectolitre (hl)", None), ("Number of items (p/st)", None),
+                         ("Litre pure (100 %) alcohol", None), (None, None)):
+        assert tr._kg_factor(unit) == factor, unit
     doc["data"][0]["attributes"]["measurement_unit"] = "Hectolitre (hl)"
     q, problems = tr.parse_xi_quota_search(as_bytes(doc), "099990", TODAY)
     assert q.volume_kg is None and q.balance_kg is None and "not a mass unit" in problems[0]

@@ -12,7 +12,9 @@ const QUOTA_TONE: Record<string, 'up' | 'warn' | 'down' | 'outline'> = {
   open: 'up', critical: 'warn', exhausted: 'down', blocked: 'down',
 }
 
-export function QuotaBar({ quota }: { quota: Quota }) {
+// `staleAsOf`: the layer was not re-confirmed by the latest read; the balance is dated so it never
+// reads as current under the newer date of its cell.
+export function QuotaBar({ quota, staleAsOf }: { quota: Quota; staleAsOf?: string | null }) {
   const { t, lang } = useI18n()
   const fill = quota.fill_pct
   const width = fill === null ? 0 : Math.min(100, Math.max(0, fill))
@@ -34,6 +36,7 @@ export function QuotaBar({ quota }: { quota: Quota }) {
           </div>
           <div className="num text-[0.8rem] text-muted">
             {t('regulations.quota.balance', { balance: fmtKg(quota.balance_kg, lang), volume: fmtKg(quota.volume_kg, lang) })}
+            {staleAsOf && <span className="text-warn"> · {t('regulations.quota.balanceAsOf', { date: fmtDate(staleAsOf, lang) })}</span>}
           </div>
         </>
       ) : (
@@ -93,7 +96,12 @@ export function DutyLayer({ row, general }: { row: DutyRow; general?: string }) 
           {duty}
         </span>
       </div>
-      {row.quota && <QuotaBar quota={row.quota} />}
+      {row.stale && (
+        <div className="mt-0.5 text-[0.78rem] text-warn">
+          {t('regulations.duties.verified', { date: fmtDate(row.as_of, lang) })} · {t('regulations.duties.notReconfirmed')}
+        </div>
+      )}
+      {row.quota && <QuotaBar quota={row.quota} staleAsOf={row.stale ? row.as_of : null} />}
       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.78rem] text-muted">
         {row.is_demo && <DemoBadge />}
         {row.needs_review && (

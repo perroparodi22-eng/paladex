@@ -5,7 +5,9 @@
 * ``GET /regulations/duties``: the current import-duty layers on honey per origin (``TariffMeasure``),
   grouped per origin and jurisdiction (EU, US), with the date each layer was last confirmed, the
   official links, quota fill and, for the US, the anti-dumping case of the origin linked to its
-  Federal Register documents (no rates: they are exporter-specific).
+  Federal Register documents (no rates: they are exporter-specific). A layer the latest run could
+  not re-confirm keeps its older date and is flagged `stale`; a cell's `as_of` is the OLDEST date
+  of the layers it shows (`as_of_latest` the newest), so old values never sit under a newer date.
 * ``GET /regulations/duties/{origin}``: every revision of every layer of one origin (history).
 
 Nothing is computed into a "total duty": layers are shown side by side, as published.
@@ -267,11 +269,21 @@ def ad_case_block(iso3: str, fr_docs: list[RegulationItem]) -> dict | None:
 
 
 def _jurisdiction_status(db: Session, rows: list[dict]) -> dict:
+    """Per jurisdiction: source status, the newest read date (`as_of`) and the general rows.
+
+    Marks every row with `stale`: its `as_of` is older than the newest read of its jurisdiction
+    (real and demo rows compared separately), i.e. the last run could not re-confirm it (a quota
+    balance or a Chapter 99 range that failed to load) and it keeps its old date and values."""
     out = {}
     for j, key in TARIFF_SOURCES.items():
         src = db.scalars(select(Source).where(Source.key == key)).first()
         jr = [r for r in rows if r["jurisdiction"] == j]
         as_of = max((r["as_of"] for r in jr if r["as_of"]), default=None)
+        newest = {demo: max((r["as_of"] for r in jr if r["as_of"] and r["is_demo"] is demo), default=None)
+                  for demo in (False, True)}
+        for r in jr:
+            ref = newest[r["is_demo"]]
+            r["stale"] = bool(ref and r["as_of"] and r["as_of"] < ref)
         out[j] = {
             "source": source_brief(src),
             "terms_note": src.terms_note if src else None,
@@ -321,10 +333,17 @@ def duties(origin: str | None = Query(None, description="ISO3 of one origin"), d
         eu_general = [r["id"] for r in juris["EU"]["general"]
                       if iso3 not in ((r["extra"] or {}).get("excluded_origins") or [])]
         us_general = [r["id"] for r in juris["US"]["general"]]
-        eu_dates = [r["as_of"] for r in eu_rows if r["as_of"]] + [r["as_of"] for r in juris["EU"]["general"]
-                                                                   if r["id"] in eu_general and r["as_of"]]
-        us_dates = [r["as_of"] for r in us_rows if r["as_of"]] + [r["as_of"] for r in juris["US"]["general"] if r["as_of"]]
-        eu_as_of = max(eu_dates, default=None)
+        eu_own_mfn = any(r["measure_type"] == MeasureType.MFN.value for r in eu_rows)
+        # The dates of a cell come from the layers the cell displays: its own rows plus the general
+        # rows shown in it (not those needing review, listed apart with their own date; not the
+        # general MFN when the origin has its own). `as_of` is the OLDEST of them (every layer shown
+        # was confirmed at least then), `as_of_latest` the newest; older rows carry `stale`.
+        eu_shown = eu_rows + [r for r in juris["EU"]["general"] if r["id"] in eu_general and not r["needs_review"]
+                              and not (eu_own_mfn and r["measure_type"] == MeasureType.MFN.value)]
+        us_shown = us_rows + [r for r in juris["US"]["general"] if not r["needs_review"]]
+        eu_dates = [r["as_of"] for r in eu_shown if r["as_of"]]
+        us_dates = [r["as_of"] for r in us_shown if r["as_of"]]
+        eu_latest = max(eu_dates, default=None)
         out.append({
             "iso3": iso3,
             "name_it": None if isinstance(c, str) else c.name_it,
@@ -333,16 +352,18 @@ def duties(origin: str | None = Query(None, description="ISO3 of one origin"), d
             "eu": {
                 "rows": eu_rows,
                 "general_ids": eu_general,
-                "has_own_mfn": any(r["measure_type"] == MeasureType.MFN.value for r in eu_rows),
-                "as_of": eu_as_of,
+                "has_own_mfn": eu_own_mfn,
+                "as_of": min(eu_dates, default=None),
+                "as_of_latest": eu_latest,
                 "review_count": sum(1 for r in eu_rows if r["needs_review"]),
-                "links": {"taric": taric_url(iso3, date.fromisoformat(eu_as_of) if eu_as_of else today)},
+                "links": {"taric": taric_url(iso3, date.fromisoformat(eu_latest) if eu_latest else today)},
             },
             "us": {
                 "rows": us_rows,
                 "general_ids": us_general,
                 "domestic": iso3 == "USA",
-                "as_of": max(us_dates, default=None),
+                "as_of": min(us_dates, default=None),
+                "as_of_latest": max(us_dates, default=None),
                 "review_count": sum(1 for r in us_rows if r["needs_review"]),
                 "links": {"hts": hts_url()},
                 "ad_case": ad_case_block(iso3, fr_docs),

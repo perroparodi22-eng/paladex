@@ -49,6 +49,9 @@ export interface DutyRow {
   supersedes_id: number | null
   needs_review: boolean
   review_reason: string | null
+  /** /regulations/duties only: the latest run of the source could not re-confirm this layer, which
+   *  keeps its older `as_of` and values (e.g. a quota balance or a Chapter 99 range that failed). */
+  stale?: boolean
   extra: Record<string, unknown> | null
   source: SourceBrief | null
   reliability: string
@@ -83,7 +86,10 @@ export interface OriginDuties {
     rows: DutyRow[]
     general_ids: number[]
     has_own_mfn: boolean
+    /** Oldest `as_of` of the layers shown in the cell (every one was confirmed at least then). */
     as_of: string | null
+    /** Newest `as_of` of the layers shown in the cell. */
+    as_of_latest: string | null
     review_count: number
     links: { taric: string }
   }
@@ -92,6 +98,7 @@ export interface OriginDuties {
     general_ids: number[]
     domestic: boolean
     as_of: string | null
+    as_of_latest: string | null
     review_count: number
     links: { hts: string }
     ad_case: AdCase | null

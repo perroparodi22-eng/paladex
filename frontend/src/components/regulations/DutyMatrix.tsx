@@ -23,11 +23,18 @@ function ExtLink({ href, title, children }: { href: string; title?: string; chil
   )
 }
 
-function CellFooter({ asOf, link }: { asOf: string | null; link: ReactNode }) {
+// `asOf` is the oldest confirmation of the layers shown, `latest` the newest: when they differ, some
+// layer was not re-confirmed by the last read and the footer never presents it under the newer date.
+function CellFooter({ asOf, latest, link }: { asOf: string | null; latest?: string | null; link: ReactNode }) {
   const { t, lang } = useI18n()
+  const mixed = Boolean(asOf && latest && latest !== asOf)
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line-soft pt-1.5 text-[0.78rem] text-muted">
-      <span>{asOf ? t('regulations.duties.verified', { date: fmtDate(asOf, lang) }) : t('regulations.duties.notVerified')}</span>
+      <span className={clsx(mixed && 'text-warn')}>
+        {!asOf ? t('regulations.duties.notVerified')
+          : mixed ? t('regulations.duties.verifiedMixed', { latest: fmtDate(latest, lang), oldest: fmtDate(asOf, lang) })
+            : t('regulations.duties.verified', { date: fmtDate(asOf, lang) })}
+      </span>
       <span aria-hidden>·</span>
       {link}
     </div>
@@ -72,20 +79,22 @@ function AdCaseBlock({ ad }: { ad: AdCase }) {
 function EuCell({ o, status, general }: { o: OriginDuties; status: JurisdictionStatus; general: DutyRow[] }) {
   const { t } = useI18n()
   const applies = general.filter((g) => o.eu.general_ids.includes(g.id))
-  const mfn = o.eu.has_own_mfn ? [] : applies.filter((g) => g.measure_type === 'mfn' && !g.needs_review)
+  // Every general (erga omnes) layer that applies: MFN, safeguard / additional duties, non-preferential
+  // quotas, erga-omnes anti-dumping ... The general MFN only gives way to the origin's own MFN.
+  const base = applies.filter((g) => !g.needs_review && !(g.measure_type === 'mfn' && o.eu.has_own_mfn))
   const review = applies.filter((g) => g.needs_review).length
-  if (!status.last_success_at && o.eu.rows.length === 0 && mfn.length === 0) return <Unavailable />
+  if (!status.last_success_at && o.eu.rows.length === 0 && base.length === 0) return <Unavailable />
   return (
     <div>
       <div className="divide-y divide-line-soft">
-        {mfn.map((g) => <DutyLayer key={g.id} row={g} general={t('regulations.duties.generalAppliesEU')} />)}
+        {base.map((g) => <DutyLayer key={g.id} row={g} general={t('regulations.duties.generalAppliesEU')} />)}
         {o.eu.rows.map((r) => <DutyLayer key={r.id} row={r} />)}
       </div>
-      {o.eu.rows.length === 0 && mfn.length > 0 && (
+      {o.eu.rows.length === 0 && base.length > 0 && (
         <div className="text-[0.8rem] text-muted">{t('regulations.duties.noOwnMeasures')}</div>
       )}
       {review > 0 && <div className="text-[0.78rem] text-muted">{t(review === 1 ? 'regulations.duties.generalReviewEU1' : 'regulations.duties.generalReviewEU', { n: review })}</div>}
-      <CellFooter asOf={o.eu.as_of} link={
+      <CellFooter asOf={o.eu.as_of} latest={o.eu.as_of_latest} link={
         <ExtLink href={o.eu.links.taric} title={t('regulations.duties.taricLinkTitle')}>{t('regulations.duties.taricLink')}</ExtLink>
       } />
     </div>
@@ -109,7 +118,7 @@ function UsCell({ o, status, general }: { o: OriginDuties; status: JurisdictionS
       )}
       {review > 0 && <div className="text-[0.78rem] text-muted">{t(review === 1 ? 'regulations.duties.generalReviewUS1' : 'regulations.duties.generalReviewUS', { n: review })}</div>}
       {o.us.ad_case && <AdCaseBlock ad={o.us.ad_case} />}
-      <CellFooter asOf={o.us.as_of} link={
+      <CellFooter asOf={o.us.as_of} latest={o.us.as_of_latest} link={
         <ExtLink href={o.us.links.hts} title={t('regulations.duties.htsLinkTitle')}>{t('regulations.duties.htsLink')}</ExtLink>
       } />
     </div>
@@ -175,6 +184,7 @@ function StatusStrip({ d }: { d: DutiesResponse }) {
             <span className="text-muted">
               {s.as_of ? t('regulations.status.as_of', { date: fmtDate(s.as_of, lang) }) : t('regulations.status.never')}
               {s.last_run_status === 'failed' && <> · <span className="text-down">{t('regulations.status.failed')}</span></>}
+              {s.last_run_status === 'partial' && <> · <span className="text-warn">{t('regulations.status.partial')}</span></>}
             </span>
             {s.review_count > 0 && (
               <Badge tone="warn">{s.review_count === 1 ? t('regulations.status.review1') : t('regulations.status.reviewN', { n: s.review_count })}</Badge>

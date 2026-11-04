@@ -550,6 +550,44 @@ def test_compare_keeps_markets_apart_and_never_averages_aggregates_or_sub_lines(
     assert {b["market_iso3"] for b in d["bars"]} == {"USA", "EU27"}
 
 
+def test_compare_keeps_one_of_census_and_gats_which_publish_the_same_statistics(api, db):
+    """us_census_trade and usda_fas_gats store the same Census import unit value (both as 'HS 0409
+    total' lines): a bar must not count the same imports twice (trade_official.py docstring)."""
+    def src(key: str) -> Source:
+        return db.scalars(select(Source).where(Source.key == key)).first() or make_src(db, key)
+
+    census, gats = src("us_census_trade"), src("usda_fas_gats")
+    uv = {"price_type": "import_unit_value", "market": "USA", "variety": "unspecified",
+          "variety_raw": "HS 0409 natural honey (all lines)", "terms": f"{GATS_TERMS}, HS 0409 total"}
+    add_price(db, census, period="2026-08", value=4.0, origin="ARG", volume=1_000_000, **uv)
+    add_price(db, gats, period="2026-08", value=4.0, origin="ARG", volume=1_000_000, **uv)
+    add_price(db, census, period="2026-08", value=2.0, origin="IND", volume=500_000, **uv)   # GATS: requested partners only
+    db.commit()
+
+    d = api.get("/api/prices/compare?price_type=import_unit_value&by=variety").json()
+    usa = next(b for b in d["bars"] if b["market_iso3"] == "USA")
+    assert usa["value"] == pytest.approx(3.0) and usa["n_series"] == 2          # not 3.33 over 3 series
+    assert {(c["origin_iso3"], c["source"]["key"]) for c in usa["components"]} == \
+        {("ARG", "us_census_trade"), ("IND", "us_census_trade")}
+    same = [e for e in d["excluded"] if e["reason"] == "same_underlying_data"]
+    assert [(e["origin_iso3"], e["source"]["key"], e["last_period"]) for e in same] == [("ARG", "usda_fas_gats", "2026-08")]
+
+    d = api.get("/api/prices/compare?price_type=import_unit_value&by=origin").json()
+    arg = next(b for b in d["bars"] if b["key"] == "ARG")
+    assert arg["n_series"] == 1 and [s["key"] for s in arg["sources"]] == ["us_census_trade"]
+
+    # GATS already has the next month: its newer figure is kept, never averaged with Census' older one
+    add_price(db, gats, period="2026-09", value=4.4, origin="ARG", volume=900_000, **uv)
+    db.commit()
+    d = api.get("/api/prices/compare?price_type=import_unit_value&by=origin").json()
+    arg = next(b for b in d["bars"] if b["key"] == "ARG")
+    assert (arg["n_series"], arg["value"], arg["period_label"], arg["mixed_periods"]) == (1, 4.4, "2026-09", False)
+    assert [s["key"] for s in arg["sources"]] == ["usda_fas_gats"]
+    assert {(e["origin_iso3"], e["source"]["key"]) for e in d["excluded"] if e["reason"] == "same_underlying_data"} == \
+        {("ARG", "us_census_trade")}
+    assert next(b for b in d["bars"] if b["key"] == "IND")["sources"][0]["key"] == "us_census_trade"   # no GATS copy
+
+
 def test_compare_never_averages_demo_with_real_series(api, db, sources):
     usda, _ = sources
     demo_src = db.scalars(select(Source).where(Source.key == "demo")).one()

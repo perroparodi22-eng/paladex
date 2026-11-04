@@ -19,8 +19,9 @@ Rules enforced here (see docs/DEVELOPING.md):
 * Disagreement between sources (>10% for the same origin/variety/colour/organic/type/market/
   period, one like-for-like line per source) is reported, not resolved.
 * `compare` keeps markets apart (one bar per origin or variety AND market), never averages an
-  aggregate (EU27, World ...) or a source's total line with its own components, and never
-  averages demo series with real ones.
+  aggregate (EU27, World ...) or a source's total line with its own components, never averages
+  two sources that publish the same statistics (US Census and USDA FAS GATS, `SAME_DATA_SOURCES`),
+  and never averages demo series with real ones.
 """
 from __future__ import annotations
 
@@ -55,6 +56,9 @@ NONE_TOKEN = "_none"                     # filter/facet token for "not specified
 DISCREPANCY_THRESHOLD = 0.10             # 10 % between sources
 DEFAULT_COMPARE_WINDOW = 3               # months
 MAX_CSV_ROWS = 100_000
+# Sources that store the same underlying statistics: GATS republishes the US Census import figures
+# (collectors/trade_official.py). A cross-source average keeps one of them, never both.
+SAME_DATA_SOURCES = ("us_census_trade", "usda_fas_gats")
 
 # Fallback publication rhythm (days) when a source has no `expected_max_age_days`.
 DEFAULT_CADENCE_DAYS = {"D": 7, "W": 14, "irregular": 45, "M": 45, "Q": 120, "A": 400}
@@ -904,7 +908,9 @@ def compare(
     varieties from Argentina sold in the USA) the bar is their simple average and lists its
     components. Never averaged together (each left out is listed in `excluded` with a reason):
     different markets (separate bars); demo and real series (separate bars, `is_demo`); a
-    source's all-lines total and its own sub-lines (`component_of_total`); an aggregate market
+    source's all-lines total and its own sub-lines (`component_of_total`); US Census and USDA FAS
+    GATS, which publish the same Census statistics (`same_underlying_data`: per origin/market the
+    source with the newer period is kept, Census on a tie); an aggregate market
     such as EU27 when bars for its member states are shown (`aggregate_of_shown_markets`); an
     aggregate origin inside a variety bar that holds its member origins (`aggregate_of_shown_origins`).
     `key` stays the origin (or variety) code; `id` is unique per bar.
@@ -975,6 +981,24 @@ def compare(
             exclude(c, "component_of_total", c["period_label"])
         else:
             kept.append(c)
+    # 1b) US Census and USDA FAS GATS publish the SAME Census statistics (trade_official.py): keep one
+    #     source per origin/market, never both (the newer period wins; on a tie Census, which covers
+    #     every origin). Every component of the other source is listed in `excluded`.
+    same: dict[tuple, dict[str, list[dict]]] = defaultdict(lambda: defaultdict(list))
+    for c in kept:
+        if c["_line"] in SAME_DATA_SOURCES:
+            same[(c["origin_iso3"], c["market_iso3"], c["is_demo"])][c["_line"]].append(c)
+    drop: set[int] = set()
+    for g in same.values():
+        if len(g) == 2:
+            newest = {k: max(x["period_label"] for x in v) for k, v in g.items()}
+            loser = "usda_fas_gats" if newest["us_census_trade"] >= newest["usda_fas_gats"] else "us_census_trade"
+            drop.update(id(x) for x in g[loser])
+    if drop:
+        for c in kept:
+            if id(c) in drop:
+                exclude(c, "same_underlying_data", c["period_label"])
+        kept = [c for c in kept if id(c) not in drop]
     # 2) One bar per origin/variety AND market; demo and real series are never averaged together.
     groups: dict[tuple, list[dict]] = defaultdict(list)
     for c in kept:

@@ -213,6 +213,81 @@ def test_duties_grouped_per_origin_and_jurisdiction(api, db, run_with_routes, pi
     assert api.get("/api/regulations/duties", params={"origin": "ZZZ"}).status_code == 400
 
 
+def _commodity_with_safeguard() -> bytes:
+    """The XI commodity fixture plus an ERGA OMNES additional duty (TARIC type 696, 25.00 %),
+    a general layer that parses cleanly (illustrative, like the rest of the fixture)."""
+    doc = json.loads(fx("xi_commodity_0409000000.json"))
+    mfn = next(o for o in doc["included"] if o["type"] == "measure" and o["id"] == "3000101")
+    sg = json.loads(json.dumps(mfn))
+    sg["id"], sg["attributes"]["id"] = "3000199", 3000199
+    sg["relationships"]["measure_type"]["data"]["id"] = "696"
+    sg["relationships"]["duty_expression"]["data"]["id"] = "3000199-duty_expression"
+    doc["included"] += [
+        sg,
+        {"id": "696", "type": "measure_type",
+         "attributes": {"id": "696", "description": "Additional duties (safeguard)", "measure_type_series_id": "C"}},
+        {"id": "3000199-duty_expression", "type": "duty_expression",
+         "attributes": {"base": "25.00 %", "formatted_base": "<span>25.00</span> %"}},
+    ]
+    doc["data"]["relationships"]["import_measures"]["data"].append({"id": "3000199", "type": "measure"})
+    return json.dumps(doc).encode()
+
+
+def test_duties_general_eu_layer_other_than_mfn_is_returned_for_every_origin(api, run_with_routes, pin_today):
+    """An erga-omnes safeguard/additional duty is a general layer the matrix must render next to
+    the MFN (EuCell shows every applicable general row not needing review)."""
+    run_with_routes("eu_tariff_xi", xi_routes(**{XI + r"/commodities/0409000000": _commodity_with_safeguard()}))
+    d = api.get("/api/regulations/duties").json()
+    general = {g["measure_code"]: g for g in d["jurisdictions"]["EU"]["general"]}
+    sg = general["696"]
+    assert (sg["measure_type"], sg["scope"], sg["ad_valorem_pct"], sg["needs_review"]) == ("surcharge", "general", 25.0, False)
+    assert [g["measure_code"] for g in d["jurisdictions"]["EU"]["general"]][:2] == ["103", "696"]   # MFN first
+    for o in d["origins"]:
+        assert sg["id"] in o["eu"]["general_ids"], o["iso3"]
+
+
+def test_duties_cell_date_exposes_layers_the_last_run_could_not_reconfirm(api, run_with_routes, pin_today):
+    """XI: the Mexican quota search fails and the commodity has no inline definition, so the
+    quota row keeps its 11-04 balance and date. The MFN is re-confirmed on 11-20: the cell must
+    not present the 16-day-old balance as verified on 11-20."""
+    run_with_routes("eu_tariff_xi", xi_routes())
+    pin_today(date(2026, 11, 20))
+    res = run_with_routes("eu_tariff_xi", xi_routes(**{XI + r"/quotas/search\?order_number=099991": (500, b"upstream error")}))
+    assert res["status"] == "partial"
+    d = api.get("/api/regulations/duties").json()
+    eu = d["jurisdictions"]["EU"]
+    assert eu["as_of"] == "2026-11-20" and eu["last_run_status"] == "partial"
+    mfn = next(g for g in eu["general"] if g["measure_type"] == "mfn")
+    assert mfn["as_of"] == "2026-11-20" and mfn["stale"] is False
+    mex = next(o for o in d["origins"] if o["iso3"] == "MEX")["eu"]
+    trq = next(r for r in mex["rows"] if r["measure_type"] == "trq_in")
+    assert (trq["as_of"], trq["stale"], trq["quota"]["balance_kg"]) == ("2026-11-04", True, 1_200_000.0)
+    assert mex["as_of"] == "2026-11-04" and mex["as_of_latest"] == "2026-11-20"   # never only the newer date
+    assert "SimDate=20261120" in mex["links"]["taric"]
+    ukr = next(o for o in d["origins"] if o["iso3"] == "UKR")["eu"]   # re-confirmed: one date, nothing stale
+    assert ukr["as_of"] == ukr["as_of_latest"] == "2026-11-20" and not any(r["stale"] for r in ukr["rows"])
+
+
+def test_duties_us_surcharge_not_reconfirmed_is_marked_stale(api, run_with_routes, pin_today):
+    """HTS: the Section 301 range and the footnote search fail (ch99_ok=False). The general 1.9¢/kg
+    row is refreshed; the China surcharge keeps its old date and must not look verified today."""
+    run_with_routes("us_hts", HTS_ROUTES)
+    pin_today(date(2026, 11, 20))
+    res = run_with_routes("us_hts", {**HTS_ROUTES, HTS + r"/exportList\?from=9903\.88&": (503, b"down"),
+                                     HTS + r"/search\?keyword=": (503, b"down")})
+    assert res["status"] == "partial"
+    d = api.get("/api/regulations/duties").json()
+    us = d["jurisdictions"]["US"]
+    base = next(g for g in us["general"] if g["measure_code"] == "general")
+    assert base["as_of"] == "2026-11-20" and base["stale"] is False
+    chn = next(o for o in d["origins"] if o["iso3"] == "CHN")["us"]
+    s301 = next(r for r in chn["rows"] if r["measure_code"] == "9903.88.15")
+    assert (s301["as_of"], s301["stale"]) == ("2026-11-04", True)
+    assert chn["as_of"] == "2026-11-04" and chn["as_of_latest"] == "2026-11-20"
+    mex = next(o for o in d["origins"] if o["iso3"] == "MEX")["us"]
+    assert mex["as_of"] == mex["as_of_latest"] == "2026-11-20"
+
+
 def test_duty_history_shows_every_revision(api, db, run_with_routes, pin_today):
     run_with_routes("eu_tariff_xi", xi_routes())
     pin_today(date(2026, 11, 5))

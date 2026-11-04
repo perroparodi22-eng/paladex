@@ -393,9 +393,12 @@ def _attrs(obj: dict | None) -> dict:
     return a if isinstance(a, dict) else {}
 
 
+# A unit is recognised by its leading name or by the exact abbreviation in brackets, hectokilogram
+# (TARIC DTN = 100 kg) first: an unanchored "kilogram" / "kg" would read "Hectokilogram (100 kg)" as kg.
 _MASS_UNITS = (
-    (re.compile(r"tonne|1\s*000\s*kg|\(t\)|\bt\b", re.IGNORECASE), 1000.0),
-    (re.compile(r"kilogram|\bkg\b", re.IGNORECASE), 1.0),
+    (re.compile(r"^\s*hectokilogram\b|^\s*100\s*kg\b|\(\s*100\s*kg\s*\)", re.IGNORECASE), 100.0),
+    (re.compile(r"^\s*(?:tonne|metric\s+ton)\b|^\s*1\s*000\s*kg\b|\(\s*(?:t|1\s*000\s*kg)\s*\)", re.IGNORECASE), 1000.0),
+    (re.compile(r"^\s*(?:kilogram|kg)\b", re.IGNORECASE), 1.0),
 )
 
 
