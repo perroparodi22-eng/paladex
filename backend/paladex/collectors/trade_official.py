@@ -754,10 +754,11 @@ class BrComexStatCollector(Collector):
         delay = COMEX_RATE_LIMIT_DELAY_S
         for attempt in range(COMEX_RATE_LIMIT_RETRIES + 1):
             doc = ctx.fetch(COMEX_GENERAL_URL, params={"language": COMEX_QUERY_LANGUAGE}, method="POST",
-                            json_body=body, headers=JSON_HEADERS, accept_status=(200, 429), store=False)
+                            json_body=body, headers=JSON_HEADERS, accept_status=(200, 400, 429), store=False)
             if not is_comex_rate_limited(doc.status_code, doc.content):
                 if doc.status_code != 200:
-                    raise CollectorError(f"Comex Stat answered HTTP {doc.status_code} for {title}")
+                    raise CollectorError(f"Comex Stat rejected the honey query (HTTP {doc.status_code}: "
+                                         f"{_comex_error_text(doc.content)}) for {month_label_span(body)}")
                 raw_id, unchanged = ctx.store_raw(COMEX_SOURCE_URL, doc.content, doc.content_type, title=title)
                 return doc.content, raw_id, unchanged
             if attempt == COMEX_RATE_LIMIT_RETRIES:
@@ -1053,8 +1054,10 @@ def classify_census_country(code: str, name: str, summary_lvl: str | None = None
     """
     code = (code or "").strip().upper()
     norm = _norm_name(name or "")
-    if code in ("-", "") and (not norm or norm in _TOTAL_NAMES) or norm in _TOTAL_NAMES:
+    if norm in _TOTAL_NAMES or (code == "-" and not norm):
         return "WLD", "total"
+    if code == "-":
+        return None, "unknown"          # "-" with an unexpected name: never guessed to be the total
     if (summary_lvl or "").upper() == "CGP" or "X" in code or code.startswith("0"):
         return None, "aggregate"
     if not re.fullmatch(r"[1-7]\d{3}", code):
