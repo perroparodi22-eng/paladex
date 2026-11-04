@@ -1002,12 +1002,20 @@ def test_dgft_pdf_that_is_not_a_pdf_is_retried_then_stored_without_terms(run_wit
         assert _state(s, "in_dgft_honey")["pdf_attempts"] == {}
 
 
-def test_dgft_scanned_pdf_is_stored_without_terms(run_with_routes, session_factory, pin_today):
+@pytest.mark.parametrize("tesseract,warning", [
+    (None, "OCR is not installed (install Tesseract"),
+    ("/usr/bin/tesseract", "scanned PDF, OCR failed"),
+])
+def test_dgft_scanned_pdf_is_stored_without_terms(run_with_routes, session_factory, pin_today, monkeypatch,
+                                                  tesseract, warning):
+    monkeypatch.setattr(ow.ocr, "available", lambda: tesseract)
     res = run_with_routes("in_dgft_honey", dgft_routes({DGFT_PDF.format(n=91): (200, b"%PDF-1.4\n%damaged\n%%EOF", PDF)}))
-    assert res["status"] == "partial" and any("no text in the PDF" in w for w in res["warnings"]), res
+    assert res["status"] == "partial" and any(warning in w and "MEP terms not read" in w
+                                              for w in res["warnings"]), res
     with session_factory() as s:
         r = _items(s, "in_dgft_honey")["DGFT Notification No. 91/2026-27"]
         assert r.extra["terms_parsed"] is False and "mep_usd_per_t" not in r.extra and r.summary_en is None
+        assert "terms_text_source" not in r.extra and "ocr_engine" not in r.extra
 
 
 def test_dgft_ambiguous_price_is_left_empty(run_with_routes, session_factory, pin_today, monkeypatch):
@@ -1096,11 +1104,33 @@ def test_unreachable_hosts_mean_offline(key, run_with_routes):
     assert res["status"] == "offline" and "Cannot reach" in res["error"], res
 
 
-def test_one_unreachable_host_fails_only_its_feed(run_with_routes, session_factory, pin_today):
+def test_one_unreachable_host_is_a_partial_run(run_with_routes, session_factory, pin_today):
     res = run_with_routes("br_mapa_honey", _without(mapa_routes(), "in\\.gov\\.br"))
-    assert res["status"] == "failed" and "Diário Oficial da União (DOU search): Cannot reach www.in.gov.br" in res["error"]
+    assert res["status"] == "partial" and res["error"] is None, res
+    assert any(w.startswith("Diário Oficial da União (DOU search): host unreachable (Cannot reach www.in.gov.br")
+               and "retried on the next run" in w for w in res["warnings"]), res
     with session_factory() as s:
         assert {r for r in _items(s, "br_mapa_honey")} == {r for r in MAPA_EXPECTED if r.startswith("mapa:")}
+        assert "dou_complete" not in _state(s, "br_mapa_honey")          # the DOU window is read again
+
+
+def test_boletin_oficial_unreachable_keeps_the_senasa_results(run_with_routes, session_factory, pin_today):
+    # Live run, Nov 2026: www.boletinoficial.gob.ar reset every connection from the sandbox
+    # ("[Errno 104] Connection reset by peer") and the whole SENASA run was marked failed.
+    res = run_with_routes("ar_senasa_honey", _without(senasa_routes(), "boletinoficial"))
+    assert res["status"] == "partial" and res["error"] is None, res
+    assert any(w.startswith("Boletín Oficial (primera sección): host unreachable (Cannot reach "
+                            "www.boletinoficial.gob.ar") for w in res["warnings"]), res
+    with session_factory() as s:
+        assert set(_items(s, "ar_senasa_honey")) == SENASA_EXPECTED - {"BO-AR primera 999101"}
+        assert "bo_last_edition" not in _state(s, "ar_senasa_honey")    # nothing marked as read
+
+
+def test_unreachable_feed_plus_a_drifted_feed_still_fails(run_with_routes, session_factory, pin_today):
+    routes = _without(senasa_routes({ow.SENASA_CREHA_URL: b"<html><body><p>moved</p></body></html>"}), "boletinoficial")
+    res = run_with_routes("ar_senasa_honey", routes)
+    assert res["status"] == "failed", res
+    assert "no PDF link at all" in res["error"] and "Cannot reach www.boletinoficial.gob.ar" in res["error"]
 
 
 # ---------------------------------------------------------------------------

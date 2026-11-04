@@ -17,7 +17,8 @@
         {"raw_name": "Executive Office of the President", "name": "Executive Office of the President", "id": 538, "url": "https://www.federalregister.gov/agencies/executive-office-of-the-president", "json_url": "https://www.federalregister.gov/api/v1/agencies/538", "parent_id": null, "slug": "executive-office-of-the-president"}
       ],
       "action": null,
-      "citation": "90 FR 52001"
+      "citation": "90 FR 52001",
+      "excerpts": " Annex I ... heading 0409.00.00 (Natural <span class=\"match\">honey</span>) is added to the list of products not subject to the additional ad valorem duties (illustrative test excerpt)"
     }
   ]
 }

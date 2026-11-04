@@ -9,11 +9,18 @@ the source stops publishing is retired (``is_current=False``), never deleted.
   EU TARIC measures in the XI service: it is the UK government's official, machine-readable mirror
   of EU TARIC (Open Government Licence v3.0). The legally binding source remains EU TARIC and the EU
   act in the Official Journal, so every row carries the EU legal act (``regulation_url`` on EUR-Lex)
-  and a deep link to the official TARIC consultation filtered to its origin. The collector keeps the
-  EU import measures that are duties (third-country duty, tariff preferences, tariff quotas, and any
-  anti-dumping or additional duty that would appear), expands geographical groups into the origins
-  Parodi follows (``services.tariffs.TARIFF_ORIGINS``; ERGA OMNES stays one row) and reads the
-  balance of every tariff quota from the quota search.
+  and a deep link to the official TARIC consultation filtered to its origin. Natural honey is the
+  heading 0409 00 00 00 with two declarable lines since 1 May 2024 (0409 00 00 10 Manuka honey,
+  0409 00 00 90 Other): ``/headings/0409`` lists them, each ``/commodities/{line}`` gives its import
+  measures. A measure listed on every line (e.g. the 17.30 % third-country duty) is stored once under
+  ``0409000000``; one listed on some lines only (e.g. the staged EU-New Zealand rate of the "Other"
+  line) gets a row per line, with the line in ``hs_code`` and ``description``. The commodity
+  documents do not list the tariff quotas: those come from ``/quotas/search?goods_nomenclature_item_id
+  =0409000000`` (order number, volume, balance, period, measure ids) and ``/measures/{sid}`` (in-quota
+  duty, origins, legal act). The collector keeps the EU import measures that are duties (third-country
+  duty, tariff preferences, tariff quotas, additional duties, and any anti-dumping duty that would
+  appear), expands geographical groups into the origins Parodi follows
+  (``services.tariffs.TARIFF_ORIGINS``; ERGA OMNES stays one row).
 * ``us_hts``: the USITC Harmonized Tariff Schedule REST API. Heading 0409.00.00 gives the general
   (MFN) rate for all origins and the special-programme codes; preference rows are stored only for
   programmes whose countries are unambiguous (``S``/``S+`` USMCA: Mexico, Canada; ``CL``: Chile).
@@ -28,16 +35,18 @@ US anti-dumping duties are exporter-specific and are not in the HTS. They are no
 
 Verification status (read this before changing anything)
 --------------------------------------------------------
-Neither host could be reached while this module was written (sandbox egress was blocked). Every
-endpoint, parameter and field name comes from ``docs/research/official_tariffs_trade_policy.json``
-and ``docs/research/regulation.json``, both marked ``from_memory_unverified``. The module is therefore
-defensive:
+XI was checked against the live API on 2026-11-04 (real captures in ``tests/fixtures/tariffs/real_*``).
+HTS was written from ``docs/research/official_tariffs_trade_policy.json`` (``from_memory_unverified``).
+Both collectors are defensive:
 
-* Each run starts with a probe of the main document. XI: a JSON:API ``commodity`` for 0409000000
+* Each run starts with a probe. XI: the heading document (``goods_nomenclature_item_id`` 0409000000
+  with declarable child commodities, or ``import_measures`` itself), every line's commodity document
   with ``import_measures`` and ``included``, and the canary every CN line has (a third-country duty,
-  measure type 103, for ERGA OMNES 1011). HTS: a JSON array of rows with ``htsno``/``general``/
-  ``special``/``other`` containing 0409.00.00 with a readable general rate. If the probe fails the
-  run raises ``SchemaDrift`` and stores nothing. HTTP 401/403 is reported as "the API now needs a key".
+  measure type 103, for ERGA OMNES 1011). A line that cannot be read fails the run (a measure is
+  assigned to the whole heading only when it is seen on every line). HTS: a JSON array of rows with
+  ``htsno``/``general``/``special``/``other`` containing 0409.00.00 with a readable general rate. If
+  the probe fails the run raises ``SchemaDrift`` and stores nothing. HTTP 401/403 is reported as "the
+  API now needs a key".
 * A quota balance that cannot be read leaves the previous row untouched (no revision with an empty
   balance, no retirement); a group whose membership cannot be read is skipped with a warning.
 * Rows are retired only after a complete read of their scope.
@@ -266,19 +275,24 @@ US_PROGRAM_NAMES: dict[str, str] = {
 # ===========================================================================
 
 XI_BASE = "https://www.trade-tariff.service.gov.uk/xi/api/v2"
-XI_COMMODITY = "0409000000"
-XI_COMMODITY_URL = f"{XI_BASE}/commodities/{XI_COMMODITY}"
+XI_HEADING = "0409"
+XI_COMMODITY = "0409000000"          # heading 0409 as a 10-digit code: measures that apply to every honey line
+XI_HEADING_URL = f"{XI_BASE}/headings/{XI_HEADING}"
+XI_COMMODITY_URL = XI_BASE + "/commodities/{code}"
+XI_MEASURE_URL = XI_BASE + "/measures/{sid}"
 XI_QUOTA_SEARCH_URL = f"{XI_BASE}/quotas/search"
 XI_GEO_URL = XI_BASE + "/geographical_areas/{geo_id}"
 XI_ERGA_OMNES = "1011"
+XI_QUOTA_MAX_PAGES = 10              # the quota search pages by 5 definitions
 XI_MIRROR_NOTE = ("UK Online Trade Tariff, XI (Northern Ireland) service: the UK government's mirror of EU TARIC "
                   "(Open Government Licence v3.0). Legally binding: EU TARIC and the EU act.")
 
 # TARIC measure type id -> layer. Types not listed are kept only when their series is a duty series
-# (C applicable duty, D anti-dumping/countervailing), as 'other' with needs_review.
+# (C applicable duty, D anti-dumping/countervailing, J additional duties), as 'other' with needs_review.
 XI_MEASURE_TYPES: dict[str, MeasureType] = {
     "103": MeasureType.MFN,               # Third country duty
     "142": MeasureType.PREFERENCE,        # Tariff preference
+    "106": MeasureType.PREFERENCE,        # Customs Union Duty (the rate for customs-union partners, e.g. SM)
     "143": MeasureType.TRQ_IN,            # Preferential tariff quota
     "122": MeasureType.TRQ_IN,            # Non preferential tariff quota
     "551": MeasureType.ANTIDUMPING,       # Provisional anti-dumping duty
@@ -288,8 +302,15 @@ XI_MEASURE_TYPES: dict[str, MeasureType] = {
     "555": MeasureType.ANTIDUMPING,       # Anti-dumping/countervailing duty - pending collection
     "695": MeasureType.SURCHARGE,         # Additional duties
     "696": MeasureType.SURCHARGE,         # Additional duties (safeguard)
+    "107": MeasureType.OTHER,             # Low-value consignment customs duty (see XI_REVIEW_TYPES)
 }
-XI_DUTY_SERIES = frozenset({"C", "D"})
+# Known duty measures that are not a rate on an ordinary import: stored as published, always
+# flagged for review with this reason (and not reported as "unmapped" on every run).
+XI_REVIEW_TYPES: dict[str, str] = {
+    "107": ("Low-value consignment customs duty: a flat amount per item on low-value consignments (see the "
+            "measure footnotes), not an ad valorem or per-kg rate on ordinary imports"),
+}
+XI_DUTY_SERIES = frozenset({"C", "D", "J"})
 # TARIC area codes that are not ISO alpha-2 (Serbia is XS in TARIC and Comext; Greece EL).
 XI_GEO_OVERRIDES: dict[str, str | None] = {"XS": "SRB", "EL": "GRC", "XK": None, "XC": None, "XL": None}
 
@@ -323,6 +344,9 @@ class XiMeasure:
     footnotes: tuple[str, ...]
     origin_flag: str | None              # "eu" / "uk" (XI also carries UK measures: VAT, excise, UK duties)
     is_import: bool | None
+    conditions: tuple[dict, ...] = ()    # measure conditions as published (requirement, action, duty)
+    footnote_texts: dict[str, str] = field(default_factory=dict)
+    goods_code: str | None = None        # the goods code the measure is defined on, when the document says
 
 
 @dataclass
@@ -356,8 +380,36 @@ class XiCommodity:
     description: str | None
     measures: list[XiMeasure]
     geos: dict[str, XiGeo]
-    quotas: dict[str, XiQuota]           # order number -> definition included in the commodity document
+    quotas: dict[str, XiQuota]           # order number -> definition included in the document
     problems: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class XiLeaf:
+    code: str
+    description: str | None
+
+
+@dataclass
+class XiNomenclature:
+    """`GET /headings/0409`: the heading and the declarable CN lines under it. When the heading is
+    itself declarable (it carries the import measures), `declarable` is True and `leaves` is the
+    heading alone."""
+
+    item_id: str
+    description: str | None
+    declarable: bool
+    leaves: list[XiLeaf]
+
+
+@dataclass
+class XiQuotaListing:
+    """One quota definition from the quota search: its order number, figures, measures and origins."""
+
+    order_number: str
+    definition: XiQuota
+    measure_sids: tuple[str, ...]
+    geo_ids: tuple[str, ...]
 
 
 def _rel_data(obj: dict, name: str) -> Any:
@@ -391,6 +443,14 @@ def _rel_many(obj: dict, name: str) -> list[tuple[str, str]]:
 def _attrs(obj: dict | None) -> dict:
     a = obj.get("attributes") if isinstance(obj, dict) else None
     return a if isinstance(a, dict) else {}
+
+
+def _index(included: Any) -> dict[tuple[str, str], dict]:
+    idx: dict[tuple[str, str], dict] = {}
+    for o in included if isinstance(included, list) else []:
+        if isinstance(o, dict) and o.get("type") is not None and o.get("id") is not None:
+            idx[(str(o["type"]), str(o["id"]))] = o
+    return idx
 
 
 # A unit is recognised by its leading name or by the exact abbreviation in brackets, hectokilogram
@@ -435,6 +495,14 @@ def parse_xi_definition(attrs: dict, order_number: str) -> XiQuota:
     )
 
 
+def _goods_code(obj: dict, idx: dict[tuple[str, str], dict]) -> str | None:
+    gn = _rel_one(obj, "goods_nomenclature")
+    if gn is None:
+        return None
+    code = clean_text(_attrs(idx.get(gn)).get("goods_nomenclature_item_id"))
+    return code if code and re.fullmatch(r"\d{10}", code) else None
+
+
 def _xi_measure(m: dict, idx: dict[tuple[str, str], dict], problems: list[str]) -> XiMeasure | None:
     sid = str(m.get("id"))
     a = _attrs(m)
@@ -475,6 +543,18 @@ def _xi_measure(m: dict, idx: dict[tuple[str, str], dict], problems: list[str]) 
                                          clean_text(la.get("officialjournal_page"))) if x) or None,
         ))
     footnotes = tuple(fid for _, fid in _rel_many(m, "footnotes"))
+    footnote_texts = {fid: text[:600] for fid in footnotes
+                      if (text := clean_text(_attrs(idx.get(("footnote", fid))).get("description")))}
+    conditions: list[dict] = []
+    for typ, cid in _rel_many(m, "measure_conditions"):
+        ca = _attrs(idx.get((typ or "measure_condition", cid)))
+        if not ca:
+            continue
+        cond = {"condition": clean_text(ca.get("condition")),
+                "requirement": clean_text(ca.get("requirement")) or clean_text(ca.get("certificate_description")),
+                "document_code": clean_text(ca.get("document_code")), "action": clean_text(ca.get("action")),
+                "duty": clean_text(ca.get("duty_expression"))}
+        conditions.append({k: v for k, v in cond.items() if v})
     origin_flag = a.get("origin")
     is_import = a.get("import")
     return XiMeasure(
@@ -484,32 +564,94 @@ def _xi_measure(m: dict, idx: dict[tuple[str, str], dict], problems: list[str]) 
         duty=parse_eu_duty(raw_duty), start=parse_iso_date(a.get("effective_start_date")),
         end=parse_iso_date(a.get("effective_end_date")), order_number=order_number, legal_acts=tuple(acts),
         footnotes=footnotes, origin_flag=str(origin_flag).lower() if isinstance(origin_flag, str) else None,
-        is_import=is_import if isinstance(is_import, bool) else None,
+        is_import=is_import if isinstance(is_import, bool) else None, conditions=tuple(conditions),
+        footnote_texts=footnote_texts, goods_code=_goods_code(m, idx),
     )
 
 
-def parse_xi_commodity(content: bytes, item_id: str = XI_COMMODITY) -> XiCommodity:
-    """Parse the XI commodity document (JSON:API). Raises ``SchemaDrift`` when the envelope is not
-    the documented one or no import measure can be resolved; malformed measures become problems."""
-    obj = _load_json(content, "XI commodity")
+def _xi_geos(idx: dict[tuple[str, str], dict]) -> dict[str, XiGeo]:
+    geos: dict[str, XiGeo] = {}
+    for (typ, gid), o in idx.items():
+        if typ != "geographical_area":
+            continue
+        children = None
+        if _has_rel(o, "children_geographical_areas"):
+            children = tuple(cid for _, cid in _rel_many(o, "children_geographical_areas"))
+        geos[gid] = XiGeo(gid, clean_text(_attrs(o).get("description")), children)
+    return geos
+
+
+def _xi_inline_quotas(idx: dict[tuple[str, str], dict]) -> dict[str, XiQuota]:
+    """Quota definitions included next to their order numbers (order_number -> definition)."""
+    quotas: dict[str, XiQuota] = {}
+    for (typ, oid), o in idx.items():
+        if typ != "order_number":
+            continue
+        number = clean_text(_attrs(o).get("number")) or oid
+        d = _rel_one(o, "definition")
+        if d is not None:
+            dobj = idx.get((d[0] or "definition", d[1])) or idx.get(("definition", d[1]))
+            if dobj is not None:
+                quotas[number] = parse_xi_definition(_attrs(dobj), number)
+    return quotas
+
+
+def parse_xi_nomenclature(content: bytes, item_id: str = XI_COMMODITY) -> XiNomenclature:
+    """Parse `GET /headings/0409` (JSON:API). Natural honey is a heading with declarable child
+    commodities (since 1 May 2024: 0409000010 Manuka honey and 0409000090 Other); only those lines
+    carry import measures. A declarable heading (with `import_measures` itself) is accepted too.
+    Raises ``SchemaDrift`` when neither measures nor declarable lines can be found."""
+    obj = _load_json(content, "XI heading 0409")
     if not isinstance(obj, dict) or not isinstance(obj.get("data"), dict):
-        raise SchemaDrift(f"XI commodity: no JSON:API 'data' object (top-level keys: "
+        raise SchemaDrift(f"XI heading 0409: no JSON:API 'data' object (top-level keys: "
                           f"{sorted(obj)[:10] if isinstance(obj, dict) else type(obj).__name__})")
     data = obj["data"]
     attrs = _attrs(data)
     got = str(attrs.get("goods_nomenclature_item_id") or "")
     if got != item_id:
-        raise SchemaDrift(f"XI commodity: goods_nomenclature_item_id is {got!r}, expected {item_id!r}")
+        raise SchemaDrift(f"XI heading 0409: goods_nomenclature_item_id is {got!r}, expected {item_id!r}")
+    description = clean_text(attrs.get("description"))
+    if _has_rel(data, "import_measures"):
+        return XiNomenclature(item_id=got, description=description, declarable=True, leaves=[XiLeaf(got, description)])
+    idx = _index(obj.get("included"))
+    leaves: list[XiLeaf] = []
+    for typ, cid in _rel_many(data, "commodities"):
+        ca = _attrs(idx.get((typ or "commodity", cid)))
+        code = str(ca.get("goods_nomenclature_item_id") or "")
+        declarable = ca.get("declarable")
+        if declarable is None:
+            declarable = ca.get("leaf")
+        if declarable is not True or not re.fullmatch(rf"{XI_HEADING}\d{{6}}", code):
+            continue
+        if code not in {lf.code for lf in leaves}:
+            leaves.append(XiLeaf(code, clean_text(ca.get("description"))))
+    if not leaves:
+        raise SchemaDrift(f"XI heading 0409: no import_measures and no declarable commodity under it "
+                          f"(relationships: {sorted((data.get('relationships') or {}))[:12]})")
+    return XiNomenclature(item_id=got, description=description, declarable=False, leaves=sorted(leaves, key=lambda x: x.code))
+
+
+def parse_xi_commodity(content: bytes, item_id: str = XI_COMMODITY) -> XiCommodity:
+    """Parse an XI commodity document (JSON:API) of a declarable line. Raises ``SchemaDrift`` when
+    the envelope is not the documented one or no import measure can be resolved; malformed measures
+    become problems."""
+    what = f"XI commodity {item_id}"
+    obj = _load_json(content, what)
+    if not isinstance(obj, dict) or not isinstance(obj.get("data"), dict):
+        raise SchemaDrift(f"{what}: no JSON:API 'data' object (top-level keys: "
+                          f"{sorted(obj)[:10] if isinstance(obj, dict) else type(obj).__name__})")
+    data = obj["data"]
+    attrs = _attrs(data)
+    got = str(attrs.get("goods_nomenclature_item_id") or "")
+    if got != item_id:
+        raise SchemaDrift(f"{what}: goods_nomenclature_item_id is {got!r}, expected {item_id!r}")
     if not _has_rel(data, "import_measures"):
-        raise SchemaDrift(f"XI commodity: no relationships.import_measures (relationships: "
+        raise SchemaDrift(f"{what}: no relationships.import_measures (relationships: "
                           f"{sorted((data.get('relationships') or {}))[:12]})")
     included = obj.get("included")
     if not isinstance(included, list):
-        raise SchemaDrift("XI commodity: 'included' is missing or not a list")
-    idx: dict[tuple[str, str], dict] = {}
-    for o in included:
-        if isinstance(o, dict) and o.get("type") is not None and o.get("id") is not None:
-            idx[(str(o["type"]), str(o["id"]))] = o
+        raise SchemaDrift(f"{what}: 'included' is missing or not a list")
+    idx = _index(included)
     problems: list[str] = []
     measures: list[XiMeasure] = []
     refs = _rel_many(data, "import_measures")
@@ -522,38 +664,38 @@ def parse_xi_commodity(content: bytes, item_id: str = XI_COMMODITY) -> XiCommodi
         if parsed is not None:
             measures.append(parsed)
     if refs and not measures:
-        raise SchemaDrift(f"XI commodity: none of the {len(refs)} import measures could be resolved "
+        raise SchemaDrift(f"{what}: none of the {len(refs)} import measures could be resolved "
                           f"(included types: {sorted({t for t, _ in idx})[:15]})")
-    geos: dict[str, XiGeo] = {}
-    for (typ, gid), o in idx.items():
-        if typ != "geographical_area":
-            continue
-        children = None
-        if _has_rel(o, "children_geographical_areas"):
-            children = tuple(cid for _, cid in _rel_many(o, "children_geographical_areas"))
-        geos[gid] = XiGeo(gid, clean_text(_attrs(o).get("description")), children)
-    quotas: dict[str, XiQuota] = {}
-    for (typ, oid), o in idx.items():
-        if typ != "order_number":
-            continue
-        number = clean_text(_attrs(o).get("number")) or oid
-        d = _rel_one(o, "definition")
-        if d is not None:
-            dobj = idx.get((d[0] or "definition", d[1])) or idx.get(("definition", d[1]))
-            if dobj is not None:
-                quotas[number] = parse_xi_definition(_attrs(dobj), number)
-    return XiCommodity(item_id=got, description=clean_text(attrs.get("description")), measures=measures, geos=geos,
-                       quotas=quotas, problems=problems)
+    return XiCommodity(item_id=got, description=clean_text(attrs.get("description")), measures=measures,
+                       geos=_xi_geos(idx), quotas=_xi_inline_quotas(idx), problems=problems)
 
 
-def parse_xi_quota_search(content: bytes, order_number: str, on: date) -> tuple[XiQuota | None, list[str]]:
-    """The definition of `order_number` that covers date `on` (the latest-starting one if several).
-    Returns (None, problems) when the source lists no definition for that date (e.g. early January)."""
-    obj = _load_json(content, f"XI quota search {order_number}")
-    if not isinstance(obj, dict) or not isinstance(obj.get("data"), list):
-        raise SchemaDrift(f"XI quota search {order_number}: no 'data' list")
+def parse_xi_measure_document(content: bytes, sid: str) -> XiCommodity:
+    """`GET /measures/{sid}`: one measure with its type, duty, legal acts, area (group members
+    included), order number and current definition. Returned as a one-measure XiCommodity."""
+    what = f"XI measure {sid}"
+    obj = _load_json(content, what)
+    data = obj.get("data") if isinstance(obj, dict) else None
+    if not isinstance(data, dict) or str(data.get("id")) != sid or data.get("type") != "measure":
+        raise SchemaDrift(f"{what}: no JSON:API measure object with id {sid}")
+    idx = _index(obj.get("included"))
     problems: list[str] = []
-    found: list[XiQuota] = []
+    m = _xi_measure(data, idx, problems)
+    if m is None:
+        raise SchemaDrift(f"{what}: {'; '.join(problems) or 'unreadable'}")
+    return XiCommodity(item_id=m.goods_code or "", description=None, measures=[m], geos=_xi_geos(idx),
+                       quotas=_xi_inline_quotas(idx), problems=problems)
+
+
+def parse_xi_quota_listing(content: bytes, what: str) -> tuple[list[XiQuotaListing], dict, list[str]]:
+    """`GET /quotas/search?goods_nomenclature_item_id=...`: the quota definitions of a goods code,
+    with their measures and origins. Returns (listings, pagination, problems)."""
+    obj = _load_json(content, what)
+    if not isinstance(obj, dict) or not isinstance(obj.get("data"), list):
+        raise SchemaDrift(f"{what}: no 'data' list")
+    idx = _index(obj.get("included"))
+    problems: list[str] = []
+    out: list[XiQuotaListing] = []
     with_figures = 0
     for d in obj["data"]:
         if not isinstance(d, dict):
@@ -563,21 +705,41 @@ def parse_xi_quota_search(content: bytes, order_number: str, on: date) -> tuple[
             with_figures += 1
         rel = _rel_one(d, "order_number") or _rel_one(d, "quota_order_number")
         number = clean_text(a.get("quota_order_number_id")) or (rel[1] if rel else None)
-        if number is not None and number.replace(".", "") != order_number.replace(".", ""):
-            problems.append(f"quota search {order_number}: returned order number {number}; ignored")
+        if not number:
+            problems.append(f"{what}: a definition without order number; skipped")
             continue
-        q = parse_xi_definition(a, order_number)
+        q = parse_xi_definition(a, number)
         problems += q.problems
-        found.append(q)
+        geos = tuple(gid for _, gid in _rel_many(idx.get(("order_number", number)) or {}, "geographical_areas"))
+        out.append(XiQuotaListing(number, q, tuple(mid for _, mid in _rel_many(d, "measures")), geos))
     if obj["data"] and not with_figures:
-        raise SchemaDrift(f"XI quota search {order_number}: definitions carry neither 'initial_volume' nor 'balance'")
-    covering = [q for q in found if q.covers(on)]
-    if not covering:
-        if found:
-            problems.append(f"quota {order_number}: no definition covers {on.isoformat()}")
-        return None, problems
-    covering.sort(key=lambda q: (q.valid_from or date.min))
-    return covering[-1], problems
+        raise SchemaDrift(f"{what}: definitions carry neither 'initial_volume' nor 'balance'")
+    meta = obj.get("meta") if isinstance(obj.get("meta"), dict) else {}
+    pagination = meta.get("pagination") if isinstance(meta.get("pagination"), dict) else {}
+    return out, pagination, problems
+
+
+def covering_definition(defs: Iterable[XiQuota], on: date) -> XiQuota | None:
+    """The definition that covers `on` (the latest-starting one if several)."""
+    covering = sorted((q for q in defs if q.covers(on)), key=lambda q: q.valid_from or date.min)
+    return covering[-1] if covering else None
+
+
+def parse_xi_quota_search(content: bytes, order_number: str, on: date) -> tuple[XiQuota | None, list[str]]:
+    """`GET /quotas/search?order_number=...`: the definition of `order_number` that covers date `on`
+    (the latest-starting one if several). Returns (None, problems) when the source lists no
+    definition for that date (e.g. early January)."""
+    listings, _pagination, problems = parse_xi_quota_listing(content, f"XI quota search {order_number}")
+    found: list[XiQuota] = []
+    for lst in listings:
+        if lst.order_number.replace(".", "") != order_number.replace(".", ""):
+            problems.append(f"quota search {order_number}: returned order number {lst.order_number}; ignored")
+            continue
+        found.append(lst.definition)
+    q = covering_definition(found, on)
+    if q is None and found:
+        problems.append(f"quota {order_number}: no definition covers {on.isoformat()}")
+    return q, problems
 
 
 def parse_xi_geo_children(content: bytes, geo_id: str) -> tuple[str, ...]:
@@ -629,6 +791,16 @@ class XiSelected:
     reason: str | None
 
 
+def _review_reason(m: XiMeasure) -> str | None:
+    if m.type_id in XI_REVIEW_TYPES:
+        return XI_REVIEW_TYPES[m.type_id]
+    if not m.duty.complex:
+        return None
+    if m.duty.text is None and any(c.get("duty") for c in m.conditions):
+        return "the duty depends on the measure conditions (see 'conditions'), not a single rate"
+    return "duty expression not reducible to a rate"
+
+
 def select_xi_tariff_measures(com: XiCommodity) -> tuple[list[XiSelected], list[str]]:
     """EU import duty measures (see XI_MEASURE_TYPES). UK measures (origin 'uk': VAT, excise, UK
     duties for goods not at risk) are dropped. Raises SchemaDrift when EU and UK measures cannot be
@@ -654,7 +826,8 @@ def select_xi_tariff_measures(com: XiCommodity) -> tuple[list[XiSelected], list[
             continue
         layer = XI_MEASURE_TYPES.get(m.type_id)
         if layer is not None:
-            out.append(XiSelected(m, layer, m.duty.complex, "duty expression not reducible to a rate" if m.duty.complex else None))
+            reason = _review_reason(m)
+            out.append(XiSelected(m, layer, reason is not None, reason))
         elif (m.type_series or "").upper() in XI_DUTY_SERIES:
             out.append(XiSelected(m, MeasureType.OTHER, True,
                                   f"TARIC measure type {m.type_id} ({m.type_description or 'no description'}) not mapped"))
@@ -662,15 +835,52 @@ def select_xi_tariff_measures(com: XiCommodity) -> tuple[list[XiSelected], list[
     return out, problems
 
 
-def _xi_series_key(origin: str, m: XiMeasure) -> str:
-    return f"EU|{XI_COMMODITY}|{origin}|{m.type_id}|{m.order_number or '-'}|{m.geo_id}"
+def _xi_series_key(code: str, origin: str, m: XiMeasure) -> str:
+    return f"EU|{code}|{origin}|{m.type_id}|{m.order_number or '-'}|{m.geo_id}"
+
+
+def _has_mfn_canary(com: XiCommodity) -> bool:
+    return any(m.type_id == "103" and m.geo_id == XI_ERGA_OMNES and m.origin_flag in (None, "eu")
+               for m in com.measures)
+
+
+@dataclass
+class _XiRead:
+    """Everything read in one run: measures merged across the declarable lines (by measure sid)."""
+
+    leaves: list[XiLeaf]
+    measures: dict[str, XiMeasure] = field(default_factory=dict)
+    codes: dict[str, set[str]] = field(default_factory=dict)          # sid -> CN lines it was listed on
+    docs: dict[str, FetchResult] = field(default_factory=dict)        # sid -> document it was read from
+    geos: dict[str, XiGeo] = field(default_factory=dict)
+    inline_quotas: dict[str, XiQuota] = field(default_factory=dict)
+    problems: list[str] = field(default_factory=list)
+
+    @property
+    def all_codes(self) -> set[str]:
+        return {lf.code for lf in self.leaves}
+
+    def add(self, com: XiCommodity, codes: set[str], doc: FetchResult) -> None:
+        for m in com.measures:
+            if m.sid not in self.measures:
+                self.measures[m.sid] = m
+                self.docs[m.sid] = doc
+            self.codes.setdefault(m.sid, set()).update(codes)
+        for gid, g in com.geos.items():
+            if gid not in self.geos or (self.geos[gid].children is None and g.children is not None):
+                self.geos[gid] = g
+        for number, q in com.quotas.items():
+            self.inline_quotas.setdefault(number, q)
+        for p in com.problems:
+            if p not in self.problems:
+                self.problems.append(p)
 
 
 class XiEuTariffCollector(Collector):
     key = "eu_tariff_xi"
     name = "Dazi UE sul miele: TARIC (servizio XI del governo britannico)"
     publisher = "HM Revenue & Customs, UK Online Trade Tariff (XI), dati TARIC della Commissione europea"
-    homepage = "https://www.trade-tariff.service.gov.uk/xi/commodities/0409000000"
+    homepage = "https://www.trade-tariff.service.gov.uk/xi/headings/0409"
     kind = SourceKind.API
     reliability = Reliability.OFFICIAL
     category = "regulation"
@@ -688,27 +898,28 @@ class XiEuTariffCollector(Collector):
 
     def collect(self, ctx: CollectContext) -> None:
         t = today()
-        doc = self._fetch(ctx, XI_COMMODITY_URL, "XI commodity 0409000000")
-        com = parse_xi_commodity(doc.content)                    # probe: SchemaDrift stores nothing
-        for p in com.problems:
+        read = self._read_lines(ctx)                             # probe: SchemaDrift stores nothing
+        complete = True                     # everything resolved: safe to retire what disappeared
+        quota_defs, listing_ok = self._quota_listing(ctx, read)
+        complete &= listing_ok
+        for p in read.problems:
             ctx.warn(f"XI: {p}")
+        com = XiCommodity(item_id=XI_COMMODITY, description=None, measures=list(read.measures.values()),
+                          geos=read.geos, quotas=read.inline_quotas)
         selected, problems = select_xi_tariff_measures(com)
         for p in problems:
             ctx.warn(f"XI: {p}")
-        if not any(s.measure.type_id == "103" and s.measure.geo_id == XI_ERGA_OMNES for s in selected):
-            raise SchemaDrift("XI commodity: no EU third-country duty (type 103) for ERGA OMNES (1011); every CN "
-                              "line has one, so the measure model has changed. Nothing stored")
 
-        complete = True                     # every measure resolved: safe to retire what disappeared
         groups: dict[str, tuple[str, ...] | None] = {}
         quotas: dict[str, XiQuota | None] = {}
         written: set[str] = set()
         keys_this_run: dict[str, int] = {}
+        leaf_desc = {lf.code: lf.description for lf in read.leaves}
         # Deterministic order, so a duplicate key gets the same "|sid" suffix on every run.
         for s in sorted(selected, key=lambda x: (x.measure.type_id, x.measure.geo_id, x.measure.order_number or "",
                                                   x.measure.sid)):
             m = s.measure
-            children = com.geos.get(m.geo_id).children if m.geo_id in com.geos else None
+            children = read.geos[m.geo_id].children if m.geo_id in read.geos else None
             if xi_is_group(m.geo_id) and m.geo_id != XI_ERGA_OMNES and children is None:
                 if m.geo_id not in groups:
                     groups[m.geo_id] = self._group_members(ctx, m.geo_id)
@@ -724,23 +935,29 @@ class XiEuTariffCollector(Collector):
             quota: XiQuota | None = None
             if m.order_number:
                 if m.order_number not in quotas:
-                    quotas[m.order_number] = self._quota(ctx, m.order_number, t, com.quotas.get(m.order_number))
+                    quotas[m.order_number] = self._quota(ctx, m.order_number, t, quota_defs,
+                                                         read.inline_quotas.get(m.order_number))
                 quota = quotas[m.order_number]
                 if quota is None:
                     complete = False
                     ctx.warn(f"XI: balance of quota {m.order_number} could not be read; its rows keep their "
                              f"previous values and are not re-dated this run")
                     continue
-            for origin in origins:
-                key = _xi_series_key(origin, m)
-                if key in keys_this_run:            # same type/area/order twice (e.g. overlapping acts)
-                    key = f"{key}|{m.sid}"
-                keys_this_run[key] = 1
-                self._record(ctx, written, key, origin, s, quota, doc, t)
+            codes = read.codes.get(m.sid, set())
+            # A measure listed on every declarable line applies to the whole heading: one row under
+            # 0409000000. One listed on some lines only (e.g. a staged FTA rate) gets a row per line.
+            targets = [XI_COMMODITY] if codes == read.all_codes else sorted(codes)
+            for code in targets:
+                for origin in origins:
+                    key = _xi_series_key(code, origin, m)
+                    if key in keys_this_run:            # same type/area/order twice (e.g. overlapping acts)
+                        key = f"{key}|{m.sid}"
+                    keys_this_run[key] = 1
+                    self._record(ctx, written, key, code, leaf_desc, origin, s, quota, read.docs[m.sid], t)
         ctx.checkpoint()
 
         if complete:
-            for key in tariff_svc.retire_missing(ctx.session, source_id=ctx.source.id, prefix=f"EU|{XI_COMMODITY}|",
+            for key in tariff_svc.retire_missing(ctx.session, source_id=ctx.source.id, prefix=f"EU|{XI_HEADING}",
                                                  keep=written):
                 ctx.counters.revised += 1
                 ctx.warn(f"XI: measure {key} is no longer published; kept in the history as withdrawn")
@@ -759,6 +976,88 @@ class XiEuTariffCollector(Collector):
             raise CollectorError(f"{what}: HTTP 404 for {doc.url} (CN code or API path changed?)")
         return doc
 
+    def _read_lines(self, ctx: CollectContext) -> _XiRead:
+        """The heading, then every declarable line under it. All lines must be read (a measure is
+        assigned to the heading only when it is listed on every line): any failure fails the run."""
+        head = self._fetch(ctx, XI_HEADING_URL, "XI heading 0409")
+        nom = parse_xi_nomenclature(head.content)
+        read = _XiRead(leaves=nom.leaves)
+        if nom.declarable:
+            docs = [(nom.leaves[0], head)]
+        else:
+            # "Other" (0409000090, every honey but Manuka) is read first, so the measures common to
+            # all lines cite the line bulk honey is declared under.
+            docs = [(lf, self._fetch(ctx, XI_COMMODITY_URL.format(code=lf.code), f"XI commodity {lf.code}"))
+                    for lf in sorted(nom.leaves, key=lambda x: x.code, reverse=True)]
+        for leaf, doc in docs:
+            com = parse_xi_commodity(doc.content, leaf.code)
+            if not _has_mfn_canary(com):
+                raise SchemaDrift(f"XI commodity {leaf.code}: no EU third-country duty (type 103) for ERGA OMNES "
+                                  f"(1011); every CN line has one, so the measure model has changed. Nothing stored")
+            read.add(com, {leaf.code}, doc)
+        return read
+
+    def _quota_listing(self, ctx: CollectContext, read: _XiRead) -> tuple[dict[str, list[XiQuota]], bool]:
+        """Tariff quotas on honey. The commodity documents do not list the quota measures, so the
+        quota search by goods code gives the order numbers, definitions (volume, balance, period)
+        and measure ids; each quota measure not already read is fetched from /measures/{sid}.
+        Returns (definitions by order number, complete)."""
+        defs: dict[str, list[XiQuota]] = {}
+        listings: list[XiQuotaListing] = []
+        what = f"XI quota search {XI_COMMODITY}"
+        try:
+            page = 1
+            while page <= XI_QUOTA_MAX_PAGES:
+                params = [("goods_nomenclature_item_id", XI_COMMODITY)] + ([("page", str(page))] if page > 1 else [])
+                doc = self._fetch(ctx, XI_QUOTA_SEARCH_URL, what if page == 1 else f"{what} page {page}", params=params)
+                found, pagination, problems = parse_xi_quota_listing(doc.content, what)
+                for p in problems:
+                    ctx.warn(f"XI: {p}")
+                listings += found
+                total, per_page = _num(pagination.get("total_count")), _num(pagination.get("per_page"))
+                if not found or total is None or not per_page or page * per_page >= total:
+                    break
+                page += 1
+            else:
+                ctx.warn(f"XI: quota search for {XI_COMMODITY} has more than {XI_QUOTA_MAX_PAGES} pages; the rest "
+                         f"is not read this run")
+                return defs, False
+        except Offline:
+            raise
+        except CollectorError as exc:
+            ctx.warn(f"XI: quota search for {XI_COMMODITY} failed ({exc}); quota rows keep their previous values")
+            return defs, False
+        complete = True
+        for lst in listings:
+            defs.setdefault(lst.order_number, []).append(lst.definition)
+            if lst.geo_ids and all(not xi_is_group(g) and xi_geo_to_iso3(g) not in TARIFF_ORIGINS for g in lst.geo_ids):
+                continue                        # e.g. Algeria, Tunisia: not an origin Parodi follows
+            for sid in lst.measure_sids:
+                if sid in read.measures:
+                    continue
+                try:
+                    doc = self._fetch(ctx, XI_MEASURE_URL.format(sid=sid), f"XI measure {sid} (quota {lst.order_number})")
+                    one = parse_xi_measure_document(doc.content, sid)
+                except Offline:
+                    raise
+                except CollectorError as exc:
+                    ctx.warn(f"XI: quota {lst.order_number}: measure {sid} could not be read ({exc}); not stored "
+                             f"this run")
+                    complete = False
+                    continue
+                m = one.measures[0]
+                code = m.goods_code or XI_COMMODITY
+                if code == XI_COMMODITY:            # defined on the heading: applies to every line
+                    codes = read.all_codes
+                elif code in read.all_codes:
+                    codes = {code}
+                else:
+                    ctx.warn(f"XI: quota {lst.order_number}: measure {sid} is on goods code {code}, not a honey line; "
+                             f"ignored")
+                    continue
+                read.add(one, codes, doc)
+        return defs, complete
+
     def _group_members(self, ctx: CollectContext, geo_id: str) -> tuple[str, ...] | None:
         try:
             doc = self._fetch(ctx, XI_GEO_URL.format(geo_id=geo_id), f"XI geographical area {geo_id}")
@@ -769,10 +1068,23 @@ class XiEuTariffCollector(Collector):
             ctx.warn(f"XI: {exc}")
             return None
 
-    def _quota(self, ctx: CollectContext, order_number: str, on: date, fallback: XiQuota | None) -> XiQuota | None:
-        """Quota definition covering `on`: the quota search first, else the definition included in
-        the commodity document. None when neither could be read."""
-        params = [("order_number", order_number.replace(".", "")), ("years[]", str(on.year))]
+    def _quota(self, ctx: CollectContext, order_number: str, on: date, listed: dict[str, list[XiQuota]],
+               fallback: XiQuota | None) -> XiQuota | None:
+        """Quota definition covering `on`: from the quota search by goods code when it listed this
+        order number, else from a search by order number, else the definition included in the
+        document. None when nothing could be read."""
+        empty = XiQuota(order_number=order_number, volume_kg=None, balance_kg=None, unit_raw=None, status=None,
+                        status_raw=None, critical=None, valid_from=None, valid_to=None, last_allocation=None,
+                        problems=["no definition for the current period"])
+        if order_number in listed:
+            q = covering_definition(listed[order_number], on)
+            if q is not None:
+                return q
+            if fallback is not None and fallback.covers(on):
+                return fallback
+            ctx.warn(f"XI: quota {order_number}: no definition covers {on.isoformat()}")
+            return empty
+        params = [("order_number", order_number.replace(".", ""))]
         try:
             doc = self._fetch(ctx, XI_QUOTA_SEARCH_URL, f"XI quota {order_number}", params=params)
             quota, problems = parse_xi_quota_search(doc.content, order_number, on)
@@ -783,9 +1095,7 @@ class XiEuTariffCollector(Collector):
             if fallback is not None and fallback.covers(on):
                 return fallback
             # The source answered and lists no definition for today: an empty quota row is the truth.
-            return XiQuota(order_number=order_number, volume_kg=None, balance_kg=None, unit_raw=None, status=None,
-                           status_raw=None, critical=None, valid_from=None, valid_to=None, last_allocation=None,
-                           problems=["no definition for the current period"])
+            return empty
         except Offline:
             raise
         except CollectorError as exc:
@@ -795,21 +1105,30 @@ class XiEuTariffCollector(Collector):
             return None
 
     # ----------------------------------------------------------------- write
-    def _record(self, ctx: CollectContext, written: set[str], key: str, origin: str, s: XiSelected,
-                quota: XiQuota | None, doc: FetchResult, t: date) -> None:
+    def _record(self, ctx: CollectContext, written: set[str], key: str, code: str, leaf_desc: dict[str, str | None],
+                origin: str, s: XiSelected, quota: XiQuota | None, doc: FetchResult, t: date) -> None:
         m = s.measure
         first = m.legal_acts[0] if m.legal_acts else None
         excluded_origins = sorted({o for o in (xi_geo_to_iso3(e) for e in m.excluded) if o})
+        description = m.type_description
+        if code != XI_COMMODITY:
+            description = f"{m.type_description or 'Measure'} (CN {code}: {leaf_desc.get(code) or '?'})"
         extra: dict[str, Any] = {
             "mirror": XI_MIRROR_NOTE,
             "measure_sid": m.sid,
             "measure_type_id": m.type_id,
             "measure_type_series": m.type_series,
+            "cn_code": code,
+            "cn_scope": "heading" if code == XI_COMMODITY else "line",
+            "cn_lines": [{"code": c, "description": leaf_desc.get(c)} for c in sorted(leaf_desc)] if code == XI_COMMODITY
+            else [{"code": code, "description": leaf_desc.get(code)}],
             "geo_area": {"id": m.geo_id, "description": m.geo_description, "group": xi_is_group(m.geo_id)},
             "excluded_geo": list(m.excluded) or None,
             "excluded_origins": excluded_origins or None,
             "legal_acts": [la.as_dict() for la in m.legal_acts] or None,
             "footnotes": list(m.footnotes) or None,
+            "footnote_texts": m.footnote_texts or None,
+            "conditions": list(m.conditions) or None,
             "needs_review": s.needs_review,
             "review_reason": s.reason,
         }
@@ -826,11 +1145,11 @@ class XiEuTariffCollector(Collector):
                 "shared_by_group": xi_is_group(m.geo_id),
             }
         fields = dict(
-            jurisdiction="EU", origin_iso3=origin, hs_code=XI_COMMODITY, measure_type=s.layer.value,
-            measure_code=m.type_id, description=m.type_description, **m.duty.fields(), **quota_fields,
+            jurisdiction="EU", origin_iso3=origin, hs_code=code, measure_type=s.layer.value,
+            measure_code=m.type_id, description=description, **m.duty.fields(), **quota_fields,
             valid_from=m.start, valid_to=m.end,
             legal_reference="; ".join(la.code for la in m.legal_acts if la.code)[:300] or None,
-            legal_url=first.url if first else None, consult_url=tariff_svc.taric_url(origin, t),
+            legal_url=first.url if first else None, consult_url=tariff_svc.taric_url(origin, t, code),
             source_url=doc.url, raw_document_id=doc.raw_document_id or None,
             published_at=first.published if first else None,
             extra={k: v for k, v in extra.items() if v is not None},

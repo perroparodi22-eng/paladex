@@ -1,37 +1,56 @@
 # Italian honey sources — test fixtures
 
-**These fixtures are RECONSTRUCTED from documentation. They were NOT captured from the live
-sources.** None of the Italian hosts (cuneoprezzi.it, ismeamercati.it, informamiele.it,
-as.camcom.it) could be reached from the build environment, and the source researcher was blocked
-too. Layouts and wording follow `docs/research/italy.json`, which was itself compiled from
-search-engine snippets. Every collector archives the real documents it downloads
-(`data/raw/<source>/`), so replace these files with real captures as soon as the sources can be
-reached, then adjust the parsers if needed. The parsers raise `SchemaDrift` when the structure
-differs from what they expect.
+## Real captures (`real_*`)
 
-The numbers are **test data**. Where a value is quoted in the research it is noted below; every
-other value is illustrative and must never be read as a market price.
+**The `real_*` files are REAL captures of the official sources, downloaded on 4 November 2026**
+(during the first live run of the collectors, or right after it with `curl`, ≥ 1.5 s between
+requests). The numbers in them are the published values and the tests assert them.
 
-| File | Imitates | Documented basis (URL) | Values |
+Some captures are trimmed so the fixtures stay small. Trimming only removes content; it
+never edits what is left:
+
+* **HTML**: `<script>`, `<style>`, `<noscript>`, `<svg>`, `<iframe>`, `<link>`, comments and
+  `<meta>` tags other than `og:`/`article:` are dropped. Where marked "chrome removed", the
+  site `<header>`, `<footer>` and `<nav>` are dropped too. In the Cuneo chapter page the
+  "Data della rilevazione" menu keeps its newest 26 and oldest 2 of 343 entries.
+* **RSS**: whole `<item>` blocks are removed; the kept items are byte-identical.
+* **PDF**: selected pages are kept with `pypdf`, and images and embedded font programs are
+  dropped. Text, glyph widths and positions are unchanged; the tests check that the parsers
+  read the same rows as from the full original.
+
+| File | Real URL | Trimming | Real values asserted |
 |---|---|---|---|
-| `cuneo_index_alimentari.html` | ALIMENTARI category index | https://www.cuneoprezzi.it/ingrosso/alimentari/ (link pattern `?listCategory={id}`; id 15948 = "Miele - rilevazione mensile del 30 settembre 2023") | ids other than 15948 are illustrative |
-| `cuneo_list_15948.html` / `.csv` | honey list, `download/html` and `download/csv` | https://www.cuneoprezzi.it/dataentry/site/ingrosso/lists/download/html?listCategory=15948 (title, basis note "Prodotto sfuso in fusti da 3 q.li - franco partenza dal magazzino IVA compresa", columns Prodotto / U.M. / Prezzo min / Prezzo max / IVA %) | acacia 7,50–8,50 and millefiori 5,50–6,50 are the documented Sept 2023 values; the other rows are illustrative. The CSV layout (`;`-separated) is assumed. |
-| `cuneo_list_15702.html` | an older honey list | same | illustrative |
-| `cuneo_medie_2025.pdf` | yearly averages "Miele - medie YYYY" (ruled table) | https://www.cuneoprezzi.it/dataentry/site/ingrosso/medie/download/pdf?category=11&mYear=2025 (12 monthly columns plus the annual mean, blank cells for months without a quote) | annual means approximate the 2025 averages quoted in the research; monthly values are illustrative |
-| `cuneo_medie_2024_unruled.pdf` | same, without ruling lines (tests the word-position fallback) | same | illustrative |
-| `ismea_11024_settimanali.html` | ISMEA weekly origin prices by variety | https://www.ismeamercati.it/flex/cm/pages/ServeBLOB.php/L/IT/IDPagina/11024 | week 2026-6-4 values and the two "Variaz." headers are the documented ones; the first column names and page chrome are reconstructed; the Girasole "nd" row is illustrative |
-| `ismea_11025_mensili.html` | ISMEA monthly origin price by product | https://www.ismeamercati.it/flex/cm/pages/ServeBLOB.php/L/IT/IDPagina/11025 and https://www.ismeamercati.it/api-miele | 2026-6 = 5,48 €/kg is documented; the headers are assumed by analogy with the weekly page |
-| `onm_feed.xml` | WordPress RSS 2.0 (`/feed/`; this path is **unverified**) | https://www.informamiele.it/feed/ | titles and dates follow the documented posting pattern |
-| `onm_wp_posts.json` | WordPress REST API (**unverified** path) | https://www.informamiele.it/wp-json/wp/v2/posts?search=rilevazione | reconstructed |
-| `onm_listing_comunicati.html` | WordPress category archive | https://www.informamiele.it/category/comunicati/ | reconstructed markup; slugs follow the documented templates |
-| `onm_post_luglio_2026.html` | monthly bulletin post | https://www.informamiele.it/luglio-2026-rilevazione-mensile/ | ranges millefiori 5,00–6,50, monoflora 6,00–7,50 and acacia 8,00–10,00 €/kg are documented; the sentences around them and the Hungarian-acacia, castagno/tiglio and "latta" sentences are illustrative test sentences |
-| `onm_post_agosto_2026.html` | monthly bulletin post (bold-paragraph headings) | https://www.informamiele.it/agosto-2026-rilevazione-mensile/ | the market paragraph is the documented snippet |
-| `onm_report_archive.html` | annual reports archive page | https://www.informamiele.it/report-annuali-produzione-e-mercato/ | the PDF URLs are the real ones listed in the research |
-| `onm_report_annuale_2024.pdf` | Annual Report tables | https://www.informamiele.it/wp-content/uploads/2025/03/REPORT-Annuale-2024.pdf (wholesale min/max/average by variety in 300 kg drums; import prices by country of origin) | **all numbers are illustrative** |
-| `siena_prezzi.html` | Arezzo-Siena price page | https://www.as.camcom.it/pubblicazioni-e-listini-prezzi/prezzi | the PDF file names are real examples from the research |
-| `siena_listino_n14_2026.pdf` | weekly list n. 14 of 08.04.2026 | https://www.as.camcom.it/sites/default/files/contenuto_redazione/pagina_base/allegati/listino_prezzi_n_14_del_08_04_2026.pdf | "Miele millefiori kg 6,00 7,00" and "Miele selezionato kg 6,50 10,00" are documented; the other lines are illustrative |
-| `siena_listino_drift.pdf` | the same list with renamed price columns | n/a | used to check that schema drift is detected |
+| `real_cuneo_category_miele.html` | https://www.cuneoprezzi.it/ingrosso/alimentari/?category=11 | HTML + list cut | chapter "Miele"; newest list `listCategory=20353` "rilevazione mensile del 30 settembre 2026" |
+| `real_cuneo_list_20353.html` | https://www.cuneoprezzi.it/dataentry/site/ingrosso/lists/download/html?listCategory=20353 | none | 30 Sept 2026: Acacia (fusto da 3 q.li) 7,00–8,00, Millefiori 4,50–5,50, Castagno 4,50–5,50, Tarassaco/Tiglio/Alta Montagna/Rododendro (secchio da 25 kg), €/kg, IVA 10 %, "IVA compresa"; Melata di Bosco, Ciliegio, Melata d'abete "n.q."; Polline (not honey) 22,00–25,00 |
+| `real_cuneo_list_20353.csv` | https://www.cuneoprezzi.it/dataentry/site/ingrosso/lists/download/csv?category=20353 | none | same list, `;`-separated |
+| `real_cuneo_list_18861.html` | https://www.cuneoprezzi.it/dataentry/site/ingrosso/lists/download/html?listCategory=18861 | none | 30 Sept 2025: "Acacia (quantitativi >10 q.li)" 7,50–8,50 |
+| `real_cuneo_medie_2025.pdf` | https://www.cuneoprezzi.it/dataentry/site/ingrosso/medie/download/pdf?category=11&mYear=2025 | font programs dropped only | "Miele - medie 2025": Acacia Magg.–Dic. 8,25/8,00, Anno 8,09; Millefiori Dic. 5,55, Anno 5,83 |
+| `real_cuneo_medie_2025_rewritten_norules.pdf` | same document | **derived**: the same page re-written by `pypdf` (images and fonts dropped, content streams recompressed); pdfplumber no longer finds its ruled table, so it exercises the word-position fallback on the real layout | same values as above |
+| `real_ismea_11024_settimanali_varieta.html` | https://www.ismeamercati.it/flex/cm/pages/ServeBLOB.php/L/IT/IDPagina/11024 | HTML, chrome removed | week 2026-6-4: Acacia 8,00, Agrumi 5,70, Castagno 4,90, Eucalipto 5,25, Millefiori 4,20, Sulla 4,50, Tiglio 4,90 €/Kg; no VAT statement |
+| `real_ismea_11026_mensili_varieta.html` | https://www.ismeamercati.it/flex/cm/pages/ServeBLOB.php/L/IT/IDPagina/11026 | HTML, chrome removed | month 2026-6, same values; heading "… alla produzione - f.co azienda" |
+| `real_siena_prezzi.html` | https://www.as.camcom.it/pubblicazioni-e-listini-prezzi/prezzi | HTML, chrome removed | the 2019 page: its own PDF links stop at n. 06 del 12.02.2020; yearly archive links 2018–2026 |
+| `real_siena_anno_2026.html` | https://www.as.camcom.it/listini-settimanali-provincia-siena-anno-2026 | HTML, chrome removed | 44 lists, newest "Listino prezzi n. 44 del 04.11.2026" |
+| `real_siena_listino_n44_2026_p1_p5.pdf` | https://www.as.camcom.it/sites/default/files/contenuto_redazione/pagina_base/allegati/listino_prezzi_n_44_del_04_11_2026.pdf | pages 1 and 5 of 8 | "VARIE - IVA esclusa": Miele (millefiori) al Kg. 6,00–7,00; Miele (selezionati) al Kg. 6,50–10,00 |
+| `real_onm_feed.xml` | https://www.informamiele.it/feed/ | 3 of 10 items kept | Settembre 2026 (20 Oct 2026) and Agosto 2026 (17 Sept 2026) bulletins; "Report di Prime Valutazioni della stagione 2026" |
+| `real_onm_post_settembre_2026.html` | https://www.informamiele.it/settembre-2026-rilevazione-mensile/ | HTML, chrome removed | market text without price ranges |
+| `real_onm_post_agosto_2026.html` | https://www.informamiele.it/agosto-2026-rilevazione-mensile/ | HTML, chrome removed | "offerte d'acquisto (attorno ai 4,00 €/kg per il millefiori)": a single value, never stored |
+| `real_onm_report_archive.html` | https://www.informamiele.it/report-annuali-produzione-e-mercato/ | HTML, chrome removed | newest annual report: `…/2026/10/Report-annuale-Monitoraggio-produzione-e-mercato-del-miele-stagione-2025.pdf` |
+| `real_onm_report_annuale_2025_p42_p46.pdf` | https://www.informamiele.it/wp-content/uploads/2026/10/Report-annuale-Monitoraggio-produzione-e-mercato-del-miele-stagione-2025.pdf | pages 42 and 46 of 52 | p. 42 wholesale table (fusti da 300 kg, Euro/kg Iva inclusa, franco produttore): Acacia 7,5/8,5/8,0 (+2,6 %), Agrumi 5,6/6,0/5,7, Castagno 4,8/5,0/4,9, Millefiori 4,0/4,5/4,2 (−6,7 %); p. 46 swarm/queen price table (not honey, must be ignored) |
 
-The PDFs are generated by `make_pdf_fixtures.py`, which needs `reportlab`. reportlab is not a
-Paladex dependency, so run the script with any Python that has it:
-`python3 make_pdf_fixtures.py`.
+## Reconstructed fixtures (still used)
+
+These were written before the sources could be reached, from `docs/research/italy.json`. They
+are **not** captures and their numbers are **test data**, never market prices. They are kept
+only for rules the real captures above do not exercise.
+
+| File | Kept for | Notes |
+|---|---|---|
+| `onm_feed.xml`, `onm_wp_posts.json`, `onm_listing_comunicati.html` | discovery fallbacks (RSS feed → WP REST API → HTML listing) | the real feed works; the REST and listing paths are unverified |
+| `onm_post_luglio_2026.html`, `onm_post_agosto_2026.html` | price extraction from bulletin prose | the ranges millefiori 5,00–6,50, monoflora 6,00–7,50 and acacia 8,00–10,00 €/kg are documented; the other sentences are illustrative test sentences. Since September 2023 the real posts carry only a summary (see `real_onm_post_*`) |
+| `siena_listino_drift.pdf` | schema-drift refusal | a list with renamed price columns, generated by `make_pdf_fixtures.py` (needs `reportlab`, not a Paladex dependency) |
+
+Removed on 4 Nov 2026 because real captures replace them: `cuneo_index_alimentari.html`,
+`cuneo_list_15948.*`, `cuneo_list_15702.html`, `cuneo_medie_2025.pdf`,
+`cuneo_medie_2024_unruled.pdf`, `ismea_11024_settimanali.html`, `ismea_11025_mensili.html`,
+`siena_prezzi.html`, `siena_listino_n14_2026.pdf`, `onm_report_archive.html`,
+`onm_report_annuale_2024.pdf`.

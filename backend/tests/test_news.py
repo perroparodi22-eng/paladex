@@ -297,7 +297,7 @@ def test_every_feed_is_its_own_source(db):
     assert keys <= set(rows)
     gn = rows["news_gn_it_prezzo_miele"]
     assert gn.reliability == "aggregator" and gn.kind == "rss" and gn.language == "it"
-    assert rows["news_europarl_agri"].reliability == "official"
+    assert rows["news_ec_agri"].reliability == "official"
     assert all(len(k) <= 60 for k in keys)
 
 
@@ -335,7 +335,7 @@ def test_google_news_collector_end_to_end(run_with_routes, session_factory, froz
 
 
 def test_rss_collector_end_to_end(run_with_routes, session_factory, frozen_now):
-    res = run_with_routes("news_bee_culture", {"https://www.beeculture.com/feed/": fixture_bytes("news/rss2_wordpress.xml")})
+    res = run_with_routes("news_bee_culture", {"https://beeculture.com/feed/": fixture_bytes("news/rss2_wordpress.xml")})
     assert res["status"] == "success" and res["new"] == 3, res  # "Subscribe" item filtered
     with session_factory() as s:
         rows = {r.title: r for r in s.scalars(select(NewsArticle))}
@@ -353,13 +353,112 @@ def test_collector_malformed_feed_is_partial(run_with_routes, frozen_now):
 
 
 def test_collector_html_instead_of_feed_fails(run_with_routes):
-    res = run_with_routes("news_apimondia", {"https://www.apimondia.org/feed/": (200, fixture_bytes("news/not_a_feed.html"), "text/html")})
+    res = run_with_routes("news_apimondia", {"https://apimondia.org/feed/": (200, fixture_bytes("news/not_a_feed.html"), "text/html")})
     assert res["status"] == "failed" and "HTML" in res["error"]
 
 
 def test_collector_offline(run_with_routes):
     res = run_with_routes("news_bee_culture", {})
     assert res["status"] == "offline"
+
+
+# ---------------------------------------------------------------------------
+# Real captures (2026-11-04, fixtures/news/real_*.xml)
+# ---------------------------------------------------------------------------
+
+REAL_NOW = datetime(2026, 11, 4, 19, 0)
+
+
+@pytest.fixture()
+def real_now(monkeypatch):
+    from paladex.collectors import news_feeds
+
+    monkeypatch.setattr(news_feeds, "utcnow", lambda: REAL_NOW)
+    monkeypatch.setattr(ns, "utcnow", lambda: REAL_NOW)
+    return REAL_NOW
+
+
+def test_real_ec_agri_feed_parses_and_is_filtered(run_with_routes, session_factory, real_now):
+    from paladex.collectors.news_feeds import parse_feed
+
+    spec = _spec("news_ec_agri")
+    items, warnings = parse_feed(fixture_bytes("news/real_ec_agri_news.xml"), spec)
+    assert warnings == [] and len(items) == 4
+    first = items[0]
+    assert first["title"] == "EU agri-food exports stable as imports decline slightly"
+    assert first["url"].startswith("https://agriculture.ec.europa.eu/media/news/")
+    assert first["published_at"] == datetime(2026, 10, 29, 10, 54, 43)    # +0100 -> UTC
+    assert first["language"] == "en" and first["publisher"].startswith("European Commission")
+    assert first["image_url"].endswith(".jpg")                               # <enclosure>
+    # general agriculture news: nothing about honey, so nothing is stored (by design)
+    res = run_with_routes("news_ec_agri", {spec.url: fixture_bytes("news/real_ec_agri_news.xml")})
+    assert res["status"] == "no_change" and res["seen"] == 4 and res["new"] == 0, res
+
+
+def test_real_bee_culture_items_without_podcast_boilerplate(run_with_routes, session_factory, real_now):
+    res = run_with_routes("news_bee_culture", {"https://beeculture.com/feed/": fixture_bytes("news/real_beeculture.xml")})
+    assert res["status"] == "success" and res["new"] == 3, res
+    with session_factory() as s:
+        rows = {r.title: r for r in s.scalars(select(NewsArticle))}
+    assert set(rows) == {"Beekeeping is a Crime", "The Past One Hundred Years Of Beekeeping",
+                         "Microplastics and Honey Bee Health"}
+    for r in rows.values():
+        assert r.publisher == "Bee Culture (Root Publications)" and r.language == "en"
+        assert r.url.startswith("https://beeculture.com/") and r.published_at.year == 2026
+        assert "Click Here" not in r.snippet and "Read along below" not in r.snippet
+    assert rows["The Past One Hundred Years Of Beekeeping"].snippet.startswith("Are We Any Better Off? By: James E. Tew")
+
+
+def test_real_apimondia_items_gate_and_tags(run_with_routes, session_factory, real_now):
+    res = run_with_routes("news_apimondia", {"https://apimondia.org/feed/": fixture_bytes("news/real_apimondia.xml")})
+    assert res["status"] == "success" and res["new"] == 3, res
+    with session_factory() as s:
+        rows = {r.title: r for r in s.scalars(select(NewsArticle))}
+    # "farmers are renting more beehives ... pollination": beekeeping news, no longer filtered out
+    brazil = rows["Brazil, More Beehives to Mitigate El Niño Effects"]
+    assert "BRA" in brazil.countries and "first appeared on" not in brazil.snippet
+    # Apimondia's congress is not a legislature
+    congress = rows["Save the Date: the 50th Apimondia Congress, Dubai 2027"]
+    assert "policy" not in (congress.topics or [])
+    visit = rows["Apimondia: Official Visit of the President to Romania and Moldova"]
+    assert visit.countries[:2] == ["ROU", "MDA"]
+
+
+def test_real_american_bee_journal_garbage_containers_are_not_trade(run_with_routes, session_factory, real_now):
+    res = run_with_routes("news_american_bee_journal",
+                          {"https://americanbeejournal.com/feed/": fixture_bytes("news/real_american_bee_journal.xml")})
+    assert res["status"] == "success" and res["new"] == 2, res
+    with session_factory() as s:
+        rows = list(s.scalars(select(NewsArticle)))
+    nest = next(r for r in rows if "Just One Big Bee Nest" in r.title)
+    assert "trade" not in (nest.topics or []) and "bulk" not in nest.relevance_reason
+    sioux = next(r for r in rows if r.title.startswith("SIOUX HONEY ASSOCIATION"))
+    assert "companies" in sioux.topics and sioux.relevance_score > nest.relevance_score
+    assert sioux.publisher == "Dadant & Sons"
+
+
+def test_freight_containers_still_tag_trade():
+    assert "trade" in ns.tag_topics("US honey imports", "Imports rose 6 percent; 202 containers arrived")
+    assert "trade" in ns.tag_topics("Argentine exporters", "shipping containers of bulk honey left Buenos Aires")
+    assert "trade" not in ns.tag_topics("Yellowjackets", "yellowjackets buzzing the garbage containers")
+
+
+@pytest.mark.parametrize("text", ["Honey producers urge Congress to act on tariffs",
+                                  "El Congreso aprobó la ley de etiquetado de la miel"])
+def test_legislature_congress_is_still_policy(text):
+    assert "policy" in ns.tag_topics(text)
+
+
+@pytest.mark.parametrize("text", ["Save the Date: the 50th Apimondia Congress, Dubai 2027",
+                                  "the 50th Apimondia International Apicultural Congress",
+                                  "Congreso Internacional de Apicultura en Mendoza"])
+def test_beekeeping_congress_is_not_policy(text):
+    assert "policy" not in ns.tag_topics(text)
+
+
+def test_beehive_is_bee_context_only():
+    assert ns.is_honey_related("Farmers rent more beehives", "heavy rain raises concerns about pollination")
+    assert not ns.is_honey_related("Ministers return to the Beehive", "The cabinet met in Wellington")
 
 
 # ---------------------------------------------------------------------------

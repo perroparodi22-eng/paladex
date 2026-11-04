@@ -263,16 +263,26 @@ _FR_TYPE_TO_STATUS = {"Rule": "final", "Proposed Rule": "proposed", "Notice": "p
                       "Presidential Document": "published"}
 
 _ANTIDUMPING_RE = re.compile(r"\banti-?dumping\b", re.IGNORECASE)
-_RECIPROCAL_RE = re.compile(r"\breciprocal\b", re.IGNORECASE)
-_FR_EXCLUDE_COUNTRIES = ("USA",)
+# "Georgia" in US federal documents is nearly always the US state, and "USA" is in every one.
+_FR_EXCLUDE_COUNTRIES = ("USA", "GEO")
+
+# A honey AD/CVD case *listed* in an omnibus notice: "ARGENTINA: Raw Honey, A-357-823",
+# "Raw Honey A-351-857", "Raw Honey, 11 A-552-833" (a footnote number in between). A citation
+# ("See, e.g., Raw Honey from ...: Final Results") has no case number after the product name.
+_HONEY_CASE_RE = re.compile(r"\bhoney\b\s*,?\s*(?:\d{1,3}\s+)?(?P<case>[AC]-(?P<cc>\d{3})-\d{3})\b", re.IGNORECASE)
+# Commerce case-number country prefixes of the honey orders (A-357-823 AR, A-351-857 BR,
+# A-533-903 IN, A-552-833 VN, A-570-863 CN).
+_CASE_COUNTRY = {"357": "ARG", "351": "BRA", "533": "IND", "552": "VNM", "570": "CHN"}
+# HTS heading 0409 (natural honey) as printed: "0409", "0409.00.00", "0409 00 00".
+_HTS_0409_RE = re.compile(r"(?<![\d.])0409(?:[.\s]?00(?:[.\s]?00)?)?(?![\d])")
 
 
 class Keep(StrEnum):
-    """Which results of a saved search are relevant enough to store."""
+    """Which results of a saved search are relevant enough to store (see the module docstring)."""
 
-    ALL = "all"                          # precise phrase search: keep everything
-    HONEY = "honey"                      # broad 'honey' search: title/abstract must mention honey
-    HONEY_OR_ORIGIN = "honey_or_origin"  # tariff search: honey, a named country, or reciprocal tariffs
+    HONEY = "honey"                  # title/abstract must mention honey
+    HONEY_AD = "honey_ad"            # ... or the excerpts list a honey case number (omnibus notices)
+    HONEY_TEXT = "honey_text"        # ... or the excerpts mention honey / HTS 0409 (presidential tariff docs)
 
 
 @dataclass(frozen=True)
@@ -282,7 +292,7 @@ class FrQuery:
     term: str                           # conditions[term] (full-text; quotes make a phrase)
     agencies: tuple[str, ...] = ()      # conditions[agencies][] slugs
     types: tuple[str, ...] = ()         # conditions[type][] codes (FR_TYPE_CODES)
-    keep: Keep = Keep.ALL
+    keep: Keep = Keep.HONEY
 
     @property
     def state_key(self) -> str:
@@ -295,22 +305,21 @@ class FrQuery:
 # Saved searches (docs/research/regulation.json, "US Federal Register API v1" and recommendation).
 FR_QUERIES: tuple[FrQuery, ...] = (
     # Commerce/ITA AD notices on the 2022 raw-honey orders (AR, BR, IN, VN), including the monthly
-    # omnibus "Initiation of ... Administrative Reviews" notices that list honey exporters.
-    FrQuery("raw_honey", '"raw honey"', '"raw honey"'),
+    # omnibus "Initiation of ... Administrative Reviews" notices that list honey exporters. The
+    # full-text phrase also matches unrelated AD notices that cite a honey case: Keep.HONEY_AD.
+    FrQuery("raw_honey", '"raw honey"', '"raw honey"', keep=Keep.HONEY_AD),
     # The 2001 order A-570-863 on honey from China.
-    FrQuery("china_honey", "honey from China (AD order)", '"honey from the people\'s republic of china"'),
+    FrQuery("china_honey", "honey from China (AD order)", '"honey from the people\'s republic of china"',
+            keep=Keep.HONEY_AD),
     # USITC: sunset reviews and determinations.
     FrQuery("itc_honey", "USITC + honey", "honey", agencies=("international-trade-commission",), keep=Keep.HONEY),
     # FDA: honey labelling guidance, standards, import notices.
     FrQuery("fda_honey", "FDA + honey", "honey", agencies=("food-and-drug-administration",), keep=Keep.HONEY),
-    # Presidential tariff documents whose full text mentions honey (e.g. product annexes). Several
-    # words without quotes are combined with AND by the FR full-text search (from memory).
-    FrQuery("pres_tariff_honey", "presidential tariff documents mentioning honey", "tariff honey",
-            types=("PRESDOCU",)),
-    # Presidential tariff documents naming a honey origin, or setting reciprocal (all-country)
-    # rates. Filtered on title/abstract because 'tariff' alone matches steel, lumber, ...
-    FrQuery("pres_tariff_origins", "presidential tariff documents naming an origin", "tariff",
-            types=("PRESDOCU",), keep=Keep.HONEY_OR_ORIGIN),
+    # Presidential tariff documents whose text mentions honey or HTS 0409. Words without quotes
+    # are combined with AND, "|" is OR and parentheses group (verified live). "tariff" keeps out
+    # proclamations that use "honey" as an endearment (Mother's Day).
+    FrQuery("pres_tariff_honey", "presidential tariff documents mentioning honey or HTS 0409",
+            "tariff (honey | 0409)", types=("PRESDOCU",), keep=Keep.HONEY_TEXT),
 )
 
 
@@ -355,6 +364,7 @@ class FrDocument:
     action: str | None
     citation: str | None
     has_effective_on_key: bool           # used by the 'effective_on' field-name probe
+    excerpts: str | None = None          # search-hit excerpts as plain text (highlight tags removed)
 
 
 @dataclass
@@ -411,6 +421,7 @@ def _fr_document(r: dict, i: int) -> tuple[FrDocument | None, list[str]]:
         publication_date=published, effective_on=effective, url=url, pdf_url=_https_url(r.get("pdf_url")),
         agency_slugs=tuple(slugs), agency_names=tuple(names), action=clean_text(r.get("action")),
         citation=clean_text(r.get("citation")), has_effective_on_key="effective_on" in r,
+        excerpts=clean_text(r.get("excerpts")),
     )
     return doc, problems
 
@@ -492,21 +503,32 @@ def fr_status(doc: FrDocument) -> str | None:
     return _FR_TYPE_TO_STATUS.get(doc.type_label or "")
 
 
+def fr_honey_cases(doc: FrDocument) -> list[str]:
+    """Honey AD/CVD case numbers listed in the search excerpts ("Raw Honey, A-357-823")."""
+    out: list[str] = []
+    for m in _HONEY_CASE_RE.finditer(doc.excerpts or ""):
+        if m["case"].upper() not in out:
+            out.append(m["case"].upper())
+    return out
+
+
 def fr_is_relevant(query: FrQuery, doc: FrDocument) -> tuple[bool, str]:
     """(keep?, reason). Reason 'agency'/'type' means the result does not match the filter the
-    query asked for (the API may have ignored it); 'topic' means it is off-topic noise."""
+    query asked for (the API may have ignored it); 'topic' means it is off-topic noise. Reasons
+    for kept documents: 'title_abstract', 'listed_case' (omnibus notice listing a honey case
+    number in the excerpts) and 'excerpt' (presidential document whose text names honey/0409)."""
     if query.types and doc.type_label and doc.type_label not in {FR_TYPE_CODES[t] for t in query.types}:
         return False, "type"
     if query.agencies and doc.agency_slugs and not set(query.agencies) & set(doc.agency_slugs):
         return False, "agency"
-    text = f"{doc.title}\n{doc.abstract or ''}"
-    if query.keep is Keep.HONEY:
-        return bool(HONEY_RE.search(text)), "topic"
-    if query.keep is Keep.HONEY_OR_ORIGIN:
-        ok = bool(HONEY_RE.search(text) or _RECIPROCAL_RE.search(text)
-                  or detect_countries(text, exclude=_FR_EXCLUDE_COUNTRIES))
-        return ok, "topic"
-    return True, ""
+    if HONEY_RE.search(f"{doc.title}\n{doc.abstract or ''}"):
+        return True, "title_abstract"
+    if query.keep is Keep.HONEY_AD and fr_honey_cases(doc):
+        return True, "listed_case"
+    if query.keep is Keep.HONEY_TEXT and doc.excerpts and (HONEY_RE.search(doc.excerpts)
+                                                          or _HTS_0409_RE.search(doc.excerpts)):
+        return True, "excerpt"
+    return False, "topic"
 
 
 @dataclass
@@ -672,11 +694,18 @@ class FederalRegisterCollector(Collector):
                 stats.off_filter += 1
             return
         stats.kept += 1
+        # Omnibus notices: the honey case numbers seen in the search excerpt (the excerpt is a
+        # window of the text, so the notice may list more; countries are therefore not derived
+        # from it and stay those named in the title/abstract).
+        cases = fr_honey_cases(d) if reason == "listed_case" else []
         ctx.add_regulation(
             reference=d.document_number, jurisdiction="US", doc_type=fr_doc_type(d), title=d.title, url=d.url,
             published_at=d.publication_date, effective_date=d.effective_on,
             countries=detect_countries(d.title, d.abstract, exclude=_FR_EXCLUDE_COUNTRIES) or None,
             status=fr_status(d), summary_en=d.abstract, summary_is_ai=False,
+            extra={"relevance": reason, "search": q.qid,
+                   "honey_cases_in_excerpt": cases or None,
+                   "honey_case_origins_in_excerpt": [_CASE_COUNTRY.get(c[2:5]) for c in cases] or None},
         )
 
 
@@ -1109,6 +1138,7 @@ __all__ = [
     "eu_title_since",
     "eurlex_url",
     "fr_doc_type",
+    "fr_honey_cases",
     "fr_is_relevant",
     "fr_search_params",
     "fr_since",

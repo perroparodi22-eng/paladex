@@ -1,4 +1,24 @@
-# Regulation fixtures: RECONSTRUCTED, not captured live
+# Regulation fixtures
+
+## REAL captures (`real_*`)
+
+Captured live on **4 November 2026** by `python -m paladex collect us_federal_register` (the
+collector's own requests, archived under `data/raw/us_federal_register/`), unchanged unless noted.
+Every request is `GET https://www.federalregister.gov/api/v1/documents.json?per_page=100&order=newest`
+`&conditions[publication_date][gte]=2023-11-05` + the search below + `fields[]=` document_number,
+title, type, abstract, publication_date, effective_on, html_url, pdf_url, agencies, action,
+citation, excerpts.
+
+| File | Search | Notes |
+|---|---|---|
+| `real_fr_raw_honey.json` | `conditions[term]="raw honey"` | 45 results, one page. 25 have honey in the title, 8 are Commerce omnibus notices whose `excerpts` list a honey case number (`ARGENTINA: <span class="match">Raw Honey</span>, A-357-823`), 12 are other AD notices (glycine, rebar, plywood, air compressors ...) that only cite a honey case in a footnote. |
+| `real_fr_china_honey.json` | `conditions[term]="honey from the people's republic of china"` | 3 results, all noise (preserved mushrooms, a proposed AD regulation). |
+| `real_fr_itc_honey.json` | `conditions[term]=honey&conditions[agencies][]=international-trade-commission` | 0 results (the response then has no `results` key). |
+| `real_fr_fda_honey.json` | `conditions[term]=honey&conditions[agencies][]=food-and-drug-administration` | 5 results, none with honey in the title or abstract. |
+| `real_fr_pres_tariff_honey.json` | `conditions[term]=tariff (honey \| 0409)&conditions[type][]=PRESDOCU` | 0 results: no presidential document of the window names honey or 0409 in its searchable text (the tariff annexes are printed as images, `[GRAPHIC] [TIFF OMITTED]`). |
+| `real_fr_pres_tariff_noise.json` | `conditions[term]=tariff&conditions[type][]=PRESDOCU` (the search used before the fix, run on 4 Nov 2026 without `excerpts`) | **Trimmed** to 6 of the 112 results (Canada duties, the Russia/Iran sanctions act, the Brazil IEEPA order, the agricultural-products reciprocal-tariff order, beef); `next_page_url` set to null. Used to check that such documents are no longer stored. |
+
+## RECONSTRUCTED fixtures (`fr_*`, `cellar_*`)
 
 The development sandbox could not reach `www.federalregister.gov` or `publications.europa.eu`
 (egress was blocked), and the source research in `docs/research/regulation.json` is marked
@@ -20,11 +40,11 @@ The things to check first are the ones marked unverified below.
 
 | File | Collector | What is reconstructed, and from what |
 |---|---|---|
-| `fr_raw_honey_p1.json`, `fr_raw_honey_p2.json` | `us_federal_register`, search `"raw honey"` | `documents.json` envelope (`count`, `description`, `total_pages`, `next_page_url`, `results`) and result fields requested with `fields[]` (`document_number`, `title`, `type`, `abstract`, `publication_date`, `effective_on`, `html_url`, `pdf_url`, `agencies`, `action`, `citation`). Agency objects use `raw_name`, `name`, `id`, `url`, `json_url`, `parent_id`, `slug`. `effective_on`, `action` and `citation` are **unverified** field names. Agency ids are guesses. Page 1 has a `next_page_url` to page 2 and one malformed row (non-ISO `publication_date`). |
+| `fr_raw_honey_p1.json`, `fr_raw_honey_p2.json` | `us_federal_register`, search `"raw honey"` | `documents.json` envelope (`count`, `description`, `total_pages`, `next_page_url`, `results`) and result fields requested with `fields[]` (`document_number`, `title`, `type`, `abstract`, `publication_date`, `effective_on`, `html_url`, `pdf_url`, `agencies`, `action`, `citation`). Agency objects use `raw_name`, `name`, `id`, `url`, `json_url`, `parent_id`, `slug`. `effective_on`, `action` and `citation` are **unverified** field names. Agency ids are guesses. Page 1 has a `next_page_url` to page 2 and one malformed row (non-ISO `publication_date`). The omnibus notice `2026-90102` has an invented `excerpts` listing a honey case number (the real format, see `real_fr_raw_honey.json`). |
 | `fr_china_honey.json` | same, search `"honey from the people's republic of china"` | Same format. Repeats the omnibus initiation notice from the raw-honey search, to test de-duplication across searches. |
 | `fr_itc_honey.json` | same, USITC + `honey` | One honey notice plus a "honey bee" notice that the topic filter must drop. |
 | `fr_fda_honey.json` | same, FDA + `honey` | A notice, a final rule with `effective_on`, a "honey bees" animal-drug rule (topic noise), and a rule from another agency (AMS) that the in-band agency check must drop. |
-| `fr_pres_tariff_honey.json`, `fr_pres_tariff_origins.json` | same, `PRESDOCU` + `tariff honey` / `tariff` | Presidential documents (type label `Presidential Document`, `abstract` null). The origins search must keep the Brazil and "reciprocal" documents and drop the lumber one. |
+| `fr_pres_tariff_honey.json` | same, `PRESDOCU` + `tariff (honey \| 0409)` | A presidential document (type label `Presidential Document`, `abstract` null) with an invented `excerpts` naming heading 0409.00.00. (`fr_pres_tariff_origins.json` was removed with the broad `tariff` search.) |
 | `fr_agencies.json` | `us_federal_register` start-up probe | `/api/v1/agencies` as a JSON array of agency objects with `slug` (other keys from memory). |
 | `cellar_related.json` | `eurlex_honey`, acts related to 32001L0110 / 32024L1438 / 32021R0405 | W3C SPARQL 1.1 JSON results (`head.vars`, `results.bindings[{var: {type, value, datatype / xml:lang}}]`), the standard format (one binding uses Virtuoso's older `typed-literal` term type). The CDM vocabulary in the query (`resource_legal_id_celex`, `work_date_document`, `expression_title`, `resource_legal_amends_resource_legal`, `resource_legal_in-force`, ...) is **unverified**. Includes the canary row (32024L1438 amends 32001L0110), a duplicate row with a shorter title variant, a row without an English title, a corrigendum and a malformed CELEX. |
 | `cellar_title.json` | `eurlex_honey`, English title contains "honey" | Same format. Includes the canary, a COM proposal (`52026PC…`), an international-body decision (`22025D…`), a "honeybees"-only title that must be dropped, and a parliamentary question (sector 9) that must be ignored. |

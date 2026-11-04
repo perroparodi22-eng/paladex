@@ -1,8 +1,10 @@
 """Tests for the tariff collectors (paladex/collectors/tariffs.py) and the append-only tariff store
 (paladex/services/tariffs.py).
 
-All fixtures in tests/fixtures/tariffs/ are RECONSTRUCTED from documentation (see the README
-there); measures, rates and identifiers are illustrative, not the real tariff.
+Fixtures in tests/fixtures/tariffs/ named real_* are REAL captures of the XI API (2026-11-04); the
+others are RECONSTRUCTED from documentation (see the README there) and keep the edge cases the real
+tariff does not show today (UK-origin measures, a group whose members must be fetched, a quota found
+only by order number); their measures, rates and identifiers are illustrative, not the real tariff.
 """
 from __future__ import annotations
 
@@ -23,7 +25,10 @@ FIX = Path(__file__).parent / "fixtures" / "tariffs"
 TODAY = date(2026, 11, 4)
 
 XI = r"^https://www\.trade-tariff\.service\.gov\.uk/xi/api/v2"
-XI_COMMODITY = XI + r"/commodities/0409000000"
+XI_HEADING = XI + r"/headings/0409$"
+XI_LEAF = XI + r"/commodities/"
+XI_GOODS_QUOTAS = XI + r"/quotas/search\?goods_nomenclature_item_id=0409000000"
+XI_MEASURE = XI + r"/measures/"
 XI_QUOTA = XI + r"/quotas/search\?order_number="
 XI_GEO_9901 = XI + r"/geographical_areas/9901"
 HTS = r"^https://hts\.usitc\.gov/reststop"
@@ -53,13 +58,33 @@ def _routes(base: dict, override: dict | None) -> dict:
     return routes
 
 
+EMPTY_QUOTA_LISTING = b'{"data": [], "meta": {"pagination": {"page": 1, "per_page": 5, "total_count": 0}}}'
+
+
 def xi_routes(override: dict | None = None) -> dict:
+    """Reconstructed fixture: a declarable 0409000000 carrying its own measures (and quotas found
+    only by order number), served at the heading URL."""
     return _routes({
-        XI_COMMODITY: fx("xi_commodity_0409000000.json"),
+        XI_HEADING: fx("xi_commodity_0409000000.json"),
+        XI_GOODS_QUOTAS: EMPTY_QUOTA_LISTING,
         XI_QUOTA + "099990": fx("xi_quota_099990.json"),
         XI_QUOTA + "099991": fx("xi_quota_099991.json"),
         XI_QUOTA + "099992": fx("xi_quota_099992.json"),
         XI_GEO_9901: fx("xi_geo_9901.json"),
+    }, override)
+
+
+def real_xi_routes(override: dict | None = None) -> dict:
+    """Real XI captures of 2026-11-04: heading 0409, its two lines, the quota search and the quota
+    measures of the origins Parodi follows (Algeria and Tunisia are listed but not fetched)."""
+    return _routes({
+        XI_HEADING: fx("real_xi_heading_0409.json"),
+        XI_LEAF + "0409000090$": fx("real_xi_commodity_0409000090.json"),
+        XI_LEAF + "0409000010$": fx("real_xi_commodity_0409000010.json"),
+        XI_GOODS_QUOTAS: fx("real_xi_quota_search_0409000000.json"),
+        XI_MEASURE + "4244733$": fx("real_xi_measure_4244733.json"),
+        XI_MEASURE + "4254929$": fx("real_xi_measure_4254929.json"),
+        XI_MEASURE + "4209614$": fx("real_xi_measure_4209614.json"),
     }, override)
 
 
@@ -299,7 +324,7 @@ def test_xi_end_to_end(db, run_with_routes, pin_today):
     assert mfn.published_at == date(1987, 9, 7)
     assert mfn.consult_url.startswith(svc.TARIC_MEASURES_URL) and "SimDate=20261104" in mfn.consult_url
     assert "Area=&" in mfn.consult_url                        # all origins
-    assert mfn.source_url == "https://www.trade-tariff.service.gov.uk/xi/api/v2/commodities/0409000000"
+    assert mfn.source_url == "https://www.trade-tariff.service.gov.uk/xi/api/v2/headings/0409"   # declarable heading
     assert mfn.raw_document_id and db.get(RawDocument, mfn.raw_document_id) is not None
     assert "mirror of EU TARIC" in mfn.extra["mirror"] and mfn.extra["needs_review"] is False
     other = _one(rows, "ERGA_OMNES", "other")
@@ -350,7 +375,7 @@ def test_xi_append_only_revision_and_as_of(db, run_with_routes, pin_today):
 def test_xi_withdrawn_measure_is_retired_not_deleted(db, run_with_routes, pin_today):
     run_with_routes("eu_tariff_xi", xi_routes())
     pin_today(date(2026, 11, 5))
-    res = run_with_routes("eu_tariff_xi", xi_routes({XI_COMMODITY: _commodity_without("3000107")}))
+    res = run_with_routes("eu_tariff_xi", xi_routes({XI_HEADING: _commodity_without("3000107")}))
     assert res["status"] == "partial"
     db.expire_all()
     src = _source(db, "eu_tariff_xi")
@@ -364,7 +389,7 @@ def test_xi_quota_failure_keeps_previous_row_and_blocks_retirement(db, run_with_
     run_with_routes("eu_tariff_xi", xi_routes())
     pin_today(date(2026, 11, 5))
     res = run_with_routes("eu_tariff_xi", xi_routes({
-        XI_COMMODITY: _commodity_without("3000107"),
+        XI_HEADING: _commodity_without("3000107"),
         XI_QUOTA + "099991": (500, b"upstream error"),           # Mexico: no inline definition either
         XI_QUOTA + "099990": (500, b"upstream error"),           # Ukraine: inline definition used instead
     }))
@@ -390,15 +415,191 @@ def test_xi_group_lookup_failure_skips_only_that_measure(db, run_with_routes, pi
 
 
 @pytest.mark.parametrize("routes, message", [
-    ({XI_COMMODITY: _commodity_without("3000101")}, "no EU third-country duty"),
-    ({XI_COMMODITY: b'{"data": {"type": "commodity", "attributes": {"goods_nomenclature_item_id": "0409000000"}}}'},
+    ({XI_HEADING: _commodity_without("3000101")}, "no EU third-country duty"),
+    ({XI_HEADING: b'{"data": {"type": "commodity", "attributes": {"goods_nomenclature_item_id": "0409000000"}}}'},
      "import_measures"),
-    ({XI_COMMODITY: (403, b"Forbidden")}, "refuses anonymous access"),
+    ({XI_HEADING: (403, b"Forbidden")}, "refuses anonymous access"),
 ])
 def test_xi_failures_store_nothing(db, run_with_routes, pin_today, routes, message):
     res = run_with_routes("eu_tariff_xi", xi_routes(routes))
     assert res["status"] == "failed" and message in res["error"]
     assert not db.scalars(select(TariffMeasure)).all()
+
+
+# ---------------------------------------------------------------------------
+# EU: real XI captures (2026-11-04)
+# ---------------------------------------------------------------------------
+
+LIVE = "https://www.trade-tariff.service.gov.uk/xi/api/v2"
+
+
+def test_real_xi_heading_lists_the_two_declarable_lines():
+    nom = tr.parse_xi_nomenclature(fx("real_xi_heading_0409.json"))
+    assert (nom.item_id, nom.description, nom.declarable) == ("0409000000", "Natural honey", False)
+    assert [(lf.code, lf.description) for lf in nom.leaves] == [("0409000010", "Mānuka honey"), ("0409000090", "Other")]
+    # The heading itself has no import measures: what the first live run failed on.
+    with pytest.raises(tr.SchemaDrift, match="no relationships.import_measures"):
+        tr.parse_xi_commodity(fx("real_xi_heading_0409.json"))
+    with pytest.raises(tr.SchemaDrift, match="no import_measures and no declarable commodity"):
+        doc = fx_json("real_xi_heading_0409.json")
+        for o in doc["included"]:
+            if o["type"] == "commodity":
+                o["attributes"]["declarable"] = False
+        tr.parse_xi_nomenclature(as_bytes(doc))
+
+
+def test_real_xi_commodity_measures():
+    other = tr.parse_xi_commodity(fx("real_xi_commodity_0409000090.json"), "0409000090")
+    assert other.description == "Other" and len(other.measures) == 60 and not other.problems
+    selected, problems = tr.select_xi_tariff_measures(other)
+    assert problems == []                                         # every duty type on honey is mapped
+    by = {(s.measure.type_id, s.measure.geo_id): s for s in selected}
+    mfn = by[("103", "1011")].measure
+    assert (mfn.duty.text, mfn.duty.ad_valorem_pct, mfn.start, mfn.end) == ("17.30 %", 17.3, date(2005, 1, 1), None)
+    assert [la.code for la in mfn.legal_acts] == ["R2204/99", "R2658/87"] and mfn.origin_flag == "eu"
+    nz = by[("142", "NZ")].measure                                # EU-NZ FTA, staged rate on "Other"
+    assert (nz.sid, nz.duty.ad_valorem_pct, nz.start, nz.end) == ("4156427", 4.3, date(2026, 1, 1), date(2026, 12, 31))
+    assert by[("142", "XS")].measure.duty.ad_valorem_pct == 0.0   # Serbia (TARIC code XS)
+    assert ("142", "UA") not in by and ("142", "CN") not in by and ("142", "AR") not in by
+    assert by[("106", "SM")].layer is svc.MeasureType.PREFERENCE  # Customs Union Duty (San Marino)
+    low = by[("107", "1011")]
+    assert (low.layer, low.needs_review, low.measure.duty.text, low.measure.duty.complex) == \
+        (svc.MeasureType.OTHER, True, "3.00 EUR", True)
+    assert "EUR 3 per item" in low.measure.footnote_texts["TM01066"]
+    add = by[("695", "1011")]                                     # 50 % only on goods exported from RU/BY
+    assert add.layer is svc.MeasureType.SURCHARGE and add.needs_review and "conditions" in add.reason
+    assert add.measure.excluded == ("BY", "RU") and add.measure.duty.text is None
+    assert [c.get("duty") for c in add.measure.conditions] == ["50.00 %", "0.00 %"]
+    assert by[("695", "RU")].measure.duty.ad_valorem_pct == 50.0
+    assert not {"410", "750", "760", "762", "800"} & {s.measure.type_id for s in selected}   # controls and fees
+    assert all(s.measure.order_number is None for s in selected)  # no quota in the commodity documents
+    # group membership comes with the document
+    assert tr.expand_origins("2005", (), other.geos["2005"].children) == []   # GSP-EBA: no Parodi origin
+    assert tr.expand_origins("1006", (), other.geos["1006"].children) == []   # EU-Canada re-imported goods: EU
+    manuka = tr.parse_xi_commodity(fx("real_xi_commodity_0409000010.json"), "0409000010")
+    nz_m = next(m for m in manuka.measures if m.type_id == "142" and m.geo_id == "NZ")
+    assert (nz_m.sid, nz_m.duty.ad_valorem_pct, nz_m.start, nz_m.end) == ("4039256", 0.0, date(2024, 5, 1), None)
+    assert {m.sid for m in other.measures} ^ {m.sid for m in manuka.measures} == {"4156427", "4039256"}
+
+
+def test_real_xi_quota_search_and_measure_documents():
+    listings, pagination, problems = tr.parse_xi_quota_listing(fx("real_xi_quota_search_0409000000.json"), "q")
+    assert not problems and pagination == {"page": 1, "per_page": 5, "total_count": 5}
+    by = {lst.order_number: lst for lst in listings}
+    assert sorted(by) == ["090881", "091002", "091218", "091833", "096701"]
+    ua = by["096701"]
+    assert (ua.definition.volume_kg, ua.definition.balance_kg, ua.definition.status) == (35_000_000.0, 0.0, "exhausted")
+    assert (ua.measure_sids, ua.geo_ids) == (("4209614",), ("UA",))
+    mx = by["091833"].definition
+    assert (mx.volume_kg, mx.balance_kg, mx.valid_from, mx.valid_to, mx.last_allocation) == \
+        (30_000_000.0, 25_179_990.0, date(2026, 7, 1), date(2027, 6, 30), date(2026, 10, 28))
+    merc = by["090881"]
+    assert merc.geo_ids == ("5500",) and (merc.definition.valid_from, merc.definition.valid_to) == \
+        (date(2026, 10, 1), date(2026, 12, 31))
+    one = tr.parse_xi_measure_document(fx("real_xi_measure_4244733.json"), "4244733")
+    m = one.measures[0]
+    assert (m.type_id, m.geo_id, m.duty.text, m.order_number, m.goods_code, m.start) == \
+        ("143", "5500", "0.00 %", "090881", "0409000000", date(2026, 5, 1))
+    assert one.geos["5500"].children == ("AR", "BR", "PY", "UY")
+    assert tr.expand_origins("5500", m.excluded, one.geos["5500"].children) == ["ARG", "BRA", "URY"]
+    assert one.quotas["090881"].balance_kg == 1_304_730.0       # current definition, included
+    mx_m = tr.parse_xi_measure_document(fx("real_xi_measure_4254929.json"), "4254929").measures[0]
+    assert (mx_m.duty.ad_valorem_pct, [la.code for la in mx_m.legal_acts]) == (8.6, ["R1362/00"])
+    q, problems = tr.parse_xi_quota_search(fx("real_xi_quota_search_091833.json"), "091833", TODAY)
+    assert not problems and (q.volume_kg, q.balance_kg) == (30_000_000.0, 25_179_990.0)
+    with pytest.raises(tr.SchemaDrift, match="no JSON:API measure object"):
+        tr.parse_xi_measure_document(fx("real_xi_measure_4244733.json"), "4209614")
+
+
+def test_real_xi_end_to_end(db, run_with_routes, pin_today):
+    res = run_with_routes("eu_tariff_xi", real_xi_routes())
+    assert res["status"] == "success" and res["warnings"] == [], res
+    rows = _current(db, "eu_tariff_xi")
+    assert len(rows) == 16
+    assert {r.origin_iso3 for r in rows.values()} == {"ERGA_OMNES", "ARG", "BRA", "URY", "UKR", "MEX", "NZL", "SRB",
+                                                     "TUR", "VNM", "CHL", "MDA", "CAN"}
+    mfn = _one(rows, "ERGA_OMNES", "mfn")
+    assert (mfn.series_key, mfn.hs_code, mfn.duty_text, mfn.ad_valorem_pct, mfn.valid_from) == \
+        ("EU|0409000000|ERGA_OMNES|103|-|1011", "0409000000", "17.30 %", 17.3, date(2005, 1, 1))
+    assert mfn.legal_reference == "R2204/99; R2658/87" and mfn.extra["cn_scope"] == "heading"
+    assert [c["code"] for c in mfn.extra["cn_lines"]] == ["0409000010", "0409000090"]
+    assert mfn.source_url == f"{LIVE}/commodities/0409000090"     # the line bulk honey is declared under
+    assert mfn.raw_document_id and db.get(RawDocument, mfn.raw_document_id) is not None
+    # EU-New Zealand: the rate differs by line, one row each
+    nz = {r.hs_code: r for r in _by(rows, "NZL", "preference")}
+    assert (nz["0409000090"].ad_valorem_pct, nz["0409000090"].valid_to) == (4.3, date(2026, 12, 31))
+    assert nz["0409000090"].description == "Tariff preference (CN 0409000090: Other)"
+    assert nz["0409000010"].ad_valorem_pct == 0.0 and "Mānuka honey" in nz["0409000010"].description
+    assert "Taric=0409000090" in nz["0409000090"].consult_url and "Area=NZ" in nz["0409000090"].consult_url
+    # tariff quotas: from the quota search and the measure documents
+    ua = _one(rows, "UKR", "trq_in")
+    assert (ua.series_key, ua.duty_text, ua.quota_volume_kg, ua.quota_balance_kg, ua.quota_status) == \
+        ("EU|0409000000|UKR|143|096701|UA", "0.00 %", 35_000_000.0, 0.0, "exhausted")
+    assert svc.quota_fill_pct(ua.quota_volume_kg, ua.quota_balance_kg) == 100.0
+    assert ua.source_url == f"{LIVE}/measures/4209614" and ua.legal_reference == "R1988/20"
+    mx = _one(rows, "MEX", "trq_in")
+    assert (mx.ad_valorem_pct, mx.quota_volume_kg, mx.quota_balance_kg, mx.valid_to, mx.legal_reference) == \
+        (8.6, 30_000_000.0, 25_179_990.0, date(2027, 6, 30), "R1362/00")
+    assert mx.extra["quota"]["last_allocation_date"] == "2026-10-28"
+    for origin in ("ARG", "BRA", "URY"):                         # one Mercosur quota, shared
+        r = _one(rows, origin, "trq_in")
+        assert (r.quota_order_number, r.quota_volume_kg, r.quota_balance_kg, r.valid_from) == \
+            ("090881", 1_722_960.0, 1_304_730.0, date(2026, 5, 1))
+        assert r.extra["quota"]["shared_by_group"] is True and r.extra["quota"]["period_start"] == "2026-10-01"
+        assert r.extra["geo_area"] == {"id": "5500", "description": "Mercosur", "group": True}
+    low = _one(rows, "ERGA_OMNES", "other")
+    assert (low.measure_code, low.duty_text, low.ad_valorem_pct, low.extra["needs_review"]) == ("107", "3.00 EUR", None, True)
+    add = _one(rows, "ERGA_OMNES", "surcharge")
+    assert add.extra["excluded_origins"] == ["BLR", "RUS"] and add.extra["needs_review"] is True
+    assert add.duty_text is None and add.extra["conditions"][0]["duty"] == "50.00 %"
+    for origin, geo in (("SRB", "XS"), ("TUR", "TR"), ("VNM", "VN"), ("CHL", "CL"), ("MDA", "MD"), ("CAN", "CA")):
+        p = _one(rows, origin, "preference")
+        assert p.ad_valorem_pct == 0.0 and p.extra["geo_area"]["id"] == geo and p.hs_code == "0409000000"
+    for origin in ("CHN", "IND", "THA", "PRY"):                   # MFN only / not a Parodi origin
+        assert not _by(rows, origin)
+
+
+def test_real_xi_rerun_is_unchanged_and_quota_draw_down_is_a_revision(db, run_with_routes, pin_today):
+    run_with_routes("eu_tariff_xi", real_xi_routes())
+    pin_today(date(2026, 11, 5))
+    listing = fx_json("real_xi_quota_search_0409000000.json")
+    mx = next(d for d in listing["data"] if d["attributes"]["quota_order_number_id"] == "091833")
+    mx["attributes"].update(balance="24000000.0", last_allocation_date="2026-11-04T00:00:00Z")
+    res = run_with_routes("eu_tariff_xi", real_xi_routes({XI_GOODS_QUOTAS: as_bytes(listing)}))
+    assert res["status"] == "success" and (res["new"], res["revised"]) == (0, 1), res
+    db.expire_all()
+    src = _source(db, "eu_tariff_xi")
+    mex = db.scalars(select(TariffMeasure).where(TariffMeasure.source_id == src.id, TariffMeasure.origin_iso3 == "MEX")
+                     .order_by(TariffMeasure.revision)).all()
+    assert [(r.revision, r.is_current, r.quota_balance_kg) for r in mex] == [(1, False, 25_179_990.0), (2, True, 24_000_000.0)]
+
+
+def test_real_xi_line_failure_stores_nothing(db, run_with_routes, pin_today):
+    res = run_with_routes("eu_tariff_xi", real_xi_routes({XI_LEAF + "0409000010$": (500, b"upstream error")}))
+    assert res["status"] == "failed" and "0409000010" in res["error"]
+    assert not db.scalars(select(TariffMeasure)).all()
+
+
+def test_real_xi_quota_failures_keep_previous_rows(db, run_with_routes, pin_today):
+    run_with_routes("eu_tariff_xi", real_xi_routes())
+    pin_today(date(2026, 11, 5))
+    # the quota search fails: duties are refreshed, quota rows keep their values and date
+    res = run_with_routes("eu_tariff_xi", real_xi_routes({XI_GOODS_QUOTAS: (503, b"down")}))
+    assert res["status"] == "partial"
+    assert any("quota search for 0409000000 failed" in w for w in res["warnings"])
+    assert any("withdrawn measures not checked" in w for w in res["warnings"])
+    db.expire_all()
+    rows = _current(db, "eu_tariff_xi")
+    assert len(rows) == 16                                        # nothing withdrawn
+    ua = _one(rows, "UKR", "trq_in")
+    assert (ua.revision, ua.as_of, ua.quota_balance_kg) == (1, TODAY, 0.0)
+    assert _one(rows, "ERGA_OMNES", "mfn").as_of == date(2026, 11, 5)
+    # one quota measure document fails: that quota only is skipped
+    res = run_with_routes("eu_tariff_xi", real_xi_routes({XI_MEASURE + "4254929$": (500, b"error")}))
+    assert res["status"] == "partial" and any("measure 4254929 could not be read" in w for w in res["warnings"])
+    db.expire_all()
+    rows = _current(db, "eu_tariff_xi")
+    assert _one(rows, "MEX", "trq_in").as_of == TODAY and _one(rows, "UKR", "trq_in").as_of == date(2026, 11, 5)
 
 
 # ---------------------------------------------------------------------------

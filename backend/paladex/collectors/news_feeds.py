@@ -20,18 +20,25 @@ Feed families
   feeds (food safety, agriculture policy) are filtered by the honey gate, so most of their
   items are discarded by design.
 
-URL verification status (this module was written in a sandbox without internet access;
-see `verified` on each FeedSpec):
+URL verification status (this module was first written in a sandbox without internet
+access; see `verified` on each FeedSpec):
 * verified    - URL format confirmed from the publisher's own documentation/page.
 * listed      - URL listed by a third-party feed directory (Feedspot / Feeder).
 * unverified  - inferred from the site's platform (e.g. WordPress `/feed/`, Arc XP
                 `/arc/outboundfeeds/rss/`). If the first live run fails with HTTP 404 the
                 source shows "failed" on the Fonti page and can be disabled there.
 
-Not included (no public feed found): Osservatorio Nazionale Miele / Informamiele (news are
-covered by the Italian Google News queries), EU DG AGRI newsroom (newsletters only; EU
-policy is covered by the European Parliament AGRI feed and the EN-EU Google News query),
-USDA AMS (honey report is collected by the USDA collector, not as news).
+Live check (2026-11-04): Bee Culture, American Bee Journal and Apimondia return real
+WordPress RSS 2.0 items; Food Safety News and FoodNavigator parse but rarely carry honey
+items (the honey gate discards the rest, by design); the European Commission DG AGRI news
+feed returns RSS 2.0 (30 items). Real captures are in tests/fixtures/news/real_*.xml.
+
+Not included: Osservatorio Nazionale Miele / Informamiele (no public feed; news are covered
+by the Italian Google News queries); European Parliament RSS (www.europarl.europa.eu/rss/...,
+e.g. the AGRI committee feed listed by Feeder): every europarl.europa.eu page, the home page
+included, answered HTTP 403 from its CloudFront firewall to our requests on 2026-11-04, so
+the feed could not be verified and was replaced by the Commission's DG AGRI news feed; USDA
+AMS (honey report is collected by the USDA collector, not as news).
 """
 from __future__ import annotations
 
@@ -172,12 +179,12 @@ FEEDS: list[FeedSpec] = [
     # --- Trade press ----------------------------------------------------------------------
     FeedSpec(
         key="news_bee_culture", name="Bee Culture – The Magazine of American Beekeeping",
-        publisher="Bee Culture (Root Publications)", url="https://www.beeculture.com/feed/", language="en",
-        reliability=Reliability.TRADE_PRESS, country="USA", homepage="https://www.beeculture.com/",
+        publisher="Bee Culture (Root Publications)", url="https://beeculture.com/feed/", language="en",
+        reliability=Reliability.TRADE_PRESS, country="USA", homepage="https://beeculture.com/",
         expected_max_age_days=14, expected_update="Notizie e «Catch the Buzz» più volte a settimana; rivista mensile",
         expected_update_en="News and «Catch the Buzz» several times a week; monthly magazine",
         terms_note="Feed RSS dell'editore (titolo, estratto e link). Il testo completo resta sul sito dell'editore.",
-        verified="listed",  # Feedspot beekeeping directory lists beeculture.com/feed (WordPress)
+        verified="verified",  # fetched live 2026-11-04: WordPress RSS 2.0 (www. redirects here)
     ),
     FeedSpec(
         key="news_american_bee_journal", name="American Bee Journal",
@@ -186,17 +193,17 @@ FEEDS: list[FeedSpec] = [
         expected_max_age_days=45, expected_update="Rivista mensile; articoli online irregolari",
         expected_update_en="Monthly magazine; online articles at irregular intervals",
         terms_note="Feed RSS dell'editore (titolo, estratto e link).",
-        verified="unverified",  # WordPress site (?p= permalinks): standard /feed/ endpoint assumed
+        verified="verified",  # fetched live 2026-11-04: WordPress RSS 2.0, 10 items
     ),
     FeedSpec(
         key="news_apimondia", name="Apimondia – notizie",
         publisher="Apimondia (International Federation of Beekeepers' Associations)",
-        url="https://www.apimondia.org/feed/", language="en", reliability=Reliability.INDUSTRY, country=None,
-        homepage="https://www.apimondia.org/", expected_max_age_days=60,
+        url="https://apimondia.org/feed/", language="en", reliability=Reliability.INDUSTRY, country=None,
+        homepage="https://apimondia.org/", expected_max_age_days=60,
         expected_update="Comunicati irregolari (alcuni al mese): congressi, frodi, standard",
         expected_update_en="Irregular press releases (a few a month): congresses, fraud, standards",
         terms_note="Feed RSS della federazione internazionale degli apicoltori.",
-        verified="unverified",  # WordPress site (/category/news/, dated permalinks): /feed/ assumed
+        verified="verified",  # fetched live 2026-11-04: WordPress RSS 2.0 (www. redirects here)
     ),
     FeedSpec(
         key="news_food_safety_news", name="Food Safety News (filtrato: solo miele)",
@@ -206,7 +213,7 @@ FEEDS: list[FeedSpec] = [
         expected_update="Notizie quotidiane sulla sicurezza alimentare; quelle sul miele sono rare",
         expected_update_en="Daily food-safety news; items about honey are rare",
         terms_note="Feed generale: si conservano solo gli articoli che parlano di miele o apicoltura.",
-        verified="verified",  # listed on foodsafetynews.com/subscribe-via-rss-feed/
+        verified="verified",  # listed on foodsafetynews.com/subscribe-via-rss-feed/; fetched live 2026-11-04
     ),
     FeedSpec(
         key="news_foodnavigator", name="FoodNavigator (filtrato: solo miele)",
@@ -216,19 +223,24 @@ FEEDS: list[FeedSpec] = [
         expected_update="Notizie quotidiane sull'industria alimentare europea; quelle sul miele sono rare",
         expected_update_en="Daily news on the European food industry; items about honey are rare",
         terms_note="Feed generale: si conservano solo gli articoli che parlano di miele o apicoltura.",
-        verified="unverified",  # Arc XP site (sitemaps under /arc/outboundfeeds/); standard Arc RSS path assumed
+        verified="verified",  # Arc XP outbound RSS; fetched live 2026-11-04 (20 items, none about honey)
     ),
     # --- Official -----------------------------------------------------------------------
     FeedSpec(
-        key="news_europarl_agri", name="Parlamento europeo – Commissione Agricoltura (filtrato: solo miele)",
-        publisher="European Parliament", url="https://www.europarl.europa.eu/rss/committee/agri/en.xml",
+        key="news_ec_agri",
+        name="Commissione europea – DG Agricoltura, notizie (filtrato: solo miele)",
+        publisher="European Commission – DG Agriculture and Rural Development",
+        url="https://agriculture.ec.europa.eu/node/2/rss_en",
         language="en", reliability=Reliability.OFFICIAL, country=None,
-        homepage="https://www.europarl.europa.eu/committees/en/agri/home/highlights",
+        homepage="https://agriculture.ec.europa.eu/media/news_en",
         expected_max_age_days=None,
-        expected_update="Notizie della commissione AGRI più volte a settimana; quelle sul miele sono rare",
-        expected_update_en="AGRI committee news several times a week; items about honey are rare",
-        terms_note="Feed ufficiale del Parlamento europeo. Si conservano solo le notizie su miele e apicoltura.",
-        verified="listed",  # listed by the Feeder directory for the AGRI committee page
+        expected_update="Notizie della DG Agricoltura più volte a settimana; quelle sul miele sono rare",
+        expected_update_en="DG AGRI news several times a week; items about honey are rare",
+        terms_note=("Feed ufficiale della Commissione europea (© Unione europea, riutilizzo consentito con "
+                    "citazione della fonte). Si conservano solo le notizie su miele e apicoltura."),
+        # RSS link of the official news page (agriculture.ec.europa.eu/media/news_en -> /node/2/rss_en);
+        # fetched live on 2026-11-04: RSS 2.0, 30 items (tests/fixtures/news/real_ec_agri_news.xml).
+        verified="verified",
     ),
 ]
 

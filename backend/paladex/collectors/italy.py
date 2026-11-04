@@ -1,38 +1,47 @@
 """Italian honey price sources (four collectors, one Source row each).
 
 * ``cciaa_cuneo_miele``  Camera di Commercio di Cuneo, monthly "Miele" wholesale price list
-  (cuneoprezzi.it). Bulk drums ("fusto da 3 q.li") and 25 kg buckets, min/max EUR/kg.
-* ``ismea_miele``        ISMEA Mercati average ORIGIN (producer) prices: weekly by variety
-  (IDPagina 11024) and monthly by product (IDPagina 11025).
+  (cuneoprezzi.it, chapter page ``?category=11``). Bulk drums ("fusto da 3 q.li") and 25 kg
+  buckets, min/max EUR/kg; other hive products of the chapter (pollen) are left out.
+* ``ismea_miele``        ISMEA Mercati average producer prices ("prezzi medi alla
+  produzione"), by variety: weekly (IDPagina 11024) and monthly (IDPagina 11026).
 * ``onm_informamiele``   Osservatorio Nazionale Miele (informamiele.it): the monthly
   "rilevazione mensile" bulletins (stored as Reports, with the market paragraphs as narrative;
   EUR/kg ranges are extracted only when unambiguous and stored as *provisional*), plus the
-  tables of the Annual Report PDF.
-* ``cciaa_siena_miele``  Camera di Commercio di Arezzo-Siena weekly price list (PDF): honey
-  lines only.
+  wholesale price table by variety of the newest Annual Report PDF.
+* ``cciaa_siena_miele``  Camera di Commercio di Arezzo-Siena weekly price list (PDF, newest
+  list of the newest yearly archive page): honey lines only.
 
-Source research: docs/research/italy.json. IMPORTANT: none of these hosts could be reached
-while this module was written (the sandbox and the researcher were both blocked). URL
-templates come from indexed real URLs, but page and table layouts are partly RECONSTRUCTED
-from documentation and search snippets. For this reason every parser checks the structure it
-relies on and raises `SchemaDrift` (a `CollectorError`, so the run is marked *failed* with a
-clear message) instead of guessing. Whole documents are always archived by `ctx.fetch()`, so
-they can be re-parsed with `--force` once a parser has been adjusted.
+Source research: docs/research/italy.json. The module was first written while none of these
+hosts could be reached, from documentation and search snippets; on 4 Nov 2026 every parser
+was checked and corrected against the real pages and documents (real captures in
+tests/fixtures/italy/real_*, see the README there). Every parser still checks the structure
+it relies on and raises `SchemaDrift` (a `CollectorError`, so the run is marked *failed* with
+a clear message) instead of guessing. Whole documents are always archived by `ctx.fetch()`,
+so they can be re-parsed with `--force` once a parser has been adjusted.
 
 Conventions decided here (documented because the sources do not state them):
 
 * Cuneo: the survey month is the month named in "mese di <mese> <anno>" when present,
-  otherwise the month of the list date ("rilevazione mensile del 30 settembre 2023" ->
-  2023-09). `published_at` is the list date. Drum (``fusto``) and bucket (``secchio``) rows
+  otherwise the month of the list date ("rilevazione mensile del 30 settembre 2026" ->
+  2026-09). `published_at` is the list date. Drum (``fusto``) and bucket (``secchio``) rows
   are both WHOLESALE_BULK; `extra["packaging_code"]` / `extra["drum"]` let the UI keep drums
-  only. Price unit is taken from the "U.M." column ("kg" or "q.le" -> unit "q").
-* Cuneo back-fill: the yearly averages PDF ("Miele - medie YYYY") of the previous
+  only. Price unit is taken from the "Unità di misura" column ('al kg' -> kg, 'al q.le' -> q).
+  The series key is the item name ('acacia'), because the packaging words of a label change
+  between months ('Acacia (quantitativi >10 q.li)' in Sept 2025, '(fusto da 3 q.li)' before
+  and after); the label as printed is kept in `extra["item_label"]`.
+* Cuneo lists: the newest `CUNEO_MAX_LISTS` are re-checked every run; older lists dated within
+  `CUNEO_LIST_BACKFILL_MONTHS` are downloaded once each (min-max quotations).
+* Cuneo averages back-fill: the yearly averages PDF ("Miele - medie YYYY") of the previous
   `CUNEO_BACKFILL_YEARS` complete years is read until a copy fetched on or after 1 April of
   the following year is held (last year's PDF is still being completed in January), then
-  left alone (again only with --force). A monthly
-  average is stored only where no monthly list observation exists for that item/month (gap
-  filling), under its own series key and with `extra["statistic"]` = "monthly_average" or
-  "annual_average", because an average is not a min-max quotation.
+  left alone (again only with --force). A monthly cell of that PDF is the midpoint of the
+  month's list min and max (checked on the real 2025 PDF); it is stored only where no monthly
+  list observation exists for that item/month (gap filling), under its own series key and
+  with `extra["statistic"]` = "monthly_average" or "annual_average", because an average is
+  not a min-max quotation.
+* ISMEA: the pages state no VAT treatment; it is recorded as not stated
+  (`extra["vat_source"] = "not_stated"`), never assumed.
 * ISMEA weekly period strings "YYYY-M-W" are read as year, month, week-of-month, with an
   ISO-8601-like rule: week W of month M is the W-th Monday-to-Sunday week whose THURSDAY
   falls in month M (just as an ISO week belongs to the year that holds its Thursday). The raw
@@ -927,18 +936,45 @@ def _averages_from_words(page, unit: str, problems: list[str], non_honey: list[s
     values_left = min(x0 for _, x0 in cols.values()) - 1
     # 'Prezzo / minimo / massimo' words of the G.P. column are neither label nor value
     label_right = (group_x0 - 8) if group_x0 is not None else values_left
-    rows, pending = [], ""
-    for _, words in lines[header_idx + 1:]:
-        label = _clean(" ".join(w["text"] for w in words if w["x1"] <= label_right))
-        group = _clean(" ".join(w["text"] for w in words if label_right < w["x1"] <= values_left))
-        values = [w for w in words if w["x1"] > values_left]
-        if not values:
-            pending = _clean(f"{pending} {label}")     # wrapped label: continues on next line
+    # pass 1: split every line into label words, price-group words and value words
+    parsed_lines = []
+    for top, words in lines[header_idx + 1:]:
+        label_words = [w for w in words if w["x1"] <= label_right]
+        parsed_lines.append({
+            "top": top,
+            "label": _clean(" ".join(w["text"] for w in label_words)),
+            "label_x0": min((w["x0"] for w in label_words), default=None),
+            "group": _clean(" ".join(w["text"] for w in words if label_right < w["x1"] <= values_left)),
+            "values": [w for w in words if w["x1"] > values_left],
+        })
+    value_idx = [i for i, ln in enumerate(parsed_lines) if ln["values"]]
+    if not value_idx:
+        return []
+    # pass 2: a group word on a line without values ('Prezzo' above, 'massimo' below the
+    # values of the real PDFs) belongs to the vertically nearest value line; label text on a
+    # line without values continues the label of the next value line (wrapped label) unless
+    # it is out-dented, i.e. a chapter heading such as "Miele - Prodotti dell'alveare"
+    groups: dict[int, list[tuple[float, str]]] = {i: [] for i in value_idx}
+    labels: dict[int, list[str]] = {i: [] for i in value_idx}
+    pending: list[tuple[str, float | None]] = []
+    for i, ln in enumerate(parsed_lines):
+        if ln["group"]:
+            nearest = min(value_idx, key=lambda v: (abs(parsed_lines[v]["top"] - ln["top"]), v))
+            groups[nearest].append((ln["top"], ln["group"]))
+        if not ln["values"]:
+            if ln["label"]:
+                pending.append((ln["label"], ln["label_x0"]))
             continue
-        label = _clean(f"{pending} {label}")
-        pending = ""
+        own_x0 = ln["label_x0"]
+        labels[i] = [t for t, x0 in pending if own_x0 is None or x0 is None or x0 >= own_x0 - 5] + [ln["label"]]
+        pending = []
+    rows = []
+    for i in value_idx:
+        ln = parsed_lines[i]
+        label = _clean(" ".join(labels[i]))
+        group = _clean(" ".join(t for _, t in sorted(groups[i])))
         cells: dict[int, str] = {}
-        for w in values:
+        for w in ln["values"]:
             mid = (w["x0"] + w["x1"]) / 2
             c, k = min(centres, key=lambda ck: abs(ck[0] - mid))
             if abs(c - mid) > spacing * 0.6 or k in cells:
@@ -1323,15 +1359,41 @@ class IsmeaTable:
     problems: list[str] = field(default_factory=list)
     vat_included: bool | None = None
     updated: date | None = None
+    title: str | None = None          # page heading, e.g. 'Api e Miele - Prezzi medi alla produzione - f.co azienda'
+
+
+def _ismea_table(soup):
+    """(table, rows, header index, mapping) of the price table: a Prezzo column, a period
+    column and either a Prodotto/Varietà column or a Piazza column (variety in group rows)."""
+    for table in soup.find_all("table"):
+        rows = _table_rows(table)
+        for i, r in enumerate(rows[:6]):
+            mapping = _map_header(r, ISMEA_SPEC)
+            if all(k in mapping for k in ("period", "price")) and ("product" in mapping or "market" in mapping):
+                return table, rows, i, mapping
+    return None
+
+
+def _ismea_group_label(row: list[str]) -> str | None:
+    """A 'rowgroup' heading row ('Miele - Acacia' spanning the whole table): first cell only."""
+    if row and row[0] and not any(c for c in row[1:]):
+        return row[0]
+    return None
 
 
 def parse_ismea_prices(content: bytes | str) -> IsmeaTable:
-    """Parse an ISMEA 'Api e Miele - Prezzi medi - Origine' page.
+    """Parse an ISMEA 'Api e Miele - Prezzi medi alla produzione' page.
 
-    Reconstructed table: Prodotto/Varietà | Piazza | Settimana (or Mese) | Prezzo
-    ('8,00 €/Kg') | Variaz. su Sett. Prec. ('0,0%') | Variaz. su Sett. Anno Prec. ('nd')."""
+    Real layout of the variety pages (IDPagina 11024 weekly, 11026 monthly; captured 4 Nov
+    2026): <h1> 'Api e Miele - Prezzi medi alla produzione[ - f.co azienda]', then table
+    PMTable3: header Piazza | Anno-Mese-Sett. (or Anno-Mese) | Prezzo | Variaz. su Sett. Prec. |
+    Variaz. su Sett. Anno Prec.; the variety is a group row spanning the table
+    ('<tr class="rowgroup"><th colspan="5">Miele - Acacia</th></tr>'), followed by its row(s)
+    'Italia | 2026-6-4 | 8,00 €/Kg | 0,0% | nd'. 'nd' = non disponibile. The page states no VAT
+    treatment and no update date. A table with a Prodotto/Varietà column is read the same way
+    (the product cell names the item)."""
     soup = _soup(content)
-    found = _find_table(soup, ISMEA_SPEC, ("product", "period", "price"))
+    found = _ismea_table(soup)
     if not found:
         if not soup.find_all("table"):
             viewer = soup.find("iframe") is not None or re.search(
@@ -1340,20 +1402,30 @@ def parse_ismea_prices(content: bytes | str) -> IsmeaTable:
                 else "the page has no <table>"
             raise SchemaDrift(f"ISMEA honey page: price table not found ({hint})")
         raise SchemaDrift(
-            "ISMEA honey page: no table with Prodotto/Varietà, Settimana/Mese and Prezzo columns "
+            "ISMEA honey page: no table with Piazza or Prodotto/Varietà, Anno-Mese(-Sett.) and Prezzo columns "
             f"(first rows: {_first_rows(soup)})"
         )
     _, rows, h, mapping = found
     page_text = _clean(soup.get_text(" "))
     header_unit = _unit_from_text(_cell(rows[h], mapping, "price"))
     page_unit = header_unit or _unit_from_text(page_text)
-    out = IsmeaTable(rows=[], vat_included=_vat_flag(page_text))
+    h1 = soup.find("h1")
+    out = IsmeaTable(rows=[], vat_included=_vat_flag(page_text), title=_clean(h1.get_text(" ")) if h1 else None)
     m = re.search(r"aggiornat[oia]\s+(?:al|il|a)\s+(.{6,30})", page_text, re.I)
     out.updated = parse_it_date(m.group(1)) if m else None
     pending: list[dict] = []
+    group: str | None = None
     for r in rows[h + 1:]:
-        product, period_raw, price_raw = (_cell(r, mapping, k) for k in ("product", "period", "price"))
+        heading = _ismea_group_label(r)
+        if heading is not None:
+            group = heading
+            continue
+        product = _cell(r, mapping, "product") if "product" in mapping else (group or "")
+        period_raw, price_raw = (_cell(r, mapping, k) for k in ("period", "price"))
         if not product and not price_raw:
+            continue
+        if not product:
+            out.problems.append(f"ISMEA row {r}: no variety heading above it; row skipped")
             continue
         try:
             price = parse_it_number(price_raw)
@@ -1415,8 +1487,12 @@ class IsmeaHoneyCollector(Collector):
             if not table.rows:
                 ctx.warn(f"ISMEA page {page_id}: no quoted row (the series may be paused out of season)")
                 continue
-            vat = table.vat_included if table.vat_included is not None else True
-            vat_source = "page" if table.vat_included is not None else "research_documentation"
+            # The real pages state no VAT treatment: recorded as not stated, never assumed.
+            vat = table.vat_included
+            vat_source = "page" if vat is not None else "not_stated"
+            basis = "prezzo medio alla produzione"
+            if re.search(r"\bf\.?\s*co\s+azienda|franco\s+azienda", _fold(table.title)):
+                basis += ", franco azienda"
             for r in table.rows:
                 period = r["period"]
                 ctx.add_price(
@@ -1428,14 +1504,14 @@ class IsmeaHoneyCollector(Collector):
                     frequency=period["frequency"],
                     market_iso3=MARKET_ISO3, market_location=r["market"][:120],
                     origin_iso3=MARKET_ISO3, origin_label="Italia",
-                    terms=_terms("prezzo medio all'origine", _vat_words(vat)),
+                    terms=_terms(basis, _vat_words(vat)),
                     published_at=table.updated, source_url=doc.url, raw_document_id=doc.raw_document_id,
                     data_status=DataStatus.PUBLISHED,
                     notes=("Settimana ISMEA convertita in date con la convenzione Paladex (vedi extra); "
                            "da verificare con ISMEA") if period["frequency"] == "W" else None,
-                    extra={**period["extra"], "ismea_page": page_id, "change_prev_pct": r["chg_prev"],
-                           "change_prev_year_pct": r["chg_year"], "vat_included": vat, "vat_source": vat_source,
-                           "channel": "ismea_origin"},
+                    extra={**period["extra"], "ismea_page": page_id, "page_title": table.title,
+                           "change_prev_pct": r["chg_prev"], "change_prev_year_pct": r["chg_year"],
+                           "vat_included": vat, "vat_source": vat_source, "channel": "ismea_origin"},
                 )
             ctx.checkpoint()
 
@@ -1579,6 +1655,11 @@ class OnmPage:
     price_basis: str | None
 
 
+# Closing paragraphs of every real post (Aug/Sept 2026) that point to the members' area; they
+# are not market text.
+_ONM_BOILERPLATE_RE = re.compile(r"^continua a leggere\b|^ricordiamo che da settembre 2023\b|\biscriviti per consultare\b")
+
+
 def parse_onm_post(content: bytes | str) -> OnmPage:
     """Bulletin post (full page or the bare post body from the feed/REST API).
 
@@ -1614,6 +1695,8 @@ def parse_onm_post(content: bytes | str) -> OnmPage:
             in_market = block.name != "h1" and "mercato" in _fold(text)
             has_section = has_section or in_market
             continue
+        if _ONM_BOILERPLATE_RE.search(_fold(text)):
+            continue                                   # 'Continua a leggere ... su MIELEINFORMA', 'Ricordiamo che ...'
         all_paragraphs.append(text)
         if in_market:
             paragraphs.append(text)
@@ -1896,13 +1979,25 @@ def find_onm_annual_pdfs(content: bytes | str, base_url: str, *, published: date
 class OnmAnnualTables:
     variety_rows: list[dict] = field(default_factory=list)
     variety_caption: str | None = None
+    variety_note: str | None = None          # e.g. 'Nota: Per i corrispondenti mieli biologici ...'
+    variety_year: int | None = None          # year named by the caption ('rilevati nel 2025')
     import_rows: list[dict] = field(default_factory=list)
     import_caption: str | None = None
+    import_year: int | None = None
     problems: list[str] = field(default_factory=list)
+    other_tables: list[str] = field(default_factory=list)   # captions of price tables not imported
 
 
-_TEXT_ROW_RE = re.compile(r"^(?P<label>[^\d]+?)\s+(?P<nums>(?:(?:\d+(?:[.,]\d+)?|n\.?d\.?|-|–)(?:\s+|$))+)$", re.I)
 _SKIP_ROW_LABELS = re.compile(r"^(media|totale|media generale|italia|nord|centro|sud|isole|altri|altri paesi)\b")
+# words of multi-line column headers: 'TIPO VARIAZIONE %' / 'Min Max Medio' / 'di miele 2025/2024'
+_HEADER_WORDS_RE = re.compile(
+    r"^(?:\s|tipo|di|del|miele|mieli|varieta|variazione|variaz\.?|%|min\.?|max\.?|minimo|massimo|medio|media|prezzo|"
+    r"prezzi|paese|paesi|origine|area|euro/kg|€/kg|\(?(?:19|20)\d{2}/(?:19|20)\d{2}\)?)+$"
+)
+_ONM_NUM = r"\d+(?:[.,]\d+)?|n\.?d\.?|-|–"
+_ONM_ROW_RE = re.compile(rf"^(?P<label>[^\d%]*?[^\d\s%])\s+(?P<vals>(?:(?:{_ONM_NUM})\s+)*(?:{_ONM_NUM}))"
+                         r"(?:\s+(?P<pct>[+-]?\d+(?:[.,]\d+)?\s?%))?$", re.I)
+_CAPTION_YEAR_RE = re.compile(r"\b(?:nel|anno|stagione)\s+((?:19|20)\d{2})\b", re.I)
 
 
 def _is_caption(kind: str, line: str) -> bool:
@@ -1912,13 +2007,13 @@ def _is_caption(kind: str, line: str) -> bool:
     is_import = bool(re.search(r"import", f) and re.search(r"origine|paese|provenienza", f))
     if kind == "import":
         return is_import
-    regional = re.search(r"\b(nord|centro|sud|isole|regione|regionale|regionali|biologic\w*)\b", f)
+    regional = re.search(r"\b(nord|centro|sud|isole|regione|regionale|regionali|biologic\w*|vendita diretta)\b", f)
     return not re.search(r"import", f) and not regional and bool(re.search(r"ingrosso|fust", f))
 
 
-def _value_columns(line: str, *, allow_single: bool) -> list[str] | None:
-    """Price columns of a header line, in order: min / max / avg ('Media'), or a single
-    'value' column ('Prezzo', '€/kg') when `allow_single`. Lines with digits are not headers."""
+def _value_columns(line: str) -> list[str] | None:
+    """Price columns of a header line, in order: min / max / avg ('Media', 'Medio'). Lines
+    with digits are not headers."""
     f = _fold(line)
     if re.search(r"\d", f):
         return None
@@ -1927,78 +2022,108 @@ def _value_columns(line: str, *, allow_single: bool) -> list[str] | None:
         m = re.search(rx, f)
         if m:
             cols.append((m.start(), name))
-    if cols:
-        return [name for _, name in sorted(cols)]
-    if allow_single and re.search(r"\bprezz|/\s*kg\b", f):
-        return ["value"]
-    return None
+    return [name for _, name in sorted(cols)] if len(cols) >= 2 else None
 
 
-def _parse_text_table(lines: list[str], start: int, problems: list[str], what: str) -> list[dict] | None:
-    """Header within 3 lines after the caption, then 'Label n n n' rows until the first line
-    that is not a row. A row with a different count of values than the header is skipped.
-    A min/max/media header is preferred to a single-price header, so that a units line
-    under the caption ('Euro al kg, IVA inclusa') is never taken for the header."""
-    window = range(start, min(start + 3, len(lines)))
-    for allow_single in (False, True):
-        hit = next(((j, c) for j in window if (c := _value_columns(lines[j], allow_single=allow_single))), None)
-        if hit:
-            j, cols = hit
-            break
-    else:
-        return None
-    rows: list[dict] = []
-    misses = 0
-    for line in lines[j + 1:]:
-        m = _TEXT_ROW_RE.match(line)
-        if not m:
-            if rows or misses >= 1:
+def _is_header_fragment(line: str) -> bool:
+    return bool(_HEADER_WORDS_RE.match(_fold(line)))
+
+
+def _onm_tables_on_page(lines: list[str]) -> list[dict]:
+    """Every 'Min Max Medio' table of a page: {caption, header, columns, rows, note, problems}.
+
+    The caption is the nearest line above the header that speaks of prices ('Prezzi
+    all'ingrosso rilevati nel 2025 ...'), joined with its continuation lines ('da 300 kg.
+    Partite superiori ai 30 q.li. Euro/kg Iva inclusa, franco produttore.'); header
+    fragments in between ('TIPO VARIAZIONE %') are column titles. A table without such a
+    caption within 4 lines is not read. Rows ('Acacia 7,5 8,5 8,0 2,6%') follow, after at
+    most two header continuation lines ('di miele 2025/2024'); a row with a different count
+    of values than the header is skipped with a problem note (reported only for the tables
+    that are imported: the report also has swarm, queen and pollination price tables)."""
+    tables = []
+    for j, line in enumerate(lines):
+        cols = _value_columns(line)
+        if not cols:
+            continue
+        caption_lines, fragments = [], [line]
+        for k in range(j - 1, max(-1, j - 5), -1):
+            if _is_header_fragment(lines[k]) and not caption_lines:
+                fragments.insert(0, lines[k])
+                continue
+            caption_lines.insert(0, lines[k])
+            if re.search(r"\bprezz", _fold(lines[k])):
                 break
-            misses += 1                                # tolerate one unit line such as "(€/kg)"
+        else:
+            caption_lines = []
+        if not caption_lines or not re.search(r"\bprezz", _fold(caption_lines[0])):
             continue
-        label, tokens = _clean(m.group("label")), m.group("nums").split()
-        if len(tokens) != len(cols):
-            problems.append(f"ONM annual report, {what} '{label}': {len(tokens)} values for {len(cols)} columns; row skipped")
-            continue
-        try:
-            values = dict(zip(cols, (parse_it_number(t) for t in tokens), strict=True))
-        except ValueError:
-            problems.append(f"ONM annual report, {what} '{label}': unparseable values {tokens}; row skipped")
-            continue
-        rows.append({"label": label, **values})
-    return rows
+        rows, skipped_head, note, problems = [], 0, None, []
+        for nxt in lines[j + 1:]:
+            m = _ONM_ROW_RE.match(nxt)
+            if not m:
+                if not rows and skipped_head < 2 and _is_header_fragment(nxt):
+                    fragments.append(nxt)
+                    skipped_head += 1
+                    continue
+                if rows and re.match(r"(?i)^nota\b", nxt):
+                    note = nxt
+                break
+            label, tokens = _clean(m.group("label")), m.group("vals").split()
+            if len(tokens) != len(cols):
+                problems.append(f"ONM annual report '{label}': {len(tokens)} values for {len(cols)} columns; row skipped")
+                continue
+            try:
+                values = dict(zip(cols, (parse_it_number(t) for t in tokens), strict=True))
+                change = parse_it_number(m.group("pct").replace(" ", "")) if m.group("pct") else None
+            except ValueError:
+                problems.append(f"ONM annual report '{label}': unparseable values {tokens}; row skipped")
+                continue
+            rows.append({"label": label, **values, "change_pct": change})
+        if rows:
+            tables.append({"caption": _clean(" ".join(caption_lines)), "columns": cols, "rows": rows, "note": note,
+                           "header": _clean(" ".join(fragments)), "problems": problems})
+    return tables
 
 
 def _price_triplet(row: dict) -> tuple[float | None, float | None, float | None]:
     low, high = row.get("min"), row.get("max")
-    value = row.get("avg") or row.get("value")
+    value = row.get("avg") if row.get("avg") is not None else row.get("value")
     if value is None and low is not None and high is not None:
         value = round((low + high) / 2, 4)
     return low, high, value
 
 
 def parse_onm_annual_pdf(content: bytes) -> OnmAnnualTables:
-    """'Prezzi all'ingrosso ... per varietà' and 'Prezzi del miele d'importazione per paese di
-    origine' tables, read only when unambiguous: exactly one caption of each kind followed by
-    a Min/Max/Media header and 'Label n n n' rows. Rows whose label is not a variety (resp. a
-    country) are skipped with a problem note."""
+    """Wholesale price table by variety and import price table by country of origin, read
+    only when unambiguous: exactly one table of each kind, a caption stating the unit
+    (EUR/kg), a Min/Max/Media(o) header and 'Label n n n' rows.
+
+    Real 2025 report (REPORT-ANNUALE-2025, page 42, fetched 4 Nov 2026): caption 'Prezzi
+    all'ingrosso rilevati nel 2025 per i principali mieli convenzionali in fusti da 300 kg.
+    Partite superiori ai 30 q.li. Euro/kg Iva inclusa, franco produttore.', header 'TIPO
+    VARIAZIONE % / Min Max Medio / di miele 2025/2024', rows 'Acacia 7,5 8,5 8,0 2,6%' ...
+    'Millefiori 4,0 4,5 4,2 -6,7%', then 'Nota: Per i corrispondenti mieli biologici il
+    differenziale di prezzo è circa il 10-12% in più.' ('Medio' is not the midpoint: Agrumi
+    5,6-6,0, Medio 5,7.) The import prices by country of that report are a chart (page 41)
+    with no numbers in the text, so nothing is read for them. Rows whose label is not a
+    variety (resp. a country) are skipped with a problem note."""
     out = OnmAnnualTables()
-    pages = _pdf_lines(content)
+    tables = [t for lines in _pdf_lines(content) for t in _onm_tables_on_page(lines)]
     for kind in ("variety", "import"):
-        candidates = []
-        for lines in pages:
-            for i, line in enumerate(lines):
-                if _is_caption(kind, line):
-                    tbl = _parse_text_table(lines, i + 1, out.problems, kind)
-                    if tbl:
-                        candidates.append((line, tbl))
+        candidates = [t for t in tables if _is_caption(kind, t["caption"])]
         if not candidates:
             continue
         if len(candidates) > 1:
             out.problems.append(f"ONM annual report: {len(candidates)} '{kind}' price tables match; ambiguous, none imported")
             continue
-        caption, rows = candidates[0]
-        for r in rows:
+        tbl = candidates[0]
+        caption = tbl["caption"]
+        out.problems.extend(tbl["problems"])
+        if _unit_from_text(f"{caption} {tbl['header']}") != "kg":
+            out.problems.append(f"ONM annual report: '{kind}' table caption does not state EUR/kg ({caption!r}); not imported")
+            continue
+        ym = _CAPTION_YEAR_RE.search(caption)
+        for r in tbl["rows"]:
             low, high, value = _price_triplet(r)
             if value is None or _SKIP_ROW_LABELS.match(_fold(r["label"])):
                 continue
@@ -2008,14 +2133,15 @@ def parse_onm_annual_pdf(content: bytes) -> OnmAnnualTables:
             if not all(_plausible(v, "kg") for v in (low, high, value)):
                 out.problems.append(f"ONM annual report, {kind} '{r['label']}': implausible EUR/kg; row skipped")
                 continue
-            row = {"label": r["label"], "low": low, "high": high, "value": value}
+            row = {"label": r["label"], "low": low, "high": high, "value": value, "change_pct": r["change_pct"]}
             if kind == "variety":
                 variety, organic = normalize_it_variety(r["label"])
                 if variety == Variety.UNSPECIFIED.value:
                     out.problems.append(f"ONM annual report: '{r['label']}' is not a variety; row skipped")
                     continue
                 out.variety_rows.append({**row, "variety": variety, "organic": organic})
-                out.variety_caption = caption
+                out.variety_caption, out.variety_note = caption, tbl["note"]
+                out.variety_year = int(ym.group(1)) if ym else None
             else:
                 iso3 = lookup_iso3(r["label"])
                 if not iso3 or len(iso3) != 3 or iso3 in ("WLD", "ITA"):
@@ -2023,6 +2149,9 @@ def parse_onm_annual_pdf(content: bytes) -> OnmAnnualTables:
                     continue
                 out.import_rows.append({**row, "origin_iso3": iso3})
                 out.import_caption = caption
+                out.import_year = int(ym.group(1)) if ym else None
+    out.other_tables = [t["caption"] for t in tables
+                        if not _is_caption("variety", t["caption"]) and not _is_caption("import", t["caption"])]
     return out
 
 
@@ -2190,22 +2319,38 @@ class OnmInformamieleCollector(Collector):
             return
         for p in tables.problems:
             ctx.warn(p)
+        for kind, year, rows in (("variety", tables.variety_year, tables.variety_rows),
+                                 ("import", tables.import_year, tables.import_rows)):
+            if rows and year is not None and year != season:
+                ctx.warn(f"ONM annual report {season}: the {kind} price table is captioned for {year}, not {season}; "
+                         "not imported")
+                rows.clear()
         if not tables.variety_rows and not tables.import_rows:
-            ctx.warn(f"ONM annual report {season}: price tables not recognised; registered without prices")
+            ctx.warn(f"ONM annual report {season}: no wholesale price table by variety (nor import price table by "
+                     "origin) could be read unambiguously; registered as a report without prices")
             return
+        if not tables.import_rows:
+            log.info("ONM annual report %s: no import price table by origin in the text (chart only)", season)
         start, end = year_bounds(season)
         common = dict(price_type=PriceType.WHOLESALE_BULK, currency=CURRENCY, unit="kg",
                       period_start=start, period_end=end, period_label=str(season), frequency="A",
                       market_iso3=MARKET_ISO3, market_location="Italia (Report annuale ONM)",
                       published_at=link.published, source_url=link.url, raw_document_id=doc.raw_document_id,
                       data_status=DataStatus.PUBLISHED)
+        caption = tables.variety_caption
+        pack_code = classify_packaging(caption)
+        vat = _vat_flag(caption)
         for r in tables.variety_rows:
             ctx.add_price(series_key=f"onm-annuale|{season}|varieta|{_slug(r['label'])}",
                           variety=r["variety"], variety_raw=r["label"][:200], organic=r["organic"],
                           price_value=r["value"], price_low=r["low"], price_high=r["high"],
                           origin_iso3=MARKET_ISO3, origin_label="Italia",
-                          terms=_terms(tables.variety_caption),
-                          extra={"table": tables.variety_caption, "statistic": "annual", "channel": "producer_to_packer"},
+                          terms=_terms(caption),
+                          notes=tables.variety_note,
+                          extra={"table": caption, "table_note": tables.variety_note, "statistic": "annual",
+                                 "value_column": "Medio", "change_vs_prev_year_pct": r["change_pct"],
+                                 "packaging_code": pack_code, "drum": pack_code.startswith("fusto"),
+                                 "vat_included": vat, "channel": "producer_to_packer"},
                           **common)
         import_variety, _ = normalize_it_variety(tables.import_caption or "")
         if import_variety == Variety.OTHER.value:
@@ -2216,7 +2361,8 @@ class OnmInformamieleCollector(Collector):
                           price_value=r["value"], price_low=r["low"], price_high=r["high"],
                           origin_iso3=r["origin_iso3"], origin_label=r["label"][:120],
                           terms=_terms(tables.import_caption),
-                          extra={"table": tables.import_caption, "statistic": "annual", "channel": "import"},
+                          extra={"table": tables.import_caption, "statistic": "annual", "channel": "import",
+                                 "change_vs_prev_year_pct": r["change_pct"]},
                           **common)
 
 
@@ -2225,17 +2371,31 @@ class OnmInformamieleCollector(Collector):
 # ===========================================================================
 
 SIENA_BASE = "https://www.as.camcom.it"
+# The "prezzi" page is the 2019 page (its own PDF links stop at February 2020). It links one
+# archive page per year, with slugs that differ from year to year ('listini-prezzi-anno-2025',
+# 'listini-settimanali-provincia-siena-anno-2026'); the link TEXT is stable: 'Listini settimanali
+# provincia di Siena anno 2026' (live check, 4 Nov 2026).
 SIENA_INDEX_URL = SIENA_BASE + "/pubblicazioni-e-listini-prezzi/prezzi"
 SIENA_ARCHIVE_URL = SIENA_BASE + "/listini-settimanali-provincia-siena-anno-{year}"
+SIENA_STALE_DAYS = 35          # newest list older than this -> warning (weekly list, Wednesdays)
 _SIENA_FILE_RE = re.compile(r"n[\s._°º]*(\d{1,3})[\s._-]*del[\s._-]*(\d{1,2})[\s._-](\d{1,2})[\s._-](\d{4})", re.I)
-_SIENA_ARCHIVE_RE = re.compile(r"listin\w*-settimanal\w*-provincia-siena-anno-(\d{4})", re.I)
+_SIENA_ARCHIVE_RE = re.compile(r"listin\w*-(?:settimanal\w*-provincia-siena|prezzi(?:-provincia-siena)?)-anno-(\d{4})", re.I)
+_SIENA_ARCHIVE_TEXT_RE = re.compile(r"listin\w*\s+settimanal\w*\s+(?:provincia|sede)\s+di\s+siena\s+anno\s+(\d{4})", re.I)
 _SIENA_HEADER_RE = re.compile(r"\bda\s+euro\b.*\ba\s+euro\b|\bmin\w*\b.*\bmax\w*\b|prezzo\s+minimo", re.I)
 _SIENA_LIST_RE = re.compile(r"listino\s+(?:prezzi\s+)?n\.?\s*[°º]?\s*(\d{1,3})\s+del\s+(\S+(?:\s+\w+\s+\d{4})?)", re.I)
+_SIENA_UNIT = r"(?:(?:al|alla|per)\s+)?(?:kg|q\.?\s?l[ie]|ql|q|quintale|tonn?|100\s*kg)\.?|€/kg|euro/kg"
+# Real lines: 'Miele (millefiori) al Kg. 6,00 7,00' and 'Miele (selezionati) al Kg. 6,50 10,00'.
+# Columns: u. misura | da Euro | a Euro | Variazione; a variation is printed signed ('-85,00'
+# on the fuel lines of the same list), a price never is.
 _HONEY_LINE_RE = re.compile(
-    r"^(?P<label>miel[ei]\b.*?)\s+(?:(?P<unit>kg\.?|q\.?\s?l[ie]\.?|ql|q|quintale|€/kg|euro/kg)\s+)?"
-    r"(?P<n1>\d+(?:[.,]\d+)?|-|n\.?q\.?)(?:\s+(?P<n2>\d+(?:[.,]\d+)?|-|n\.?q\.?))?$",
+    rf"^(?P<label>miel[ei]\b.*?)\s+(?:(?P<unit>{_SIENA_UNIT})\s+)?"
+    r"(?P<n1>\d+(?:[.,]\d+)?|-|n\.?q\.?)(?:\s+(?P<n2>\d+(?:[.,]\d+)?|-|n\.?q\.?))?"
+    r"(?:\s+(?P<chg>[+-]\s?\d+(?:[.,]\d+)?%?))?$",
     re.I,
 )
+_HONEY_START_RE = re.compile(r"^miel[ei]\b", re.I)
+_SIENA_SECTION_RE = re.compile(r"^[A-ZÀ-Ý][A-ZÀ-Ý']{2,}(?:\s|$)")     # 'VARIE - IVA esclusa', 'UVA (alla produzione ...'
+_SIENA_PRICE_NUM_RE = re.compile(r"\d+,\d{2}\b")
 
 
 @dataclass
@@ -2256,10 +2416,12 @@ class SienaList:
 
 
 def find_siena_pdfs(content: bytes | str, base_url: str = SIENA_INDEX_URL) -> tuple[list[SienaLink], list[str]]:
-    """Weekly list PDFs linked from a page (newest first) and yearly archive pages found."""
+    """Weekly list PDFs linked from a page (newest first) and the yearly Siena archive pages
+    it links (newest year first). File names vary ('listino_prezzi_n_44_del_04_11_2026.pdf',
+    'listino_prezzi_n.1_2026.pdf'): the number and date are read from the file name, else
+    from the link text ('Listino prezzi n. 01 del 07.01.2026')."""
     soup = _soup(content)
     links: dict[str, SienaLink] = {}
-    archives: list[tuple[int, str]] = []
     for a in soup.find_all("a", href=True):
         url = urljoin(base_url, a["href"])
         path = unquote(urlparse(url).path)
@@ -2272,12 +2434,24 @@ def find_siena_pdfs(content: bytes | str, base_url: str = SIENA_INDEX_URL) -> tu
             number, d = (int(m.group(1)), _safe_date(m.group(4), m.group(3), m.group(2))) if m else (None, parse_it_date(text))
             if d is not None:
                 links.setdefault(url, SienaLink(url, number, d, text or fname))
-        else:
-            m = _SIENA_ARCHIVE_RE.search(path)
-            if m and url not in [u for _, u in archives]:
-                archives.append((int(m.group(1)), url))
     ordered = sorted(links.values(), key=lambda link: (link.list_date, link.number or 0), reverse=True)
-    return ordered, [u for _, u in sorted(archives, reverse=True)]
+    years = siena_archive_years(soup, base_url)
+    return ordered, [years[y] for y in sorted(years, reverse=True)]
+
+
+def siena_archive_years(content, base_url: str = SIENA_INDEX_URL) -> dict[int, str]:
+    """{year: archive page URL} of the 'Listini settimanali provincia di Siena anno YYYY' links
+    (link text first, URL slug as a fallback)."""
+    soup = content if isinstance(content, BeautifulSoup) else _soup(content)
+    out: dict[int, str] = {}
+    for a in soup.find_all("a", href=True):
+        url = urljoin(base_url, a["href"])
+        if urlparse(url).path.lower().endswith(".pdf") or urlparse(url).netloc != urlparse(SIENA_BASE).netloc:
+            continue
+        m = _SIENA_ARCHIVE_TEXT_RE.search(_clean(a.get_text(" "))) or _SIENA_ARCHIVE_RE.search(unquote(urlparse(url).path))
+        if m:
+            out.setdefault(int(m.group(1)), url)
+    return out
 
 
 def _price_type_from_wording(text: str | None) -> tuple[PriceType | None, str | None]:
@@ -2292,32 +2466,54 @@ def _price_type_from_wording(text: str | None) -> tuple[PriceType | None, str | 
     return kinds[0] if len(kinds) == 1 else (None, None)
 
 
+def _is_siena_section(line: str) -> bool:
+    """Section headings open with an upper-case word and carry no price ('VARIE - IVA
+    esclusa', 'OLIVE DA OLIO (franco azienda molitoria ...) iva esclusa', 'FRUMENTI (alla
+    produzione - ...) IVA esclusa min. max.')."""
+    return bool(_SIENA_SECTION_RE.match(line)) and not _SIENA_PRICE_NUM_RE.search(line) and len(line) <= 200
+
+
 def parse_siena_pdf(content: bytes) -> SienaList:
-    """Honey lines of a weekly list: 'Miele millefiori  kg  6,00  7,00' under columns
-    'u. misura | da Euro | a Euro'. Each row carries the price type stated by its section
-    heading, else by the list title, else wholesale (it is a chamber wholesale list)."""
+    """Honey lines of a weekly list. Real layout (list n. 44 of 04.11.2026): title 'Listino
+    settimanale dei prezzi all'ingrosso accertati sulla piazza di Siena per mezzo di
+    Commissione', 'Listino n. 44 del 04.11.2026', columns 'Denominazione della merce e qualità
+    | u. misura | da Euro | a Euro | Variazione'; honey sits in section 'VARIE - IVA esclusa':
+    'Miele (millefiori) al Kg. 6,00 7,00', 'Miele (selezionati) al Kg. 6,50 10,00'.
+
+    Each row carries the price type stated by its section heading, else by the title block
+    (the lines above the first column header), else wholesale. The VAT treatment is the one
+    stated by the row's section; failing that, the document's when it states only one. A
+    line starting with 'Miele' that does not fit the columns is reported, never guessed."""
     pages = _pdf_lines(content)
     lines = [ln for page in pages for ln in page]
     full = "\n".join(lines)
     m = _SIENA_LIST_RE.search(full)
     number, list_date = (int(m.group(1)), parse_it_date(m.group(2))) if m else (None, None)
-    out = SienaList(number=number, list_date=list_date, rows=[], vat_included=_vat_flag(full))
+    vat_words = {_vat_flag(ln) for ln in lines if _vat_flag(ln) is not None}
+    out = SienaList(number=number, list_date=list_date, rows=[],
+                    vat_included=vat_words.pop() if len(vat_words) == 1 else None)
     header_found = False
+    title_lines: list[str] = []
     section = None
     honey: list[tuple[str, re.Match, str | None]] = []
     for line in lines:
+        if not header_found:
+            title_lines.append(line)
+        if _is_siena_section(line):
+            section = line
         if _SIENA_HEADER_RE.search(line):
             header_found = True
             continue
         hm = _HONEY_LINE_RE.match(line)
         if hm:
             honey.append((line, hm, section))
-        elif not re.search(r"\d", line) and len(line) <= 90 and (line.isupper() or line.endswith(":")):
-            section = line
+        elif _HONEY_START_RE.match(line):
+            out.problems.append(f"Siena '{line}': honey line not in the expected 'u. misura / da Euro / a Euro' "
+                                "layout; row skipped")
     if honey and not header_found:
         raise SchemaDrift("Siena price list: honey line(s) found but no 'da Euro / a Euro' (or min/max) "
                           "column header; the column layout has changed")
-    head_type, head_words = _price_type_from_wording(" ".join(lines[:12]))
+    head_type, head_words = _price_type_from_wording(" ".join(title_lines[:-1] or lines[:12]))
     for line, hm, sec in honey:
         label = _clean(hm.group("label"))
         unit = normalize_unit(hm.group("unit")) if hm.group("unit") else None
@@ -2344,9 +2540,17 @@ def parse_siena_pdf(content: bytes) -> SienaList:
             (head_type, head_words, "title") if head_type else \
             (PriceType.WHOLESALE_BULK, "listino camerale (tipo di prezzo non indicato)", "default")
         variety, organic = normalize_it_variety(label)
+        sec_vat = _vat_flag(sec)
+        try:
+            change = parse_it_number(hm.group("chg").replace(" ", "")) if hm.group("chg") else None
+        except ValueError:
+            change = None
         out.rows.append({"label": label, "variety": variety, "organic": organic, "unit": unit,
                          "low": low, "high": high, "value": value, "price_type": price_type,
-                         "price_type_words": words, "price_type_basis": basis, "section": sec})
+                         "price_type_words": words, "price_type_basis": basis, "section": sec,
+                         "vat_included": sec_vat if sec_vat is not None else out.vat_included,
+                         "vat_basis": "section" if sec_vat is not None else ("document" if out.vat_included is not None else None),
+                         "change": change})
     return out
 
 
@@ -2380,6 +2584,9 @@ class SienaHoneyCollector(Collector):
             ctx.warn(f"Siena list {link.url}: date in the PDF ({parsed.list_date}) differs from the file name "
                      f"({link.list_date}); the PDF date is used")
         number = parsed.number or link.number
+        if (_today() - list_date).days > SIENA_STALE_DAYS:
+            ctx.warn(f"Siena: the newest weekly list found is n. {number} del {list_date:%d.%m.%Y}, "
+                     f"older than {SIENA_STALE_DAYS} days")
         if not parsed.rows:
             ctx.warn(f"Siena list n. {number} del {list_date:%d.%m.%Y}: no honey line found")
             return
@@ -2397,39 +2604,56 @@ class SienaHoneyCollector(Collector):
                 market_iso3=MARKET_ISO3, market_location="Siena",
                 origin_iso3=MARKET_ISO3, origin_label="Italia",
                 terms=_terms(f"listino settimanale n. {number} del {list_date:%d.%m.%Y}", r["price_type_words"],
-                             "confezione non indicata", _vat_words(parsed.vat_included)),
+                             "confezione non indicata", _vat_words(r["vat_included"])),
                 published_at=list_date, source_url=doc.url, raw_document_id=doc.raw_document_id,
                 data_status=DataStatus.PUBLISHED,
                 extra={"list_number": number, "list_date": list_date.isoformat(), "section": r["section"],
                        "price_type_basis": r["price_type_basis"], "packaging": None,
-                       "packaging_code": "non_specificato", "vat_included": parsed.vat_included,
-                       "channel": "chamber_local"},
+                       "packaging_code": "non_specificato", "vat_included": r["vat_included"],
+                       "vat_basis": r["vat_basis"], "change_eur": r["change"], "channel": "chamber_local"},
             )
 
     def _discover(self, ctx: CollectContext) -> list[SienaLink]:
+        """Newest weekly list: from the newest yearly archive page linked by the prices page
+        ('Listini settimanali provincia di Siena anno 2026'), falling back to the previous year
+        (early January) and to the URL pattern of the 2026 page. PDF links on the prices page
+        itself belong to 2019-2020 and are used only when no archive page has any."""
         errors: list[str] = []
-        links: list[SienaLink] = []
-        archives: list[str] = []
+        index_links: list[SienaLink] = []
+        years: dict[int, str] = {}
         try:
             index = ctx.fetch(SIENA_INDEX_URL, store=False)
-            links, archives = find_siena_pdfs(index.content, index.url)
+            index_links, _ = find_siena_pdfs(index.content, index.url)
+            years = siena_archive_years(index.content, index.url)
         except Offline:
             raise
         except CollectorError as exc:
             errors.append(f"index: {exc}")
-        if not links:
-            year = _today().year
-            for url in (archives or [SIENA_ARCHIVE_URL.format(year=year), SIENA_ARCHIVE_URL.format(year=year - 1)])[:2]:
-                try:
-                    page = ctx.fetch(url, store=False)
-                    links, _ = find_siena_pdfs(page.content, page.url)
-                except Offline:
-                    raise
-                except CollectorError as exc:
-                    errors.append(f"{url}: {exc}")
-                    continue
-                if links:
-                    break
+        this_year = _today().year
+        candidates: list[str] = []
+        for y in (this_year, this_year - 1):
+            url = years.get(y) or SIENA_ARCHIVE_URL.format(year=y)
+            if url not in candidates:
+                candidates.append(url)
+        if years and max(years) > this_year:              # clock behind the site: trust the site
+            candidates.insert(0, years[max(years)])
+        links: list[SienaLink] = []
+        for url in candidates:
+            try:
+                page = ctx.fetch(url, store=False)
+                links, _ = find_siena_pdfs(page.content, page.url)
+            except Offline:
+                raise
+            except CollectorError as exc:
+                errors.append(f"{url}: {exc}")
+                continue
+            if links:
+                break
+            errors.append(f"{url}: no list PDF link")
+        if not links and index_links:
+            ctx.warn("Siena: no yearly archive page with weekly lists was found; using the PDF links of the "
+                     f"prices page (newest: {index_links[0].list_date:%d.%m.%Y}) - " + "; ".join(errors))
+            links = index_links
         if not links:
             raise SchemaDrift("Siena: no weekly price-list PDF link (listino_prezzi_n_..._del_....pdf) found ("
                               + ("; ".join(errors) or "pages fetched but no matching links") + ")")

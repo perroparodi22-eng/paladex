@@ -1,5 +1,8 @@
 # Origin-country notice watcher fixtures: RECONSTRUCTED, not captured live
 
+(Real captures of the live sources are kept apart, in the `real` subdirectory, with their own
+README; everything described below, at this level, is reconstructed.)
+
 These files test `paladex/collectors/official_watchers.py` (`br_mapa_honey`, `ar_senasa_honey`,
 `in_dgft_honey`). They were **reconstructed from documentation**. None was downloaded from
 `gov.br`, `in.gov.br`, `argentina.gob.ar`, `boletinoficial.gob.ar` or `dgft.gov.in`, because the

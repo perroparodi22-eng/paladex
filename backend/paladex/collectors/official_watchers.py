@@ -121,6 +121,7 @@ from sqlalchemy import select
 
 from ..enums import Reliability, SourceKind
 from ..models import AppSetting, RegulationItem
+from ..services import ocr
 from .base import CollectContext, Collector, CollectorError, FetchResult, Offline
 
 log = logging.getLogger(__name__)
@@ -436,16 +437,23 @@ def _snippet(content: bytes, n: int = 160) -> str:
 
 
 class _FeedRunner:
-    """Runs the independent feeds of one collector. Each feed is committed on its own. At the end
-    the run fails (``CollectorError``) if any feed failed, crashes included (a crashed feed's
-    uncommitted rows are rolled back). If every feed failed only because a host could not be
-    reached, the first ``Offline`` is re-raised instead, so the runner can tell "this PC is
-    offline" from "this host is down"."""
+    """Runs the independent feeds of one collector. Each feed is committed on its own.
+
+    At the end:
+    * the run fails (``CollectorError``) if any feed failed for another reason than an
+      unreachable host (drift, HTTP error, crash; a crashed feed's uncommitted rows are rolled
+      back);
+    * if every feed failed only because a host could not be reached, the first ``Offline`` is
+      re-raised, so the runner can tell "this PC is offline" from "this host is down";
+    * if some feeds worked and the others only hit an unreachable host (the Boletín Oficial
+      resets connections from some networks), the run is kept: each unreachable feed becomes a
+      warning (a "partial" run) and is simply tried again on the next run."""
 
     def __init__(self, ctx: CollectContext):
         self.ctx = ctx
         self.errors: list[str] = []
         self.offline: list[Offline] = []
+        self.offline_labels: list[str] = []
         self.ok = 0
 
     def run(self, label: str, fn: Callable[[], None]) -> None:
@@ -453,6 +461,7 @@ class _FeedRunner:
             fn()
         except Offline as exc:
             self.offline.append(exc)
+            self.offline_labels.append(label)
             self.errors.append(f"{label}: {exc}")
         except CollectorError as exc:
             log.warning("[%s] feed %s failed: %s", self.ctx.source.key, label, exc)
@@ -471,8 +480,11 @@ class _FeedRunner:
     def finish(self) -> None:
         if self.offline and not self.ok and len(self.offline) == len(self.errors):
             raise self.offline[0]
-        if self.errors:
+        if len(self.errors) > len(self.offline):
             raise CollectorError("; ".join(self.errors))
+        for label, exc in zip(self.offline_labels, self.offline):
+            self.ctx.warn(f"{label}: host unreachable ({exc}); this feed was skipped and is retried on the "
+                          f"next run, the other feeds were read normally")
 
 
 # ===========================================================================
@@ -1080,6 +1092,9 @@ _BO_PREFILTER_RE = re.compile(r"agricultura|ganaderia|senasa|sanidad y calidad a
                               r"|apicol|(?<!luna de )\bmiel\b")
 
 
+_EAR_IMPO_RE = re.compile(r"\bimpo\b|\bimportad")
+
+
 @dataclass
 class EarLink:
     url: str
@@ -1087,11 +1102,14 @@ class EarLink:
     number: int | None
     year: int | None
     listed_date: date | None
+    kind: str | None = None              # "Impo": the separate list of imported products under surveillance
 
     @property
     def reference(self) -> str:
         if self.number is not None and self.year is not None:
-            return f"SENASA Lista EAR {self.year} N°{self.number:02d}"
+            # The domestic lists keep the plain form; the import list has its own numbering.
+            kind = f"{self.kind} " if self.kind else ""
+            return f"SENASA Lista EAR {kind}{self.year} N°{self.number:02d}"
         return url_reference("senasa-ear", self.url)
 
     @property
@@ -1129,8 +1147,9 @@ def find_ear_links(content: bytes | str, page_url: str) -> tuple[list[EarLink], 
             ym = _EAR_TEXT_YEAR_RE.search(ft)
             year = int(ym[1]) if ym else None
         context = clean(a.parent.get_text(" ")) if a.parent is not None else text
+        kind = "Impo" if _EAR_IMPO_RE.search(ft) or _EAR_IMPO_RE.search(fname.lower().replace("_", " ")) else None
         links.setdefault(u, EarLink(url=u, text=text, number=number, year=year,
-                                    listed_date=parse_local_date(context, "es")))
+                                    listed_date=parse_local_date(context, "es"), kind=kind))
     return list(links.values()), pdfs
 
 
@@ -1139,18 +1158,40 @@ class EarPdf:
     text_ok: bool
     honey_rows: list[str]
     list_date: date | None
+    title: str | None = None             # "LISTA EAR AÑO 2026 N° 09 - Por Producto", as printed
+    list_year: int | None = None
+    list_number: int | None = None
+
+
+_EAR_TITLE_RE = re.compile(r"\blista\s+ear\b.*?\bano\s+(?P<y>20\d{2})\s+n\D{0,3}(?P<n>\d{1,3})\b")
+_DMY_RE = re.compile(r"(?<![\d/])(\d{1,2}/\d{1,2}/20\d{2})(?![\d/])")
 
 
 def parse_ear_pdf(content: bytes) -> EarPdf:
-    """Lines of a "Lista EAR" that name honey, verbatim, and the list date when the header states it."""
+    """Lines of a "Lista EAR" that name honey, verbatim, and the list date when the header states it.
+
+    The real lists print the date alone in the page header, before the title line ("Coordinación
+    General de Vigilancia ... Plan CREHA Animal 08/10/2026", then "LISTA EAR AÑO 2026 N° 09 - Por
+    Producto"; older lists put it on its own first line). It is taken when the header holds exactly
+    one dd/mm/yyyy date (or one after "Fecha"), in the list's year or the next one."""
     text = pdf_text(content)
     lines = [clean(x) for x in text.splitlines() if clean(x)]
     if sum(len(x) for x in lines) < 40:
         return EarPdf(text_ok=False, honey_rows=[], list_date=None)
     honey = [x for x in lines if _HONEY_PRODUCT_ES_RE.search(fold(x))]
-    head = fold(" ".join(lines[:15]))
-    m = re.search(r"fecha[^:0-9]{0,30}:?\s*(\d{1,2}/\d{1,2}/\d{4})", head)
-    return EarPdf(text_ok=True, honey_rows=honey, list_date=parse_local_date(m[1], "es") if m else None)
+    title_idx = next((i for i, x in enumerate(lines[:15]) if _EAR_TITLE_RE.search(fold(x))), None)
+    title = lines[title_idx] if title_idx is not None else None
+    tm = _EAR_TITLE_RE.search(fold(title)) if title else None
+    list_year, list_number = (int(tm["y"]), int(tm["n"])) if tm else (None, None)
+    head_lines = lines[: title_idx + 1] if title_idx is not None else lines[:6]
+    head = fold(" ".join(head_lines))
+    m = re.search(r"fecha[^:0-9]{0,30}:?\s*(\d{1,2}/\d{1,2}/\d{4})", fold(" ".join(lines[:15])))
+    candidates = [m[1]] if m else list(dict.fromkeys(_DMY_RE.findall(head)))
+    list_date = parse_local_date(candidates[0], "es") if len(candidates) == 1 else None
+    if list_date and list_year and list_date.year not in (list_year, list_year + 1):
+        list_date = None                 # a date of another year is not this list's date
+    return EarPdf(text_ok=True, honey_rows=honey, list_date=list_date, title=title,
+                  list_year=list_year, list_number=list_number)
 
 
 @dataclass
@@ -1343,13 +1384,22 @@ class ArSenasaHoneyCollector(Collector):
                 continue
             if not ear.text_ok:
                 ctx.warn(f"SENASA Lista EAR {link.url}: no text could be read (scanned PDF?); stored unchecked")
+            elif ear.list_date is None and link.listed_date is None:
+                ctx.warn(f"SENASA Lista EAR {link.url}: no list date printed on the page or in the PDF header; "
+                         f"stored without a publication date")
+            if ear.list_year and link.year and ear.list_year != link.year or (
+                    ear.list_number and link.number and ear.list_number != link.number):
+                ctx.warn(f"SENASA Lista EAR {link.url}: the PDF title {ear.title!r} does not match the link "
+                         f"{link.text!r} (number/year from the link kept)")
             _store(
                 ctx, reference=link.reference, jurisdiction="AR", iso3="ARG", doc_type="residue_alert",
                 title=link.title, url=link.url, published_at=ear.list_date or link.listed_date,
                 extra={
                     "feed": "creha_ear", "publisher": SENASA_PUBLISHER, "language": "es", "watcher": "html_page",
                     "listing_url": SENASA_CREHA_URL, "pdf_url": link.url, "list_number": link.number,
-                    "list_year": link.year, "honey_rows": ear.honey_rows[:50],
+                    "list_year": link.year, "list_kind": link.kind, "pdf_title": ear.title,
+                    "date_source": "pdf_header" if ear.list_date else ("listing" if link.listed_date else None),
+                    "honey_rows": ear.honey_rows[:50],
                     "honey_row_count": len(ear.honey_rows) if ear.text_ok else None,
                     "honey_mentioned": True if ear.text_ok else None,
                     "note": None if ear.text_ok else "PDF text could not be read; open the official list",
@@ -1456,7 +1506,16 @@ class ArSenasaHoneyCollector(Collector):
 DGFT_LIST_URL = "https://www.dgft.gov.in/CP/?opt=notification"          # "REMEMBERED" in research
 DGFT_PUBLISHER = "Directorate General of Foreign Trade (DGFT), Ministry of Commerce & Industry, Government of India"
 DGFT_MAX_PDFS = 10
-_NOTIF_NO_RE = re.compile(r"\b(\d{1,3})\s*/\s*(\d{4})\s*[-–]\s*(\d{2,4})\b")
+# Notification numbers as the real list prints them (checked live, Nov 2026):
+#   "nn/yyyy-yy", "nn/yyyy.yy" (in a corrigendum)   -> number / financial year
+#   "nn/2023"                                       -> Foreign Trade Policy 2023 series (FY 2023-24)
+#   "nn" with Year "yyyy-yy" (or "yyyy")            -> bare number; the year is in the Year column
+_NOTIF_NO_RE = re.compile(r"\b(\d{1,3})\s*/\s*(20\d{2})\s*[-–.]\s*(\d{2}|20\d{2})\b")
+_NOTIF_FTP_RE = re.compile(r"\b(\d{1,3})\s*/\s*(20\d{2})\b(?!\s*[-–.]\s*\d)")
+_BARE_NO_RE = re.compile(r"^\s*(?:no\.?\s*)?(\d{1,3})\s*$", re.I)
+_FY_RE = re.compile(r"^\s*(20\d{2})\s*[-–]\s*(\d{2}|20\d{2})\s*$")
+_YEAR_ONLY_RE = re.compile(r"^\s*(20\d{2})\s*$")
+_CORRIGENDUM_RE = re.compile(r"\bcorrigendum\b", re.I)
 _DGFT_HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
     "number": ("notification no", "notification number", "notification", "number", "no.", "no"),
     "description": ("description", "subject", "title", "details", "particulars"),
@@ -1468,24 +1527,46 @@ _DGFT_HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
 
 @dataclass
 class DgftNotification:
-    number: str | None                   # normalised "nn/yyyy-yy" (two-digit number at least)
+    number: str | None                   # normalised "nn/yyyy-yy" or "nn/yyyy" (two-digit number at least)
     number_raw: str
     description: str
     notified_on: date | None
     year: str | None
     pdf_url: str | None
+    corrigendum: bool = False            # a corrigendum TO notification `number`, not the notification
 
     @property
     def reference(self) -> str:
+        if self.number and self.corrigendum:
+            on = f" of {self.notified_on:%d.%m.%Y}" if self.notified_on else ""
+            return f"DGFT Corrigendum{on} to Notification No. {self.number}"
         if self.number:
             return f"DGFT Notification No. {self.number}"
         ident = self.pdf_url or f"{self.description}|{self.notified_on}"
         return f"DGFT Notification {hashlib.sha1(ident.encode()).hexdigest()[:16]}"
 
 
-def normalise_notification_number(text: str) -> str | None:
-    m = _NOTIF_NO_RE.search(clean(text))
-    return f"{int(m[1]):02d}/{m[2]}-{m[3]}" if m else None
+def normalise_notification_number(text: str, year: str | None = None) -> str | None:
+    """"nn/yyyy-yy" (financial-year series) or "nn/yyyy" (the FTP 2023 series), as printed.
+
+    A bare number ("7") takes its year from the list's Year column (`year`): "2026-27" gives
+    "07/2026-27", "2023" gives "07/2023". Anything else gives None."""
+    t = clean(text)
+    m = _NOTIF_NO_RE.search(t)
+    if m:
+        return f"{int(m[1]):02d}/{m[2]}-{m[3][-2:]}"
+    m = _NOTIF_FTP_RE.search(t)
+    if m:
+        return f"{int(m[1]):02d}/{m[2]}"
+    m = _BARE_NO_RE.match(t)
+    if m and year:
+        fy = _FY_RE.match(clean(year))
+        if fy:
+            return f"{int(m[1]):02d}/{fy[1]}-{fy[2][-2:]}"
+        y = _YEAR_ONLY_RE.match(clean(year))
+        if y:
+            return f"{int(m[1]):02d}/{y[1]}"
+    return None
 
 
 def _header_map(cells: list[str]) -> dict[str, int]:
@@ -1515,9 +1596,10 @@ def parse_dgft_notifications(content: bytes | str, page_url: str) -> tuple[list[
     """Rows of the DGFT notifications table.
 
     The table is the one whose header names a number, a description and a date column (synonyms in
-    ``_DGFT_HEADER_SYNONYMS``). Without such a header, rows are read by content instead: a cell
-    shaped like "nn/yyyy-yy", a date cell, and the longest cell as description. Raises
-    ``SchemaDrift`` when no row has a notification number, or none has a date."""
+    ``_DGFT_HEADER_SYNONYMS``; the live page has "Sl.No., Number, Year, Description, Date, CRT DT,
+    Attachment"). Without such a header, rows are read by content instead: a cell shaped like
+    "nn/yyyy-yy", a date cell, and the longest cell as description. Raises ``SchemaDrift`` when no
+    row has a notification number, or none has a date. Problems are reported for honey rows only."""
     soup = _soup(content)
     problems: list[str] = []
     out: list[DgftNotification] = []
@@ -1554,8 +1636,9 @@ def parse_dgft_notifications(content: bytes | str, page_url: str) -> tuple[list[
             if not description and not number_raw:
                 continue
             out.append(DgftNotification(
-                number=normalise_notification_number(number_raw), number_raw=number_raw, description=description,
-                notified_on=notified, year=clean(year) or None, pdf_url=_row_pdf(r, page_url),
+                number=normalise_notification_number(number_raw, year), number_raw=number_raw,
+                description=description, notified_on=notified, year=clean(year) or None, pdf_url=_row_pdf(r, page_url),
+                corrigendum=bool(_CORRIGENDUM_RE.search(number_raw)),
             ))
     if not out:
         raise SchemaDrift(f"DGFT notifications: no table row found on {page_url} (page title "
@@ -1567,8 +1650,9 @@ def parse_dgft_notifications(content: bytes | str, page_url: str) -> tuple[list[
         raise SchemaDrift(f"DGFT notifications: {len(out)} rows but none with a readable date; the date "
                           f"column or its format has changed")
     for n in out:
-        if n.number is None:
-            problems.append(f"DGFT row {n.number_raw!r}: notification number not recognised")
+        # Only honey rows matter; an odd number on another product's row is not worth a warning.
+        if n.number is None and dgft_is_honey(n):
+            problems.append(f"DGFT row {n.number_raw!r} (year {n.year!r}): notification number not recognised")
     return out, problems
 
 
@@ -1576,9 +1660,15 @@ def dgft_is_honey(n: DgftNotification) -> bool:
     return bool(HONEY_EN.matches(n.description))
 
 
-# Minimum export price: "US$ 1,234 per MT", "USD 1234/MT", "US $ 2345 per metric tonne" (or per kg).
+# Minimum export price: "US$ 1,234 per MT", "USD 1234/MT", "US $ 2345 per metric tonne" (or per kg),
+# and the real DGFT wordings "US $ <n> per Metric Ton (PMT)", "US$ <n> F.O.B per Metric Ton",
+# "US Dollar <n> FOB per Metric Ton".
+_FOB = r"F\.?\s?O\.?\s?B\b\.?"
+
+
 def _money_re(suffix: str = "") -> str:
     return (rf"(?:US\s?\$|USD|US\s?dollars?|U\.S\.\s?\$)\s*(?P<val{suffix}>[0-9][0-9,]*(?:\.[0-9]+)?)\s*(?:/-)?\s*"
+            rf"(?:{_FOB}\s*)?"
             rf"(?:/|per|a)\s*(?P<unit{suffix}>M\.?T\.?|metric\s+tonnes?|metric\s+tons?|tonnes?|tons?|kgs?|kilograms?)(?![a-z])")
 
 
@@ -1592,7 +1682,33 @@ _EXTENDED_RE = re.compile(rf"\bextend(?:ed|s|ing)?\b[^.;]{{0,220}}?\b{_UNTIL}\s+
 _EFFECT_FROM_RE = re.compile(rf"\bwith\s+effect\s+from\s+(?:the\s+)?(?P<d>{_DATE_EN})"
                              rf"|\bcomes?\s+into\s+force\s+(?:on|from)\s+(?:the\s+)?(?P<d2>{_DATE_EN})"
                              rf"|\bw\.\s?e\.\s?f\.?\s*(?:the\s+)?(?P<d3>{_DATE_EN})", re.I)
-_IMMEDIATE_RE = re.compile(r"\bwith\s+immediate\s+effect\b", re.I)
+_IMMEDIATE_RE = re.compile(r"\b(?:with|into)\s+immediate\s+effect\b", re.I)   # "come into immediate effect" too
+_FOB_RE = re.compile(rf"\b{_FOB}")
+_AMOUNT_FOB_RE = re.compile(rf"(?<![\d.,])(\d[\d,]*(?:\.\d+)?)\s*{_FOB}")
+# The operative paragraph that closes every DGFT notification ("2. Effect of this Notification:
+# ..."). It states the outcome in prose, outside the "Existing / Revised policy condition" table.
+_EFFECT_SECTION_RE = re.compile(r"\beffect\s+of\s+this\s+notification\b\s*:?", re.I)
+_SECTION_END_RE = re.compile(r"\(\s*issued\s+from\b|\bdirector\s+general\s+of\s+foreign\s+trade\b", re.I)
+_EN_MONTH_NAMES = r"(?:January|February|March|April|May|June|July|August|September|October|November|December)"
+# OCR of a superscript ordinal: "31st" read as "31*", "31%", "31‘'", "31" + "8", "5!", "54", "8t" ...
+# Only a one- or two-digit day directly followed by such noise and a month name is rewritten.
+_OCR_ORDINAL_RE = re.compile(rf"(?<![\w.,/])(?P<d>[0-3]?\d)(?P<junk>[^\s]{{1,4}}?)\s*(?={_EN_MONTH_NAMES}\b)")
+
+
+def normalise_ocr_ordinals(text: str) -> str:
+    """'till 318' December' -> 'till 31 December' (OCR text only). A day that is not
+    1-31 ("34St March") is left as it is, so that date is simply not read."""
+    def fix(m: re.Match[str]) -> str:
+        day = int(m["d"])
+        junk = m["junk"]
+        if not 1 <= day <= 31 or re.fullmatch(r"(?:st|nd|rd|th)", junk, re.I):
+            return m.group(0)
+        if len(m["d"]) == 1 and junk[0].isdigit():      # "31 December" is not day 3 + noise "1"
+            return m.group(0)
+        if junk.isalpha() and junk.lower() not in {"s", "st", "sq", "t"}:
+            return m.group(0)
+        return f"{day} "
+    return _OCR_ORDINAL_RE.sub(fix, text)
 
 
 def _per_tonne(value: str, unit: str) -> float | None:
@@ -1616,54 +1732,102 @@ class MepTerms:
     problems: list[str] = field(default_factory=list)
 
 
-def parse_mep_terms(text: str, notified_on: date | None) -> MepTerms:
-    """Minimum export price, validity end and effective date from the text of a DGFT notification.
-
-    Only what the text states unambiguously is returned:
-    * MEP: the single US$ amount per tonne (or per kg, converted) in the text; if several, the
-      new one of a "from US$ X ... to US$ Y" phrase; otherwise None, with the candidates listed.
-    * validity end: the date after "extended ... till/up to"; otherwise the single date after
-      "till/until/up to"; otherwise None, with the candidates listed.
-    * effective date: "with effect from <date>" / "w.e.f. <date>" / "comes into force on <date>";
-      "with immediate effect" means the notification date (``effective_basis`` says which)."""
-    t = clean(text)
-    terms = MepTerms()
-    if not t:
-        return terms
+def _mep_values(t: str) -> list[float]:
     values: list[float] = []
-    fob = False
     for m in _MEP_VALUE_RE.finditer(t):
         v = _per_tonne(m["val"], m["unit"])
         if v is not None and v not in values:
             values.append(v)
-        if re.search(r"\bFOB\b", t[max(0, m.start() - 150): m.end() + 150]):
-            fob = True
-    terms.mep_values_found = values
+    return values
+
+
+def _resolve_mep(t: str, values: list[float]) -> tuple[float | None, str | None]:
+    """(MEP, problem): the single amount, else the new one of a "from X ... to Y" phrase."""
     if len(values) == 1:
-        terms.mep_usd_per_t = values[0]
-    elif len(values) > 1:
+        return values[0], None
+    if len(values) > 1:
         changes = {_per_tonne(m["val2"], m["unit2"]) for m in _MEP_FROM_TO_RE.finditer(t)} - {None}
         if len(changes) == 1:
-            terms.mep_usd_per_t = changes.pop()
-        else:
-            terms.problems.append(f"several minimum export prices in the text ({values}); none stored")
-    terms.basis = "FOB" if fob and values else None
+            return changes.pop(), None
+        return None, f"several minimum export prices in the text ({values}); none stored"
+    return None, None
 
-    extended = {d for m in _EXTENDED_RE.finditer(t) if (d := parse_local_date(m["d"], "en"))}
-    all_valid = []
+
+def _validity_dates(t: str) -> list[date]:
+    out: list[date] = []
     for m in _VALID_RE.finditer(t):
         d = parse_local_date(m["d"], "en")
-        if d and d not in all_valid:
-            all_valid.append(d)
-    terms.validity_dates_found = all_valid
+        if d and d not in out:
+            out.append(d)
+    return out
+
+
+def _resolve_validity(t: str) -> tuple[date | None, str | None]:
+    """(validity end, problem): the date after "extended ... till", else the single "till" date."""
+    extended = {d for m in _EXTENDED_RE.finditer(t) if (d := parse_local_date(m["d"], "en"))}
     if len(extended) == 1:
-        terms.valid_until = next(iter(extended))
-    elif len(extended) > 1:
-        terms.problems.append(f"several 'extended till' dates ({sorted(extended)}); validity not stored")
-    elif len(all_valid) == 1:
-        terms.valid_until = all_valid[0]
-    elif len(all_valid) > 1:
-        terms.problems.append(f"several validity dates ({all_valid}); validity not stored")
+        return next(iter(extended)), None
+    if len(extended) > 1:
+        return None, f"several 'extended till' dates ({sorted(extended)}); validity not stored"
+    found = _validity_dates(t)
+    if len(found) == 1:
+        return found[0], None
+    if len(found) > 1:
+        return None, f"several validity dates ({found}); validity not stored"
+    return None, None
+
+
+def effect_section(text: str) -> str | None:
+    """The "Effect of this Notification" paragraph (up to the signature), or None."""
+    m = _EFFECT_SECTION_RE.search(text)
+    if not m:
+        return None
+    rest = text[m.end():]
+    end = _SECTION_END_RE.search(rest)
+    return (rest[: end.start()] if end else rest).strip() or None
+
+
+def parse_mep_terms(text: str, notified_on: date | None, *, ocr: bool = False) -> MepTerms:
+    """Minimum export price, validity end and effective date from the text of a DGFT notification.
+
+    Only what the text states unambiguously is returned:
+    * MEP: the single US$ amount per tonne (or per kg, converted); if several, the new one of a
+      "from US$ X ... to US$ Y" phrase; otherwise None, with the candidates listed.
+    * validity end: the date after "extended ... till/up to"; otherwise the single date after
+      "till/until/up to"; otherwise None, with the candidates listed.
+    * effective date: "with effect from <date>" / "w.e.f. <date>" / "comes into force on <date>";
+      "with immediate effect" / "come into immediate effect" means the notification date
+      (``effective_basis`` says which).
+    The MEP and the validity are read first from the closing "Effect of this Notification"
+    paragraph, which states the outcome; real amendments also print the superseded condition
+    ("Existing Policy condition ... till <old date>") in a table. The whole text is the
+    fallback. `ocr` marks OCR text: superscript ordinals misread by OCR are normalised first."""
+    t = clean(normalise_ocr_ordinals(text) if ocr else text)
+    terms = MepTerms()
+    if not t:
+        return terms
+    values = _mep_values(t)
+    terms.mep_values_found = values
+    effect = effect_section(t)
+    mep, problem = _resolve_mep(effect, _mep_values(effect)) if effect else (None, None)
+    if mep is None:
+        mep, problem = _resolve_mep(t, values)
+    terms.mep_usd_per_t = mep
+    if problem:
+        terms.problems.append(problem)
+    # FOB: written next to a price ("US$ 1,111 per MT FOB"), or right after the amount of the
+    # MEP ("US Dollar <n> FOB per Metric Ton" in a table cell whose currency OCR split off).
+    fob = any(_FOB_RE.search(t[max(0, m.start() - 150): m.end() + 150]) for m in _MEP_VALUE_RE.finditer(t))
+    fob = fob or (mep is not None and mep in {float(x.replace(",", "")) for x in _AMOUNT_FOB_RE.findall(t)})
+    terms.basis = "FOB" if fob and values else None
+
+    terms.validity_dates_found = _validity_dates(t)
+    until, problem = _resolve_validity(effect) if effect else (None, None)
+    if until is None:
+        until, problem = _resolve_validity(t)
+    terms.valid_until = until
+    if problem:
+        terms.problems.append(problem)
 
     effective = {d for m in _EFFECT_FROM_RE.finditer(t)
                  if (d := parse_local_date(m["d"] or m["d2"] or m["d3"], "en"))}
@@ -1681,6 +1845,23 @@ def parse_mep_terms(text: str, notified_on: date | None) -> MepTerms:
         ("honey", re.compile(r"\bhoney\b(?![\s-]*bees?\b)")),
     )), max_n=2)
     return terms
+
+
+def merge_ocr_terms(a: MepTerms, b: MepTerms) -> MepTerms:
+    """Terms read from two independent OCR passes (two resolutions) of the same scan. A value is
+    kept only when both readings give it; a disagreement leaves it empty, with a problem that
+    names both readings. The candidate lists and the excerpt are those of the first reading."""
+    out = MepTerms(mep_values_found=a.mep_values_found, validity_dates_found=a.validity_dates_found,
+                   excerpt=a.excerpt, problems=list(a.problems))
+    for name, label in (("mep_usd_per_t", "minimum export price"), ("valid_until", "validity end"),
+                        ("effective_date", "effective date"), ("basis", "price basis")):
+        va, vb = getattr(a, name), getattr(b, name)
+        if va == vb:
+            setattr(out, name, va)
+        else:
+            out.problems.append(f"OCR readings disagree on the {label} ({va!r} vs {vb!r}); not stored")
+    out.effective_basis = a.effective_basis if out.effective_date is not None else None
+    return out
 
 
 class InDgftHoneyCollector(Collector):
@@ -1755,11 +1936,30 @@ class InDgftHoneyCollector(Collector):
         state["list_checked"] = today().isoformat()
         _set_state(ctx.session, self.key, state)
 
+    def _read_terms(self, ctx: CollectContext, n: DgftNotification, pdf: FetchResult) -> tuple[str, MepTerms, str | None]:
+        """(text, terms, text source) of a notification PDF. Source "pdf_text" (text layer),
+        "ocr" (scanned page read by Tesseract at two resolutions) or None (nothing readable)."""
+        text = pdf_text(pdf.content)
+        if text.strip():
+            return text, parse_mep_terms(text, n.notified_on), "pdf_text"
+        if not ocr.available():
+            ctx.warn(f"DGFT Notification {n.number_raw}: the PDF is a scanned image without a text layer and OCR "
+                     f"is not installed (install Tesseract, see paladex/services/ocr.py); MEP terms not read")
+            return "", MepTerms(), None
+        try:
+            first = ocr.ocr_pdf(pdf.content, dpi=ocr.DEFAULT_DPI)
+            second = ocr.ocr_pdf(pdf.content, dpi=ocr.SECOND_DPI)
+        except ocr.OcrError as exc:
+            ctx.warn(f"DGFT Notification {n.number_raw}: scanned PDF, OCR failed ({exc}); MEP terms not read")
+            return "", MepTerms(), None
+        a = parse_mep_terms(first, n.notified_on, ocr=True)
+        b = parse_mep_terms(second, n.notified_on, ocr=True)
+        return first, merge_ocr_terms(a, b), "ocr"
+
     def _store(self, ctx: CollectContext, n: DgftNotification, pdf: FetchResult | None, pdf_error: str | None) -> None:
-        text = pdf_text(pdf.content) if pdf is not None else ""
-        terms = parse_mep_terms(text, n.notified_on) if text else MepTerms()
-        if pdf is not None and not text:
-            ctx.warn(f"DGFT Notification {n.number_raw}: no text in the PDF (scanned?); MEP terms not read")
+        text, terms, source = self._read_terms(ctx, n, pdf) if pdf is not None else ("", MepTerms(), None)
+        if pdf is not None and source == "pdf_text" and len(clean(text)) < 40:
+            ctx.warn(f"DGFT Notification {n.number_raw}: almost no text in the PDF; MEP terms may be missing")
         for p in terms.problems:
             ctx.warn(f"DGFT Notification {n.number_raw}: {p}")
         topics = topics_of(f"{n.description} {text[:6000]}", "en")
@@ -1769,10 +1969,12 @@ class InDgftHoneyCollector(Collector):
             ctx, reference=n.reference, jurisdiction="IN", iso3="IND", doc_type=doc_type,
             title=n.description or f"DGFT Notification No. {n.number_raw}", url=n.pdf_url or DGFT_LIST_URL,
             published_at=n.notified_on, effective_date=terms.effective_date, status="published",
-            summary_en=terms.excerpt,
+            # summary_en is official text verbatim: OCR text is not, so it goes to extra only.
+            summary_en=terms.excerpt if source == "pdf_text" else None,
             extra={
                 "feed": "dgft_notifications", "publisher": DGFT_PUBLISHER, "language": "en", "watcher": "html_page",
                 "listing_url": DGFT_LIST_URL, "notification_number": n.number or n.number_raw, "year": n.year,
+                "corrigendum": n.corrigendum or None,
                 "pdf_url": n.pdf_url, "raw_document_id": pdf.raw_document_id if pdf is not None else None,
                 "mep_usd_per_t": terms.mep_usd_per_t, "mep_currency": "USD" if terms.mep_usd_per_t else None,
                 "mep_unit": "t" if terms.mep_usd_per_t else None, "mep_basis": terms.basis,
@@ -1781,7 +1983,11 @@ class InDgftHoneyCollector(Collector):
                 "mep_values_found": terms.mep_values_found if len(terms.mep_values_found) > 1 else None,
                 "validity_dates_found": [d.isoformat() for d in terms.validity_dates_found]
                 if len(terms.validity_dates_found) > 1 else None,
-                "terms_parsed": bool(text), "pdf_error": pdf_error if pdf is None else None, "topics": topics,
+                "terms_parsed": source is not None, "terms_text_source": source,
+                "ocr_engine": ocr.engine_version() if source == "ocr" else None,
+                "ocr_dpi": [ocr.DEFAULT_DPI, ocr.SECOND_DPI] if source == "ocr" else None,
+                "ocr_excerpt": terms.excerpt if source == "ocr" else None,
+                "pdf_error": pdf_error if pdf is None else None, "topics": topics,
             },
         )
 
@@ -1807,9 +2013,13 @@ __all__ = [
     "dgft_is_honey",
     "doc_type_for",
     "dou_window",
+    "effect_section",
     "find_dates",
     "find_ear_links",
     "is_eu_listing_pt",
+    "merge_ocr_terms",
+    "normalise_notification_number",
+    "normalise_ocr_ordinals",
     "parse_article",
     "parse_bo_detail",
     "parse_bo_section",

@@ -34,7 +34,8 @@
         {"raw_name": "International Trade Administration", "name": "International Trade Administration", "id": 261, "url": "https://www.federalregister.gov/agencies/international-trade-administration", "json_url": "https://www.federalregister.gov/api/v1/agencies/261", "parent_id": 54, "slug": "international-trade-administration"}
       ],
       "action": "Notice.",
-      "citation": "91 FR 51234"
+      "citation": "91 FR 51234",
+      "excerpts": " Period to be reviewed \n AD Proceedings \n ARGENTINA: <span class=\"match\">Raw Honey</span>, A-357-823 \n 6/1/25-5/31/26 \n Asociaci&#243;n de Cooperativas Argentinas (illustrative test excerpt)"
     },
     {
       "document_number": "2026-90103",

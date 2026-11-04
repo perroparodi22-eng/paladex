@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import calendar
 import copy
+import difflib
 import io
 import logging
 import re
@@ -164,7 +165,7 @@ _ORGANIC = re.compile(r"\b(certified\s+(for\s+)?)?organic\b", re.I)
 # 1) AMS National Honey Report (FVMHONEY) - PDF parser (pure functions)
 # =============================================================================================
 
-PARSER_VERSION = "fvmhoney/2026.11-1"
+PARSER_VERSION = "fvmhoney/2026.11-2"
 
 # Section keys
 BEEKEEPER = "beekeeper"                     # prices paid to US beekeepers (producer prices)
@@ -172,7 +173,7 @@ CANADA = "canadian_beekeeper"               # prices paid to Canadian beekeepers
 IMPORTER = "importer"                       # prices paid to importers, by origin (wholesale bulk)
 ACE_IMPORTS = "ace_imports"                 # CBP ACE import tables by HTS-10 (kg, value)
 EXPORTS = "exports"                         # US exports (not collected: not relevant, often stale)
-NARRATIVE = "narrative"                     # market commentary
+NARRATIVE = "narrative"                     # market commentary (issues up to Dec 2024)
 VISUAL = "visual"                           # weather maps / data visualisations (since 2025)
 UNKNOWN = "unknown"                         # a price table we do not recognise -> warned, skipped
 PRICE_SECTIONS = (BEEKEEPER, CANADA, IMPORTER)
@@ -181,20 +182,49 @@ PRICE_SECTIONS = (BEEKEEPER, CANADA, IMPORTER)
 CENTS_THRESHOLD = 20.0
 # Plausibility window for bulk honey in USD/lb; outside -> warned and skipped, never stored.
 PRICE_MIN_USD_LB, PRICE_MAX_USD_LB = 0.30, 15.0
-# A first cell starting within this many character widths of the left margin is a label column.
-LABEL_MAX_INDENT = 3.0
+# A row whose first word starts within this many character widths of the table's label column
+# (where the state / origin names are printed) names a new label; a row starting further right
+# continues the label above it.
+LABEL_COLUMN_TOLERANCE = 1.5
+# A page region where at least this many lines sit on each side of a vertical gutter (and few
+# lines straddle it) holds two independent text columns (e.g. US beekeepers | importers).
+GUTTER_MIN_LINES = 3
+# Share of a page covered by embedded images above which a price table without text is reported as
+# "printed as an image" (the April and first May 2025 issues pasted the tables as pictures).
+IMAGE_PAGE_SHARE = 0.05
 
 _MONTH_NAMES = "January|February|March|April|May|June|July|August|September|October|November|December"
+_MONTH_ABBR = "Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec"
 _FULL_DATE = re.compile(rf"\b({_MONTH_NAMES})\s+(\d{{1,2}}),?\s+(\d{{4}})\b", re.I)
-_MONTH_YEAR = re.compile(rf"\b({_MONTH_NAMES})\s+(\d{{4}})\b", re.I)
-_VOLUME = re.compile(r"\bVolume\s+([IVXLCDM]+)\s*[-–—]?\s*(?:Number|No\.?)\s*(\d+)", re.I)
+# "May 2026", "Feb 2025" (CBP tables print "Month: Feb 2025")
+_MONTH_YEAR = re.compile(rf"\b({_MONTH_NAMES}|(?:{_MONTH_ABBR})\.?)\s+(\d{{4}})\b", re.I)
+# "Volume XLV – Number 3" (page 1) and "Vol. XLV - Number 3" (running header of later pages)
+_VOLUME = re.compile(r"\bVol(?:ume|\.)?\s+([IVXLCDM]+)\s*[-–—]?\s*(?:Number|No\.?)\s*(\d+)", re.I)
+# "HONEY MARKET FOR THE MONTH OF FEBURARY 2025": the month the prices refer to (the issue is dated
+# near the end of the following month). Spelling slips are real ("FEBURARY", "JANURARY").
+_MARKET_MONTH = re.compile(r"\bhoney market for the month of\s+([A-Za-z]+)\.?,?\s+(\d{4})\b", re.I)
+_CORRECTED = re.compile(r"\bcorrected\s+copy\b", re.I)
+_TITLE = re.compile(r"\bnational\s+honey\s+report\b", re.I)
 _MONTH_NUM = {m.lower(): i for i, m in enumerate(calendar.month_name) if m}
 
-_PRICE_NUM = r"\$?\s?\d+(?:\.\d+)?"
+
+def _month_number(name: str) -> int | None:
+    """'February' / 'Feb' / 'Sept.' -> 2 / 2 / 9; None if not a month name."""
+    n = name.strip().rstrip(".").lower()
+    if n in _MONTH_NUM:
+        return _MONTH_NUM[n]
+    for full, num in _MONTH_NUM.items():
+        if len(n) >= 3 and full.startswith(n):
+            return num
+    return None
+
+
+_PRICE_NUM = r"\$?\s?(?:\d+(?:\.\d+)?|\.\d+)"         # "$1.91", "1.44", "$.91" (2023-24 issues)
 _PRICE_TAIL = re.compile(
     rf"(?:(?<=\s)|^)(?P<low>{_PRICE_NUM})(?:\s*(?:-|–|—|to)\s*(?P<high>{_PRICE_NUM}))?\s*$"
 )
-_PRICE_LIKE = re.compile(r"\$\s?\d|\b\d+\.\d{2}\b")
+_PRICE_LIKE = re.compile(r"\$\s?\.?\d|\b\d+\.\d{2}\b")
+_PRICE_TOKEN = re.compile(r"^\$\s?\.?\d")
 _PLACEHOLDER = re.compile(
     r"\b(no reports? issued|no report|too few (?:prices|sales|reports|trades)\b.*|"
     r"insufficient (?:data|prices|sales|trading)\b.*|"
@@ -202,7 +232,7 @@ _PLACEHOLDER = re.compile(
     re.I,
 )
 _HEADER_WORDS = ("state", "floral", "color", "colour", "price", "origin", "province", "country", "source")
-_ACE_NOTE = re.compile(r"^(source|cif value|total value|note|notes|data source)\s*[:.]")
+_ACE_NOTE = re.compile(r"^(?:\d+\.\s*)?(source|cif value|total value|note|notes|data source)\s*[:.]")
 _HTS = re.compile(r"\b0409(?:\.?\d){6}\b")
 _ACE_NUM = re.compile(r"^(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?$|^[-–]{1,2}$")
 
@@ -213,8 +243,10 @@ _HEADINGS: list[tuple[str, re.Pattern, int]] = [
     (IMPORTER, re.compile(r"^prices paid to importers for\b"), 0),
     (NARRATIVE, re.compile(r"^colony,? honey plant,? and market conditions\b"), 80),
     (NARRATIVE, re.compile(r"^(?:honey )?market (?:conditions|commentary|summary|overview)\b"), 60),
+    (ACE_IMPORTS, re.compile(r"^the import data is sourced from\b"), 0),
     (ACE_IMPORTS, re.compile(r"^(?:u\.?\s?s\.?\s+)?(?:honey\s+)?imports?\b.*\b(?:origin|country)\b"), 90),
     (ACE_IMPORTS, re.compile(r"^(?:u\.?\s?s\.?\s+)?honey imports\b"), 90),
+    (EXPORTS, re.compile(r"^the export data is sourced from\b"), 0),
     (EXPORTS, re.compile(r"^(?:u\.?\s?s\.?\s+)?(?:honey\s+)?exports?\b.*\b(?:destination|country)\b"), 90),
     (EXPORTS, re.compile(r"^(?:u\.?\s?s\.?\s+)?honey exports\b"), 90),
     (VISUAL, re.compile(r"^(?:temperature|precipitation|drought)\b|data visuali[sz]ation"), 110),
@@ -241,11 +273,33 @@ CA_PROVINCES = {
     "alberta", "british columbia", "manitoba", "new brunswick", "newfoundland", "newfoundland and labrador",
     "nova scotia", "ontario", "prince edward island", "quebec", "saskatchewan",
 }
+# Row labels misspelt in real issues (2024-2025). The corrected name is used for the series; the
+# label as printed is kept in `extra["label_as_printed"]`. Only exact, unambiguous slips are listed.
+_LABEL_TYPOS = {
+    "orgeon": "OREGON", "louisana": "LOUISIANA", "flordia": "FLORIDA", "georiga": "GEORGIA",
+    "uruguary": "URUGUAY",
+}
+# Country names as CBP/AMS print them that the generic country vocabulary does not resolve.
+_ORIGIN_ALIASES = {
+    "burma (myanmar)": "MMR", "madagascar (malagasy)": "MDG", "north macedonia, republic of": "MKD",
+    "yemen (aden)": "YEM", "dominican repuablic": "DOM", "macao (macau)": "MAC",
+    "germany, fed. republic": "DEU", "germany, federal republic": "DEU", "turkiye": "TUR",
+    "republic of south africa": "ZAF", "republic of yemen": "YEM", "korea, south": "KOR",
+    "south korea": "KOR", "china(mainland)": "CHN", "china (mainland)": "CHN", "burma": "MMR",
+    "russia": "RUS", "taiwan": "TWN", "vietnam": "VNM", "moldova": "MDA", "syria": "SYR",
+    "kosovo": "XKX", "tanzania": "TZA", "laos": "LAO", "iran": "IRN", "bolivia": "BOL",
+    "venezuela": "VEN", "czech republic": "CZE", "czechia": "CZE", "slovak republic": "SVK",
+    "macedonia": "MKD", "north macedonia": "MKD", "macau": "MAC", "hong kong": "HKG",
+    "ivory coast": "CIV", "cote d'ivoire": "CIV", "brunei": "BRN", "micronesia": "FSM",
+    "congo (kinshasa)": "COD", "congo (brazzaville)": "COG", "united kingdom": "GBR",
+    "united arab emirates": "ARE", "dominican republic": "DOM", "new zealand": "NZL",
+}
 # Floral descriptors USDA prints that the generic variety vocabulary spells differently.
 _USDA_FLORAL_ALIASES = [
     (re.compile(r"\bhoney\s*dew\b", re.I), "honeydew"),
     (re.compile(r"^\s*mixed\s*$", re.I), "mixed flower"),
     (re.compile(r"\bmixed\s+flowers?\b", re.I), "mixed flower"),
+    (re.compile(r"\bpolyfloral\b", re.I), "mixed flower"),
 ]
 # Phrases from the table headings that describe the trade terms (kept verbatim, in order).
 _TERM_PHRASES = [
@@ -262,11 +316,16 @@ _TERMS_BASE = {
 
 @dataclass(frozen=True)
 class ReportLine:
-    """One text line of a report page. Columns are separated by two or more spaces."""
+    """One text line of a report page (or of one column of it). Cells are separated by two or more
+    spaces. Positions are in PDF points for PDF pages and in characters for text layouts."""
 
     page: int
     text: str
-    indent: float = 0.0     # distance of the first word from the page's left margin, in characters
+    indent: float = 0.0     # distance of the first word from the block's left edge, in characters
+    x0: float = 0.0         # left edge of the first word
+    char_w: float = 1.0     # typical character width (same unit as x0)
+    block: int = 0          # text block id (a page column); table anchors restart in a new block
+    word_x: tuple[float, ...] = ()      # left edge of every word of `text.split()`
 
     @property
     def cells(self) -> list[str]:
@@ -280,10 +339,10 @@ class ReportLine:
 @dataclass
 class HoneyPrice:
     section: str                # BEEKEEPER | CANADA | IMPORTER
-    label: str                  # state / province / origin country, as printed
+    label: str                  # state / province / origin country (misspellings corrected)
     origin_iso3: str
     market_iso3: str
-    descriptor: str | None      # floral source / descriptor as printed, colour removed
+    descriptor: str | None      # floral source as printed, colour and "organic" removed
     color_grade: str | None
     organic: bool
     variety: str
@@ -297,6 +356,8 @@ class HoneyPrice:
     page: int
     raw_line: str
     unit: str = "lb"
+    label_as_printed: str = ""
+    floral_inherited: bool = False   # floral cell left blank under the row above (pivot-table layout)
 
 
 @dataclass
@@ -318,6 +379,7 @@ class HoneyImportRow:
     ytd: dict
     page: int
     raw_line: str
+    region: str | None = None   # Canadian province of a "QUEBEC, CANADA" row
 
 
 @dataclass
@@ -325,62 +387,276 @@ class HoneyReportParse:
     issue_date: date | None = None
     volume: str | None = None
     number: int | None = None
+    market_month: tuple[int, int] | None = None     # (year, month) the prices refer to
+    market_month_printed: str | None = None
+    corrected: bool = False                         # "Corrected Copy" banner on page 1
+    title: str | None = None                        # first line of page 1
     prices: list[HoneyPrice] = field(default_factory=list)
     imports: list[HoneyImportRow] = field(default_factory=list)
     narrative: str | None = None
     sections: list[str] = field(default_factory=list)
+    section_pages: dict[str, int] = field(default_factory=dict)
+    section_rows: dict[str, int] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     parser_version: str = PARSER_VERSION
+
+
+class NotAHoneyReport(CollectorError):
+    """The file is a valid PDF but another AMS report (ESMIS has filed tomato/watermelon reports
+    under FVMHONEY)."""
 
 
 # ------------------------------------------------------------------ text extraction (pdfplumber)
 
 
-def words_to_lines(words: list[dict], page: int = 1, *, y_tolerance: float = 3.0) -> list[ReportLine]:
-    """Group pdfplumber words (dicts with text/x0/x1/top) into `ReportLine`s.
+def _char_is_horizontal(c: dict) -> bool:
+    """True for an unrotated glyph, whatever its horizontal/vertical scaling."""
+    m = c.get("matrix") or (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+    a, b, cc, d = (float(v) for v in m[:4])
+    return a > 0 and d > 0 and abs(b) <= 0.05 * a and abs(cc) <= 0.05 * d
 
-    Words on the same baseline (within `y_tolerance`) form a line. A horizontal gap wider
-    than about one average character starts a new column; it is written as two spaces.
-    `indent` is the first word's distance from the page's leftmost word, in characters."""
-    words = [w for w in words if str(w.get("text", "")).strip()]
-    if not words:
-        return []
-    widths = sorted((w["x1"] - w["x0"]) / len(w["text"]) for w in words if len(w["text"]) >= 2)
-    char_w = widths[len(widths) // 2] if widths else 5.0
-    gap = max(2.0, 1.1 * char_w)
-    margin = min(w["x0"] for w in words)
+
+def chars_to_words(chars: list[dict]) -> list[dict]:
+    """Rebuild words from pdfplumber chars using their own geometry.
+
+    pdfplumber marks a glyph as not upright when its text matrix is scaled unevenly (the real
+    FVMHONEY tables use horizontally compressed fonts) and then reads such glyphs as vertical text,
+    which prints 'D A K O T A'. Here every unrotated glyph is horizontal: glyphs on one baseline
+    form a word until a gap wider than 0.15 em, or a narrower gap holding a space glyph. (A space
+    glyph alone does not split: the CBP tables draw one on top of the first digit of right-aligned
+    numbers, '1 1,102'.) Rotated glyphs are dropped."""
+    glyphs = [c for c in chars if c.get("text") and _char_is_horizontal(c)]
     rows: list[list[dict]] = []
-    for w in sorted(words, key=lambda w: (w["top"], w["x0"])):
-        if rows and abs(w["top"] - rows[-1][0]["top"]) <= y_tolerance:
-            rows[-1].append(w)
+    for c in sorted(glyphs, key=lambda c: (c["bottom"], c["x0"])):
+        if rows and abs(c["bottom"] - rows[-1][0]["bottom"]) <= 0.6:
+            rows[-1].append(c)
         else:
-            rows.append([w])
-    out: list[ReportLine] = []
+            rows.append([c])
+    words: list[dict] = []
     for row in rows:
-        row.sort(key=lambda w: w["x0"])
-        parts = [row[0]["text"]]
-        for prev, cur in zip(row, row[1:]):
-            parts.append("  " if cur["x0"] - prev["x1"] > gap else " ")
-            parts.append(cur["text"])
-        out.append(ReportLine(page, "".join(parts), round((row[0]["x0"] - margin) / char_w, 1)))
+        row.sort(key=lambda c: c["x0"])
+        spaces = [(c["x0"] + c["x1"]) / 2 for c in row if not str(c["text"]).strip()]
+        cur: dict | None = None
+        for c in row:
+            text = str(c["text"])
+            if not text.strip():
+                continue
+            size = float(c.get("size") or (c["bottom"] - c["top"]) or 1.0)
+            em = max(size, cur["size"]) if cur is not None else size
+            gap = c["x0"] - cur["x1"] if cur is not None else 0.0
+            spaced = cur is not None and gap > 0.05 * em and any(cur["x1"] <= s <= c["x0"] for s in spaces)
+            if cur is not None and gap <= 0.15 * em and not spaced:
+                cur["text"] += text
+                cur["x1"] = max(cur["x1"], float(c["x1"]))
+                cur["top"] = min(cur["top"], float(c["top"]))
+                cur["bottom"] = max(cur["bottom"], float(c["bottom"]))
+                cur["size"] = max(cur["size"], size)
+            else:
+                cur = {"text": text, "x0": float(c["x0"]), "x1": float(c["x1"]), "top": float(c["top"]),
+                       "bottom": float(c["bottom"]), "size": size}
+                words.append(cur)
+    return words
+
+
+def dedupe_glyphs(chars: list[dict], tolerance: float = 1.0) -> list[dict]:
+    """Drop a glyph drawn again at (almost) the same place with the same text (fake bold).
+    A linear pass over glyphs sorted by text and position (pdfplumber's dedupe is much slower)."""
+    out: list[dict] = []
+    last: dict | None = None
+    for c in sorted(chars, key=lambda c: (str(c.get("text")), round(float(c["top"]), 1), float(c["x0"]))):
+        if (last is not None and c.get("text") == last.get("text") and str(c.get("text")).strip()
+                and abs(float(c["top"]) - float(last["top"])) <= tolerance
+                and abs(float(c["x0"]) - float(last["x0"])) <= tolerance):
+            continue
+        out.append(c)
+        last = c
     return out
 
 
-def pdf_to_lines(content: bytes) -> list[ReportLine]:
-    """Extract text lines from a PDF with pdfplumber word coordinates."""
+def _char_width(words: list[dict]) -> float:
+    widths = sorted((w["x1"] - w["x0"]) / len(w["text"]) for w in words if len(w["text"]) >= 2)
+    return widths[len(widths) // 2] if widths else 5.0
+
+
+def _baseline(w: dict) -> float:
+    return float(w["bottom"]) if "bottom" in w else float(w["top"])
+
+
+def _rows_by_baseline(words: list[dict], tolerance: float) -> list[list[dict]]:
+    rows: list[list[dict]] = []
+    for w in sorted(words, key=lambda w: (_baseline(w), w["x0"])):
+        if rows and abs(_baseline(w) - _baseline(rows[-1][0])) <= tolerance:
+            rows[-1].append(w)
+        else:
+            rows.append([w])
+    return rows
+
+
+def find_gutter(rows: list[list[dict]], width: float, gap: float) -> tuple[float, int, int] | None:
+    """Find a vertical gutter that splits a run of rows into two independent text columns.
+
+    `rows` are tight baseline rows (top to bottom), `gap` the widest space inside a cell. For each
+    candidate x in the middle half of the page a row is X (a cell spans x), L / R (all cells on one
+    side) or B (cells on both sides). A run of rows without X qualifies when it has at least
+    GUTTER_MIN_LINES rows on each side and few straddling rows: two columns printed side by side
+    rarely share baselines, while the columns of one table always do. Returns (x, first row, end
+    row) for the run with most one-sided rows, x at the middle of the widest stretch of whitespace."""
+    segs: list[list[list[float]]] = []
+    for row in rows:
+        ss: list[list[float]] = []
+        for w in sorted(row, key=lambda w: w["x0"]):
+            if ss and w["x0"] - ss[-1][1] <= gap:
+                ss[-1][1] = max(ss[-1][1], w["x1"])
+            else:
+                ss.append([w["x0"], w["x1"]])
+        segs.append(ss)
+    found: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    for xi in range(int(width * 0.25), int(width * 0.75) + 1):
+        x = float(xi)
+        cls = []
+        for ss in segs:
+            if any(s0 - 1.0 < x < s1 + 1.0 for s0, s1 in ss):
+                cls.append("X")
+            elif all(s1 <= x for _, s1 in ss):
+                cls.append("L")
+            elif all(s0 >= x for s0, _ in ss):
+                cls.append("R")
+            else:
+                cls.append("B")
+        i = 0
+        while i < len(cls):
+            if cls[i] == "X":
+                i += 1
+                continue
+            j = i
+            while j < len(cls) and cls[j] != "X":
+                j += 1
+            a, b = i, j
+            run = cls[a:b]
+            nl, nr, nb = run.count("L"), run.count("R"), run.count("B")
+            if nl >= GUTTER_MIN_LINES and nr >= GUTTER_MIN_LINES and nb <= max(2, (nl + nr) // 4):
+                found.setdefault((a, b), []).append((xi, nl + nr))
+            i = j
+    if not found:
+        return None
+    (a, b), hits = max(found.items(), key=lambda kv: (kv[1][0][1], kv[0][1] - kv[0][0]))
+    xs = sorted(x for x, _ in hits)
+    groups: list[list[int]] = [[xs[0]]]
+    for x in xs[1:]:
+        if x == groups[-1][-1] + 1:
+            groups[-1].append(x)
+        else:
+            groups.append([x])
+    widest = max(groups, key=len)
+    return (widest[0] + widest[-1]) / 2.0, a, b
+
+
+def column_blocks(words: list[dict], width: float, gap: float, _depth: int = 0) -> list[list[dict]]:
+    """Split a page's words into text blocks in reading order: full-width regions stay whole, a
+    region printed in two columns becomes its left column followed by its right column."""
+    if not words:
+        return []
+    rows = _rows_by_baseline(words, 0.5)        # tight: two columns are rarely on one baseline
+    hit = find_gutter(rows, width, gap) if _depth < 6 else None
+    if hit is None:
+        return [words]
+    x, a, b = hit
+    band = [w for r in rows[a:b] for w in r]
+    left = [w for w in band if w["x0"] + w["x1"] < 2 * x]
+    right = [w for w in band if w["x0"] + w["x1"] >= 2 * x]
+    above = [w for r in rows[:a] for w in r]
+    below = [w for r in rows[b:] for w in r]
+    return [*column_blocks(above, width, gap, _depth + 1), left, right,
+            *column_blocks(below, width, gap, _depth + 1)]
+
+
+def words_to_lines(words: list[dict], page: int = 1, *, y_tolerance: float = 3.0, block: int = 0,
+                   char_w: float | None = None) -> list[ReportLine]:
+    """Group words (dicts with text/x0/x1/top, optionally bottom) into `ReportLine`s.
+
+    Words on the same baseline (within `y_tolerance`, less for small type) form a line. A horizontal
+    gap wider than about one average character starts a new cell; it is written as two spaces.
+    `indent` is the first word's distance from the block's leftmost word, in characters."""
+    words = [w for w in words if str(w.get("text", "")).strip()]
+    if not words:
+        return []
+    cw = char_w or _char_width(words)
+    gap = max(2.0, 1.1 * cw)
+    margin = min(w["x0"] for w in words)
+    rows: list[list[dict]] = []
+    for w in sorted(words, key=lambda w: (_baseline(w), w["x0"])):
+        if rows:
+            first = rows[-1][0]
+            tol = y_tolerance
+            if "bottom" in w and "bottom" in first:
+                tol = min(y_tolerance, 0.45 * min(w["bottom"] - w["top"], first["bottom"] - first["top"]))
+            if abs(_baseline(w) - _baseline(first)) <= tol:
+                rows[-1].append(w)
+                continue
+        rows.append([w])
+    out: list[ReportLine] = []
+    for row in rows:
+        row.sort(key=lambda w: w["x0"])
+        parts: list[str] = []
+        xs: list[float] = []
+        prev = None
+        for w in row:
+            if prev is not None:
+                parts.append("  " if w["x0"] - prev["x1"] > gap else " ")
+            tokens = str(w["text"]).split()
+            step = (w["x1"] - w["x0"]) / max(1, len(str(w["text"])))
+            pos = 0
+            for t in tokens:
+                k = str(w["text"]).find(t, pos)
+                xs.append(w["x0"] + step * max(0, k))
+                pos = max(0, k) + len(t)
+            parts.append(" ".join(tokens))
+            prev = w
+        out.append(ReportLine(page, "".join(parts), round((row[0]["x0"] - margin) / cw, 1), x0=row[0]["x0"],
+                              char_w=cw, block=block, word_x=tuple(xs)))
+    return out
+
+
+@dataclass
+class PdfLayout:
+    lines: list[ReportLine]
+    image_share: dict[int, float]       # page -> share of the page covered by images
+    pages: int
+
+
+def pdf_layout(content: bytes) -> PdfLayout:
+    """Extract text lines from a PDF: words rebuilt from glyph positions, columns split per page."""
     try:
         import pdfplumber
     except ImportError as exc:  # pragma: no cover - dependency is declared in pyproject
         raise CollectorError("pdfplumber is not installed") from exc
     try:
-        out: list[ReportLine] = []
+        lines: list[ReportLine] = []
+        images: dict[int, float] = {}
+        block = 0
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             for pno, page in enumerate(pdf.pages, 1):
-                words = page.extract_words(keep_blank_chars=False, use_text_flow=False)
-                out.extend(words_to_lines(words, page=pno))
-        return out
+                area = float(page.width) * float(page.height) or 1.0
+                images[pno] = sum(max(0.0, float(im["x1"]) - float(im["x0"])) *
+                                  max(0.0, float(im["bottom"]) - float(im["top"])) for im in page.images) / area
+                words = chars_to_words(dedupe_glyphs(page.chars))
+                if not words:
+                    continue
+                cw = _char_width(words)
+                for blk in column_blocks(words, float(page.width), 1.1 * cw):
+                    block += 1
+                    lines.extend(words_to_lines(blk, page=pno, block=block, char_w=cw))
+            pages = len(pdf.pages)
+        return PdfLayout(lines, images, pages)
+    except CollectorError:
+        raise
     except Exception as exc:  # noqa: BLE001 - pdfminer raises many exception types for bad files
         raise CollectorError(f"PDF could not be read ({type(exc).__name__}: {exc})") from exc
+
+
+def pdf_to_lines(content: bytes) -> list[ReportLine]:
+    """Extract text lines from a PDF (see `pdf_layout`)."""
+    return pdf_layout(content).lines
 
 
 def lines_from_text(text: str) -> list[ReportLine]:
@@ -397,7 +673,9 @@ def lines_from_text(text: str) -> list[ReportLine]:
             raw = raw.replace("\f", "")
         if not raw.strip():
             continue
-        out.append(ReportLine(page, raw.strip(), float(len(raw) - len(raw.lstrip(" ")))))
+        indent = float(len(raw) - len(raw.lstrip(" ")))
+        xs = tuple(float(m.start()) for m in re.finditer(r"\S+", raw))
+        out.append(ReportLine(page, raw.strip(), indent, x0=indent, char_w=1.0, block=page, word_x=xs))
     return out
 
 
@@ -405,7 +683,8 @@ def lines_from_text(text: str) -> list[ReportLine]:
 
 
 def parse_price_token(token: str) -> tuple[float, bool]:
-    """'$1.90' -> (1.90, False); '1.44' -> (1.44, False); '190.00' / '210' -> (1.90/2.10, True: cents)."""
+    """'$1.90' -> (1.90, False); '1.44' -> (1.44, False); '$.91' -> (0.91, False);
+    '190.00' / '210' -> (1.90/2.10, True: cents)."""
     dollars = "$" in token
     value = float(token.replace("$", "").replace(",", "").strip())
     if not dollars and value > CENTS_THRESHOLD:
@@ -437,18 +716,38 @@ def split_price_tail(text: str) -> tuple[str, tuple[float, float | None, bool] |
     return stripped[: m.start()].rstrip(), (low, high, c1 or c2)
 
 
+def _canonical_label(text: str) -> str:
+    """A row label with a known misspelling corrected (case kept upper)."""
+    t = _collapse(text)
+    return _LABEL_TYPOS.get(t.lower().strip(" .:"), t)
+
+
 def _geo(text: str, section: str) -> str | None:
     """Resolve a row label (state, province or country) for a price section."""
-    t = _collapse(text).lower().strip(" .:")
+    t = _canonical_label(text).lower().strip(" .:")
     if section == BEEKEEPER:
         return "USA" if t in US_STATES else None
     if section == CANADA:
-        return "CAN" if t in CA_PROVINCES else None
+        return "CAN" if t in CA_PROVINCES or t == "canada" else None
     if section in (IMPORTER, ACE_IMPORTS):
         if len(t) <= 3:          # never resolve 2/3-letter tokens as country codes here
             return None
-        return lookup_iso3(text.title())
+        iso = _ORIGIN_ALIASES.get(t) or lookup_iso3(t.title())
+        # only countries of the reference list (a code without a name would show up as "GIN")
+        return iso if iso and country_name(iso, "en") != iso else None
     return None
+
+
+def ace_origin(label: str) -> tuple[str | None, str | None]:
+    """CBP origin label -> (ISO3, Canadian province or None). 'QUEBEC, CANADA' -> ('CAN', 'QUEBEC');
+    'Grand Total' -> ('WLD', None); unknown -> (None, None)."""
+    t = _collapse(label)
+    if re.fullmatch(r"(?i)(grand\s+)?total(\s+all\s+countries)?|world", t):
+        return "WLD", None
+    m = re.fullmatch(r"(?i)(.+?),\s*canada", t)
+    if m and m.group(1).strip().lower() in CA_PROVINCES:
+        return "CAN", m.group(1).strip().upper()
+    return _geo(t, ACE_IMPORTS), None
 
 
 _UPPER_WORD = re.compile(r"^[A-Z][A-Z.'&/-]*$")
@@ -467,46 +766,68 @@ def _is_upper_label(text: str) -> bool:
     return _collapse(text).lower() not in ("organic", "mixed", "honey dew", "honeydew")
 
 
-def _split_label(body: str, indent: float, section: str) -> tuple[str | None, str | None, str]:
-    """Return (label, iso3, rest). label None = the row continues the previous label.
+# Colour grades as printed at the end of a descriptor ("Extra Light" alone is how several issues,
+# and the HTS 0409.00.00.45 table title, abbreviate Extra Light Amber; there is no other grade it
+# could mean). A colour range ("White / Extra Light") or two grades in one row is ambiguous.
+_COLOR_SUFFIX = re.compile(
+    r"(?P<g>water\s+white|extra\s+white|extra\s+light\s+amber|light\s+amber|dark\s+amber|"
+    r"extra\s+light|white|amber|dark)(?:\s*(?:or|and|&)\s+(?P<q>lighter|whiter|darker))?",
+    re.I,
+)
+_COLOR_TYPOS = {"whitte": "white"}
+_COLORISH = re.compile(r"\b(?:white|amber|light|dark)\b", re.I)
 
-    Only an indented row continues the previous label. A row starting in the label column
-    always names a new label; when it is unknown, iso3 is None so the caller warns and skips it."""
-    cells = [c for c in re.split(r"\s{2,}", body.strip()) if c]
-    if not cells:
-        return None, None, ""
-    if indent >= LABEL_MAX_INDENT:
-        return None, None, " ".join(cells)
-    first = cells[0]
-    iso = _geo(first, section)
-    if iso:
-        return first, iso, " ".join(cells[1:])
-    words = body.split()
-    for n in range(min(4, len(words)), 0, -1):        # cells merged in the PDF: try word prefixes
-        cand = " ".join(words[:n])
-        iso = _geo(cand, section)
-        if iso:
-            return cand, iso, " ".join(words[n:])
-    if _is_upper_label(first):
-        # A label we do not know: US/CA region names are kept as printed (e.g. "DAKOTA");
-        # an unknown origin country is returned without ISO3 so the caller can warn.
-        return first, {BEEKEEPER: "USA", CANADA: "CAN"}.get(section), " ".join(cells[1:])
-    # Mixed case ("Laos") or with punctuation ("KOREA, SOUTH"): still a new label, never a continuation.
-    return first, None, " ".join(cells[1:])
+
+def split_color(tokens: list[str]) -> tuple[list[str], str | None, int, str | None]:
+    """Split descriptor tokens into (floral tokens, colour grade, index of the first colour token,
+    problem). The colour is the trailing words of the descriptor; problem is set when the rest
+    still holds colour words (two grades, a range, or text garbled in the PDF)."""
+    norm = [_COLOR_TYPOS.get(t.lower(), t) for t in tokens]
+    norm = [re.sub(r"^[Ll]t\.?$", "Light", t) for t in norm]
+    norm = [re.sub(r"^[Ee]x\.?$", "Extra", t) for t in norm]
+    grade, start = None, len(tokens)
+    for k in range(min(5, len(norm)), 0, -1):
+        cand = " ".join(norm[-k:])
+        m = _COLOR_SUFFIX.fullmatch(cand)
+        if m:
+            g = _collapse(m.group("g")).lower()
+            grade = "extra light amber" if g == "extra light" else g
+            if m.group("q"):
+                grade += " or darker" if m.group("q").lower() == "darker" else " or lighter"
+            start = len(tokens) - k
+            break
+        if k == 1 and norm[-1].strip(".,;:()") in _COLOR_ABBR:
+            grade, start = _COLOR_ABBR[norm[-1].strip(".,;:()")], len(tokens) - 1
+    rest = tokens[:start]
+    problem = None
+    if grade is not None and (_COLORISH.search(" ".join(rest)) or
+                              any(t.strip(".,;:()") in _COLOR_ABBR for t in rest)):
+        problem = f"more than one colour grade or a colour range in '{_collapse(' '.join(tokens))}'"
+    elif grade is None and _COLORISH.search(" ".join(rest)):
+        problem = f"colour grade not readable in '{_collapse(' '.join(tokens))}'"
+    return rest, grade, start, problem
+
+
+def _floral(text: str) -> tuple[str | None, bool, str]:
+    """Floral cell text -> (floral source or None, organic, Variety value)."""
+    organic = bool(_ORGANIC.search(text))
+    floral = _collapse(_ORGANIC.sub(" ", text)).strip(" ,;-") or None
+    if floral and floral.lower() in ("(blank)", "blank"):
+        floral = None
+    if not floral:
+        return None, organic, Variety.UNSPECIFIED.value
+    t = floral
+    for pattern, repl in _USDA_FLORAL_ALIASES:
+        t = pattern.sub(repl, t)
+    variety, _ = normalize_variety(t + (" organic" if organic else ""))
+    return floral, organic, variety
 
 
 def describe(descriptor: str) -> tuple[str | None, str | None, bool, str]:
     """Split a descriptor such as 'Organic  Mixed Flower  Light Amber' into
     (floral text or None, colour grade, organic, Variety value)."""
-    color, rest = extract_color(descriptor)
-    organic = bool(_ORGANIC.search(rest))
-    floral = _collapse(_ORGANIC.sub(" ", rest)).strip(" ,;-") or None
-    if not floral:
-        return None, color, organic, Variety.UNSPECIFIED.value
-    text = floral
-    for pattern, repl in _USDA_FLORAL_ALIASES:
-        text = pattern.sub(repl, text)
-    variety, _ = normalize_variety(text + (" organic" if organic else ""))
+    rest, color, _, _ = split_color(descriptor.split())
+    floral, organic, variety = _floral(" ".join(rest))
     return floral, color, organic, variety
 
 
@@ -530,6 +851,14 @@ def _is_column_header(norm: str) -> bool:
     return hits >= 2 and not any(ch.isdigit() for ch in norm)
 
 
+def _is_ace_title(norm: str) -> bool:
+    if re.search(r"\d,\d{3}", norm):
+        return False
+    if re.match(r"^(?:natural|comb)\s+honey\b", norm) and len(norm) < 160:
+        return True
+    return "hts code" in norm and bool(_HTS.search(norm)) and len(norm) < 160
+
+
 def _match_heading(norm: str, current: str | None) -> str | None:
     for section, pattern, max_len in _HEADINGS:
         if max_len and (len(norm) > max_len or norm.endswith(".")):
@@ -539,7 +868,7 @@ def _match_heading(norm: str, current: str | None) -> str | None:
         if pattern.search(norm):
             return section
     # An HTS table title outside the export section starts the import tables.
-    if current != EXPORTS and re.match(r"^natural honey\b", norm) and _HTS.search(norm) and len(norm) < 160:
+    if current not in (EXPORTS, ACE_IMPORTS) and _is_ace_title(norm) and _HTS.search(norm):
         return ACE_IMPORTS
     return None
 
@@ -561,11 +890,40 @@ def _ace_number(token: str) -> float | None:
 
 
 def _split_numeric_tail(text: str) -> tuple[str, list[str]]:
-    tokens = text.split()
+    """'ARGENTINA  694,418  $  1,857,205 ...' -> ('ARGENTINA', ['694,418', '1,857,205', ...]).
+    The '$' printed in front of value cells is dropped."""
+    tokens = []
+    for t in text.split():
+        if t == "$":
+            continue
+        tokens.append(t[1:] if t.startswith("$") and len(t) > 1 else t)
     nums: list[str] = []
     while tokens and _ACE_NUM.match(tokens[-1]):
         nums.insert(0, tokens.pop())
     return " ".join(tokens), nums
+
+
+def market_month(text: str, issue: date | None) -> tuple[tuple[int, int] | None, str | None]:
+    """Read 'HONEY MARKET FOR THE MONTH OF <MONTH> <YEAR>' -> ((year, month), as printed).
+
+    A misspelt month ('FEBURARY') is accepted only when it is close to exactly one month name and
+    that month is the issue month or one of the two months before it; otherwise (None, printed)."""
+    m = _MARKET_MONTH.search(text)
+    if not m:
+        return None, None
+    printed = f"{m.group(1)} {m.group(2)}"
+    year, word = int(m.group(2)), m.group(1).lower()
+    month = _MONTH_NUM.get(word)
+    if month is None:
+        close = difflib.get_close_matches(word, list(_MONTH_NUM), n=2, cutoff=0.8)
+        if len(close) != 1:
+            return None, printed
+        month = _MONTH_NUM[close[0]]
+    if issue is not None:
+        lag = (issue.year - year) * 12 + issue.month - month
+        if not 0 <= lag <= 2:
+            return None, printed
+    return (year, month), printed
 
 
 # ------------------------------------------------------------------ the parser
@@ -584,6 +942,16 @@ class _AceTable:
     warned_month: bool = False
 
 
+@dataclass
+class _PrevRow:
+    """The previous data row of the current label group (for floral cells left blank)."""
+
+    floral: str | None
+    organic: bool
+    has_floral_cell: bool
+    color_x: float | None
+
+
 class _HoneyReportParser:
     """Line-by-line state machine. See `parse_honey_report_lines`."""
 
@@ -592,12 +960,17 @@ class _HoneyReportParser:
         self.section: str | None = None
         self.in_heading = False
         self.heading_lines: list[str] = []
-        self.carry: tuple[str, str | None] | None = None   # (label, iso3) for continuation rows
+        self.carry: tuple[str, str | None, str] | None = None   # (label, iso3, as printed)
+        self.label_x: float | None = None                       # x of the label column ...
+        self.label_block: int | None = None                     # ... in this text block
+        self.prev: _PrevRow | None = None
         self.ace: _AceTable | None = None
-        self.counts: Counter = Counter()                    # data rows per section
+        self.counts: Counter = Counter()                        # data rows per section
         self.placeholders: Counter = Counter()
         self.unknown_price_lines = 0
-        self.narrative: list[list[str]] = []                # blocks of lines
+        self.narrative: list[list[str]] = []                    # blocks of lines
+        self.ace_unknown: Counter = Counter()                   # import rows: origin not in the country list
+        self.ace_misaligned: list[str] = []                     # import rows with blank / extra cells
 
     # -------------------------------------------------------------- driver
     def run(self, lines: list[ReportLine]) -> HoneyReportParse:
@@ -637,6 +1010,10 @@ class _HoneyReportParser:
 
     # -------------------------------------------------------------- header / sections
     def _parse_header(self, lines: list[ReportLine]) -> None:
+        first_page = lines[0].page if lines else 1
+        page1 = [ln for ln in lines if ln.page == first_page]
+        if page1:
+            self.out.title = _collapse(page1[0].text)[:120]
         for line in lines:
             m = _VOLUME.search(line.text)
             if m:
@@ -644,13 +1021,24 @@ class _HoneyReportParser:
                 d = _FULL_DATE.search(line.text)
                 if d:
                     self.out.issue_date = _date_from_match(d)
-                    return
-        first_page = lines[0].page if lines else 1
-        for line in [ln for ln in lines if ln.page == first_page][:8]:
-            d = _FULL_DATE.search(line.text)
-            if d:
-                self.out.issue_date = _date_from_match(d)
-                return
+                    break
+        if self.out.issue_date is None:
+            for line in page1[:8]:
+                d = _FULL_DATE.search(line.text)
+                if d:
+                    self.out.issue_date = _date_from_match(d)
+                    break
+        # Banner lines above the first table of page 1: market month, "Corrected Copy".
+        for line in page1:
+            if _match_heading(line.norm, None) in PRICE_SECTIONS:
+                break
+            if self.out.market_month_printed is None:
+                self.out.market_month, self.out.market_month_printed = market_month(line.text, self.out.issue_date)
+            if _CORRECTED.search(line.text):
+                self.out.corrected = True
+        if self.out.market_month_printed and self.out.market_month is None:
+            self.warn(None, f"market month '{self.out.market_month_printed}' not readable "
+                            f"or not consistent with the issue date")
 
     def _enter(self, section: str, line: ReportLine) -> None:
         if section == self.section and section != ACE_IMPORTS:
@@ -663,15 +1051,18 @@ class _HoneyReportParser:
         self.in_heading = True
         self.heading_lines = [line.text.strip()]
         self.carry = None
+        self.prev = None
+        self.label_x = self.label_block = None
         if section not in self.out.sections:
             self.out.sections.append(section)
+            self.out.section_pages[section] = line.page
         if section == UNKNOWN:
             self.warn(line, "unrecognised price section - rows skipped (layout change?)")
         elif section == NARRATIVE:
             self.narrative.append([_collapse(line.text)])
         elif section == ACE_IMPORTS:
             self.ace = None
-            if re.match(r"^natural honey\b", line.norm):      # the heading is the table title itself
+            if _is_ace_title(line.norm):      # the heading is the table title itself
                 self._ace_new_table(line)
 
     def _leave(self) -> None:
@@ -682,16 +1073,73 @@ class _HoneyReportParser:
 
     def _finish(self) -> None:
         for s in self.out.sections:
+            self.out.section_rows[s] = self.counts[s]
             if s in PRICE_SECTIONS and not self.counts[s] and not self.placeholders[s]:
                 self.warn(None, f"section '{s}' found but no row could be parsed")
             if s == ACE_IMPORTS and not self.counts[s]:
                 self.warn(None, "import tables found but no row could be parsed")
+        if self.ace_unknown:
+            names = ", ".join(sorted(self.ace_unknown))
+            self.warn(None, f"import tables: {sum(self.ace_unknown.values())} row(s) of origins outside the "
+                            f"country list skipped ({names[:300]})")
+        if self.ace_misaligned:
+            self.warn(None, f"import tables: {len(self.ace_misaligned)} row(s) whose cells do not match the "
+                            f"column header skipped ({', '.join(self.ace_misaligned)[:300]})")
         paragraphs = ["\n".join(block[:1] + _reflow(block[1:])).strip() for block in self.narrative]
         # A narrative made only of headings carries no commentary.
         has_text = any(len(block) > 1 for block in self.narrative)
         self.out.narrative = "\n\n".join(p for p in paragraphs if p) if has_text else None
 
     # -------------------------------------------------------------- price tables
+    def _split_label(self, body: str) -> tuple[str | None, str | None, int, str | None, str | None]:
+        """(label, iso3, words used, label as printed, leftover glued to the label).
+
+        A row starting in the label column always names a new label; when it is unknown, iso3 is
+        None so the caller warns and skips it (it never inherits the label above)."""
+        section = self.section or ""
+        cells = [c for c in re.split(r"\s{2,}", body.strip()) if c]
+        if not cells:
+            return None, None, 0, None, None
+        first = cells[0]
+        iso = _geo(first, section)
+        if iso:
+            return _canonical_label(first), iso, len(first.split()), _collapse(first), None
+        words = body.split()
+        for n in range(min(4, len(words)), 0, -1):        # cells merged in the PDF: try word prefixes
+            cand = " ".join(words[:n])
+            iso = _geo(cand, section)
+            if iso:
+                return _canonical_label(cand), iso, n, cand, None
+        # "CALIFORNIABuckwheat": an upper-case label glued to the floral source (Feb 2025 issue)
+        m = re.fullmatch(r"([A-Z][A-Z.'&-]{2,})([A-Z][a-z][A-Za-z()'-]*)", words[0])
+        if m:
+            iso = _geo(m.group(1), section)
+            if iso:
+                return _canonical_label(m.group(1)), iso, 1, m.group(1), m.group(2)
+        if _is_upper_label(first):
+            # A label we do not know: US/CA region names are kept as printed (e.g. "DAKOTA");
+            # an unknown origin country is returned without ISO3 so the caller can warn.
+            return (_canonical_label(first), {BEEKEEPER: "USA", CANADA: "CAN"}.get(section), len(first.split()),
+                    _collapse(first), None)
+        # Mixed case ("Laos") or with punctuation ("KOREA, SOUTH"): still a new label, never a continuation.
+        return _collapse(first), None, len(first.split()), _collapse(first), None
+
+    def _starts_label_row(self, line: ReportLine, body: str) -> bool:
+        tol = LABEL_COLUMN_TOLERANCE * line.char_w
+        if self.label_x is not None and self.label_block == line.block:
+            if line.x0 <= self.label_x + tol:
+                self.label_x = min(self.label_x, line.x0)
+                return True
+            return False
+        # First row of this text block: its content decides (a column may continue the table of
+        # the previous column with a continuation row).
+        cells = [c for c in re.split(r"\s{2,}", body.strip()) if c]
+        first = cells[0] if cells else ""
+        if self._split_label(body)[1] or _is_upper_label(first):
+            self.label_x, self.label_block = line.x0, line.block
+            return True
+        return False
+
     def _price_line(self, line: ReportLine) -> None:
         norm = line.norm
         body, price = split_price_tail(line.text)
@@ -708,23 +1156,35 @@ class _HoneyReportParser:
                 return
             # e.g. the first half of a wrapped label: what follows must not inherit the previous origin
             self.carry = None
+            self.prev = None
             self.warn(line, f"unparsed line in '{self.section}' table")
             return
         self.in_heading = False
         if ph is not None:
             body = line.text[: ph.start()]
-        label, iso3, rest = _split_label(body, line.indent, self.section)
-        if label is not None:
-            self.carry = (label, iso3)
+        tokens = body.split()
+        xs = list(line.word_x[: len(tokens)]) if len(line.word_x) >= len(tokens) else []
+        label_row = bool(tokens) and self._starts_label_row(line, body)
+        desc_tokens, desc_xs = tokens, xs
+        if label_row:
+            label, iso3, used, printed, leftover = self._split_label(body)
+            if label is not None:
+                self.carry = (label, iso3, printed or label)
+                self.prev = None
+            desc_tokens = ([leftover] if leftover else []) + tokens[used:]
+            desc_xs = ([xs[0] + line.char_w * len(printed or "")] if leftover and xs else []) + xs[used:]
         if ph is not None:
             self.placeholders[self.section] += 1
             return
         if self.carry is None:
             self.warn(line, "price row without a state/origin label - skipped")
             return
-        label, iso3 = self.carry
+        label, iso3, printed = self.carry
         if iso3 is None:
             self.warn(line, f"unknown origin '{label}' - row skipped")
+            return
+        if any(_PRICE_TOKEN.match(t) for t in desc_tokens):
+            self.warn(line, "row holds more than one price (two tables side by side?) - skipped")
             return
         low, high, cents = price
         if high is not None and high < low:
@@ -734,6 +1194,27 @@ class _HoneyReportParser:
         if not (PRICE_MIN_USD_LB <= low <= PRICE_MAX_USD_LB) or (high is not None and high > PRICE_MAX_USD_LB):
             self.warn(line, f"implausible price {low}{'-' + str(high) if high else ''} per lb - skipped")
             return
+        rest, color, cstart, problem = split_color(desc_tokens)
+        if problem:
+            self.warn(line, f"{problem} - row skipped")
+            return
+        if color is None:
+            self.warn(line, "colour grade not recognised - row skipped")
+            return
+        color_x = desc_xs[cstart] if len(desc_xs) == len(desc_tokens) and cstart < len(desc_xs) else None
+        inherited = False
+        if rest:
+            floral, organic, variety = _floral(" ".join(rest))
+        elif (not label_row and self.prev is not None and self.prev.has_floral_cell
+              and color_x is not None and self.prev.color_x is not None
+              and color_x >= self.prev.color_x - LABEL_COLUMN_TOLERANCE * line.char_w):
+            # Pivot-table layout: a row starting in the colour column belongs to the floral source above.
+            floral, organic = self.prev.floral, self.prev.organic
+            _, _, variety = _floral(" ".join(filter(None, [floral, "organic" if organic else ""])))
+            inherited = True
+        else:
+            floral, organic, variety = None, False, Variety.UNSPECIFIED.value
+        self.prev = _PrevRow(floral, organic, bool(rest) or inherited, color_x)
         heading = " ".join(self.heading_lines)
         currency = "USD"
         if self.section == CANADA:
@@ -741,7 +1222,6 @@ class _HoneyReportParser:
             if currency is None:
                 self.warn(line, "currency of the Canadian table not stated in its heading - row skipped")
                 return
-        floral, color, organic, variety = describe(rest)
         self.counts[self.section] += 1
         self.out.prices.append(HoneyPrice(
             section=self.section, label=_collapse(label), origin_iso3=iso3,
@@ -749,17 +1229,24 @@ class _HoneyReportParser:
             descriptor=floral, color_grade=color, organic=organic, variety=variety,
             low=low if high is not None else None, high=high, value=value, currency=currency,
             printed_in_cents=cents, terms=heading_terms(self.section, heading), heading=_collapse(heading)[:500],
-            page=line.page, raw_line=_collapse(line.text),
+            page=line.page, raw_line=_collapse(line.text), label_as_printed=printed, floral_inherited=inherited,
         ))
 
     def _label_only(self, line: ReportLine) -> bool:
         """A line holding only a group label (e.g. 'CALIFORNIA' above its rows)."""
         text = _collapse(line.text)
-        if line.indent >= LABEL_MAX_INDENT or re.search(r"[,:;]", text) or text.endswith("."):
+        if re.search(r"[,:;]", text) or text.endswith("."):
             return False
-        iso = _geo(text, self.section)
+        same_block = self.label_x is not None and self.label_block == line.block
+        if same_block and line.x0 > self.label_x + LABEL_COLUMN_TOLERANCE * line.char_w:
+            return False
+        iso = _geo(text, self.section or "")
         if iso or (not self.in_heading and _is_upper_label(text)):
-            self.carry = (text, iso if iso else {BEEKEEPER: "USA", CANADA: "CAN"}.get(self.section))
+            self.carry = (_canonical_label(text), iso if iso else {BEEKEEPER: "USA", CANADA: "CAN"}.get(self.section),
+                          text)
+            self.prev = None
+            if not same_block:
+                self.label_x, self.label_block = line.x0, line.block
             return True
         return False
 
@@ -768,26 +1255,30 @@ class _HoneyReportParser:
         self._ace_close()
         title = _collapse(line.text)
         color, _ = extract_color(re.sub(r"\(.*?\)", " ", title))
+        if color is None and re.search(r"\bextra\s+light\b", title, re.I):
+            color = "extra light amber"     # "Natural Honey, Not For Retail Sale, Extra Light (HTS 0409000045)"
         self.ace = _AceTable(title=title, hts=_hts_code(title), color=color,
                              organic=bool(_ORGANIC.search(title)), page=line.page)
         my = _MONTH_YEAR.search(title)
         if my:
-            self.ace.month = (int(my.group(2)), _MONTH_NUM[my.group(1).lower()])
+            self.ace.month = (int(my.group(2)), _month_number(my.group(1)))
 
     def _ace_close(self) -> None:
         self.ace = None
 
     def _ace_line(self, line: ReportLine) -> None:
         norm, text = line.norm, line.text
-        if re.match(r"^natural honey\b", norm) and len(norm) < 160:
-            self._ace_new_table(line)
-            return
-        if _ACE_NOTE.match(norm):
-            return
         t = self.ace
         if t is not None and not t.rows and not t.hts and _hts_code(text) and not t.fields:
             t.hts = _hts_code(text)                        # title wrapped onto a second line
             t.title = _collapse(t.title + " " + text)
+            if t.color is None:
+                t.color, _ = extract_color(re.sub(r"\(.*?\)", " ", t.title))
+            return
+        if _is_ace_title(norm):
+            self._ace_new_table(line)
+            return
+        if _ACE_NOTE.match(norm) or norm in ("country of origin", "country"):
             return
         if "kilograms" in norm:
             if t is None:
@@ -802,7 +1293,7 @@ class _HoneyReportParser:
             return
         label, nums = _split_numeric_tail(text)
         if not nums:
-            if t is not None and not _PLACEHOLDER.search(norm):
+            if t is not None and not _PLACEHOLDER.search(norm) and _month_number(norm) is None:
                 self.warn(line, "unparsed line in an import table")
             return
         if t is None or not t.fields:
@@ -814,15 +1305,13 @@ class _HoneyReportParser:
                 t.warned_month = True
             return
         if len(nums) != len(t.fields):
-            self.warn(line, f"import row has {len(nums)} numbers, header has {len(t.fields)} columns - skipped")
+            # a blank cell (no '-') or a stray number: the columns cannot be matched unambiguously
+            self.ace_misaligned.append(f"p.{line.page} {_collapse(label)} ({len(nums)}/{len(t.fields)} cells)")
             return
         label = _collapse(label)
-        if re.fullmatch(r"(?i)(grand\s+)?total(\s+all\s+countries)?|world", label):
-            iso3 = "WLD"
-        else:
-            iso3 = _geo(label, ACE_IMPORTS)
+        iso3, region = ace_origin(label)
         if not iso3:
-            self.warn(line, f"unknown country of origin '{label}' in import table - skipped")
+            self.ace_unknown[label] += 1
             return
         month_vals: dict[str, float | None] = {}
         ytd: dict[str, float | None] = {}
@@ -837,13 +1326,15 @@ class _HoneyReportParser:
             hts_code=t.hts, table_title=t.title, color_grade=t.color, organic=t.organic,
             origin_label=label, origin_iso3=iso3, year=t.month[0], month=t.month[1],
             kilograms=month_vals.get("kg"), value=month_vals.get("value"), cif_value=month_vals.get("cif"),
-            total_value=month_vals.get("total"), ytd=ytd, page=line.page, raw_line=_collapse(text),
+            total_value=month_vals.get("total"), ytd=ytd, page=line.page, raw_line=_collapse(text), region=region,
         ))
 
     def _ace_month(self, t: _AceTable, text: str) -> None:
         my = _MONTH_YEAR.search(text)
         if my and t.month is None:
-            t.month = (int(my.group(2)), _MONTH_NUM[my.group(1).lower()])
+            num = _month_number(my.group(1))
+            if num:
+                t.month = (int(my.group(2)), num)
 
     # -------------------------------------------------------------- narrative
     def _narrative_line(self, line: ReportLine) -> None:
@@ -878,20 +1369,34 @@ def parse_honey_report_lines(lines: list[ReportLine]) -> HoneyReportParse:
     """Parse the National Honey Report from text lines (pure; no I/O).
 
     Returns prices (producer / wholesale bulk, USD per lb as published), CBP import rows,
-    the market narrative (if the issue has one), the issue date and parser warnings."""
+    the market narrative (if the issue has one), the issue date, the market month and warnings."""
     return _HoneyReportParser().run(lines)
 
 
 def parse_honey_report_pdf(content: bytes) -> HoneyReportParse:
-    """Parse a National Honey Report PDF. Raises CollectorError if the file is unusable."""
+    """Parse a National Honey Report PDF. Raises CollectorError if the file is unusable and
+    NotAHoneyReport if it is another report."""
     if not content.lstrip()[:5].startswith(b"%PDF"):
         raise CollectorError("downloaded file is not a PDF")
-    lines = pdf_to_lines(content)
-    if not lines:
+    layout = pdf_layout(content)
+    if not layout.lines:
         raise CollectorError("PDF contains no extractable text (scanned image?)")
-    parsed = parse_honey_report_lines(lines)
+    first_page = [ln for ln in layout.lines if ln.page == layout.lines[0].page]
+    if not any(_TITLE.search(ln.text) for ln in first_page[:12]):
+        raise NotAHoneyReport(f"not a National Honey Report (page 1 starts with '{first_page[0].text[:60]}')")
+    parsed = parse_honey_report_lines(layout.lines)
     if not any(s in parsed.sections for s in (*PRICE_SECTIONS, ACE_IMPORTS)):
         raise CollectorError("no known National Honey Report section found (layout changed?)")
+    # A price section without rows on a page carrying large images: the table is a picture.
+    for section in PRICE_SECTIONS:
+        page = parsed.section_pages.get(section)
+        generic = f"section '{section}' found but no row could be parsed"
+        if page is None or generic not in parsed.warnings:
+            continue
+        if layout.image_share.get(page, 0.0) >= IMAGE_PAGE_SHARE:
+            parsed.warnings = [w for w in parsed.warnings if w != generic]
+            parsed.warnings.append(f"p.{page}: the '{section}' price table is printed as an image in this PDF "
+                                   "(not machine-readable) - no prices taken from it")
     return parsed
 
 
@@ -908,11 +1413,13 @@ class EsmisRelease:
 
 
 def parse_esmis_releases(payload: Any) -> tuple[list[EsmisRelease], list[str]]:
-    """Parse an ESMIS `/api/v1/release/findBy...` page. Newest first."""
+    """Parse an ESMIS `/api/v1/release/findBy...` page. Newest first; a release listed twice
+    (ESMIS lists most FVMHONEY releases under both 'AMS' and 'AMS-SC') is kept once."""
     if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
         raise CollectorError("ESMIS: unexpected response (no 'results' list)")
     out: list[EsmisRelease] = []
     warnings: list[str] = []
+    seen: set[str] = set()
     for item in payload["results"]:
         if not isinstance(item, dict):
             continue
@@ -925,10 +1432,15 @@ def parse_esmis_releases(payload: Any) -> tuple[list[EsmisRelease], list[str]]:
         files = tuple(f for f in (item.get("files") or []) if isinstance(f, str) and f.startswith("http"))
         pdfs = sorted((f for f in files if urlparse(f).path.lower().endswith(".pdf")),
                       key=lambda u: "fvmhoney" not in u.lower())
-        out.append(EsmisRelease(
+        rel = EsmisRelease(
             release_id=str(item.get("id") or ""), title=str(item.get("title") or "National Honey Report"),
             release_date=rd, pdf_url=pdfs[0] if pdfs else None, files=files,
-        ))
+        )
+        ident = rel.release_id or rel.pdf_url or f"{rd.isoformat()}|{','.join(files)}"
+        if ident in seen:
+            continue
+        seen.add(ident)
+        out.append(rel)
     out.sort(key=lambda r: r.release_date, reverse=True)
     return out, warnings
 
@@ -942,6 +1454,7 @@ AMS_MIRROR_URL = "https://ams-prod.azureedge.us/mnreports/fvmhoney.pdf"
 # In-app link to a report's archived original (served by api/reports.py, byte for byte as downloaded).
 ARCHIVED_REPORT_FILE_URL = "/api/reports/{report_id}/file"
 HONEY_BACKFILL_RELEASES = 24        # newest ESMIS issues downloaded and parsed
+ESMIS_MAX_PAGES = 2                 # ESMIS pages read for the first backfill (25 rows per page)
 ESMIS_EMPTY_RETRIES = 3             # ESMIS sometimes answers with an empty list; retry, 5 s apart
 REPORT_DATE_MATCH_DAYS = 4          # an AMS issue within this many days of an ESMIS release = same issue
 
@@ -962,7 +1475,7 @@ class UsdaHoneyReportCollector(Collector):
     terms_note = (
         "US Government work (public domain, 17 USC 105). Cite 'USDA AMS Market News, National Honey "
         "Report'. Back issues via USDA National Agricultural Library ESMIS. Prices are published per "
-        "pound (USD); per-kg values are converted."
+        "pound (USD) for the market month printed on page 1; per-kg values are converted."
     )
     # Around month end (issue date) and the first days of the next month, morning and evening (Rome).
     schedule = {"trigger": "cron", "day": "1-5,25-31", "hour": "8,22", "minute": 40}
@@ -971,39 +1484,55 @@ class UsdaHoneyReportCollector(Collector):
     def collect(self, ctx: CollectContext) -> None:
         errors: list[CollectorError] = []
         successes = 0
+        state = _load_state(ctx)
+        not_honey: dict[str, str] = state.setdefault("not_fvmhoney", {})
 
-        # 1) ESMIS archive: register every listed release, download the newest ones not yet parsed.
+        # 1) ESMIS archive: download the newest releases not yet parsed (oldest first, so a corrected
+        #    copy supersedes the original), then register every listed release.
         releases: list[EsmisRelease] = []
         try:
-            releases = self._esmis_releases(ctx)
+            releases = self._esmis_releases(ctx, state)
             successes += 1
         except CollectorError as exc:
             errors.append(exc)
             ctx.warn(f"ESMIS archive unavailable ({exc}); using the AMS latest issue only")
 
+        wanted = [r for r in releases[:HONEY_BACKFILL_RELEASES] if r.pdf_url]
+        pending = 0
+        for rel in sorted(wanted, key=lambda r: r.release_date):
+            key = rel.release_date.isoformat()
+            if rel.pdf_url in not_honey and not ctx.force:
+                continue
+            report = self._report(ctx, key)
+            if report is not None and report.raw_document_id and not ctx.force:
+                continue
+            try:
+                self._process_pdf(ctx, url=rel.pdf_url, report_key=key,
+                                  title=f"{rel.title} – {_long_date(rel.release_date)}", release_date=rel.release_date)
+                successes += 1
+            except NotAHoneyReport as exc:
+                not_honey[rel.pdf_url] = str(exc)[:200]
+                _save_state(ctx, state)
+                ctx.warn(f"ESMIS release of {key} ({rel.pdf_url}) is filed under FVMHONEY but {exc}; ignored")
+                ctx.checkpoint()
+            except CollectorError as exc:
+                pending += 1
+                errors.append(exc)
+                ctx.warn(f"Issue of {key} ({rel.pdf_url}) not processed: {exc}")
+        if releases and not pending and not state.get("esmis_backfill_done"):
+            state["esmis_backfill_done"] = True
+            _save_state(ctx, state)
+
         for rel in releases:
+            if rel.pdf_url in not_honey:
+                continue
             ctx.add_report(
                 report_key=rel.release_date.isoformat(),
                 title=f"{rel.title} – {_long_date(rel.release_date)}",
                 url=rel.pdf_url or (rel.files[0] if rel.files else ESMIS_PUBLICATION_URL),
                 published_at=rel.release_date,
-                period_label=_period_label(rel.release_date.year, rel.release_date.month),
             )
         ctx.checkpoint()
-
-        wanted = [r for r in releases[:HONEY_BACKFILL_RELEASES] if r.pdf_url]
-        for rel in sorted(wanted, key=lambda r: r.release_date):    # oldest first: newer issues supersede
-            report = self._report(ctx, rel.release_date.isoformat())
-            if report is not None and report.raw_document_id and not ctx.force:
-                continue
-            try:
-                self._process_pdf(ctx, url=rel.pdf_url, report_key=rel.release_date.isoformat(),
-                                  title=f"{rel.title} – {_long_date(rel.release_date)}",
-                                  release_date=rel.release_date)
-                successes += 1
-            except CollectorError as exc:
-                errors.append(exc)
-                ctx.warn(f"Issue of {rel.release_date.isoformat()} ({rel.pdf_url}) not processed: {exc}")
 
         # 2) AMS "latest issue" URL (ESMIS may lag; the AMS file is overwritten every month).
         try:
@@ -1019,28 +1548,58 @@ class UsdaHoneyReportCollector(Collector):
             raise CollectorError("; ".join(str(e) for e in errors)[:1000])
 
     # -------------------------------------------------------------- steps
-    def _esmis_releases(self, ctx: CollectContext) -> list[EsmisRelease]:
+    def _esmis_page(self, ctx: CollectContext, page: int) -> tuple[list[EsmisRelease], int]:
+        doc = ctx.fetch(ESMIS_FVMHONEY_URL, params={"page": page}, headers={"Accept": "application/json"},
+                        title=f"ESMIS – National Honey Report releases (page {page})")
+        try:
+            payload = doc.json()
+        except ValueError as exc:
+            raise CollectorError("ESMIS response is not JSON") from exc
+        releases, warnings = parse_esmis_releases(payload)
+        for w in warnings:
+            ctx.warn(w)
+        pager = payload.get("pager") if isinstance(payload, dict) else None
+        total = int(pager.get("total_pages") or 1) if isinstance(pager, dict) else 1
+        return releases, total
+
+    def _esmis_releases(self, ctx: CollectContext, state: dict) -> list[EsmisRelease]:
+        releases: list[EsmisRelease] = []
+        total_pages = 1
         for attempt in range(ESMIS_EMPTY_RETRIES + 1):
-            doc = ctx.fetch(ESMIS_FVMHONEY_URL, params={"page": 0}, headers={"Accept": "application/json"},
-                            title="ESMIS – National Honey Report releases")
-            try:
-                payload = doc.json()
-            except ValueError as exc:
-                raise CollectorError("ESMIS response is not JSON") from exc
-            releases, warnings = parse_esmis_releases(payload)
-            for w in warnings:
-                ctx.warn(w)
+            releases, total_pages = self._esmis_page(ctx, 0)
             if releases:
-                return releases
+                break
             if attempt < ESMIS_EMPTY_RETRIES:
                 ctx.checkpoint()        # do not hold the write lock (archived response) while waiting
                 time.sleep(5)
-        ctx.warn("ESMIS returned an empty National Honey Report release list (transient?)")
-        return []
+        if not releases:
+            ctx.warn("ESMIS returned an empty National Honey Report release list (transient?)")
+            return []
+        # First backfill (or a forced run): read further pages until the backfill window is covered.
+        page = 1
+        while (len(releases) < HONEY_BACKFILL_RELEASES and page < min(total_pages, ESMIS_MAX_PAGES)
+               and (ctx.force or not state.get("esmis_backfill_done"))):
+            try:
+                more, _ = self._esmis_page(ctx, page)
+            except CollectorError as exc:
+                ctx.warn(f"ESMIS page {page} unavailable ({exc}); older issues follow on a later run")
+                state["esmis_backfill_done"] = False
+                break
+            known = {r.release_id or r.pdf_url for r in releases}
+            releases += [r for r in more if (r.release_id or r.pdf_url) not in known]
+            page += 1
+        releases.sort(key=lambda r: r.release_date, reverse=True)
+        return releases
 
     def _report(self, ctx: CollectContext, report_key: str) -> Report | None:
         return ctx.session.scalars(
             select(Report).where(Report.source_id == ctx.source.id, Report.report_key == report_key)
+        ).first()
+
+    def _report_with_file(self, ctx: CollectContext, raw_document_id: int) -> Report | None:
+        return ctx.session.scalars(
+            select(Report).where(Report.source_id == ctx.source.id, Report.raw_document_id == raw_document_id)
+            .order_by(Report.id)
         ).first()
 
     def _already_parsed(self, ctx: CollectContext, raw_document_id: int) -> bool:
@@ -1049,22 +1608,36 @@ class UsdaHoneyReportCollector(Collector):
                                                 Report.raw_document_id == raw_document_id)
         ) > 0
 
+    @staticmethod
+    def _issue_title(parsed: HoneyReportParse, issue: date) -> str:
+        return f"National Honey Report – {_long_date(issue)}" + (" (corrected copy)" if parsed.corrected else "")
+
+    @staticmethod
+    def _market_label(parsed: HoneyReportParse) -> str | None:
+        return _period_label(*parsed.market_month) if parsed.market_month else None
+
     def _process_pdf(self, ctx: CollectContext, *, url: str, report_key: str, title: str,
                      release_date: date) -> None:
         doc = ctx.fetch(url, title=title, published_at=release_date)
         if self._already_parsed(ctx, doc.raw_document_id) and not ctx.force:
-            # same bytes already parsed under another report (e.g. via the AMS latest URL)
-            ctx.add_report(report_key=report_key, title=title, url=url, raw_document_id=doc.raw_document_id)
+            # same bytes already parsed under another report (e.g. ESMIS re-listed the same file)
+            prev = self._report_with_file(ctx, doc.raw_document_id)
+            ctx.add_report(report_key=report_key, title=prev.title if prev else title, url=url,
+                           published_at=release_date, period_label=prev.period_label if prev else None,
+                           raw_document_id=doc.raw_document_id)
             return
         parsed = parse_honey_report_pdf(doc.content)
         issue = parsed.issue_date or release_date
         if parsed.issue_date and abs((parsed.issue_date - release_date).days) > 31:
             ctx.warn(f"{title}: issue date printed in the PDF ({parsed.issue_date}) differs from the "
                      f"ESMIS release date ({release_date}); using the printed date")
+        title = self._issue_title(parsed, issue)
         self._store(ctx, parsed, issue, title=title, source_url=doc.url, raw_document_id=doc.raw_document_id)
-        ctx.add_report(report_key=report_key, title=title, url=url, published_at=release_date,
-                       period_label=_period_label(issue.year, issue.month),
-                       raw_document_id=doc.raw_document_id, narrative=parsed.narrative)
+        report, _ = ctx.add_report(report_key=report_key, title=title, url=url, published_at=release_date,
+                                   period_label=self._market_label(parsed),
+                                   raw_document_id=doc.raw_document_id, narrative=parsed.narrative)
+        if report.period_label is None and parsed.market_month:
+            report.period_label = self._market_label(parsed)        # late metadata: filled, never changed
         ctx.checkpoint()
 
     def _process_latest(self, ctx: CollectContext) -> None:
@@ -1085,10 +1658,12 @@ class UsdaHoneyReportCollector(Collector):
             raise CollectorError("issue date not found in the page header; refusing to guess the period")
         issue = parsed.issue_date
         report_key = self._report_key_near(ctx, issue) or issue.isoformat()
-        title = f"National Honey Report – {_long_date(issue)}"
+        title = self._issue_title(parsed, issue)
         report, _ = ctx.add_report(report_key=report_key, title=title, url=doc.url, published_at=issue,
-                                   period_label=_period_label(issue.year, issue.month),
+                                   period_label=self._market_label(parsed),
                                    raw_document_id=doc.raw_document_id, narrative=parsed.narrative)
+        if report.period_label is None and parsed.market_month:
+            report.period_label = self._market_label(parsed)
         # AMS overwrites this URL every month: each price links to the archived copy of the exact file
         # it was parsed from; the AMS URL is kept in `extra["fetched_from"]` (and as the report's URL).
         # (If the matched report already archives other bytes, e.g. the ESMIS copy of the issue, the
@@ -1113,13 +1688,17 @@ class UsdaHoneyReportCollector(Collector):
         provenance = {"fetched_from": fetched_from} if fetched_from else {}
         for w in parsed.warnings:
             ctx.warn(f"{title}: {w}")
-        if issue.day < 15:
-            ctx.warn(f"{title}: issue dated early in the month; prices are assigned to {issue:%Y-%m} "
-                     "(the issue month) as printed")
-        ps, pe = month_bounds(issue.year, issue.month)
-        label = _period_label(issue.year, issue.month)
+        stored: set[str] = set()
+        prices = parsed.prices
+        if prices and parsed.market_month is None:
+            ctx.warn(f"{title}: the market month ('Honey market for the month of ...') is missing or not "
+                     f"readable; {len(prices)} price(s) skipped rather than dated by guess")
+            prices = []
+        if prices:
+            ps, pe = month_bounds(*parsed.market_month)
+            label = _period_label(*parsed.market_month)
         seen: Counter = Counter()
-        for p in parsed.prices:
+        for p in prices:
             price_type = PriceType.WHOLESALE_BULK if p.section == IMPORTER else PriceType.PRODUCER
             base = (f"usda_fvmhoney|{p.section}|{_slug(p.label)}|{_slug(p.descriptor)}|{_slug(p.color_grade)}|"
                     f"{'organic' if p.organic else 'conventional'}|{label}")
@@ -1142,8 +1721,12 @@ class UsdaHoneyReportCollector(Collector):
                 notes=f"{title}, p.{p.page}: {p.heading[:160]}",
                 extra={"parser_version": parsed.parser_version, "page": p.page, "raw_line": p.raw_line,
                        "printed_in_cents": p.printed_in_cents, "report_section": p.section,
-                       "issue_date": issue.isoformat(), "label_as_printed": p.label, **provenance},
+                       "issue_date": issue.isoformat(), "label_as_printed": p.label_as_printed or p.label,
+                       "market_month_as_printed": parsed.market_month_printed,
+                       "floral_source_from_row_above": p.floral_inherited,
+                       "corrected_copy": parsed.corrected, **provenance},
             )
+            stored.add(f"{price_type.value}|{series_key}")
         for r in parsed.imports:
             if (r.year, r.month) > (issue.year, issue.month):
                 ctx.warn(f"{title}: import table month {r.year}-{r.month:02d} is after the issue date - skipped")
@@ -1153,17 +1736,22 @@ class UsdaHoneyReportCollector(Collector):
             ps_i, pe_i = month_bounds(r.year, r.month)
             m_label = _period_label(r.year, r.month)
             line_id = r.hts_code or _slug(r.table_title)
+            place = f"|{_slug(r.region)}" if r.region else ""
             terms = "US customs value / net kg (CBP ACE; excludes freight, insurance & duty)"
             if r.hts_code:
                 terms += f", HTS {r.hts_code}"
+            origin_label = country_name(r.origin_iso3, "en") if r.origin_iso3 != "WLD" else "All origins"
+            if r.region:
+                origin_label = f"{origin_label} ({r.region.title()})"
+            series_key = f"usda_fvmhoney|ace|{line_id}|{r.origin_iso3}{place}|{m_label}"
             ctx.add_price(
-                series_key=f"usda_fvmhoney|ace|{line_id}|{r.origin_iso3}|{m_label}",
+                series_key=series_key,
                 price_type=PriceType.IMPORT_UNIT_VALUE, variety=Variety.UNSPECIFIED.value,
                 price_value=round(r.value / r.kilograms, 4), currency="USD", unit="kg",
                 period_start=ps_i, period_end=pe_i, period_label=m_label, frequency="M",
                 volume_kg=r.kilograms, published_at=issue, source_url=source_url,
                 raw_document_id=raw_document_id or None, origin_iso3=r.origin_iso3,
-                origin_label=country_name(r.origin_iso3, "en") if r.origin_iso3 != "WLD" else "All origins",
+                origin_label=origin_label,
                 market_iso3="USA", market_location="United States (port of entry)", variety_raw=r.table_title,
                 color_grade=r.color_grade, organic=r.organic, terms=terms, data_status=DataStatus.PUBLISHED,
                 notes=f"{title}, p.{r.page}: derived unit value = customs value / kilograms",
@@ -1171,9 +1759,28 @@ class UsdaHoneyReportCollector(Collector):
                        "hts_code": r.hts_code, "kilograms": r.kilograms, "value_usd": r.value,
                        "cif_value_usd": r.cif_value, "total_value_usd": r.total_value,
                        "landed_unit_value_usd_per_kg": round(r.total_value / r.kilograms, 4)
-                       if r.total_value else None,
+                       if r.total_value else None, "origin_as_printed": r.origin_label,
                        "year_to_date": r.ytd, "issue_date": issue.isoformat(), **provenance},
             )
+            stored.add(f"{PriceType.IMPORT_UNIT_VALUE.value}|{series_key}")
+        if parsed.corrected:
+            self._withdraw_superseded(ctx, issue, raw_document_id, stored, title)
+
+    def _withdraw_superseded(self, ctx: CollectContext, issue: date, raw_document_id: int, stored: set[str],
+                             title: str) -> None:
+        """A corrected copy replaces the earlier copy of the same issue: rows that only the earlier copy
+        published (e.g. prices filed under a wrong month heading) stop being current (kept in history)."""
+        P = PriceObservation
+        earlier = set(ctx.session.scalars(select(P.series_key).where(
+            P.source_id == ctx.source.id, P.published_at == issue, P.is_current.is_(True), P.is_demo.is_(False),
+            P.raw_document_id.is_not(None), P.raw_document_id != raw_document_id,
+        )).all())
+        gone = sorted(earlier - stored)
+        for key in gone:
+            ctx.retire(P, key)
+        if gone:
+            ctx.warn(f"{title}: corrected copy - {len(gone)} row(s) published only by the earlier copy of this "
+                     "issue were withdrawn (kept in the history)")
 
 
 # =============================================================================================

@@ -1,7 +1,8 @@
 """Tests for the regulation collectors (paladex/collectors/regulation.py).
 
-All fixtures in tests/fixtures/regulation/ are RECONSTRUCTED from documentation (see the README
-there); the documents are illustrative, not real records.
+Fixtures in tests/fixtures/regulation/ named ``real_*`` are live captures of the Federal Register
+API (4 November 2026); the others are RECONSTRUCTED from documentation (see the README there) and
+their documents are illustrative, not real records.
 """
 from __future__ import annotations
 
@@ -52,8 +53,19 @@ def fr_routes(override: dict | None = None) -> dict:
         FR_DOCS + r".*%22honey\+from\+the\+people%27s": fx("fr_china_honey.json"),
         FR_DOCS + r".*international-trade-commission": fx("fr_itc_honey.json"),
         FR_DOCS + r".*food-and-drug-administration": fx("fr_fda_honey.json"),
-        FR_DOCS + r".*conditions%5Bterm%5D=tariff\+honey": fx("fr_pres_tariff_honey.json"),
-        FR_DOCS + r".*conditions%5Bterm%5D=tariff&": fx("fr_pres_tariff_origins.json"),
+        FR_DOCS + r".*conditions%5Bterm%5D=tariff\+%28honey": fx("fr_pres_tariff_honey.json"),
+    }, override)
+
+
+def real_fr_routes(override: dict | None = None) -> dict:
+    """The live responses of 4 November 2026 (fields[] included excerpts)."""
+    return _routes({
+        reg.FR_AGENCIES_URL: fx("fr_agencies.json"),
+        FR_DOCS + r".*%22raw\+honey%22": fx("real_fr_raw_honey.json"),
+        FR_DOCS + r".*%22honey\+from\+the\+people%27s": fx("real_fr_china_honey.json"),
+        FR_DOCS + r".*international-trade-commission": fx("real_fr_itc_honey.json"),
+        FR_DOCS + r".*food-and-drug-administration": fx("real_fr_fda_honey.json"),
+        FR_DOCS + r".*conditions%5Bterm%5D=tariff\+%28honey": fx("real_fr_pres_tariff_honey.json"),
     }, override)
 
 
@@ -126,14 +138,17 @@ def test_fr_search_params_keep_brackets_and_repeat_arrays():
     assert ("per_page", "100") in params and ("order", "newest") in params
     assert [v for k, v in params if k == "fields[]"] == list(reg.FR_FIELDS)
     assert set(reg.FR_FIELDS) == {"document_number", "title", "type", "abstract", "publication_date", "effective_on",
-                                  "html_url", "pdf_url", "agencies", "action", "citation"}
+                                  "html_url", "pdf_url", "agencies", "action", "citation", "excerpts"}
     url = str(httpx.Request("GET", reg.FR_SEARCH_URL, params=params).url)
     assert "conditions%5Bagencies%5D%5B%5D=international-trade-commission" in url
     assert parse_qsl(urlsplit(url).query) == params                     # lossless round trip
 
-    pres = reg.fr_search_params(_query("pres_tariff_origins"), date(2026, 1, 1), fields=reg.FR_CORE_FIELDS)
-    assert ("conditions[type][]", "PRESDOCU") in pres
+    pres = reg.fr_search_params(_query("pres_tariff_honey"), date(2026, 1, 1), fields=reg.FR_CORE_FIELDS)
+    assert ("conditions[type][]", "PRESDOCU") in pres and ("conditions[term]", "tariff (honey | 0409)") in pres
     assert "effective_on" not in [v for k, v in pres if k == "fields[]"]
+    assert "excerpts" in [v for k, v in pres if k == "fields[]"]          # verified live: a core field
+    url = str(httpx.Request("GET", reg.FR_SEARCH_URL, params=pres).url)
+    assert "conditions%5Bterm%5D=tariff+%28honey+%7C+0409%29" in url    # as sent in the live run
     china = reg.fr_search_params(_query("china_honey"), date(2026, 1, 1))
     assert ("conditions[term]", '"honey from the people\'s republic of china"') in china
 
@@ -143,6 +158,11 @@ def test_fr_saved_searches_cover_the_documented_queries():
     assert terms["raw_honey"].term == '"raw honey"'
     assert terms["fda_honey"].agencies == ("food-and-drug-administration",)
     assert all(q.types == ("PRESDOCU",) for k, q in terms.items() if k.startswith("pres_"))
+    # the broad "tariff" search over every presidential document is gone (it stored Canada,
+    # Russia/Iran sanctions and steel proclamations as honey regulation)
+    assert set(terms) == {"raw_honey", "china_honey", "itc_honey", "fda_honey", "pres_tariff_honey"}
+    assert terms["raw_honey"].keep is terms["china_honey"].keep is reg.Keep.HONEY_AD
+    assert terms["pres_tariff_honey"].keep is reg.Keep.HONEY_TEXT
     assert len({q.state_key for q in reg.FR_QUERIES}) == len(reg.FR_QUERIES)
     # changing a query definition gives it a fresh state key (so it back-fills)
     changed = reg.FrQuery("raw_honey", "x", '"raw honey" drums')
@@ -249,13 +269,29 @@ def test_fr_relevance_filters():
     assert reg.fr_is_relevant(fda, _fr_doc(title="Drugs for honey bees", agency_slugs=("food-and-drug-administration",))) == (False, "topic")
     assert reg.fr_is_relevant(fda, _fr_doc(title="Honey Order", agency_slugs=("agricultural-marketing-service",))) == (False, "agency")
     assert reg.fr_is_relevant(fda, _fr_doc(title="Honey labeling", agency_slugs=()))[0]   # no agencies: cannot check
-    origins = _query("pres_tariff_origins")
+    pres_q = _query("pres_tariff_honey")
     pres = {"type_label": "Presidential Document"}
-    assert reg.fr_is_relevant(origins, _fr_doc(title="Imposing Duties on Imports From Brazil", **pres))[0]
-    assert reg.fr_is_relevant(origins, _fr_doc(title="Further Modifying the Reciprocal Tariff Rates", **pres))[0]
-    assert not reg.fr_is_relevant(origins, _fr_doc(title="Adjusting Imports of Lumber Into the United States", **pres))[0]
-    assert reg.fr_is_relevant(origins, _fr_doc(title="Imports From Brazil", type_label="Notice")) == (False, "type")
-    assert reg.fr_is_relevant(_query("raw_honey"), _fr_doc(title="Anything at all"))[0]
+    # a tariff action that does not name honey or HTS 0409 is not stored, whatever its origin
+    assert reg.fr_is_relevant(pres_q, _fr_doc(title="Imposing Duties on Imports From Brazil", **pres)) == (False, "topic")
+    assert not reg.fr_is_relevant(pres_q, _fr_doc(title="Further Modifying the Reciprocal Tariff Rates", **pres))[0]
+    assert reg.fr_is_relevant(pres_q, _fr_doc(title="Annex", excerpts="heading 0409.00.00 natural honey", **pres)) \
+        == (True, "excerpt")
+    assert reg.fr_is_relevant(pres_q, _fr_doc(title="Annex", excerpts="subheading 0409 00 00", **pres))[0]
+    assert not reg.fr_is_relevant(pres_q, _fr_doc(title="Annex", excerpts="pollinating honey bees", **pres))[0]
+    assert not reg.fr_is_relevant(pres_q, _fr_doc(title="Annex", excerpts="heading 04091 and 1.0409", **pres))[0]
+    assert reg.fr_is_relevant(pres_q, _fr_doc(title="Imports From Brazil", type_label="Notice")) == (False, "type")
+    # "raw honey" phrase search: honey in the title/abstract, or a honey case LISTED (omnibus)
+    raw = _query("raw_honey")
+    assert reg.fr_is_relevant(raw, _fr_doc(title="Anything at all")) == (False, "topic")
+    assert reg.fr_is_relevant(raw, _fr_doc(title="Raw Honey From Brazil: Final Results")) == (True, "title_abstract")
+    assert reg.fr_is_relevant(raw, _fr_doc(title="Initiation of Antidumping and Countervailing Duty Administrative "
+                                                 "Reviews", excerpts="ARGENTINA: Raw Honey , A-357-823 6/1/25-5/31/26")) \
+        == (True, "listed_case")
+    cited = _fr_doc(title="Glycine From Japan: Preliminary Results", excerpts='Memorandum, "Raw Honey from Argentina: '
+                    'Extension of Deadline for Preliminary Results," dated March 25, 2026.')
+    assert reg.fr_is_relevant(raw, cited) == (False, "topic")       # only cited, not listed
+    # the presidential "honey or 0409 in the excerpts" rule does not apply to the AD searches
+    assert not reg.fr_is_relevant(raw, _fr_doc(title="Steel", excerpts="See, e.g., Raw Honey from Vietnam"))[0]
 
 
 @pytest.mark.parametrize("text, exclude, expected", [
@@ -287,7 +323,7 @@ def test_honey_regex_excludes_the_insect():
 # ---------------------------------------------------------------------------
 
 FR_EXPECTED = {"2026-90101", "2026-90102", "2025-90104", "2025-90201", "2024-90301", "2026-90401", "2025-90402",
-               "2025-90501", "2025-90502", "2026-90503"}
+               "2025-90501"}
 
 
 def test_fr_end_to_end(run_with_routes, session_factory, pin_today):
@@ -307,20 +343,92 @@ def test_fr_end_to_end(run_with_routes, session_factory, pin_today):
         assert brazil.url.startswith("https://www.federalregister.gov/documents/2026/06/12/2026-90101/")
         omnibus = items["2026-90102"]
         assert omnibus.doc_type == "antidumping" and omnibus.countries is None
+        assert omnibus.extra["relevance"] == "listed_case" and omnibus.extra["honey_cases_in_excerpt"] == ["A-357-823"]
+        assert brazil.extra == {"relevance": "title_abstract", "search": "raw_honey", "honey_cases_in_excerpt": None,
+                                "honey_case_origins_in_excerpt": None}
         assert items["2025-90104"].countries == ["VNM"]             # page 2 was followed
         assert items["2025-90201"].countries == ["CHN"]
         itc = items["2024-90301"]
         assert itc.doc_type == "notice" and itc.countries == ["ARG", "BRA", "IND", "VNM"] and itc.summary_en is None
         rule = items["2025-90402"]
         assert (rule.doc_type, rule.status, rule.effective_date) == ("rule", "final", date(2026, 1, 1))
-        assert {items[n].doc_type for n in ("2025-90501", "2025-90502", "2026-90503")} == {"tariff"}
-        assert items["2025-90502"].countries == ["BRA"]
+        assert items["2025-90501"].doc_type == "tariff" and items["2025-90501"].extra["relevance"] == "excerpt"
         src = s.scalars(select(Source).where(Source.key == "us_federal_register")).one()
         assert src.latest_published_at == date(2026, 8, 5)
         state = _state(s, "us_federal_register")
         assert state["agencies_checked"] == TODAY.isoformat() and state["agencies_missing"] == []
         assert set(state["queries"]) == {q.state_key for q in reg.FR_QUERIES}
         assert set(state["queries"].values()) == {TODAY.isoformat()}
+
+
+# Live capture of 4 November 2026: 45 results for "raw honey", of which 12 only CITE a honey case
+# in a footnote (glycine, rebar, plywood, air compressors ... and a proposed AD regulation).
+REAL_RAW_HONEY_TITLED = {
+    "2026-18718", "2026-18702", "2026-18701", "2026-15436", "2026-13040", "2026-12301", "2026-11866", "2026-11865",
+    "2026-11121", "2025-20176", "2025-20162", "2025-19415", "2025-19029", "2025-09160", "2025-08605", "2025-06864",
+    "2025-06325", "2025-06324", "2025-06287", "2025-02416", "2024-17418", "2024-14988", "2024-14912", "2024-14762",
+    "2024-14712",
+}
+REAL_OMNIBUS = {     # document -> honey case numbers listed in its search excerpt
+    "2026-16265": ["A-357-823"], "2026-10938": ["A-357-823", "A-351-857"], "2026-02959": ["A-533-903"],
+    "2025-14096": ["A-357-823"], "2025-10049": ["A-357-823", "A-351-857", "A-533-903"],
+    "2024-21528": ["A-552-833"], "2024-16636": ["A-357-823"],
+    "2024-12086": ["A-357-823", "A-351-857", "A-533-903"],
+}
+REAL_NOISE = {"2026-18698", "2026-10516", "2026-08727", "2025-12045", "2025-11074", "2025-06285", "2025-04938",
+              "2024-27009", "2024-25562", "2024-22592", "2024-19964", "2024-15086"}
+
+
+def test_fr_real_capture_keeps_honey_notices_and_drops_citing_noise(run_with_routes, session_factory, pin_today):
+    raw = fx_json("real_fr_raw_honey.json")
+    assert raw["count"] == len(raw["results"]) == 45
+    assert {r["document_number"] for r in raw["results"]} == REAL_RAW_HONEY_TITLED | set(REAL_OMNIBUS) | REAL_NOISE
+    res = run_with_routes("us_federal_register", real_fr_routes())
+    assert res["status"] == "success", res
+    assert res["new"] == len(REAL_RAW_HONEY_TITLED) + len(REAL_OMNIBUS) == 33
+    with session_factory() as s:
+        items = _items(s, "us_federal_register")
+        assert set(items) == REAL_RAW_HONEY_TITLED | set(REAL_OMNIBUS)
+        # the China-order phrase only matched mushrooms notices and the proposed AD rule; the FDA
+        # "honey" search only animal-drug rules, a debarment and "healthy" labelling: all dropped
+        assert not {"2026-07867", "2025-17457", "2025-09651", "2024-29957", "2026-11104"} & set(items)
+        br = items["2026-18718"]
+        assert br.title == "Raw Honey From Brazil: Preliminary Results of Antidumping Duty Administrative Review; 2024-2025"
+        assert (br.doc_type, br.status, br.countries) == ("antidumping", "published", ["BRA"])
+        assert br.published_at == date(2026, 9, 14) and br.effective_date is None
+        assert br.summary_en.startswith("The U.S. Department of Commerce (Commerce) preliminarily determines that "
+                                        "Melbras Importadora")
+        assert br.url == ("https://www.federalregister.gov/documents/2026/09/14/2026-18718/raw-honey-from-brazil-"
+                          "preliminary-results-of-antidumping-duty-administrative-review-2024-2025")
+        assert items["2026-12301"].countries == ["IND"] and items["2026-11866"].countries == ["VNM"]
+        for number, cases in REAL_OMNIBUS.items():
+            o = items[number]
+            assert o.doc_type == "antidumping" and o.extra["relevance"] == "listed_case", number
+            assert o.extra["honey_cases_in_excerpt"] == cases, number
+            assert o.countries is None, number           # excerpts are partial: no country tags from them
+        assert items["2026-02959"].title == "Rescission of Antidumping and Countervailing Duty Administrative Reviews"
+        assert items["2026-02959"].extra["honey_case_origins_in_excerpt"] == ["IND"]
+        assert items["2026-10938"].extra["honey_case_origins_in_excerpt"] == ["ARG", "BRA"]
+
+
+def test_fr_real_presidential_tariff_noise_is_not_stored(run_with_routes, session_factory, pin_today):
+    """Real presidential documents that the old broad 'tariff' search stored (Canada duties, the
+    Russia/Iran sanctions act, the Brazil IEEPA order, beef): none names honey or HTS 0409."""
+    noise = fx_json("real_fr_pres_tariff_noise.json")
+    titles = {r["document_number"]: r["title"] for r in noise["results"]}
+    assert titles["2026-21599"] == "Implementing the Lindsey O. Graham Sanctioning Russia and Iran Act of 2026"
+    assert titles["2026-22292"].startswith("Further Modifying the Scope of Products of Canada")
+    res = run_with_routes("us_federal_register", real_fr_routes({
+        FR_DOCS + r".*conditions%5Bterm%5D=tariff\+%28honey": fx("real_fr_pres_tariff_noise.json")}))
+    assert res["status"] == "success", res
+    with session_factory() as s:
+        assert not set(titles) & set(_items(s, "us_federal_register"))
+
+
+def test_fr_georgia_is_the_us_state():
+    assert "GEO" in reg._FR_EXCLUDE_COUNTRIES
+    assert reg.detect_countries("Peanuts grown in Georgia and Alabama", exclude=reg._FR_EXCLUDE_COUNTRIES) == []
+    assert reg.detect_countries("Honey from Georgia, Armenia and Nepal") == ["GEO", "ARM", "NPL"]
 
 
 def test_fr_second_run_adds_nothing(run_with_routes, session_factory, pin_today):

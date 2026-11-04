@@ -1,4 +1,21 @@
-# News feed fixtures (RECONSTRUCTED — not captured from live sources)
+# News fixtures
+
+## Real captures (`real_*`)
+
+Downloaded from the live sources on 2026-11-04 (UTC) by Paladex's own HTTP client or curl
+with the Paladex user agent. Only the number of `<item>` elements was reduced, to keep the
+files small: every kept item, and the channel header, is byte-for-byte as served.
+
+| File | URL | Kept |
+|------|-----|------|
+| `real_ec_agri_news.xml` | https://agriculture.ec.europa.eu/node/2/rss_en (European Commission, DG AGRI news; RSS link of https://agriculture.ec.europa.eu/media/news_en) | 4 of 30 items (none about honey) |
+| `real_beeculture.xml` | https://beeculture.com/feed/ (`www.` redirects here) | 3 of 10 items (two carry the audio "Click Here if you listened ... Read along below!" prompt) |
+| `real_apimondia.xml` | https://apimondia.org/feed/ (`www.` redirects here) | 3 of 10 items (the Brazil "beehives" item, the Dubai congress item, the Romania/Moldova visit) |
+| `real_american_bee_journal.xml` | https://americanbeejournal.com/feed/ | 2 of 10 items (Sioux Honey plant; "garbage containers" column) |
+| `real_gdelt_*.json` | https://api.gdeltproject.org/api/v2/doc/doc?... (query in the table of `test_news_gdelt.py`) | `articles` list cut to a few entries; otherwise as served |
+| `real_gdelt_throttle.txt` | GDELT DOC API answer when requests come too fast (HTTP 429, plain text) | as served |
+
+## Reconstructed fixtures (NOT captured from live sources)
 
 These files were written by hand while building `paladex/collectors/news_feeds.py` in a
 sandbox without internet access. They reproduce the documented *structure* of each feed

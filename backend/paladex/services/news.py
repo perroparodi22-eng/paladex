@@ -77,7 +77,10 @@ def fold(text: str) -> str:
 
 _WS = re.compile(r"\s+")
 _FEED_BOILERPLATE = [
-    re.compile(r"\s*The post .{1,300}? appeared first on .{1,200}?\.?\s*$", re.I | re.S),
+    # WordPress: "The post X appeared first on Y." (Apimondia's real feed says "first appeared on")
+    re.compile(r"\s*The post .{1,300}? (?:appeared first|first appeared) on .{1,200}?\.?\s*$", re.I | re.S),
+    # Bee Culture articles with an audio version (real feed, 2026-11): podcast prompt before the text
+    re.compile(r"\s*Click Here if you listened\..{0,160}?Read along below!?\s*", re.I | re.S),
     re.compile(r"\s*L'articolo .{1,300}? proviene da .{1,200}?\.?\s*$", re.I | re.S),
     re.compile(r"\s*\[(?:…|\.\.\.|&hellip;)\]\s*"),
     re.compile(r"\s*(?:Continue reading|Read more|Read the full (?:story|article)|Leggi tutto|Continua a leggere|"
@@ -136,7 +139,7 @@ def clean_snippet(value: str | None, title: str = "", publisher: str | None = No
     if not text:
         return None
     for rx in _FEED_BOILERPLATE:
-        text = rx.sub("", text).strip()
+        text = _WS.sub(" ", rx.sub(" ", text)).strip()   # a space: boilerplate may sit between sentences
     # Aggregator descriptions often repeat the headline and the outlet only.
     rest = fold(text)
     for piece in (title, publisher or ""):
@@ -407,8 +410,9 @@ _GATE_MEL_PHRASES = _words([r"(?:de|do|o|no|ao|com) mel", r"mel (?:de abelhas?|b
 # Weak terms: pass only together with a bee word.
 _GATE_WEAK = _words([r"pollinat\w*", r"impollinat\w*", r"poliniza\w*", r"bestaub\w*", r"hives?",
                      r"colon(?:y|ies)", r"swarms?", r"sciam\w*", r"enjambres?", r"overwinter\w*"])
+# "beehives" is bee context, not a strong term: "the Beehive" is also New Zealand's executive wing.
 _BEE_CONTEXT = _words([r"bees?", r"api", r"ape", r"abejas?", r"abelhas?", r"bienen?", r"abeilles?",
-                       r"bumble ?bees?"])
+                       r"bumble ?bees?", r"beehives?"])
 
 
 def honey_terms(text: str, language: str | None = None) -> list[str]:
@@ -434,6 +438,11 @@ def honey_terms(text: str, language: str | None = None) -> list[str]:
 def is_honey_related(title: str, snippet: str | None = None, language: str | None = None) -> bool:
     return bool(honey_terms(f"{title} \n {snippet or ''}", language))
 
+
+# Freight containers only (real feed, 2026-11: "yellowjackets buzzing the garbage containers" was
+# tagged as trade): a count, a freight qualifier or "containers of/loaded with ...".
+_SHIPPING_CONTAINERS = [r"(?:\d+|\d+-?(?:ft|foot)|shipping|sea|ocean|reefer|cargo|freight|bulk) containers?",
+                        r"containers? (?:of|loaded with|shipped|arrived|arriving)", r"containers? included"]
 
 TOPICS: dict[str, dict] = {
     "prices": {
@@ -465,7 +474,7 @@ TOPICS: dict[str, dict] = {
     "trade": {
         "it": "Commercio, export e import", "en": "Trade, exports & imports", "weight": 24,
         "words": [r"exports?", r"export(?:ed|ing|ers?)", r"imports?", r"import(?:ed|ing|ers?)", r"trade",
-                  r"trading", r"traders?", r"shipments?", r"shipping", r"containers?", r"esportazion[ei]",
+                  r"trading", r"traders?", r"shipments?", r"shipping", *_SHIPPING_CONTAINERS, r"esportazion[ei]",
                   r"esportator[ei]", r"esportat[oaie]", r"importazion[ei]", r"importator[ei]", r"importat[oaie]",
                   r"commerc(?:io|iale|iali)", r"interscambio", r"exportac\w*", r"exportador\w*", r"exportan?",
                   r"importac\w*", r"importador\w*", r"comercio exterior", r"comercio",
@@ -603,7 +612,7 @@ _PENALTIES: dict[str, tuple[re.Pattern, int]] = {
 }
 
 _BULK = _words([r"bulk", r"sfuso", r"all'ingrosso", r"ingrosso", r"wholesale", r"a granel", r"granel",
-                r"drums?", r"fusti", r"tambores?", r"containers?", r"metric tons?", r"tonnes?", r"tons?",
+                r"drums?", r"fusti", r"tambores?", *_SHIPPING_CONTAINERS, r"metric tons?", r"tonnes?", r"tons?",
                 r"tonnellat[ae]", r"toneladas?", r"tonnen", r"packers?", r"importers?", r"exporters?",
                 r"importator[ei]", r"esportator[ei]", r"exportador(?:es)?", r"importador(?:es)?", r"fob", r"cif",
                 r"cfr", r"trade data", r"customs data", r"per (?:kg|kilo|pound|lb)", r"al (?:kg|chilo)",
@@ -779,9 +788,26 @@ def tag_countries(text: str) -> list[str]:
     return [k for k, _ in sorted(hits.items(), key=lambda kv: kv[1])]
 
 
+# A beekeeping congress (Apimondia's "International Apicultural Congress", "Congreso Nacional de
+# Apicultura") is not a legislature: real Apimondia items were tagged "policy" for it. When an
+# item names one, its other bare "Congress" mentions ("The Jubilee Congress is on its way!") are
+# the same event, so the word is dropped from both headline and excerpt. Matched on folded text.
+_BEE_CONGRESS = re.compile(
+    r"(?<!\w)(?:apimondia|apicultural|apicultura|apicola|apistic[oa]|beekeeping|beekeepers'?)"
+    r"(?:\s+(?:international|internacional|world|mundial|national|nacional|european|scientific|apicultural|"
+    r"beekeeping|apicola))*\s+(?:congress(?:es|o|i)?|congresos?)(?!\w)"
+    r"|(?<!\w)(?:congress(?:es|o|i)?|congresos?)(?:\s+(?:international|internacional|internazionale|mundial|"
+    r"nacional|nazionale|world))?"
+    r"\s+(?:(?:de|di|of|on|for)\s+)?(?:apicultur\w*|apicol\w*|beekeep\w*)"
+)
+_CONGRESS_WORD = re.compile(r"(?<!\w)(?:congress(?:es|o|i)?|congresos?)(?!\w)")
+
+
 def tag_topics(title: str, snippet: str | None = None) -> dict[str, float]:
     """Topic key -> strength (1.0 when found in the headline, 0.6 when only in the excerpt)."""
     t_title, t_snip = fold(title or ""), fold(snippet or "")
+    if _BEE_CONGRESS.search(t_title) or _BEE_CONGRESS.search(t_snip):
+        t_title, t_snip = _CONGRESS_WORD.sub(" ", t_title), _CONGRESS_WORD.sub(" ", t_snip)
     u_title, u_snip = unicodedata.normalize("NFC", title or ""), unicodedata.normalize("NFC", snippet or "")
     out: dict[str, float] = {}
     for key, rx in _TOPIC_RX.items():
