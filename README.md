@@ -36,6 +36,8 @@ I dati si aggiornano da soli mentre l'applicazione è aperta, e all'avvio se l'u
 | `PALADEX_COMTRADE_API_KEY` | Commercio mondiale del miele (HS 0409), dati mensili | <https://comtradedeveloper.un.org> → iscriversi al prodotto "comtrade - v1" |
 | `PALADEX_DATA_GOV_API_KEY` | Importazioni USA di miele per origine (USDA FAS / Census) | <https://api.data.gov/signup/> |
 | `PALADEX_USDA_NASS_API_KEY` | Produzione e prezzi del miele negli USA (USDA NASS) | <https://quickstats.nass.usda.gov/api> |
+| `PALADEX_CENSUS_API_KEY` *(facoltativa)* | Importazioni USA dal Census Bureau (funziona anche senza chiave, con limite giornaliero) | <https://api.census.gov/data/key_signup.html> |
+| `PALADEX_FAOSTAT_USERNAME` / `PASSWORD` *(facoltativi)* | FAOSTAT via API e flussi bilaterali (senza account si usano i file pubblici) | <https://www.fao.org/faostat/en/#developer> |
 | `PALADEX_LLM_PROVIDER` + `PALADEX_ANTHROPIC_API_KEY` (oppure `PALADEX_OPENAI_API_KEY`) | Riassunti e traduzioni delle notizie (in seguito: assistente e sintesi giornaliera) | console.anthropic.com oppure platform.openai.com (a pagamento, in base all'uso) |
 
 Senza chiavi l'applicazione funziona comunque: le fonti che le richiedono vengono saltate (o usate in versione ridotta) e la pagina Fonti lo segnala.

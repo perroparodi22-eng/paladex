@@ -31,7 +31,16 @@ This file summarises `docs/research/*.json`, which holds the full research per s
 | Trade press RSS (Bee Culture, American Bee Journal, Apimondia, Food Safety News…) | RSS (WordPress) | none | Headlines, excerpts, links | daily–weekly | copyrighted: we store headline, link and short excerpt only |
 | US Federal Register | REST JSON | none | Anti-dumping notices (China, Argentina, Brazil, India, Vietnam honey), tariffs, FDA/ITC notices | every business day | public domain |
 | EUR-Lex / CELLAR SPARQL | SPARQL JSON | none | EU honey legislation (Honey Directive as amended by 2024/1438, third-country lists 2021/405…) | daily | EU reuse with acknowledgement |
+| **EU import duties** via UK Online Trade Tariff, XI service (`eu_tariff_xi`) | REST JSON:API | none | EU TARIC measures for CN 0409: third-country duty, preferences, **tariff-quota balances** (e.g. Ukraine, Mercosur) per origin | daily | UK government mirror of EU TARIC (OGL v3). The legal reference is the EU act, linked on every row |
+| **US tariff schedule** USITC HTS (`us_hts`) | REST JSON | none | US general/special duty for 0409.00.00; Chapter 99 lines kept "da verificare" unless their country scope is unambiguous | on each HTS revision | public domain |
+| Brazil MAPA notices (`br_mapa_honey`) | HTML page watcher | none | Honey notices from Brazil's agriculture ministry (e.g. EU listing status) | daily | official; page structure may change, so it fails loudly when it does |
+| Argentina SENASA / Boletín Oficial (`ar_senasa_honey`) | HTML page watcher | none | Residue lists, export certification and drum rules; official-gazette items on honey | daily | official; page watcher |
+| India DGFT (`in_dgft_honey`) | HTML + PDF notifications | none | **Minimum export price for honey** (USD/t FOB) and its validity | daily | official; page watcher |
 | Weather (Milestone 5) | Open-Meteo / Copernicus CDS / NOAA PSL | see note | monthly temperature/precipitation anomalies per honey region | daily–monthly | **Open-Meteo free tier is non-commercial only.** Use Copernicus CDS (free account, commercial use allowed) or NOAA gridded data (public domain) |
+
+## Source priority
+
+Government and intergovernmental sources are the primary sources: USDA, US Census, USITC, the Federal Register, the European Commission and Eurostat, EUR-Lex, RASFF, the UN, FAO, the ECB, Brazil's MDIC and MAPA, Argentina's SENASA and Boletín Oficial, and India's DGFT. Industry bodies come next: the Osservatorio Nazionale Miele, ISMEA and the Chambers of Commerce. Trade press and news aggregators come last. Every row carries its reliability level. The Sources page lists official sources first in each category, and the interface never mixes reliability levels without showing which is which. More official sources were researched and are queued: Argentina INDEC/ARCA customs files, Uruguay customs, Mexico INEGI/SIAP, Japan e-Stat, India TradeStat, Turkey TÜİK and China GACC (manual import). See `research/official_*.json`.
 
 ## 2. Which sources have APIs, which need documents
 
