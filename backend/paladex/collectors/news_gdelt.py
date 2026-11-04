@@ -35,7 +35,7 @@ Rate limiting (live behaviour, 2026-11-04, plus third-party measurements from 20
   Retry-After. The real limit is much stricter than 5 s and depends on GDELT's load and on
   everyone sharing the IP: on our (shared) test connection a request 75 s after a successful
   answer, and another 120 s after one, were both refused; the first request after 7+ quiet
-  minutes succeeded twice (answers take 14-16 s), but later ones after 8 and 10 quiet minutes
+  minutes succeeded twice (answers take 14-16 s), but later ones after 8, 10 and 15 quiet minutes
   were refused too. Third-party measurements (2026): 6 s spacing -> 1 of 7 accepted, 16 s
   -> 4 of 12, 60 s -> 3 of 8; after an accepted request the window stayed closed ~60 s;
   retrying quickly keeps it closed.

@@ -405,3 +405,17 @@ def test_short_reason_keeps_only_the_throttle_sentence():
     assert news_gdelt.short_reason(THROTTLE[1].decode()) == "Please limit requests to one every 5 seconds"
     assert news_gdelt.short_reason("Cannot reach api.gdeltproject.org: [Errno 104] Connection reset by peer") \
         == "Cannot reach api.gdeltproject.org: [Errno 104] Connection reset by peer"
+
+
+def test_real_answer_matching_only_the_article_text_is_dropped_by_the_gate(run_with_routes, session_factory):
+    """GDELT matches the (translated) article text; with no excerpt, the honey gate sees only the
+    headline. Real answers of 2026-11-04 (English trade query, Italian query): nothing passes."""
+    q0 = news_gdelt.QUERIES[0]
+    body = fixture_bytes("news/real_gdelt_en_trade.json")
+    assert [i["publisher"] for i in news_gdelt.parse_response(body)] == ["kfdm.com"]
+    res = run_with_routes("news_gdelt", {_query_url_rx(q0): body,
+                                         API: fixture_bytes("news/real_gdelt_honey_italian.json")})
+    assert res["status"] == "no_change" and res["seen"] == 1 + 2 + 2 and res["new"] == 0, res
+    with session_factory() as s:
+        assert s.scalars(select(NewsArticle)).first() is None
+    assert _state(session_factory)["queries"][q0.key]["last_ok"]       # an empty answer is still an answer
