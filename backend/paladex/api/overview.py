@@ -33,6 +33,7 @@ Briefing content format (also the format an AI generator should store in `Briefi
 """
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -40,7 +41,7 @@ from typing import Any
 
 from dateutil.relativedelta import relativedelta
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -121,6 +122,17 @@ _MONTHS = {
     "it": ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"],
     "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
 }
+# Tells apart two tiles that differ only by period granularity (e.g. annual vs monthly unit values).
+FREQ_WORDS = {
+    "it": {"D": "giornaliero", "W": "settimanale", "M": "mensile", "Q": "trimestrale", "A": "annuale",
+           "irregular": "irregolare"},
+    "en": {"D": "daily", "W": "weekly", "M": "monthly", "Q": "quarterly", "A": "annual", "irregular": "irregular"},
+}
+
+
+def _term_parts(terms: str | None) -> list[str]:
+    """'fusto da 3 q.li; media mensile' -> ['fusto da 3 q.li', 'media mensile']."""
+    return [p.strip() for p in re.split(r"[;,]", terms or "") if p.strip()]
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +241,8 @@ class PriceSeries:
     color_grade: str | None
     organic: bool
     currency: str
+    terms: str | None              # packaging / basis: 300 kg drums and 25 kg tins are different products
+    frequency: str                 # an annual average is never a point of a monthly series
     latest_start: date
     n_points: int
     points: list = field(default_factory=list)   # PriceObservation rows, ascending period
@@ -248,6 +262,7 @@ class Ctx:
         self.sources: dict[int, Source] = {s.id: s for s in db.scalars(select(Source))}
         self.countries: dict[str, Country] = {c.iso3: c for c in db.scalars(select(Country))}
         self._price_series: list[PriceSeries] | None = None
+        self._hints: dict[tuple, str] | None = None
         self._trade: dict | None = None
 
     # -- labels ---------------------------------------------------------------
@@ -310,43 +325,74 @@ class Ctx:
 
     # -- shared analyses --------------------------------------------------------
     def price_series(self) -> list[PriceSeries]:
-        """All current price series (one per source/type/origin/variety/market/grade/currency)
-        with the recent history needed for m/m, y/y and sparklines."""
+        """All current price series (one per source/type/origin/variety/market/grade/currency/
+        terms/frequency, the same identity as the prices API) with the recent history needed
+        for m/m, y/y and sparklines."""
         if self._price_series is not None:
             return self._price_series
         P = PriceObservation
         cols = (P.source_id, P.price_type, P.origin_iso3, P.variety, P.market_iso3, P.market_location,
-                P.color_grade, P.organic, P.currency)
+                P.color_grade, P.organic, P.currency, P.terms, P.frequency)
+        n = len(cols)
         base = (P.is_current.is_(True), demo_clause(P, self.db))
         series: dict[tuple, PriceSeries] = {}
         for row in self.db.execute(select(*cols, func.max(P.period_start), func.count()).where(*base).group_by(*cols)):
-            key = tuple(row[:9])
+            key = tuple(row[:n])
             series[key] = PriceSeries(key, row[0], row[1], row[2], row[3], row[4], row[5], row[6], bool(row[7]),
-                                      row[8], row[9], row[10])
+                                      row[8], row[9], row[10], row[n], row[n + 1])
 
         def key_of(o: PriceObservation) -> tuple:
             return (o.source_id, o.price_type, o.origin_iso3, o.variety, o.market_iso3, o.market_location,
-                    o.color_grade, o.organic, o.currency)
+                    o.color_grade, o.organic, o.currency, o.terms, o.frequency)
 
         since = self.today - timedelta(days=PRICE_BULK_DAYS)
-        for o in self.db.scalars(select(P).where(*base, P.period_start >= since).order_by(P.period_start)):
+        for o in self.db.scalars(select(P).where(*base, P.period_start >= since).order_by(P.period_start, P.id)):
             s = series.get(key_of(o))
             if s is not None:
                 s.points.append(o)
-        # Series whose needed history starts before the bulk window (long-stale series):
-        # load their own last stretch so y/y and the sparkline are still right.
-        for s in series.values():
-            need_from = s.latest_start - timedelta(days=PRICE_HISTORY_DAYS)
-            if need_from >= since:
-                continue
-            q = select(P).where(*base, P.source_id == s.source_id, P.price_type == s.price_type,
-                                P.variety == s.variety, P.currency == s.currency, P.period_start >= need_from)
-            for col, val in zip((P.origin_iso3, P.market_iso3, P.market_location, P.color_grade, P.organic),
-                                (s.origin_iso3, s.market_iso3, s.market_location, s.color_grade, s.organic)):
-                q = q.where(col.is_(None) if val is None else col == val)
-            s.points = list(self.db.scalars(q.order_by(P.period_start)))
+        # Series whose needed history starts before the bulk window (long-stale series, every
+        # annual-only series): ONE query loads each one's own last stretch, so y/y and the
+        # sparkline are still right without a query per series.
+        stale = {k: s for k, s in series.items() if s.latest_start - timedelta(days=PRICE_HISTORY_DAYS) < since}
+        if stale:
+            newest = (select(*cols, func.max(P.period_start).label("newest")).where(*base).group_by(*cols)
+                      .having(func.max(P.period_start) < since + timedelta(days=PRICE_HISTORY_DAYS)).subquery())
+            on = and_(*(c.is_not_distinct_from(newest.c[c.key]) for c in cols))
+            q = (select(P).join(newest, on)
+                 .where(*base, P.period_start < since,
+                        P.period_start >= func.date(newest.c.newest, f"-{PRICE_HISTORY_DAYS} days"))
+                 .order_by(P.period_start, P.id))
+            older: dict[tuple, list] = defaultdict(list)
+            for o in self.db.scalars(q):
+                older[key_of(o)].append(o)
+            for k, s in stale.items():
+                need_from = s.latest_start - timedelta(days=PRICE_HISTORY_DAYS)
+                # older rows all start before `since`, bulk rows on or after it: order is kept
+                s.points = [o for o in older.get(k, ()) if o.period_start >= need_from] + s.points
         self._price_series = [s for s in series.values() if s.points]
         return self._price_series
+
+    def label_hint(self, s: PriceSeries) -> str | None:
+        """What tells a series apart from others that would get the same tile label (same type,
+        origin and variety): the first part of its terms they do not share (e.g. "fusto 300 kg"
+        vs "secchio 25 kg"), else its period granularity ("annual" vs "monthly")."""
+        if self._hints is None:
+            self._hints = {}
+            groups: dict[tuple, list[PriceSeries]] = defaultdict(list)
+            for x in self.price_series():
+                groups[(x.price_type, series_base_label(self, x))].append(x)
+            for sibs in groups.values():
+                if len(sibs) < 2:
+                    continue
+                shared = set.intersection(*(set(_term_parts(x.terms)) for x in sibs))
+                freqs = {x.frequency for x in sibs}
+                for x in sibs:
+                    own = [p for p in _term_parts(x.terms) if p not in shared]
+                    hint = own[0][:48] if own else (FREQ_WORDS[self.lang].get(x.frequency, x.frequency)
+                                                    if len(freqs) > 1 else None)
+                    if hint:
+                        self._hints[x.key] = hint
+        return self._hints.get(s.key)
 
 
 # ---------------------------------------------------------------------------
@@ -422,9 +468,16 @@ def select_tiles(series: list[PriceSeries], today: date, n: int = TILE_COUNT) ->
     return chosen
 
 
-def series_label(ctx: Ctx, s: PriceSeries) -> str:
+def series_base_label(ctx: Ctx, s: PriceSeries) -> str:
     origin = ctx.country(s.origin_iso3) if s.origin_iso3 else (s.latest.origin_label or ctx.country(s.market_iso3))
     return f"{origin} · {ctx.variety(s.variety)}"
+
+
+def series_label(ctx: Ctx, s: PriceSeries) -> str:
+    """'Italia · Millefiori', plus a short hint (packaging, granularity) when another series of the
+    same type would get the same label."""
+    hint = ctx.label_hint(s)
+    return f"{series_base_label(ctx, s)} ({hint})" if hint else series_base_label(ctx, s)
 
 
 def _tile(ctx: Ctx, s: PriceSeries) -> dict:

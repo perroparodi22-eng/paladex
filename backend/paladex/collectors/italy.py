@@ -1448,22 +1448,114 @@ def _segment_tokens(segment: str) -> list[dict]:
     return collapsed
 
 
-def _pair_tokens(tokens: list[dict]) -> list[tuple[dict, dict, int, int]] | None:
+_FUSTO_RE = re.compile(r"\bfust[oi]\b")
+_SECCHIO_RE = re.compile(r"\bsecch|\blatt[ae]\b")
+_ORGANIC_RE = re.compile(r"\bbiologic[oaie]\b|\bbio\b")
+# A parenthetical right after a pair's own phrase belongs to that pair: "4-4,5 €/kg (fusto)".
+_TRAIL_PAREN_RE = re.compile(r"\s*\(([^)]*)\)")
+# Words between two pairs belong to the NEXT pair only when set off by a comma and leading
+# straight into it ("4-4,5 €/kg, in latta il castagno"); "4-4,5 €/kg in fusto, il castagno"
+# could be either pair's.
+_LEAD_QUALIFIER_RE = re.compile(r",\s*(?:in|di)\s+\w+[^,]*$")
+# Price-first pairs ("6,50 €/kg per il castagno ungherese"): the words after the variety, up to
+# the next punctuation or conjunction, are its own adjectives.
+_ADJ_ZONE_END_RE = re.compile(r"[,;:().]|\s(?:e|ed|o|oppure|ma)\s")
+
+
+def _packaging_in(text: str) -> tuple[bool, bool]:
+    """(names a drum, names a tin/bucket)."""
+    return bool(_FUSTO_RE.search(text)), bool(_SECCHIO_RE.search(text))
+
+
+def _names_qualifier(text: str) -> bool:
+    """A packaging, organic or origin word: something that must be attributed to one pair."""
+    return (any(_packaging_in(text)) or bool(_ORGANIC_RE.search(text))
+            or detect_origin(text).foreign or bool(_ITALIAN_RE.search(_fold(text))))
+
+
+def _pair_tokens(tokens: list[dict], segment: str) -> list[dict] | None:
     """Pair subjects with prices when they alternate one-to-one (S R S R ... or R S R S ...).
-    Returns [(subject, price, span_start, span_end)] or None when ambiguous."""
+
+    Returns one dict per pair with its `subject` and `price` tokens and the bounds
+    [`start`, `end`) of the pair's own phrase in `segment` ("il castagno tra 6,5 e 6,7 €/kg";
+    for a price-first pair it runs on over the variety's adjectives: "6,50 €/kg per il
+    castagno ungherese"), or None when the tokens do not alternate. The text around the
+    phrases is attributed by `_attribute_pairs`."""
     kinds = [t["t"] for t in tokens]
     if not kinds or "S" not in kinds or "R" not in kinds or len(kinds) % 2:
         return None
     first = kinds[0]
     if any(k != (first if i % 2 == 0 else ("R" if first == "S" else "S")) for i, k in enumerate(kinds)):
         return None
-    pairs, prev_end = [], 0
+    pairs = []
     for i in range(0, len(tokens), 2):
         a, b = tokens[i], tokens[i + 1]
         subject, price = (a, b) if first == "S" else (b, a)
-        pairs.append((subject, price, prev_end, b["end"]))
-        prev_end = b["end"]
+        end = b["end"]
+        if first == "R":
+            limit = tokens[i + 2]["pos"] if i + 2 < len(tokens) else len(segment)
+            stop = _ADJ_ZONE_END_RE.search(segment, end, limit)
+            end = stop.start() if stop else limit
+        pairs.append({"subject": subject, "price": price, "start": a["pos"], "end": end})
     return pairs
+
+
+def _attribute_pairs(segment: str, pairs: list[dict]) -> None:
+    """Give each pair the text around its own phrase that belongs to it.
+
+    * `trail`: a parenthetical right after the phrase ("(fusto)", "(bio)", "(ungherese)").
+    * `lead`: for the first pair, the segment text before it (context of the whole segment);
+      for a later pair, the end of the gap after the previous pair, only when it is set off
+      by a comma and leads straight into this pair (", in latta il castagno").
+    * `gap`: what is left of the gap before a later pair. A packaging, organic or origin
+      word there could belong to either neighbour, so both are flagged `ambiguous`.
+    * After the last pair, an organic or foreign-origin word cannot be placed either: the
+      last pair is flagged `ambiguous`. A packaging word there is left to the sentence-level
+      fallback of `extract_onm_prices`."""
+    for i, p in enumerate(pairs):
+        limit = pairs[i + 1]["start"] if i + 1 < len(pairs) else len(segment)
+        m = _TRAIL_PAREN_RE.match(segment, p["end"], limit)
+        p["trail"] = m.group(0) if m else ""
+        p["after"] = m.end() if m else p["end"]
+        p["ambiguous"] = False
+    pairs[0]["lead"], pairs[0]["gap"] = segment[:pairs[0]["start"]], ""
+    for prev, p in pairwise(pairs):
+        gap = segment[prev["after"]:p["start"]]
+        m = _LEAD_QUALIFIER_RE.search(gap)
+        p["gap"], p["lead"] = (gap[:m.start()], gap[m.start():]) if m else (gap, "")
+        if _names_qualifier(p["gap"]):
+            prev["ambiguous"] = p["ambiguous"] = True
+    tail = segment[pairs[-1]["after"]:]
+    if _ORGANIC_RE.search(tail) or detect_origin(tail).foreign:
+        pairs[-1]["ambiguous"] = True
+
+
+def _pair_origin(attr: str, subject_at: int, segment_context: str) -> Origin | None:
+    """The origin named on a pair, or None when the pair must be skipped.
+
+    Only the subject's own clause counts: text before the last comma, colon or bracket ahead
+    of the subject is context ("complice la concorrenza del miele ucraino, il millefiori
+    ..."). A foreign origin named there, or in the context shared by the segment, but not on
+    the pair itself makes the pair ambiguous: it is neither given that origin nor Italy."""
+    cut = max(attr.rfind(c, 0, subject_at) for c in ",:(")
+    core_start = cut + 1
+    origin = detect_origin(attr[core_start:])
+    if origin.ambiguous:
+        return None
+    if not origin.foreign and (detect_origin(attr[:core_start]).foreign or detect_origin(segment_context).foreign):
+        return None
+    return origin
+
+
+def _decide_packaging(*texts: str) -> str | None:
+    """The first text that names a packaging decides; None when it names drums and tins together."""
+    for text in texts:
+        fusto, secchio = _packaging_in(text)
+        if fusto and secchio:
+            return None                      # drums and tins named together: which one?
+        if fusto or secchio:
+            return "fusto" if fusto else "secchio"
+    return "non_specificato"
 
 
 def extract_onm_prices(paragraphs: list[str]) -> list[dict]:
@@ -1471,46 +1563,52 @@ def extract_onm_prices(paragraphs: list[str]) -> list[dict]:
 
     Rules: the sentence must carry a bulk context ("all'ingrosso", "fusto/fusti", "sfuso");
     the range must be written with an explicit €/kg unit; in each segment variety mentions
-    and prices must alternate one-to-one; the origin is Italy unless the pair's text names
-    exactly one foreign origin; packaging comes from the pair (fusto vs latta/secchio), else
-    from the sentence. Each dict: variety, variety_raw, organic, low, high, origin_iso3,
-    origin_label, packaging_code, sentence."""
+    and prices must alternate one-to-one. Packaging, organic and origin are read from the
+    pair's own text: its phrase, a parenthetical right after it, and the words leading into
+    it (see `_attribute_pairs`); a qualifier that could belong to two pairs skips both. The
+    origin is Italy unless the subject's own clause names exactly one foreign origin (see
+    `_pair_origin`). Packaging falls back to the segment's opening words, then to the
+    sentence, only while no packaging word is tied to a single pair or opens a later segment.
+    Each dict: variety, variety_raw, organic, low, high, origin_iso3, origin_label,
+    packaging_code, sentence."""
     found: list[dict] = []
     for paragraph in paragraphs:
         for sentence in _sentences(paragraph):
             s = _clean(sentence).lower()
             if not _BULK_CONTEXT_RE.search(s):
                 continue
-            sent_fusto = bool(re.search(r"\bfust[oi]\b", s))
-            sent_secchio = bool(re.search(r"\bsecch|\blatt[ae]\b", s))
-            for segment in _SEGMENT_SPLIT_RE.split(s):
-                pairs = _pair_tokens(_segment_tokens(segment))
-                if not pairs:
-                    continue
-                for subject, price, span_start, span_end in pairs:
-                    if subject["kw"] is None or price["lo"] is None or not price["unit"]:
+            segments = []
+            for k, segment in enumerate(_SEGMENT_SPLIT_RE.split(s)):
+                pairs = _pair_tokens(_segment_tokens(segment), segment)
+                if pairs:
+                    _attribute_pairs(segment, pairs)
+                    segments.append((k, segment, pairs))
+            pair_level = [t for _, segment, pairs in segments for i, p in enumerate(pairs)
+                          for t in (segment[p["start"]:p["end"]], p["trail"], p["gap"], p["lead"] if i else "")]
+            pair_level += [pairs[0]["lead"] for k, _, pairs in segments if k > 0]
+            fallback = not any(any(_packaging_in(t)) for t in pair_level)
+            for _, segment, pairs in segments:
+                segment_context = pairs[0]["lead"]
+                for i, p in enumerate(pairs):
+                    subject, price = p["subject"], p["price"]
+                    if p["ambiguous"] or subject["kw"] is None or price["lo"] is None or not price["unit"]:
                         continue
-                    span = segment[span_start:span_end]
                     low, high = parse_it_number(price["lo"]), parse_it_number(price["hi"])
                     if low is None or high is None or low > high or not (_plausible(low, "kg") and _plausible(high, "kg")):
                         continue
-                    origin = detect_origin(span)
-                    if origin.ambiguous:
+                    attr = p["lead"] + segment[p["start"]:p["end"]] + p["trail"]
+                    shared = segment_context if i else ""
+                    origin = _pair_origin(attr, len(p["lead"]) + subject["pos"] - p["start"], shared)
+                    if origin is None:
                         continue
-                    span_fusto = bool(re.search(r"\bfust[oi]\b", span))
-                    span_secchio = bool(re.search(r"\bsecch|\blatt[ae]\b", span))
-                    if span_fusto and span_secchio:
-                        continue                     # drums and tins named together: which one?
-                    if span_fusto:
-                        packaging = "fusto"
-                    elif span_secchio:
-                        packaging = "secchio"
-                    elif sent_fusto and sent_secchio:
+                    packaging = _decide_packaging(attr, *((segment_context, s) if fallback else ()))
+                    if packaging is None:
                         continue
-                    else:
-                        packaging = "fusto" if sent_fusto else "secchio" if sent_secchio else "non_specificato"
                     variety, organic = normalize_it_variety(subject["kw"])
-                    organic = organic or bool(re.search(r"\bbiologic[oaie]\b|\bbio\b", span))
+                    named_organic = bool(_ORGANIC_RE.search(attr))
+                    if not (organic or named_organic) and _ORGANIC_RE.search(shared):
+                        continue                     # 'bio' opens the segment, not said of this pair
+                    organic = organic or named_organic
                     found.append({
                         "variety": variety, "variety_raw": subject["kw"], "organic": organic,
                         "low": low, "high": high,

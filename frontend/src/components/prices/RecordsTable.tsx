@@ -86,7 +86,7 @@ export function RecordsTable({ filters, from, ccy, unit }: {
                 <th>{t('prices.rec.col.variety')}</th>
                 {anyColour && <th className={FULL}>{t('prices.rec.col.colour')}</th>}
                 <th className="!text-right max-xl:!whitespace-normal">{t('prices.rec.col.published')}</th>
-                <th className="!text-right !whitespace-normal leading-tight max-xl:tracking-normal">
+                <th className="!text-right !whitespace-normal leading-tight max-xl:!tracking-normal">
                   {t('prices.rec.col.converted')}
                   <span className="block normal-case tracking-normal text-[0.75rem]">{unitLabel(ccy, unit)}</span>
                 </th>
