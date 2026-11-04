@@ -134,3 +134,14 @@ def test_api_keys_in_urls_never_reach_the_log(caplog):
         client.get("https://quickstats.nass.usda.gov/api/api_GET/", params={"key": "SECRET123", "commodity_desc": "HONEY"})
     assert "quickstats.nass.usda.gov" in caplog.text
     assert "SECRET123" not in caplog.text and "key=REDACTED" in caplog.text
+
+
+def test_sources_list_official_first_within_category(api):
+    sources = api.get("/api/sources").json()["sources"]
+    by_cat: dict[str, list[str]] = {}
+    for s in sources:
+        by_cat.setdefault(s["category"], []).append(s["reliability"])
+    rank = {"official": 0, "industry": 1, "trade_press": 2, "aggregator": 3, "user": 4}
+    for cat, rels in by_cat.items():
+        ranks = [rank.get(r, 9) for r in rels]
+        assert ranks == sorted(ranks), (cat, rels)

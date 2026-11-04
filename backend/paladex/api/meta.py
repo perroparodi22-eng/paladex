@@ -60,6 +60,13 @@ RELIABILITY_LABELS = {
 }
 
 
+# Primary sources first: government / intergovernmental, then industry bodies, then third parties.
+RELIABILITY_RANK = {
+    Reliability.OFFICIAL.value: 0, Reliability.INDUSTRY.value: 1, Reliability.TRADE_PRESS.value: 2,
+    Reliability.AGGREGATOR.value: 3, Reliability.USER.value: 4, Reliability.AI.value: 5, Reliability.DEMO.value: 6,
+}
+
+
 @router.get("/health")
 def health():
     return {"ok": True}
@@ -127,7 +134,9 @@ def serialize_source(s: Source, counts: dict | None = None) -> dict:
 @router.get("/sources")
 def list_sources(db: Session = Depends(get_db)):
     counts = _source_counts(db)
-    rows = db.scalars(select(Source).where(Source.key != "demo").order_by(Source.category, Source.name)).all()
+    rows = db.scalars(select(Source).where(Source.key != "demo")).all()
+    # Official / government sources first within each category, then industry, press, aggregators.
+    rows = sorted(rows, key=lambda s: (s.category or "", RELIABILITY_RANK.get(s.reliability, 9), (s.name or "").lower()))
     return {"sources": [serialize_source(s, counts.get(s.id)) for s in rows], "collect": _collect_state_public()}
 
 
