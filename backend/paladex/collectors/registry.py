@@ -26,10 +26,10 @@ COLLECTOR_MODULES: list[str] = [
     "paladex.collectors.news_feeds",      # RSS / Atom news (Google News feeds are opt-in)
     "paladex.collectors.regulation",      # Federal Register, EUR-Lex... (official notices)
     "paladex.collectors.official_watchers",  # origin-country notices: MAPA (BR), SENASA/Boletín Oficial (AR), DGFT (IN)
-    "paladex.collectors.tariffs",
+    "paladex.collectors.tariffs",          # EU TARIC (UK XI mirror) and US HTS duties on honey by origin
     "paladex.collectors.weather",          # NASA POWER monthly weather anomalies per honey region
     "paladex.collectors.trade_south",      # Argentina INDEC, Uruguay customs/Uruguay XXI (official exports)
-    "paladex.collectors.production_official",  # Statistics Canada, Mexico SIAP, Turkey TUIK, Brazil IBGE         # EU TARIC (UK XI mirror) and US HTS duties on honey by origin
+    "paladex.collectors.production_official",  # Statistics Canada, Mexico SIAP, Turkey TUIK, Brazil IBGE
 ]
 
 IMPORT_ERRORS: dict[str, str] = {}
