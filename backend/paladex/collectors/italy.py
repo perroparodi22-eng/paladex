@@ -832,6 +832,8 @@ class CuneoAverages:
     problems: list[str] = field(default_factory=list)
     method: str = "table"      # 'table' (ruled table) or 'words' (x-position bucketing)
     non_honey: list[str] = field(default_factory=list)
+    basis_note: str | None = None             # 'Prodotto sfuso in fusti da 3 q.li - franco partenza ... IVA compresa'
+    vat_included: bool | None = None
 
 
 def _month_of_header(cell: str | None) -> int | None:
@@ -1009,6 +1011,13 @@ def parse_cuneo_averages_pdf(content: bytes, *, year: int | None = None) -> Cune
             raise SchemaDrift(f"Cuneo averages PDF: requested year {year} but the document is for {pdf_year}")
         unit = _unit_from_text(full) or "kg"
         result = CuneoAverages(year=year or pdf_year, rows=[])
+        head: list[str] = []                   # title block: the lines above the month header
+        for line in (_clean(x) for x in full.splitlines()):
+            if sum(_month_of_header(t) is not None for t in line.split()) >= 6:
+                break
+            head.append(line)
+        result.basis_note = _basis_note(head, None)
+        result.vat_included = _vat_flag(result.basis_note)
         header_found = False
         for page in pdf.pages:
             page_done = False
@@ -1134,6 +1143,13 @@ class CuneoHoneyCollector(Collector):
             ctx.warn(p)
         if parsed.no_quote:
             log.info("Cuneo list %s: not quoted this month: %s", link.list_category, ", ".join(parsed.no_quote))
+        # remembered so that an average published for the same item/month can be flagged
+        state = _get_state(ctx.session, self.key)
+        not_quoted = dict(state.get("not_quoted") or {})
+        not_quoted[f"{parsed.period_year}-{parsed.period_month:02d}"] = sorted(
+            {_slug(split_cuneo_label(label)[0]) for label in parsed.no_quote})
+        state["not_quoted"] = not_quoted
+        _set_state(ctx.session, self.key, state)
         if parsed.non_honey:
             log.info("Cuneo list %s: other hive products left out: %s", link.list_category, ", ".join(parsed.non_honey))
         if not parsed.rows:
@@ -1215,6 +1231,9 @@ class CuneoHoneyCollector(Collector):
             ctx.warn(f"Cuneo: no yearly averages PDF could be downloaded ({CUNEO_AVERAGES_URL})")
 
     def _store_averages(self, ctx: CollectContext, parsed: CuneoAverages, year: int, doc, *, final: bool = True) -> None:
+        not_quoted: dict[str, list[str]] = _get_state(ctx.session, self.key).get("not_quoted") or {}
+        delivery = _delivery_words(parsed.basis_note)
+        vat = _vat_words(parsed.vat_included) if parsed.basis_note else None
         for r in parsed.rows:
             slug = r["key"]
             group = r.get("price_group")
@@ -1235,22 +1254,31 @@ class CuneoHoneyCollector(Collector):
             extra = {"packaging": r["packaging"], "packaging_code": r["packaging_code"],
                      "drum": r["packaging_code"].startswith("fusto"), "channel": "chamber_wholesale",
                      "averages_year": year, "parse_method": parsed.method, "price_group": group,
-                     "item_label": r["label"]}
+                     "item_label": r["label"], "basis_note": parsed.basis_note, "vat_included": parsed.vat_included}
             for month, value in sorted(r["monthly"].items()):
                 label = f"{year}-{month:02d}"
                 # gap filling only: a monthly list quotation (min-max) for this item wins
                 if _series_exists(ctx, f"{PriceType.WHOLESALE_BULK.value}|cuneo|{slug}|{label}"):
                     continue
                 start, end = month_bounds(year, month)
+                month_extra = {**extra, "statistic": "monthly_average"}
+                month_common = common
+                if slug in not_quoted.get(label, []):
+                    # real case: the list of 30 May 2025 says 'n.q.' for Tiglio, Alta Montagna and
+                    # Rododendro, the 2025 averages PDF prints May values for them. Both are shown.
+                    month_extra["list_says_not_quoted"] = True
+                    month_common = {**common, "notes": f"{note}. Il listino mensile dello stesso mese riporta 'n.q.' "
+                                                       "(non quotato) per questa voce: le due pubblicazioni non concordano"}
+                    log.info("Cuneo averages %s %s: published although the monthly list says n.q.", slug, label)
                 ctx.add_price(series_key=f"cuneo-media|{slug}|{label}", price_value=value,
                               period_start=start, period_end=end, period_label=label, frequency="M",
-                              terms=_terms(r["packaging"], "media mensile"),
-                              extra={**extra, "statistic": "monthly_average"}, **common)
+                              terms=_terms(r["packaging"], "media mensile", delivery, vat),
+                              extra=month_extra, **month_common)
             if r["annual"] is not None:
                 start, end = year_bounds(year)
                 ctx.add_price(series_key=f"cuneo-media|{slug}|{year}", price_value=r["annual"],
                               period_start=start, period_end=end, period_label=str(year), frequency="A",
-                              terms=_terms(r["packaging"], "media annua"),
+                              terms=_terms(r["packaging"], "media annua", delivery, vat),
                               extra={**extra, "statistic": "annual_average"},
                               **{**common, "notes": annual_note,
                                  "data_status": DataStatus.PUBLISHED if final else DataStatus.PROVISIONAL})

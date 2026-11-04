@@ -5,9 +5,9 @@ is append-only: a document already stored (same source and reference) is never r
 
 * ``us_federal_register``: the US Federal Register API v1. A few saved searches cover Commerce
   (ITA) antidumping notices on raw honey (Argentina, Brazil, India, Vietnam) and on honey from
-  China, USITC and FDA notices on honey, and presidential tariff documents that mention honey or
-  a honey origin. ``reference`` is the FR document number and ``summary_en`` is the official
-  abstract, as published.
+  China, USITC and FDA notices on honey, and presidential tariff documents whose text names
+  honey or HTS 0409 (see "Federal Register relevance" below). ``reference`` is the FR document
+  number and ``summary_en`` is the official abstract, as published.
 * ``eurlex_honey``: EU legislation from the Publications Office CELLAR SPARQL endpoint (the
   sanctioned machine channel behind EUR-Lex). It runs two queries: (a) acts whose English title
   mentions honey, and (b) acts that amend, are based on, correct or repeal the Honey Directive

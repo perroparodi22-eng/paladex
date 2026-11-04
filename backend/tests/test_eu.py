@@ -290,11 +290,81 @@ def test_parse_taxud_aggregates_dedups_and_flags_conflicts():
     assert (de.kg, de.eur, de.rows) == (22_000, 49_800, 2)          # exact duplicate ignored, MFN row summed
     assert de.categories == {"Import - preferential": {"kg": 20_000, "eur": 44_800},
                              "Import - most favoured nation": {"kg": 2_000, "eur": 5_000}}
-    assert de.period == (date(2026, 10, 5), date(2026, 10, 11))     # ISO week 41 of 2026, Monday-Sunday
+    assert de.period == (date(2026, 10, 5), date(2026, 10, 11))     # TAXUD week 41 of 2026, Monday-Sunday
     assert ("DEU", "CHN", "2026-W40") not in by                     # conflicting duplicates: not stored
     assert any("conflicting" in p for p in parsed.problems)
     assert any("invalid kg" in p for p in parsed.problems)
     assert parsed.unmapped_partners == {"QW": 1}
+
+
+@pytest.mark.parametrize("year, week, bounds", [
+    (2024, 1, (date(2024, 1, 1), date(2024, 1, 7))),        # 1 Jan 2024 is a Monday
+    (2024, 53, (date(2024, 12, 30), date(2024, 12, 31))),   # published by TAXUD; ISO 2024 has no week 53
+    (2025, 1, (date(2025, 1, 1), date(2025, 1, 5))),        # partial: ISO week 1 would start on 30 Dec 2024
+    (2025, 35, (date(2025, 8, 25), date(2025, 8, 31))),     # live check: week 35 has only August rows
+    (2025, 36, (date(2025, 9, 1), date(2025, 9, 7))),       # live check: week 36 has only September rows
+    (2025, 40, (date(2025, 9, 29), date(2025, 10, 5))),     # live check: September and October rows
+    (2025, 53, (date(2025, 12, 29), date(2025, 12, 31))),   # live check: December rows
+    (2026, 1, (date(2026, 1, 1), date(2026, 1, 4))),
+    (2026, 53, (date(2026, 12, 28), date(2026, 12, 31))),
+    (2023, 1, (date(2023, 1, 1), date(2023, 1, 1))),        # 1 Jan 2023 is a Sunday: a one-day week 1
+    (2023, 2, (date(2023, 1, 2), date(2023, 1, 8))),        # = ISO 2023-W01: every week differs by one
+    (2040, 54, (date(2040, 12, 31), date(2040, 12, 31))),   # leap year starting on a Sunday
+    (2026, 54, None), (2025, 0, None), (2024, 54, None),
+])
+def test_taxud_week_bounds(year, week, bounds):
+    assert eu.taxud_week_bounds(year, week) == bounds
+
+
+def test_parse_real_taxud_week_53_and_week_1():
+    """Real captures (2026-11-04): TAXUD publishes week 53 of 2024 and of 2025 (ISO has neither)."""
+    p24 = eu.parse_taxud_weekly(fixture_bytes("eu/real_taxud_honey_2024_w52-53_AR-UA.json"))
+    assert not p24.problems and p24.other_products == {"15219091": 1, "12129995": 1}   # beeswax etc. ignored
+    by24 = {(r.reporter_iso3, r.partner_iso3, r.period_label): r for r in p24.records}
+    de53 = by24[("DEU", "ARG", "2024-W53")]
+    assert de53.period == (date(2024, 12, 30), date(2024, 12, 31))
+    assert de53.partner_label == "Argentina" and de53.cn8 == ["04090000"]
+    p25 = eu.parse_taxud_weekly(fixture_bytes("eu/real_taxud_honey_2025_w01-52-53_AR-UA.json"))
+    assert not p25.problems
+    by25 = {(r.reporter_iso3, r.partner_iso3, r.period_label): r for r in p25.records}
+    assert {k for k in by25 if k[2] == "2025-W53"} == {("DEU", "ARG", "2025-W53"), ("ESP", "ARG", "2025-W53"),
+                                                       ("FRA", "UKR", "2025-W53")}
+    assert by25[("FRA", "UKR", "2025-W53")].period == (date(2025, 12, 29), date(2025, 12, 31))
+    assert by25[("DEU", "UKR", "2025-W01")].period == (date(2025, 1, 1), date(2025, 1, 5))
+    assert by25[("GRC", "UKR", "2025-W01")].member_state == "EL"
+    p26 = eu.parse_taxud_weekly(fixture_bytes("eu/real_taxud_honey_2026_w01-02_AR-UA.json"))
+    # Two real rows with the same published dimensions and different figures: not summed, not stored.
+    assert [p for p in p26.problems if "conflicting" in p] == [
+        "TAXUD: conflicting duplicate rows for PL/UA 2026-W01 (61950 kg vs 187775 kg); that cell is not stored"]
+    assert ("POL", "UKR", "2026-W01") not in {(r.reporter_iso3, r.partner_iso3, r.period_label) for r in p26.records}
+
+
+def test_taxud_end_to_end_real_captures(run_with_routes, session_factory, pin_today):
+    pin_today(date(2026, 11, 4))
+    routes = {
+        eu.TAXUD_SECTORS_URL: fixture_bytes("eu/taxud_sectors.json"),
+        eu.TAXUD_OPENAPI_URL: fixture_bytes("eu/taxud_api_docs.json"),
+        r"^https://api\.tech\.ec\.europa\.eu/agrifood/api/taxud/weeklyData/import\?.*marketingYears=2024":
+            fixture_bytes("eu/real_taxud_honey_2024_w52-53_AR-UA.json"),
+        r"^https://api\.tech\.ec\.europa\.eu/agrifood/api/taxud/weeklyData/import\?.*marketingYears=2025":
+            fixture_bytes("eu/real_taxud_honey_2025_w01-52-53_AR-UA.json"),
+        TAXUD_IMPORT_2026: fixture_bytes("eu/real_taxud_honey_2026_w01-02_AR-UA.json"),
+    }
+    res = run_with_routes("ec_taxud_weekly", routes)
+    assert res["status"] == "partial" and len(res["warnings"]) == 1 and "PL/UA 2026-W01" in res["warnings"][0], res
+    with session_factory() as s:
+        trades = _rows(s, TradeFlowObservation, "ec_taxud_weekly")
+        assert len(trades) == 6 + 29 + 25                                # every cell but the conflicting one
+        w53 = sorted((t.period_label, t.reporter_iso3, t.partner_iso3, t.period_start, t.period_end)
+                     for t in trades if t.period_label.endswith("-W53"))
+        assert w53 == [("2024-W53", "DEU", "ARG", date(2024, 12, 30), date(2024, 12, 31)),
+                       ("2025-W53", "DEU", "ARG", date(2025, 12, 29), date(2025, 12, 31)),
+                       ("2025-W53", "ESP", "ARG", date(2025, 12, 29), date(2025, 12, 31)),
+                       ("2025-W53", "FRA", "UKR", date(2025, 12, 29), date(2025, 12, 31))]
+        fr = next(t for t in trades if (t.period_label, t.reporter_iso3) == ("2025-W53", "FRA"))
+        assert fr.extra["week_days"] == 3 and "Not an ISO week" in fr.extra["week_rule"]
+        it = next(t for t in trades if (t.period_label, t.reporter_iso3, t.partner_iso3) == ("2026-W01", "ITA", "ARG"))
+        assert (it.period_start, it.period_end, it.extra["week_days"]) == (date(2026, 1, 1), date(2026, 1, 4), 4)
 
 
 def test_taxud_end_to_end(run_with_routes, session_factory, pin_today):

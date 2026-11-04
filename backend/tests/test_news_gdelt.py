@@ -248,6 +248,34 @@ def test_requests_are_spaced_from_the_previous_answer(run_with_routes, sleeps, h
     assert len(gaps) >= len(http_calls) - 1 >= 2           # a full gap before every request but the first
 
 
+def _db_write_possible() -> bool:
+    """True when another connection could start writing now (no open write transaction)."""
+    import sqlite3
+
+    from paladex.db import get_engine
+
+    con = sqlite3.connect(get_engine().url.database, timeout=0.2)
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        con.rollback()
+        return True
+    except sqlite3.OperationalError:
+        return False
+    finally:
+        con.close()
+
+
+def test_waits_never_hold_the_database_write_lock(run_with_routes, monkeypatch):
+    """Minutes of spacing / back-off must not lock out the other collectors and API writes."""
+    q0 = news_gdelt.QUERIES[0]
+    free = []
+    monkeypatch.setattr(news_gdelt.time, "sleep", lambda s: free.append(_db_write_possible()))
+    # first query answers (articles stored), the next one is refused -> retry wait
+    res = run_with_routes("news_gdelt", {_query_url_rx(q0): _payload(ARTICLES), API: THROTTLE})
+    assert res["status"] == "partial", res
+    assert free and all(free), free
+
+
 def test_throttled_run_retries_once_then_defers_as_partial(run_with_routes, session_factory, sleeps, http_calls):
     res = run_with_routes("news_gdelt", {API: THROTTLE})
     assert res["status"] == "partial", res                 # not failed: the queries are deferred
@@ -257,8 +285,12 @@ def test_throttled_run_retries_once_then_defers_as_partial(run_with_routes, sess
     state = _state(session_factory)
     assert state["throttle_streak"] == 1 and state["throttled_since"]
     assert datetime.fromisoformat(state["cooldown_until"]) > utcnow()
-    assert not any(v.get("last_try") for v in state["queries"].values())   # deferred, still first in line
-    assert news_gdelt.plan_queries(state) == news_gdelt.QUERIES[:news_gdelt.QUERIES_PER_RUN]
+    q0, q1, q2, q3 = news_gdelt.QUERIES[:4]
+    assert not any(v.get("last_try") for v in state["queries"].values())   # no answer: window unchanged
+    assert state["queries"][q0.key]["last_refused"]
+    # the queries never sent stay first in line; the refused one goes to the back
+    assert news_gdelt.plan_queries(state) == [q1, q2, q3]
+    assert news_gdelt.plan_queries(state, budget=len(news_gdelt.QUERIES))[-1] == q0
 
     # a run during the cool-down sends nothing at all
     http_calls.clear()
@@ -312,7 +344,7 @@ def test_throttle_mid_run_keeps_earlier_answers_and_defers_the_rest(run_with_rou
     assert state["queries"][q0.key]["last_ok"] and state["throttle_streak"] == 0   # GDELT did answer
     assert state["cooldown_until"]                                                  # but slow down
     nxt = news_gdelt.plan_queries(state)
-    assert nxt[:2] == [q1, q2] and q0 not in nxt                                    # deferred go first
+    assert nxt[0] == q2 and q0 not in nxt and q1 not in nxt     # not sent: first; refused/answered: back
 
 
 def test_connection_reset_while_online_is_deferred(run_with_routes, session_factory, monkeypatch):
@@ -353,7 +385,17 @@ def test_queries_are_well_formed():
         # GDELT rejects keywords that are too short ("蜂蜜" is 2 characters): none below 3
         bare = re.sub(r'"[^"]*"', " ", q.query)
         for tok in re.findall(r"[^\s()\"]+", bare):
-            if tok in ("OR",) or ":" in tok:
+            if tok in ("OR", "-") or ":" in tok:
                 continue
             assert len(tok.lstrip("-")) >= 3, (q.key, tok)
         assert "sourcelang:" in q.query or "sourcecountry:" in q.query, q.key
+        # GDELT matches the English machine translation: native keywords find nothing
+        assert q.query.isascii(), q.key
+
+
+def test_queries_cover_the_honey_languages():
+    langs = set(re.findall(r"sourcelang:(\w+)", " ".join(q.query for q in news_gdelt.QUERIES)))
+    assert {"english", "italian", "spanish", "portuguese", "chinese", "vietnamese", "ukrainian", "serbian",
+            "german"} <= langs
+    assert any("sourcecountry:india" in q.query for q in news_gdelt.QUERIES)
+    assert all(lang in news_gdelt._LANGUAGES for lang in langs)          # GDELT's names map to ISO codes

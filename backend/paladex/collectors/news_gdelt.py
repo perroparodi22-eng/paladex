@@ -26,29 +26,39 @@ API facts
 * Operators: "exact phrase", (a OR b) — OR only inside parentheses, not nested —,
   -exclude, sourcelang:<language>, sourcecountry:<country>.
 * The DOC API searches only the rolling last ~3 months.
-* SEE `QUERIES` for what live tests (2026-11-04) showed about native-language keywords.
+* See `QUERIES` for what live tests (2026-11-04) showed about native-language keywords.
 
 Rate limiting (live behaviour, 2026-11-04, plus third-party measurements from 2026)
 -----------------------------------------------------------------------------------
-* Too many requests -> HTTP 429 with the plain text "Please limit requests to one every 5
-  seconds..." (no Retry-After). In practice the limit is stricter than 5 s and depends on
-  GDELT's load: requests 6 s apart were refused in a row, and after a refusal the window stays
-  closed for a minute or more. Retrying quickly keeps it closed.
-* When a client keeps going, GDELT stops answering at all: the TLS connection is reset after
-  ~12 s ("Connection reset by peer") for several minutes, while gdeltproject.org's other hosts
-  still answer. A reset is therefore treated like a refusal, not as "offline", unless the PC
-  really has no internet connection.
+* Too many requests -> HTTP 429 after ~10 s, plain text "Please limit requests to one every 5
+  seconds or contact ... for larger queries. ..." (fixtures/news/real_gdelt_throttle.txt), no
+  Retry-After. The real limit is much stricter than 5 s and depends on GDELT's load and on
+  everyone sharing the IP: on our (shared) test connection a request 75 s after a successful
+  answer, and another 120 s after one, were both refused; the first request after 7+ quiet
+  minutes succeeded twice (answers take 14-16 s), but later ones after 8 and 10 quiet minutes
+  were refused too. Third-party measurements (2026): 6 s spacing -> 1 of 7 accepted, 16 s
+  -> 4 of 12, 60 s -> 3 of 8; after an accepted request the window stayed closed ~60 s;
+  retrying quickly keeps it closed.
+* A client that keeps asking is then not answered at all: the TLS handshake with
+  api.gdeltproject.org is dropped after ~12 s ("Connection reset by peer"), for minutes, while
+  gdeltproject.org's other hosts answer normally (seen 6 times in our tests, the last one after
+  10 quiet minutes). A reset is therefore treated like a refusal, not as "offline", unless the
+  PC really has no internet connection (checked once per run).
 
 So each run makes few requests (`QUERIES_PER_RUN`), waits `MIN_GAP_SECONDS` after the end of
 one answer before the next request (also across runs, via the saved state), retries a refused
 request once after `RETRY_WAIT_SECONDS`, then defers the rest of the run's queries to the next
 run and sets a cool-down that doubles after each fully refused run (`COOLDOWN_MINUTES`). A
-deferred query is never lost: the rotation puts it first next time and its search window
+deferred query is never lost: one that was not sent is first in line next time, a refused one
+goes to the back of the rotation (so it cannot hold up the others), and its search window
 reaches back to its own last successful answer. A run with deferred queries is "partial";
-it fails only when GDELT has refused every request for `FAIL_AFTER_HOURS`.
+it fails only when GDELT has refused every request for `FAIL_AFTER_HOURS`. Nothing is left
+uncommitted while waiting, so the pauses never lock other writers out of the database.
+Runs are hourly with 3 queries each: every query is asked at least every few hours, and a run
+lasts about 2 minutes (one more minute when a request is retried).
 
 State (app_settings "collector_state:news_gdelt", committed with the articles):
-  {"queries": {key: {"last_ok": iso, "last_try": iso, "last_error": str|None}},
+  {"queries": {key: {"last_ok": iso, "last_try": iso, "last_refused": iso, "last_error": str|None}},
    "throttle_streak": int, "throttled_since": iso|None, "cooldown_until": iso|None,
    "last_request_end": iso}
 
@@ -84,7 +94,7 @@ MAX_WINDOW_DAYS = 90          # the DOC API searches only the rolling last ~3 mo
 
 # Politeness / throttling (see the module docstring).
 QUERIES_PER_RUN = 3           # per-run budget; the rotation covers every query over a few runs
-MIN_GAP_SECONDS = 30.0        # from the END of one GDELT answer to the next request
+MIN_GAP_SECONDS = 45.0        # from the END of one GDELT answer to the next request
 RETRY_WAIT_SECONDS = 60.0     # a refused request is retried once, after this pause
 MAX_REFUSALS_PER_RUN = 2      # after this many refused answers the rest of the run is deferred
 COOLDOWN_MINUTES = (15, 30, 60, 120, 240)   # no request until then; grows after each fully refused run
@@ -110,29 +120,35 @@ class GdeltQuery:
     query: str
 
 
-# One saved search per language/market. Negative terms remove known noise (Miele appliances,
-# Honey Singh, PayPal Honey, "luna de miel"). UNVERIFIED: every operator spelling is from
-# third-party documentation — a rejected query is reported as a warning, not a failure.
+# GDELT machine-translates every non-English article into English and matches the query against
+# that translation (DOC 2.0 documentation, "Search Across 65 Languages"). Live test, 2026-11-04,
+# 7-day window: `miele sourcelang:italian` -> 0 articles, `honey sourcelang:italian` -> Italian
+# articles. Native-language keywords therefore find nothing (and a 2-character one such as 蜂蜜 is
+# rejected: "Your search contained a keyword that was too short."), so every search uses ENGLISH
+# keywords and selects the press by original language (sourcelang:) or country (sourcecountry:).
+# The honey gate then works on the original-language headline (services.news). Operators inside an
+# OR block are allowed (the documentation ORs imagetag: operators), so several languages share one
+# search: fewer requests per rotation. GDELT matches the whole article, so the market terms below
+# keep recipes and generic food stories out without requiring the term in the headline.
+_MARKET_TERMS = ("(price OR prices OR export OR exports OR import OR imports OR beekeepers OR beekeeping OR "
+                 "harvest OR production OR adulterated OR adulteration OR fraud OR tariff OR tariffs OR "
+                 '"anti-dumping")')
+
+# Order = priority when several queries are equally due (first run, or after a block).
 QUERIES: list[GdeltQuery] = [
     GdeltQuery("en_trade", "inglese: commercio, prezzi, dazi, frodi",
                '(honey OR "raw honey") (export OR exports OR import OR imports OR price OR prices OR tariff OR '
                'antidumping OR "anti-dumping" OR adulteration OR adulterated OR beekeepers OR harvest) '
                'sourcelang:english -"honey singh" -paypal'),
-    GdeltQuery("it", "italiano", 'miele (prezzo OR prezzi OR importazioni OR export OR esportazioni OR apicoltori OR '
-               'frode OR dazi OR raccolto OR produzione) sourcelang:italian -lavatrice -lavastoviglie -elettrodomestici'),
-    GdeltQuery("es", "spagnolo (Argentina, Spagna, Messico, Uruguay)",
-               'miel (exportación OR exportaciones OR precio OR precios OR apicultores OR cosecha OR importaciones) '
-               'sourcelang:spanish -"luna de miel"'),
-    GdeltQuery("pt", "portoghese (Brasile)",
-               '("exportação de mel" OR "exportações de mel" OR "preço do mel" OR apicultores OR "mel brasileiro") '
-               'sourcelang:portuguese'),
-    GdeltQuery("de", "tedesco", 'Honig (Preis OR Preise OR Import OR Imker OR Ernte OR Verfälschung) '
-               'sourcelang:german -Miele'),
-    GdeltQuery("zh", "cinese", '蜂蜜 (出口 OR 价格 OR 产量) sourcelang:chinese'),
-    GdeltQuery("uk", "ucraino", 'мед (експорт OR ціна OR ціни OR пасічники OR врожай) sourcelang:ukrainian'),
-    GdeltQuery("vi", "vietnamita", '"mật ong" (xuất khẩu OR giá OR "chống bán phá giá") sourcelang:vietnamese'),
-    GdeltQuery("sr", "serbo", '("izvoz meda" OR pčelari OR pčelarstvo OR "cena meda") sourcelang:serbian'),
-    GdeltQuery("en_india", "inglese: India", 'honey (export OR exports OR price OR antidumping) sourcecountry:india'),
+    GdeltQuery("it", "italiano", f"honey {_MARKET_TERMS} sourcelang:italian"),
+    GdeltQuery("es_pt", "spagnolo e portoghese (Argentina, Brasile, Messico, Uruguay, Spagna)",
+               f"honey {_MARKET_TERMS} (sourcelang:spanish OR sourcelang:portuguese)"),
+    GdeltQuery("zh_vi", "cinese e vietnamita", f"honey {_MARKET_TERMS} (sourcelang:chinese OR sourcelang:vietnamese)"),
+    GdeltQuery("uk_sr", "ucraino, serbo e croato",
+               f"honey {_MARKET_TERMS} (sourcelang:ukrainian OR sourcelang:serbian OR sourcelang:croatian)"),
+    GdeltQuery("de_fr", "tedesco e francese", f"honey {_MARKET_TERMS} (sourcelang:german OR sourcelang:french)"),
+    GdeltQuery("en_india", "India (tutte le lingue)",
+               'honey (export OR exports OR price OR prices OR antidumping OR "anti-dumping") sourcecountry:india'),
 ]
 
 
@@ -217,6 +233,16 @@ def is_throttle_text(text: str | None) -> bool:
     return THROTTLE_TEXT in (text or "").lower()
 
 
+def short_reason(text: str | None) -> str:
+    """GDELT's refusal for a warning: the first sentence of the throttle text (the rest is
+    contact details and links), otherwise the start of the message."""
+    text = " ".join((text or "").split())
+    if is_throttle_text(text):
+        m = re.search(r"[^.]*limit requests[^.]*?seconds", text, re.I)
+        return m.group(0).strip() if m else text[:80]
+    return text[:120]
+
+
 # ---------------------------------------------------------------------------
 # State (rotation, cool-down, spacing) in app_settings
 # ---------------------------------------------------------------------------
@@ -249,10 +275,17 @@ def _dt(value) -> datetime | None:
 
 
 def plan_queries(state: dict, budget: int = QUERIES_PER_RUN) -> list[GdeltQuery]:
-    """The `budget` queries whose last definitive answer is oldest (never-asked first, then in
-    `QUERIES` order). Refused or deferred queries keep their place at the front."""
+    """The `budget` queries asked least recently (never-asked first, then in `QUERIES` order).
+    A query that was not sent because the run stopped keeps its place at the front; a refused
+    one goes to the back, so a query GDELT keeps refusing cannot hold up the others (its window
+    still reaches back to its last answer, so nothing is lost)."""
     qs = state.get("queries") or {}
-    order = sorted(range(len(QUERIES)), key=lambda i: ((qs.get(QUERIES[i].key) or {}).get("last_try") or "", i))
+
+    def asked(i: int) -> str:
+        q = qs.get(QUERIES[i].key) or {}
+        return max(q.get("last_try") or "", q.get("last_refused") or "")
+
+    order = sorted(range(len(QUERIES)), key=lambda i: (asked(i), i))
     return [QUERIES[i] for i in order[:budget]]
 
 
@@ -273,16 +306,14 @@ def _internet_works() -> bool:
 
 class GdeltNewsCollector(Collector):
     key = "news_gdelt"
-    name = "GDELT – notizie mondiali sul miele (10 lingue)"
+    name = "GDELT – notizie mondiali sul miele (11 lingue)"
     publisher = "The GDELT Project"
     homepage = "https://www.gdeltproject.org/"
     kind = SourceKind.API
     reliability = Reliability.AGGREGATOR
     category = "news"
-    expected_update = ("Ricerca ogni ora, a rotazione: 3 ricerche per volta, tutte le lingue in poche ore "
-                       "(titoli e link; GDELT aggiorna l'indice ogni 15 minuti)")
-    expected_update_en = ("Searched every hour in rotation: 3 searches at a time, every language within a few "
-                          "hours (headlines and links; GDELT updates its index every 15 minutes)")
+    expected_update = "Ogni ora, 3 ricerche a rotazione: tutte le lingue in poche ore (titoli e link)"
+    expected_update_en = "Hourly, 3 searches in rotation: every language within a few hours (headlines and links)"
     expected_max_age_days = 3
     terms_note = ("Fonte: The GDELT Project (gdeltproject.org) — uso commerciale consentito con citazione. "
                   "Si conservano solo titolo, link, testata e data; il testo degli articoli resta degli editori. "
@@ -323,8 +354,10 @@ class GdeltNewsCollector(Collector):
                         raise Offline(f"GDELT: {payload}")
                 refusals += 1
                 last_refusal = payload
+                qstate["last_refused"] = asked_at.isoformat(timespec="seconds")
                 if refusals >= MAX_REFUSALS_PER_RUN:
                     break
+                ctx.checkpoint()                 # never wait with an open write transaction
                 time.sleep(RETRY_WAIT_SECONDS)
                 asked_at = utcnow()
                 kind, payload = self._ask(ctx, url, state)
@@ -341,17 +374,20 @@ class GdeltNewsCollector(Collector):
                 else:
                     ctx.warn(f"GDELT, ricerca «{q.label}»: risposta JSON non leggibile, saltata ({payload})"[:400])
                 save_state(ctx.session, state)
+                ctx.checkpoint()
                 continue
             ok += 1
-            qstate["last_ok"] = asked_at.isoformat(timespec="seconds")
-            qstate["last_error"] = None
             items = payload
             if len(items) >= MAX_RECORDS and timespan != "1d":
                 # newest first: a capped catch-up window may miss its oldest articles. Say so.
                 ctx.warn(f"GDELT, ricerca «{q.label}»: raggiunto il limite di {MAX_RECORDS} articoli sulla "
                          f"finestra di {timespan}; gli articoli più vecchi del periodo potrebbero mancare")
-            save_state(ctx.session, state)
             self._store(ctx, items)
+            # the window moves forward only once the articles are committed
+            qstate["last_ok"] = asked_at.isoformat(timespec="seconds")
+            qstate["last_error"] = None
+            save_state(ctx.session, state)
+            ctx.checkpoint()
 
         if refusals:
             if ok:
@@ -368,13 +404,14 @@ class GdeltNewsCollector(Collector):
             state["cooldown_until"] = None
 
         if deferred and ok == 0 and answered == 0:
-            self._finish_refused(ctx, state, now, deferred, f"GDELT ha rifiutato le richieste ({last_refusal})")
+            self._finish_refused(ctx, state, now, deferred,
+                                 f"GDELT ha rifiutato le richieste («{short_reason(last_refusal)}»)")
             return
         save_state(ctx.session, state)
         ctx.checkpoint()
         if deferred:
-            ctx.warn(f"GDELT ha chiesto di rallentare ({last_refusal[:120]}): "
-                     f"{len(deferred)} ricerche rinviate alla prossima esecuzione ({', '.join(deferred)})"[:500])
+            ctx.warn(f"GDELT ha chiesto di rallentare («{short_reason(last_refusal)}»): {len(deferred)} "
+                     f"ricerche rinviate alla prossima esecuzione ({', '.join(deferred)})"[:500])
         if ok == 0 and not deferred:
             raise CollectorError("GDELT: nessuna ricerca è andata a buon fine (vedi avvisi)")
 
@@ -396,6 +433,7 @@ class GdeltNewsCollector(Collector):
         ok -> items; refused / unreachable / server_error -> message (retry later);
         rejected / unreadable -> message (GDELT answered: this query is done for this run)."""
         global _last_answer_end
+        ctx.checkpoint()     # nothing uncommitted while waiting: other writers are never locked out
         self._wait_turn(state)
         try:
             doc = ctx.fetch(url, store=False, accept_status=(200, 429, 500, 502, 503, 504), retries=0)

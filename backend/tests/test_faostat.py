@@ -186,7 +186,7 @@ def test_area_resolution_china_and_aggregates():
     assert fs.resolve_area("231", None, "United States of America").iso3 == "USA"   # API rows: FAO code
     smn = fs.resolve_area("186", "'891", "Serbia and Montenegro")            # predecessor, per research
     assert (smn.iso3, smn.canonical) == ("SRB", False)
-    assert fs.resolve_area("251", "'894", "Zambia").outcome == "unmapped"
+    assert fs.resolve_area("178", "'232", "Eritrea").outcome == "unmapped"
     assert fs.resolve_area("106", "'032", "Italy").outcome == "conflict"      # M49 and FAO code disagree
     assert fs.resolve_area("", None, "Viet Nam").iso3 == "VNM"
 
@@ -300,7 +300,7 @@ def test_bulk_end_to_end(run_with_routes, session_factory, sent):
     res = run_with_routes("faostat", bulk_routes())
     assert res["status"] == "partial", res                     # data stored, with warnings below
     warnings = " | ".join(res["warnings"])
-    assert "Zambia (251)" in warnings and "not in Paladex's country table" in warnings
+    assert "Eritrea (178)" in warnings and "not in Paladex's country table" in warnings
     assert "unknown flag 'Z'" in warnings
     assert "'1000 EUR'" in warnings
     assert "n.a." in warnings and "non-positive price" in warnings
@@ -437,7 +437,7 @@ def test_whole_catalogue_drift_fails(run_with_routes):
 
 def test_token_api_path(with_account, run_with_routes, session_factory, sent):
     res = run_with_routes("faostat", api_routes())
-    assert res["status"] == "partial", res               # Zambia (TM partner) is outside the country table
+    assert res["status"] == "partial", res               # Eritrea (TM partner) is outside the country table
     assert not any("zip" in str(r.url).lower() for r in sent)           # no bulk ZIP with an account
     logins = [r for r in sent if r.url.path.endswith("/auth/login")]
     assert len(logins) == 1                                              # token cached for the run
@@ -466,7 +466,7 @@ def test_token_api_path(with_account, run_with_routes, session_factory, sent):
         assert "page_number" not in tcl[("ITA", "import")].source_url
         tm = {t.partner_iso3: t for t in s.scalars(select(TradeFlowObservation).where(
             TradeFlowObservation.series_key.like("faostat|TM|%")))}
-        assert set(tm) == {"ARG", "UKR", "CHN"}                           # no 351 aggregate, no Zambia
+        assert set(tm) == {"ARG", "UKR", "CHN"}                           # no 351 aggregate, no Eritrea
         assert (tm["ARG"].reporter_iso3, tm["ARG"].flow) == ("ITA", "import")
         assert (tm["ARG"].net_weight_kg, tm["ARG"].value) == (4_200_000, 12_600_000)
         assert tm["UKR"].data_status == "estimate" and tm["CHN"].extra["fao_partner_code"] == "41"

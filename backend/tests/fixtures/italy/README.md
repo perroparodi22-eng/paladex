@@ -20,10 +20,12 @@ never edits what is left:
 
 | File | Real URL | Trimming | Real values asserted |
 |---|---|---|---|
+| `real_cuneo_index_alimentari.html` | https://www.cuneoprezzi.it/ingrosso/alimentari/ | HTML + list cut (6 + 2 entries) | the ALIMENTARI index shows the "Cereali" chapter: none of its lists is a honey list (the first live run looked here); its chapter menu links "Miele" = `?category=11` |
 | `real_cuneo_category_miele.html` | https://www.cuneoprezzi.it/ingrosso/alimentari/?category=11 | HTML + list cut | chapter "Miele"; newest list `listCategory=20353` "rilevazione mensile del 30 settembre 2026" |
 | `real_cuneo_list_20353.html` | https://www.cuneoprezzi.it/dataentry/site/ingrosso/lists/download/html?listCategory=20353 | none | 30 Sept 2026: Acacia (fusto da 3 q.li) 7,00–8,00, Millefiori 4,50–5,50, Castagno 4,50–5,50, Tarassaco/Tiglio/Alta Montagna/Rododendro (secchio da 25 kg), €/kg, IVA 10 %, "IVA compresa"; Melata di Bosco, Ciliegio, Melata d'abete "n.q."; Polline (not honey) 22,00–25,00 |
 | `real_cuneo_list_20353.csv` | https://www.cuneoprezzi.it/dataentry/site/ingrosso/lists/download/csv?category=20353 | none | same list, `;`-separated |
 | `real_cuneo_list_18861.html` | https://www.cuneoprezzi.it/dataentry/site/ingrosso/lists/download/html?listCategory=18861 | none | 30 Sept 2025: "Acacia (quantitativi >10 q.li)" 7,50–8,50 |
+| `real_cuneo_list_18386.html` | https://www.cuneoprezzi.it/dataentry/site/ingrosso/lists/download/html?listCategory=18386 | none | 30 May 2025: Acacia 8,00–8,50, Millefiori 6,00–7,00; Tiglio, Alta Montagna, Rododendro "n.q." although the 2025 averages PDF prints May values for them (a real disagreement between the two publications) |
 | `real_cuneo_medie_2025.pdf` | https://www.cuneoprezzi.it/dataentry/site/ingrosso/medie/download/pdf?category=11&mYear=2025 | font programs dropped only | "Miele - medie 2025": Acacia Magg.–Dic. 8,25/8,00, Anno 8,09; Millefiori Dic. 5,55, Anno 5,83 |
 | `real_cuneo_medie_2025_rewritten_norules.pdf` | same document | **derived**: the same page re-written by `pypdf` (images and fonts dropped, content streams recompressed); pdfplumber no longer finds its ruled table, so it exercises the word-position fallback on the real layout | same values as above |
 | `real_ismea_11024_settimanali_varieta.html` | https://www.ismeamercati.it/flex/cm/pages/ServeBLOB.php/L/IT/IDPagina/11024 | HTML, chrome removed | week 2026-6-4: Acacia 8,00, Agrumi 5,70, Castagno 4,90, Eucalipto 5,25, Millefiori 4,20, Sulla 4,50, Tiglio 4,90 €/Kg; no VAT statement |

@@ -23,7 +23,11 @@ Source research: docs/research/comtrade.json. How this collector works:
 * **Stored**:
   - one ``TradeFlowObservation`` per reporter x partner x flow x period. The World total is
     stored as partner ``"WLD"``. Partner groups such as the EU are skipped so nothing is counted
-    twice;
+    twice. Residual and special areas ("Other Europe, nes", "Areas, nes", "Bunkers", "Free
+    Zones"...: ``RESIDUAL_PARTNER_AREAS``) are part of the reporter's trade: they are stored as
+    partner ``"M<code>"`` with ``extra.partner_residual_area``, logged at INFO (an expected
+    condition, not a warning) and never ranked as countries; a partner code that is neither a
+    country nor such an area is still a warning;
   - a derived customs **unit value** (``PriceType.IMPORT_UNIT_VALUE`` /
     ``EXPORT_UNIT_VALUE``, USD/kg) per country pair. It is a customs value divided by a weight,
     never a market quotation, so it is never stored as ``WHOLESALE_BULK``.
@@ -131,6 +135,23 @@ MIN_UNIT_VALUE_KG = 1_000.0
 # Partner 0 (World) is a group too, but it is kept and stored as "WLD". More groups are detected
 # through `isGroup` in the partner reference file when it is available.
 AGGREGATE_PARTNER_CODES = frozenset({97})   # 97 = European Union
+
+# Residual and special partner areas: not countries, not groups of countries. Their rows are part
+# of the reporter's trade (they make the partners add up to the World total), so they are stored
+# under partner "M{code}"; they are expected, so they are logged at INFO and never make a run
+# "partial". Any partner code outside the country table stays out of country rankings (api.trade
+# `is_country`). Codes and descriptions as in Comtrade's partnerAreas.json, read on 2026-11-04.
+# Checked before any ISO lookup: the reference file gives 492 "Europe EU, nes" the ISO3 of Monaco.
+# 490 "Other Asia, nes" is NOT here: Comtrade uses it for Taiwan (see resolve_partner).
+RESIDUAL_PARTNER_AREAS: dict[int, str] = {
+    129: "Caribbean, nes", 221: "Eastern Europe, nes", 290: "Northern Africa, nes", 471: "CACM, nes",
+    472: "Africa CAMEU region, nes", 473: "LAIA, nes", 492: "Europe EU, nes", 527: "Oceania, nes",
+    536: "Neutral Zone", 568: "Other Europe, nes", 577: "Other Africa, nes", 636: "Rest of America, nes",
+    637: "North America and Central America, nes", 697: "Europe EFTA, nes", 837: "Bunkers", 838: "Free Zones",
+    839: "Special Categories", 879: "Western Asia, nes", 899: "Areas, nes",
+}
+# The same kinds of area recognised by description, for a code not listed above.
+_RESIDUAL_DESC_RE = re.compile(r"\bnes\b|\bbunkers?\b|\bfree zones?\b|\bspecial categor", re.IGNORECASE)
 
 FLOW_BY_CODE: dict[str, str] = {"M": TradeFlow.IMPORT.value, "X": TradeFlow.EXPORT.value}
 # Three-letter codes that look like ISO3 but are not countries.
@@ -419,17 +440,26 @@ def resolve_partner(code: int, iso_raw: Any, ref: dict[int, PartnerInfo] | None)
     * a group of countries (EU, ...) -> (None, True): the caller skips the row
     * otherwise: partnerISO from the row, then our own code table (which knows the Comtrade
       quirks 842, 251, 699, 757, 579 and 490 'Other Asia, nes' = Taiwan), then the reference file
-    * still unknown -> (f"M{code}", False)
+    * a residual area ("Other Europe, nes", "Bunkers", ...: RESIDUAL_PARTNER_AREAS) or a code still
+      unknown -> (f"M{code}", False); `is_residual_partner` tells the two apart
     """
     if code == 0:
         return "WLD", True
     info = (ref or {}).get(code)
     if code in AGGREGATE_PARTNER_CODES or (info is not None and info.is_group):
         return None, True
+    if code in RESIDUAL_PARTNER_AREAS:
+        return f"M{code}", False
     iso = _clean_iso3(iso_raw) or _lookup_country(code) or (info.iso3 if info else None)
     if iso:
         return iso, True
     return f"M{code}", False
+
+
+def is_residual_partner(code: int, desc: Any) -> bool:
+    """True for a residual or special area (not a country): a listed code, or a description such as
+    "Other Africa, nes", "Bunkers", "Free Zones", "Special Categories"."""
+    return code in RESIDUAL_PARTNER_AREAS or (isinstance(desc, str) and bool(_RESIDUAL_DESC_RE.search(desc)))
 
 
 @dataclass
@@ -468,6 +498,7 @@ class ParseResult:
     reported_count: int | None = None
     malformed: list[str] = field(default_factory=list)
     unknown_partners: dict[int, str | None] = field(default_factory=dict)
+    residual_partners: dict[int, str | None] = field(default_factory=dict)   # "nes" areas, bunkers...
     skipped_aggregates: int = 0
     skipped_breakdown: int = 0       # partner2 / customs procedure / transport sub-totals
     skipped_other: int = 0           # other flows (re-imports...) or other commodities
@@ -543,7 +574,11 @@ def _row_to_record(row: Any, ref: dict[int, PartnerInfo] | None, res: ParseResul
         return None
     ref_info = (ref or {}).get(partner_code)
     partner_desc = _first(ci, "partnerdesc") or (ref_info.desc if ref_info else None)
-    if not known:
+    residual = not known and is_residual_partner(partner_code, partner_desc)
+    if residual:
+        partner_desc = partner_desc or RESIDUAL_PARTNER_AREAS.get(partner_code)
+        res.residual_partners.setdefault(partner_code, partner_desc)
+    elif not known:
         res.unknown_partners.setdefault(partner_code, partner_desc)
 
     try:
@@ -583,6 +618,7 @@ def _row_to_record(row: Any, ref: dict[int, PartnerInfo] | None, res: ParseResul
         "is_aggregate": _flag(ci.get("isaggregate")),
         "legacy_estimation_flag": _first(ci, "legacyestimationflag"),
         "partner_unmapped": None if known else True,
+        "partner_residual_area": True if residual else None,     # not a country: never ranked as one
     }
     released = next((d for d in (_parse_dt(ci.get(f)) for f in _RELEASE_FIELDS) if d is not None), None)
     return TradeRecord(
@@ -978,6 +1014,11 @@ class _ComtradeRun:
             ctx.warn(f"UN Comtrade {label}: {len(result.malformed) - 10} more malformed rows skipped")
         if result.envelope_error:
             ctx.warn(f"UN Comtrade {label}: API message alongside data: {result.envelope_error}")
+        for code, desc in sorted(result.residual_partners.items()):
+            if code not in self.warned_partners:
+                self.warned_partners.add(code)
+                log.info("[%s] UN Comtrade partner %s (%s) is a residual area, not a country; stored as partner "
+                         "'M%s' (kept out of country rankings)", ctx.source.key, code, desc or "no description", code)
         for code, desc in sorted(result.unknown_partners.items()):
             if code not in self.warned_partners:
                 self.warned_partners.add(code)

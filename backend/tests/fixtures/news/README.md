@@ -12,8 +12,8 @@ files small: every kept item, and the channel header, is byte-for-byte as served
 | `real_beeculture.xml` | https://beeculture.com/feed/ (`www.` redirects here) | 3 of 10 items (two carry the audio "Click Here if you listened ... Read along below!" prompt) |
 | `real_apimondia.xml` | https://apimondia.org/feed/ (`www.` redirects here) | 3 of 10 items (the Brazil "beehives" item, the Dubai congress item, the Romania/Moldova visit) |
 | `real_american_bee_journal.xml` | https://americanbeejournal.com/feed/ | 2 of 10 items (Sioux Honey plant; "garbage containers" column) |
-| `real_gdelt_*.json` | https://api.gdeltproject.org/api/v2/doc/doc?... (query in the table of `test_news_gdelt.py`) | `articles` list cut to a few entries; otherwise as served |
-| `real_gdelt_throttle.txt` | GDELT DOC API answer when requests come too fast (HTTP 429, plain text) | as served |
+| `real_gdelt_honey_italian.json` | https://api.gdeltproject.org/api/v2/doc/doc?query=honey%20sourcelang%3Aitalian&mode=ArtList&format=json&maxrecords=75&sort=DateDesc&timespan=7d (18:52 UTC) | complete (2 articles; `miele sourcelang:italian` returned `{}` 10 minutes earlier) |
+| `real_gdelt_throttle.txt` | GDELT DOC API, HTTP 429 answer to a request sent 120 s after the previous answer (18:54 UTC; `server: GDELT Server`, no Retry-After) | complete |
 
 ## Reconstructed fixtures (NOT captured from live sources)
 

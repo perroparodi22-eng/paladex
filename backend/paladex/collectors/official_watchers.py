@@ -30,7 +30,10 @@ so every run is idempotent.
     notification PDF is read for three values: the minimum export price
     (``extra["mep_usd_per_t"]``), the end of its validity (``extra["valid_until"]``) and the
     ``effective_date``. Each is stored only when the official text states it unambiguously. The
-    MEP expiry date is what matters to a buyer: it is the bottom of Indian FOB offers.
+    MEP expiry date is what matters to a buyer: it is the bottom of Indian FOB offers. The real
+    MEP notifications (checked Nov 2026) are scanned pages with no text layer: they are read by
+    OCR (``services.ocr``, Tesseract, optional) at 300 and 400 dpi, and a value is stored only
+    when both readings agree (``merge_ocr_terms``); OCR text never becomes ``summary_en``.
 
 Field conventions
 -----------------
@@ -54,8 +57,15 @@ Field conventions
 
 Verification status (read this before changing anything)
 --------------------------------------------------------
-The development sandbox could reach none of these hosts (egress blocked). URLs and page layouts
-come from ``docs/research/official_south_america.json`` and ``official_asia_turkey.json`` (both
+Live check, 4 November 2026 (real captures in ``tests/fixtures/official_watchers/real/``): the
+DGFT list URL and table ("Sl.No., Number, Year, Description, Date, CRT DT, Attachment"; bare
+numbers such as "36" take the Year column), the DGFT notification PDFs (scans), the SENASA news
+listing and Plan CREHA page, and the Lista EAR PDFs (list date printed in the page header) were
+confirmed. ``www.boletinoficial.gob.ar`` reset every connection from the test network; an
+unreachable feed is a warning (a "partial" run) as long as another feed of the collector worked.
+
+When this module was first written, the sandbox could reach none of these hosts. URLs and layouts
+came from ``docs/research/official_south_america.json`` and ``official_asia_turkey.json`` (both
 "from_search_snippets") and from the public scrapers of these sites. **Unverified:**
 
 * the SENASA news listing URL ``/senasa/noticias``, the Boletín Oficial dated section URL
@@ -1880,10 +1890,12 @@ class InDgftHoneyCollector(Collector):
     expected_max_age_days = 300
     terms_note = (
         "Government of India content (DGFT notifications, Gazette of India): public information. PAGE WATCHER: it "
-        "reads the DGFT notifications list as HTML (URL and table layout unverified, reconstructed without live "
-        "access) and the notification PDFs; it may need adjustment, and a run fails with a clear message when the "
-        "table is not found. The minimum export price and its validity are read from the official PDF text and "
-        "left empty when the text is ambiguous or unreadable. The official notification is authoritative."
+        "reads the DGFT notifications list as HTML (table layout checked live in Nov 2026) and the notification "
+        "PDFs; it may need adjustment, and a run fails with a clear message when the table is not found. The MEP "
+        "notifications are scanned pages without a text layer: their minimum export price, validity and effective "
+        "date are read by OCR (Tesseract, optional) at two resolutions and stored only when both readings agree "
+        "(extra.terms_text_source = 'ocr'); without Tesseract they are left empty. Values are left empty when the "
+        "text is ambiguous or unreadable. The official notification is authoritative."
     )
     schedule = {"trigger": "cron", "hour": 7, "minute": 5}
 

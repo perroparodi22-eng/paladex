@@ -629,6 +629,28 @@ TAXUD_SECTOR = "Honey"
 TAXUD_REQUIRED_FIELDS = ("marketingYear", "week", "memberStateCode", "partnerCode", "cn8ProductCode", "kg", "euroValue")
 TAXUD_NOTE = ("Sorveglianza doganale TAXUD (dati settimanali provvisori, soggetti a revisione; "
               "solo importazioni extra-UE). Fonte: Commissione europea, Agri-food Data Portal.")
+TAXUD_WEEK_RULE = ("TAXUD week: Monday to Sunday inside the calendar year; week 1 is the week of 1 January and "
+                   "the last week (53, or 54) ends on 31 December, so both may be shorter than 7 days. Not an ISO week.")
+
+
+def taxud_week_bounds(year: int, week: int) -> tuple[date, date] | None:
+    """First and last day of TAXUD week `week` of calendar year `year`, or None if it does not exist.
+
+    The API documents "The first week of January is number 1" and numbers Monday-to-Sunday weeks
+    within the calendar year: week 1 runs from 1 January to the first Sunday and the last week
+    (53, or 54 in a leap year starting on a Sunday) from the last Monday to 31 December. Checked
+    against the live API on 2026-11-04 with its `months` filter: in 2025 week 40 holds September
+    and October rows (29 Sep - 5 Oct), week 36 only September (1-7 Sep), week 35 only August,
+    week 1 no December rows and week 53 December rows (29-31 Dec); 2024 and 2025 both publish a
+    week 53, which ISO weeks do not have. For 2024-2026, weeks 2-52 coincide with ISO weeks; week 1
+    and week 53 do not, and in years starting on a Friday to Sunday every week differs by one.
+    """
+    if week < 1:
+        return None
+    jan1 = date(year, 1, 1)
+    monday = jan1 - timedelta(days=jan1.weekday()) + timedelta(weeks=week - 1)
+    start, end = max(jan1, monday), min(date(year, 12, 31), monday + timedelta(days=6))
+    return (start, end) if start <= end else None
 
 
 @dataclass
@@ -654,7 +676,9 @@ class TaxudRecord:
 
     @property
     def period(self) -> tuple[date, date]:
-        return date.fromisocalendar(self.year, self.week, 1), date.fromisocalendar(self.year, self.week, 7)
+        bounds = taxud_week_bounds(self.year, self.week)
+        assert bounds is not None, (self.year, self.week)        # validated by parse_taxud_weekly
+        return bounds
 
 
 @dataclass
@@ -702,7 +726,8 @@ def _taxud_category(row: dict) -> str:
 
 
 def parse_taxud_weekly(content: bytes, sector: str = TAXUD_SECTOR) -> TaxudParse:
-    """Parse a weeklyData/import response and aggregate it per member state x origin x ISO week.
+    """Parse a weeklyData/import response and aggregate it per member state x origin x TAXUD week
+    (see ``taxud_week_bounds``: calendar-year Monday weeks, not ISO weeks).
 
     Rows that differ only by import category (preferential / MFN), TARIC code, procedure or
     preference are summed; the split by import category is kept. Exact duplicate rows are
@@ -750,10 +775,8 @@ def parse_taxud_weekly(content: bytes, sector: str = TAXUD_SECTOR) -> TaxudParse
         if not re.fullmatch(r"\d{4}", my):
             out.problems.append(f"TAXUD row {i}: marketing year {my!r} is not a calendar year; week cannot be dated; skipped")
             continue
-        try:
-            date.fromisocalendar(int(my), week or 0, 1)
-        except ValueError:
-            out.problems.append(f"TAXUD row {i}: week {r['week']!r} is not a valid ISO week of {my}; skipped")
+        if week is None or taxud_week_bounds(int(my), week) is None:
+            out.problems.append(f"TAXUD row {i}: week {r['week']!r} does not exist in {my}; skipped")
             continue
         kg, eur = _num(r["kg"]), _num(r["euroValue"])
         if kg is None or eur is None or kg < 0 or eur < 0:
@@ -888,6 +911,7 @@ class TaxudWeeklyCollector(Collector):
         p_start, p_end = rec.period
         extra = {
             "sector": sector, "marketing_year": rec.marketing_year, "week": rec.week,
+            "week_days": (p_end - p_start).days + 1, "week_rule": TAXUD_WEEK_RULE,
             "member_state_code": rec.member_state, "partner_code": rec.partner,
             "import_categories": {k: {"kg": round(v["kg"], 3), "eur": round(v["eur"], 2)} for k, v in sorted(rec.categories.items())},
             "cn8": rec.cn8, "taric10": rec.taric10, "source_rows": rec.rows,
@@ -898,7 +922,8 @@ class TaxudWeeklyCollector(Collector):
         ctx.add_trade(
             series_key=f"taxud|{rec.reporter_iso3}|{rec.partner_iso3}|import|{rec.period_label}", hs_code="0409",
             reporter_iso3=rec.reporter_iso3, partner_iso3=rec.partner_iso3, flow=TradeFlow.IMPORT.value,
-            currency="EUR", value=rec.eur, net_weight_kg=rec.kg, value_basis="CIF", notes=TAXUD_NOTE, **common,
+            currency="EUR", value=round(rec.eur, 2), net_weight_kg=round(rec.kg, 3), value_basis="CIF", notes=TAXUD_NOTE,
+            **common,
         )
         if rec.kg < MIN_UNIT_VALUE_WEIGHT_KG or rec.eur <= 0:
             return
@@ -906,7 +931,7 @@ class TaxudWeeklyCollector(Collector):
             series_key=f"taxud|{rec.reporter_iso3}|{rec.partner_iso3}|{rec.period_label}",
             price_type=PriceType.IMPORT_UNIT_VALUE, variety=Variety.UNSPECIFIED.value,
             price_value=round(rec.eur / rec.kg, 4), currency="EUR", unit="kg", origin_iso3=rec.partner_iso3,
-            origin_label=rec.partner_label, market_iso3=rec.reporter_iso3, terms="CIF", volume_kg=rec.kg,
+            origin_label=rec.partner_label, market_iso3=rec.reporter_iso3, terms="CIF", volume_kg=round(rec.kg, 3),
             notes="Valore unitario settimanale = valore / peso netto. " + TAXUD_NOTE, **common,
         )
 

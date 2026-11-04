@@ -142,7 +142,7 @@ def test_registered_with_optional_key():
     (579, None, ("NOR", True)),       # Norway 579, not 578
     (490, "S19", ("TWN", True)),      # 'Other Asia, nes' = Taiwan
     (32, "ARG", ("ARG", True)),
-    (894, "ZMB", ("ZMB", True)),      # row ISO wins even outside our country table
+    (238, "FLK", ("FLK", True)),      # row ISO wins even outside our country table
     (97, "EUR", (None, True)),        # EU aggregate -> skip
     (899, "_X ", ("M899", False)),    # unknown residual area
 ])
@@ -150,13 +150,52 @@ def test_resolve_partner_quirks(code, iso_raw, expected):
     assert ct.resolve_partner(code, iso_raw, None) == expected
 
 
+@pytest.mark.parametrize("code, iso_raw, desc, expected, residual", [
+    (568, "E19", "Other Europe, nes", ("M568", False), True),
+    (899, "_X ", "Areas, nes", ("M899", False), True),
+    (577, "F19", "Other Africa, nes", ("M577", False), True),
+    (837, "X1 ", "Bunkers", ("M837", False), True),
+    (838, "X2 ", "Free Zones", ("M838", False), True),
+    (839, "XX ", "Special Categories", ("M839", False), True),
+    (492, "MCO", "Europe EU, nes", ("M492", False), True),     # the reference gives it Monaco's ISO3: not Monaco
+    (490, "S19", "Other Asia, nes", ("TWN", True), False),     # Comtrade's code for Taiwan, not a residual area
+    (998, None, "Some Region, nes", ("M998", False), True),    # unlisted code: recognised by its description
+    (996, None, None, ("M996", False), False),                 # truly unknown: still a warning
+])
+def test_residual_partner_areas(code, iso_raw, desc, expected, residual):
+    got = ct.resolve_partner(code, iso_raw, None)
+    assert got == expected
+    assert (not got[1] and ct.is_residual_partner(code, desc)) is residual
+
+
+def test_real_previews_residual_areas_are_not_warnings():
+    """Real keyless previews (2026-11-04): France's 2021 imports and Brazil's 2018 exports carry
+    'nes' areas and Bunkers. They are stored as M-codes, never reported as unknown countries."""
+    ref = ct.parse_partner_reference(F("real_partner_areas_trimmed.json"))
+    assert ref[899].desc == "Areas, nes" and ref[899].iso3 is None and ref[0].is_group
+    fra = ct.parse_records(F("real_preview_A_M_251_2021.json"), ref)
+    assert fra.unknown_partners == {} and not fra.malformed
+    assert fra.residual_partners == {577: "Other Africa, nes", 899: "Areas, nes"}
+    by = {r.partner_iso3: r for r in fra.records}
+    assert by["TWN"].partner_code == 490 and by["TWN"].partner_known
+    assert by["M899"].extra["partner_residual_area"] is True and ct.unit_value(by["M899"]) is None
+    assert {r.reporter_iso3 for r in fra.records} == {"FRA"} and {r.period.code for r in fra.records} == {"2021"}
+    assert (by["WLD"].value, by["WLD"].net_weight_kg) == (121_065_198.028, 29_349_888.842)
+    assert (by["M899"].value, by["M899"].net_weight_kg) == (22_340.222, 1_703.086)
+    bra = ct.parse_records(F("real_preview_A_X_76_2018.json"), ref)
+    assert bra.unknown_partners == {} and bra.residual_partners == {837: "Bunkers", 899: "Areas, nes"}
+    assert {r.flow for r in bra.records} == {"export"}
+    bunkers = next(r for r in bra.records if r.partner_code == 837)
+    assert (bunkers.partner_iso3, bunkers.value, bunkers.net_weight_kg) == ("M837", 23.0, 3.0)
+
+
 def test_partner_reference_enriches_mapping():
     ref = ct.parse_partner_reference(F("partner_areas.json"))   # file starts with a UTF-8 BOM
-    assert ref[894].iso3 == "ZMB" and ref[97].is_group and ref[472].is_group
+    assert ref[238].iso3 == "FLK" and ref[97].is_group and ref[472].is_group
     assert ref[899].iso3 is None and ref[899].desc == "Areas, nes"
-    assert ct.resolve_partner(894, None, ref) == ("ZMB", True)     # ISO from the reference file
+    assert ct.resolve_partner(238, None, ref) == ("FLK", True)     # ISO from the reference file
     assert ct.resolve_partner(472, None, ref) == (None, True)      # isGroup -> skipped
-    assert ct.resolve_partner(894, None, None) == ("M894", False)  # without the reference: unknown
+    assert ct.resolve_partner(238, None, None) == ("M238", False)  # without the reference: unknown
     with pytest.raises(CollectorError):
         ct.parse_partner_reference(b"<html>nope</html>")
 
@@ -189,11 +228,11 @@ def test_parse_records_rows():
     ref = ct.parse_partner_reference(F("partner_areas.json"))
     res = ct.parse_records(F("preview_A_M_380_2025.json"), ref)
     by_partner = {r.partner_iso3: r for r in res.records}
-    assert set(by_partner) == {"WLD", "HUN", "UKR", "ARG", "FRA", "CHN", "TWN", "NZL", "ZMB", "M899", "SRB", "ESP",
+    assert set(by_partner) == {"WLD", "HUN", "UKR", "ARG", "FRA", "CHN", "TWN", "NZL", "FLK", "M899", "SRB", "ESP",
                                "DEU"}
     assert res.skipped_aggregates == 1 and res.skipped_breakdown == 1
     assert len(res.malformed) == 1 and "non-numeric" in res.malformed[0]
-    assert res.unknown_partners == {899: "Areas, nes"}
+    assert res.unknown_partners == {} and res.residual_partners == {899: "Areas, nes"}   # a "nes" area, expected
     assert by_partner["SRB"].weight_estimated and by_partner["SRB"].data_status == "estimate"  # 'isnetWgtEstimated'
     assert by_partner["DEU"].value_basis == "CIF"                                              # 'CIFValue'
     assert by_partner["ESP"].net_weight_kg is None
@@ -222,9 +261,9 @@ def test_plan_batches_groups_and_chunks():
 
 def test_keyless_end_to_end(run_with_routes, session_factory, small_panel, sent):
     res = run_with_routes("un_comtrade", keyless_routes())
-    assert res["status"] == "partial", res          # partial = warnings (unknown partner, bad row, sub-total)
-    assert len(res["warnings"]) == 3, res["warnings"]
-    assert any("M899" in w for w in res["warnings"])
+    assert res["status"] == "partial", res          # partial = warnings (bad row, sub-total)
+    assert len(res["warnings"]) == 2, res["warnings"]
+    assert not any("M899" in w for w in res["warnings"])   # "Areas, nes" is stored and logged at INFO only
     assert res["new"] == 25 + 18                     # 25 trade rows + 18 unit values
 
     calls = data_calls(sent)
@@ -244,14 +283,15 @@ def test_keyless_end_to_end(run_with_routes, session_factory, small_panel, sent)
         assert w.source_url.startswith("https://comtradeapi.un.org/public/v1/preview/C/A/HS?reporterCode=380&period=2025")
         assert w.reliability == "official" and w.raw_document_id
         assert ita["FRA"].extra["partner_code"] == 251 and ita["TWN"].extra["partner_code"] == 490
-        assert ita["ZMB"].value == 15000.0
-        assert ita["M899"].extra["partner_unmapped"] is True
+        assert ita["FLK"].value == 15000.0
+        assert ita["M899"].extra["partner_unmapped"] is True and ita["M899"].extra["partner_residual_area"] is True
+        assert ita["M899"].extra["partner_desc"] == "Areas, nes"
         assert ita["SRB"].data_status == "estimate" and ita["SRB"].extra["is_net_wgt_estimated"] is True
         assert ita["ESP"].net_weight_kg is None and ita["ESP"].unit_value_per_kg is None
 
         # unit values: import -> market = reporter, origin = partner; never wholesale
         uv = {p.origin_iso3: p for p in prices(s, price_type=PriceType.IMPORT_UNIT_VALUE.value, frequency="A")}
-        assert set(uv) == {"HUN", "UKR", "ARG", "FRA", "CHN", "TWN", "ZMB", "SRB", "DEU"}
+        assert set(uv) == {"HUN", "UKR", "ARG", "FRA", "CHN", "TWN", "FLK", "SRB", "DEU"}
         arg = uv["ARG"]
         assert (arg.market_iso3, arg.price_value, arg.currency, arg.unit) == ("ITA", 3.1, "USD", "kg")
         assert arg.variety == "unspecified" and arg.volume_kg == 2_400_000.0 and arg.terms.startswith("CIF")
@@ -399,35 +439,35 @@ def test_partner_missing_from_rerelease_is_withdrawn(run_with_routes, session_fa
 
 
 def test_partner_remap_supersedes_old_series(run_with_routes, session_factory, small_panel):
-    """Without partnerAreas.json, Zambia (894, partnerISO null in preview rows) is stored as 'M894'.
-    When a later run maps it to ZMB, the M894 series must not stay current next to it, or Zambia's
+    """Without partnerAreas.json, the Falkland Islands (238, partnerISO null in preview rows) is stored as 'M238'.
+    When a later run maps it to FLK, the M238 series must not stay current next to it, or the Falklands'
     trade is counted twice."""
     res1 = run_with_routes("un_comtrade", keyless_routes(**{REF: (500, b"Internal Server Error")}))
     assert any("partner reference" in w and "never archived" in w for w in res1["warnings"]), res1["warnings"]
     with session_factory() as s:
         assert [t.partner_iso3 for t in trade(s, reporter_iso3="ITA", frequency="A")
-                if t.extra["partner_code"] == 894] == ["M894"]
+                if t.extra["partner_code"] == 238] == ["M238"]
 
     res2 = run_with_routes("un_comtrade", keyless_routes(), force=True)
-    assert any("partner 894 2025: M894 -> ZMB" in w for w in res2["warnings"]), res2["warnings"]
+    assert any("partner 238 2025: M238 -> FLK" in w for w in res2["warnings"]), res2["warnings"]
     with session_factory() as s:
         ita = trade(s, reporter_iso3="ITA", frequency="A", period_label="2025")
-        assert [t.partner_iso3 for t in ita if t.extra["partner_code"] == 894] == ["ZMB"]
+        assert [t.partner_iso3 for t in ita if t.extra["partner_code"] == 238] == ["FLK"]
         world = next(t.value for t in ita if t.partner_iso3 == "WLD")
         assert sum(t.value or 0 for t in ita if t.partner_iso3 != "WLD") <= world
         old = s.scalars(select(TradeFlowObservation).where(
-            TradeFlowObservation.series_key == "0409|A|import|ITA|M894|2025")).all()
+            TradeFlowObservation.series_key == "0409|A|import|ITA|M238|2025")).all()
         assert [(o.is_current, o.value) for o in old] == [(False, 15_000.0)]      # history kept
 
 
 def test_partner_reference_falls_back_to_archived_copy(run_with_routes, session_factory, small_panel):
-    """A failed partnerAreas.json download must not flip the mapping (ZMB -> M894) between runs."""
+    """A failed partnerAreas.json download must not flip the mapping (FLK -> M238) between runs."""
     run_with_routes("un_comtrade", keyless_routes())
     res = run_with_routes("un_comtrade", keyless_routes(**{REF: (500, b"Internal Server Error")}), force=True)
     assert res["new"] == 0 and res["revised"] == 0, res
-    assert not any("partner reference" in w or "M894" in w for w in res["warnings"]), res["warnings"]
+    assert not any("partner reference" in w or "M238" in w for w in res["warnings"]), res["warnings"]
     with session_factory() as s:
-        assert trade(s, partner_iso3="M894") == [] and len(trade(s, partner_iso3="ZMB")) == 1
+        assert trade(s, partner_iso3="M238") == [] and len(trade(s, partner_iso3="FLK")) == 1
 
 
 def test_rows_rejected_by_a_format_change_are_reported(run_with_routes, session_factory, small_panel):

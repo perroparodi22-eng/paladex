@@ -90,13 +90,13 @@
    "isGroup": false
   },
   {
-   "id": 894,
-   "text": "Zambia",
-   "PartnerCode": 894,
-   "PartnerDesc": "Zambia",
-   "partnerNote": "Zambia",
-   "PartnerCodeIsoAlpha2": "ZM",
-   "PartnerCodeIsoAlpha3": "ZMB",
+   "id": 238,
+   "text": "Falkland Isds (Malvinas)",
+   "PartnerCode": 238,
+   "PartnerDesc": "Falkland Isds (Malvinas)",
+   "partnerNote": "Falkland Isds (Malvinas)",
+   "PartnerCodeIsoAlpha2": "FK",
+   "PartnerCodeIsoAlpha3": "FLK",
    "entryEffectiveDate": "1900-01-01T00:00:00",
    "isGroup": false
   },

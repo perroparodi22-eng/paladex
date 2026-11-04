@@ -1,7 +1,8 @@
 """API tests for /api/regulations (official documents) and /api/regulations/duties (tariff layer).
 
-Tariff rows come from running the collectors on the RECONSTRUCTED fixtures in
-tests/fixtures/tariffs/ (illustrative values, see the README there). Regulation documents are
+Tariff rows come from running the collectors on the fixtures in tests/fixtures/tariffs/: mostly the
+RECONSTRUCTED ones (illustrative values, see the README there), and the real XI captures of
+2026-11-04 (real_*) in test_duties_real_xi_capture. Regulation documents are
 inserted directly; their titles imitate the Federal Register / EUR-Lex / RASFF patterns.
 """
 from __future__ import annotations
@@ -27,9 +28,16 @@ def fx(name: str) -> bytes:
     return (FIX / name).read_bytes()
 
 
+XI_HEADING = XI + r"/headings/0409$"
+EMPTY_QUOTA_LISTING = b'{"data": [], "meta": {"pagination": {"page": 1, "per_page": 5, "total_count": 0}}}'
+
+
 def xi_routes(**override) -> dict:
+    """Reconstructed fixture: a declarable 0409000000 served at the heading URL, no quota listed
+    by goods code (its quotas are found by order number)."""
     routes = {
-        XI + r"/commodities/0409000000": fx("xi_commodity_0409000000.json"),
+        XI_HEADING: fx("xi_commodity_0409000000.json"),
+        XI + r"/quotas/search\?goods_nomenclature_item_id=": EMPTY_QUOTA_LISTING,
         XI + r"/quotas/search\?order_number=099990": fx("xi_quota_099990.json"),
         XI + r"/quotas/search\?order_number=099991": fx("xi_quota_099991.json"),
         XI + r"/quotas/search\?order_number=099992": fx("xi_quota_099992.json"),
@@ -236,7 +244,7 @@ def _commodity_with_safeguard() -> bytes:
 def test_duties_general_eu_layer_other_than_mfn_is_returned_for_every_origin(api, run_with_routes, pin_today):
     """An erga-omnes safeguard/additional duty is a general layer the matrix must render next to
     the MFN (EuCell shows every applicable general row not needing review)."""
-    run_with_routes("eu_tariff_xi", xi_routes(**{XI + r"/commodities/0409000000": _commodity_with_safeguard()}))
+    run_with_routes("eu_tariff_xi", xi_routes(**{XI_HEADING: _commodity_with_safeguard()}))
     d = api.get("/api/regulations/duties").json()
     general = {g["measure_code"]: g for g in d["jurisdictions"]["EU"]["general"]}
     sg = general["696"]
@@ -307,6 +315,42 @@ def test_duty_history_shows_every_revision(api, db, run_with_routes, pin_today):
     assert "Area=UA" in h["links"]["taric"] and h["ad_case"] is None
     assert api.get("/api/regulations/duties/ERGA_OMNES").json()["series"]
     assert api.get("/api/regulations/duties/XYZ").status_code == 404
+
+
+def real_xi_routes() -> dict:
+    return {
+        XI_HEADING: fx("real_xi_heading_0409.json"),
+        XI + r"/commodities/0409000090$": fx("real_xi_commodity_0409000090.json"),
+        XI + r"/commodities/0409000010$": fx("real_xi_commodity_0409000010.json"),
+        XI + r"/quotas/search\?goods_nomenclature_item_id=0409000000": fx("real_xi_quota_search_0409000000.json"),
+        **{XI + f"/measures/{sid}$": fx(f"real_xi_measure_{sid}.json") for sid in ("4244733", "4254929", "4209614")},
+    }
+
+
+def test_duties_real_xi_capture(api, run_with_routes, pin_today):
+    """The real XI tariff of 2026-11-04 through the duties API."""
+    res = run_with_routes("eu_tariff_xi", real_xi_routes())
+    assert res["status"] == "success", res
+    d = api.get("/api/regulations/duties").json()
+    eu = d["jurisdictions"]["EU"]
+    general = {g["measure_code"]: g for g in eu["general"]}
+    assert (general["103"]["duty_text"], general["103"]["ad_valorem_pct"]) == ("17.30 %", 17.3)
+    assert general["107"]["needs_review"] and general["695"]["needs_review"] and eu["review_count"] == 2
+    by = {o["iso3"]: o for o in d["origins"]}
+    ukr = by["UKR"]["eu"]["rows"]
+    assert [(r["measure_type"], r["duty_text"]) for r in ukr] == [("trq_in", "0.00 %")]
+    q = ukr[0]["quota"]
+    assert (q["order_number"], q["volume_kg"], q["balance_kg"], q["status"], q["fill_pct"]) == \
+        ("096701", 35_000_000.0, 0.0, "exhausted", 100.0)
+    mex = by["MEX"]["eu"]["rows"][0]
+    assert (mex["ad_valorem_pct"], mex["quota"]["order_number"], mex["quota"]["balance_kg"]) == (8.6, "091833", 25_179_990.0)
+    for iso3 in ("ARG", "BRA", "URY"):
+        q = by[iso3]["eu"]["rows"][0]["quota"]
+        assert (q["order_number"], q["shared_by_group"], q["period_end"]) == ("090881", True, "2026-12-31")
+    nzl = sorted((r["hs_code"], r["ad_valorem_pct"]) for r in by["NZL"]["eu"]["rows"])
+    assert nzl == [("0409000010", 0.0), ("0409000090", 4.3)]
+    assert by["CHN"]["eu"]["rows"] == [] and general["103"]["id"] in by["CHN"]["eu"]["general_ids"]
+    assert by["SRB"]["eu"]["rows"][0]["extra"]["geo_area"]["id"] == "XS"
 
 
 def test_duties_demo_isolation(api, db):

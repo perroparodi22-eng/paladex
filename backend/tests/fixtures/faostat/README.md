@@ -30,7 +30,7 @@ use them as real statistics. Research notes: `docs/research/fao.json`.
 Rows included on purpose: a year before 1991 (dropped), other items (wheat, beeswax, the TCL
 "Sugar and Honey" total), the aggregates 351 "China", 265 "China (excluding intra-trade)", 5000
 "World", 5707 and 57070 (EU), 41 "China, mainland" (kept as China), 186 "Serbia and Montenegro"
-(Serbia before 2006), Zambia (outside Paladex's country table), a missing value flagged `M`, an
+(Serbia before 2006), Eritrea (outside Paladex's country table; Zambia was used until it joined the table in Nov 2026), a missing value flagged `M`, an
 unreadable value (`n.a.`), an unknown flag `Z`, a PP monthly row, PP SLC and index elements, a zero
 price, an LCU-only price (Ukraine), an LCU price before the current currency (Ukraine 1995) and an
 unexpected unit (`1000 EUR`).

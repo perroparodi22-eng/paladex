@@ -628,7 +628,8 @@ def parse_xi_nomenclature(content: bytes, item_id: str = XI_COMMODITY) -> XiNome
     if not leaves:
         raise SchemaDrift(f"XI heading 0409: no import_measures and no declarable commodity under it "
                           f"(relationships: {sorted((data.get('relationships') or {}))[:12]})")
-    return XiNomenclature(item_id=got, description=description, declarable=False, leaves=sorted(leaves, key=lambda x: x.code))
+    return XiNomenclature(item_id=got, description=description, declarable=False,
+                          leaves=sorted(leaves, key=lambda x: x.code))
 
 
 def parse_xi_commodity(content: bytes, item_id: str = XI_COMMODITY) -> XiCommodity:

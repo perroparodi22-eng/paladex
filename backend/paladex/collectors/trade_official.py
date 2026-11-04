@@ -23,17 +23,20 @@ combines price or trade series across sources must keep only one of the two for 
 Census API adds what GATS lacks: every origin, the world total, general imports, the duty actually
 assessed and no mandatory key.
 
-Verification status. Neither host could be reached from the development sandbox. Formats follow
-``docs/research/official_south_america.json`` (Comex Stat) and
-``docs/research/official_north_america_oceania.json`` / ``official_tariffs_trade_policy.json``
-(Census). The fixtures in ``tests/fixtures/trade_official/`` are reconstructions (see the README
-there). That is why both collectors check the live API before they trust it:
+Verification status. Comex Stat was checked against the live API on 2026-11-04 (real captures in
+``tests/fixtures/trade_official/real_comex_*``); Census was written from
+``docs/research/official_north_america_oceania.json`` / ``official_tariffs_trade_policy.json`` and
+its fixtures are reconstructions (see the README there). Both collectors check the live API before
+they trust it:
 
 * Comex Stat: every run that pulls data first reads ``/general/filters``, ``/general/details``
   and ``/general/metrics``. If the honey query (filter ``ncm``, detail ``country``, metrics FOB
   and KG) can no longer be expressed, the run fails (``CollectorError``) and stores nothing.
   Response columns are mapped dynamically (code/name pairs, numbers as strings). A response that
-  ignored the NCM filter is rejected.
+  ignored the NCM filter is rejected. What the live API taught us: ``period`` is a year range plus
+  a month range applied to every year (``comex_query_period``; a 2025-10..2026-09 query is empty,
+  which is what the first live run met), errors come as ``{"error": {"code", "message"}}``, and
+  ``POST /general`` is rate-limited for minutes at a time (one query per run, patient backoff).
 * Census: every run reads ``variables.json``. A missing required variable fails the run. A
   missing optional one (CIF, duty, description) is dropped from the request, with a warning the
   first time. A response without a required column, or one that ignored the commodity filter, is
@@ -41,7 +44,7 @@ there). That is why both collectors check the live API before they trust it:
 
 Freshness and revisions. Comex Stat is checked with one cheap ``GET /general/dates/updated``
 (state stored in ``app_settings['collector_state:br_comexstat']``). Only a new release triggers a
-re-pull of the trailing 3 months (36 months on the first run, in queries of at most 12 months).
+re-pull of the trailing 3 months (36 months on the first run), always in ONE query.
 Census is re-queried for the trailing 3 months (one small request after the ``variables.json``
 probe). When the answer is byte-for-byte the same as before, nothing else is done. The full 36-month window is pulled again once a year after
 the June annual revision. Every changed number is stored as a new revision (``services.ingest``),
@@ -294,6 +297,25 @@ _EXTRA_NAMES_RAW: dict[str, str] = {
     "Gibraltar": "GIB", "Papua New Guinea": "PNG", "Fiji": "FJI", "New Caledonia": "NCL",
     "French Polynesia": "PYF", "Samoa": "WSM", "Tonga": "TON", "Greenland": "GRL", "Bermuda": "BMU",
     "Cayman Islands": "CYM", "Aruba": "ABW", "Curacao": "CUW", "Curaçao": "CUW",
+    # English names exactly as Comex Stat publishes them (GET /general/filters/country?language=en,
+    # 2026-11-04) that the forms above do not resolve. Isle of Man, Marshall Islands and England
+    # were checked against the ISO alpha-3 Comex Stat gives itself (/tables/countries/{id}).
+    "Isle of Man": "IMN", "Marshall Islands": "MHL", "England": "GBR", "Liberia": "LBR", "Benin": "BEN",
+    "Bhutan": "BTN", "Burundi": "BDI", "Chad": "TCD", "Comoros": "COM", "Congo": "COG", "Cote D'Ivore": "CIV",
+    "Djibouti": "DJI", "Dominica Island": "DMA", "East Timor": "TLS", "Equatorial Guinea": "GNQ",
+    "Eritrea": "ERI", "Falkland Islands (Malvinas)": "FLK", "Faroe Islands": "FRO", "French Guyana": "GUF",
+    "Gabon": "GAB", "Gambia": "GMB", "Grenada": "GRD", "Guadeloupe": "GLP", "Guam": "GUM", "Guernsey": "GGY",
+    "Guinea": "GIN", "Guinea-Bissau": "GNB", "Jersey": "JEY", "Kiribati": "KIR", "Lesotho": "LSO",
+    "Maldives": "MDV", "Mali": "MLI", "Martinique": "MTQ", "Mauritania": "MRT", "Mayotte": "MYT",
+    "Micronesia": "FSM", "Montserrat": "MSR", "Nauru": "NRU", "Niger": "NER", "North Korea": "PRK",
+    "Northern Marianas": "MNP", "Palau": "PLW", "Palestine": "PSE", "Puerto Rico": "PRI", "Reunion": "REU",
+    "Saint Lucia": "LCA", "Saint Christopher and Nevis": "KNA", "St. Kitts and Nevis": "KNA",
+    "Saint Vicent and the Granadines": "VCT", "San Marino": "SMR", "Seychelles": "SYC", "Sierra Leone": "SLE",
+    "Solomon Islands": "SLB", "Somalia": "SOM", "South Sudan": "SSD", "Swaziland": "SWZ", "Togo": "TGO",
+    "Tuvalu": "TUV", "Vanuatu": "VUT", "Vatican City": "VAT", "Virgin Islands (UK)": "VGB", "Anguilla": "AIA",
+    "Antigua and Barbuda": "ATG", "Americana Samoa": "ASM", "Cook Islands": "COK", "Saint Helena": "SHN",
+    "Saint Pierre and Miquelon": "SPM", "Sint Maarten": "SXM", "Turks and Caicos, Islands": "TCA",
+    "Wallis and Futuna": "WLF", "São Tome and Principe": "STP",
 }
 _EXTRA_NAMES: dict[str, str] = {_norm_name(k): v for k, v in _EXTRA_NAMES_RAW.items()}
 
@@ -340,9 +362,13 @@ COMEX_WEB_UI = "https://comexstat.mdic.gov.br/en/geral"
 HONEY_NCM = "04090000"
 COMEX_BACKFILL_MONTHS = 36
 COMEX_REPULL_MONTHS = 3                    # recent months are revised: re-pulled at every release
-COMEX_MAX_MONTHS_PER_QUERY = 12            # responses are capped (~150k rows): keep queries narrow
-COMEX_RATE_LIMIT_RETRIES = 3
-COMEX_RATE_LIMIT_DELAY_S = 10.0            # third-party clients report "retry after ~10 s"
+# The API answers HTTP 429 {"error": {"code": 429, "message": "... tente novamente em 10 segundos."}}
+# but, seen live on 2026-11-04, keeps refusing POST /general for several minutes (the limit is
+# shared by every client behind an address). One query per run, and a patient backoff:
+# 15, 30, 60, then 120 s, about 12 minutes in all, before giving up until the next run.
+COMEX_RATE_LIMIT_RETRIES = 8
+COMEX_RATE_LIMIT_DELAY_S = 15.0
+COMEX_RATE_LIMIT_MAX_DELAY_S = 120.0
 
 # Candidate names (the server's own spelling, discovered at startup, wins).
 _COMEX_NCM_FILTER = ("ncm",)
@@ -419,11 +445,24 @@ class ComexParse:
     bad_months: set[str] = field(default_factory=set)
 
 
+def _comex_error(doc: Any) -> str | None:
+    """The error message of an answer: {"success": false, "message": ...} or {"error": {"code",
+    "message"}} (the shape the live API uses for 400/429/500), else None."""
+    if not isinstance(doc, dict):
+        return None
+    err = doc.get("error")
+    if isinstance(err, dict):
+        return str(err.get("message") or err.get("code") or err)
+    if doc.get("success") is False:
+        return str(doc.get("message") or err or "no message")
+    return None
+
+
 def _comex_payload(content: bytes, what: str) -> Any:
     doc = _load_json(content, f"Comex Stat {what}")
-    if isinstance(doc, dict) and doc.get("success") is False:
-        msg = doc.get("message") or doc.get("error") or "no message"
-        raise CollectorError(f"Comex Stat {what}: the API answered success=false ({str(msg)[:200]})")
+    msg = _comex_error(doc)
+    if msg is not None:
+        raise CollectorError(f"Comex Stat {what}: the API answered with an error ({msg[:200]})")
     return doc
 
 
@@ -572,16 +611,20 @@ def is_comex_rate_limited(status: int, content: bytes) -> bool:
         doc = json.loads(content.decode("utf-8-sig"))
     except (UnicodeDecodeError, ValueError):
         return False
-    if isinstance(doc, dict) and doc.get("success") is False:
-        return bool(_RATE_LIMIT_RE.search(str(doc.get("message") or doc.get("error") or "")))
-    return False
+    if isinstance(doc, dict) and isinstance(doc.get("error"), dict) and str(doc["error"].get("code")) == "429":
+        return True
+    msg = _comex_error(doc)
+    return bool(msg and _RATE_LIMIT_RE.search(msg))
 
 
 def _comex_error_text(content: bytes) -> str:
     try:
         doc = json.loads(content.decode("utf-8-sig"))
+        msg = _comex_error(doc)
+        if msg is not None:
+            return msg[:200]
         if isinstance(doc, dict):
-            return str(doc.get("message") or doc.get("error") or doc)[:200]
+            return str(doc.get("message") or doc)[:200]
     except (UnicodeDecodeError, ValueError):
         pass
     return content[:200].decode("utf-8", errors="replace").strip()
@@ -603,14 +646,29 @@ def _key_in(keys: set[str], candidates: Iterable[str]) -> str | None:
     return None
 
 
-def parse_comex_general(content: bytes, spec: ComexSpec, start: Month, end: Month) -> ComexParse:
+def comex_query_period(start: Month, end: Month) -> tuple[Month, Month]:
+    """The `period` to send for the months start..end (inclusive).
+
+    Comex Stat reads `period` as a year range AND a month range applied to every year (like its web
+    form): {"from": "2025-10", "to": "2026-09"} means months 10..9 of 2025-2026, which is empty, and
+    {"from": "2024-02", "to": "2025-03"} means February-March of 2024 and of 2025 (checked live on
+    2026-11-04). Months of one year are asked as they are; a span over several years asks for whole
+    years (January to December), and the rows outside start..end are dropped by the parser."""
+    if start[0] == end[0]:
+        return start, end
+    return (start[0], 1), (end[0], 12)
+
+
+def parse_comex_general(content: bytes, spec: ComexSpec, start: Month, end: Month,
+                        query: tuple[Month, Month] | None = None) -> ComexParse:
     """Parse a `POST /general` answer into one row per month x country (x state).
 
     Fails loudly (CollectorError) on schema drift: no year/month/country/FOB/KG column, or rows of
     another product (the NCM filter was ignored). A row with unusable numbers is reported in
     `bad_rows` (its destination-month is then not stored, so a partial sum of states is never
     presented as the total); one without a destination marks its whole month bad. Rows outside
-    the requested months are dropped.
+    start..end are dropped: silently when the `query` period asked for them (whole years, see
+    `comex_query_period`), with a problem otherwise.
     """
     doc = _comex_payload(content, "general")
     items = _comex_list(doc, "general")
@@ -641,7 +699,9 @@ def parse_comex_general(content: bytes, spec: ComexSpec, start: Month, end: Mont
                             "country totals stored without the state split")
 
     lo, hi = _midx(start), _midx(end)
+    q_years = (query[0][0], query[1][0]) if query else (start[0], end[0])
     outside: set[str] = set()
+    asked_for = 0                                    # rows of the query period outside start..end
     for i, r in enumerate(rows):
         # Product guard: every row must be NCM 04090000 when the product is echoed back.
         for k in (k_ncode, k_nname):
@@ -657,7 +717,10 @@ def parse_comex_general(content: bytes, spec: ComexSpec, start: Month, end: Mont
             continue
         label = f"{year:04d}-{month:02d}"
         if not lo <= _midx((year, month)) <= hi:
-            outside.add(label)
+            if query and q_years[0] <= year <= q_years[1]:
+                asked_for += 1
+            else:
+                outside.add(label)
             continue
         cname = str(r[k_cname]).strip() if k_cname and r.get(k_cname) not in (None, "") else None
         ccode = str(r[k_ccode]).strip() if k_ccode and r.get(k_ccode) not in (None, "") else None
@@ -683,7 +746,7 @@ def parse_comex_general(content: bytes, spec: ComexSpec, start: Month, end: Mont
     if outside:
         out.problems.append(f"Comex Stat returned months outside the requested {month_label(start)}..{month_label(end)} "
                             f"({', '.join(sorted(outside))}); ignored")
-    if rows and not out.rows and not out.bad_rows and not out.bad_months:
+    if rows and not out.rows and not out.bad_rows and not out.bad_months and not asked_for:
         raise CollectorError("Comex Stat: no row of the answer could be read (format changed?); nothing stored")
     return out
 
@@ -750,10 +813,10 @@ class BrComexStatCollector(Collector):
             prev = parse_month_label(state.get("latest_month")) or latest
             start = min(shift_month(latest, -(COMEX_REPULL_MONTHS - 1)), shift_month(prev, 1), key=_midx)
             start = max(start, shift_month(latest, -(COMEX_BACKFILL_MONTHS - 1)), key=_midx)
-        for ws, we in month_windows(start, latest, COMEX_MAX_MONTHS_PER_QUERY):
-            self._pull_window(ctx, state, spec, release, ws, we)
-            _save_state(ctx, state)              # warn-once tokens and unknown partners
-            ctx.checkpoint()
+        # One query (see comex_query_period): fewer requests against a strict rate limit.
+        self._pull_window(ctx, state, spec, release, start, latest)
+        _save_state(ctx, state)                  # warn-once tokens and unknown partners
+        ctx.checkpoint()
         state.update({
             "release": release.signature, "latest_month": month_label(latest),
             "release_date": release.released.isoformat() if release.released else None,
@@ -783,8 +846,11 @@ class BrComexStatCollector(Collector):
         Only a usable answer is archived."""
         delay = COMEX_RATE_LIMIT_DELAY_S
         for attempt in range(COMEX_RATE_LIMIT_RETRIES + 1):
+            # retries=0: the backoff below is the only one (the generic quick retries of ctx.fetch
+            # would only add requests inside the window the API is refusing).
             doc = ctx.fetch(COMEX_GENERAL_URL, params={"language": COMEX_QUERY_LANGUAGE}, method="POST",
-                            json_body=body, headers=JSON_HEADERS, accept_status=(200, 400, 429), store=False)
+                            json_body=body, headers=JSON_HEADERS, accept_status=(200, 400, 429, 500), store=False,
+                            retries=0)
             if not is_comex_rate_limited(doc.status_code, doc.content):
                 if doc.status_code != 200:
                     raise CollectorError(f"Comex Stat rejected the honey query (HTTP {doc.status_code}: "
@@ -795,19 +861,20 @@ class BrComexStatCollector(Collector):
                 break
             log.info("[%s] Comex Stat rate limit; waiting %.0f s before retrying", self.key, delay)
             time.sleep(delay)
-            delay = min(delay * 2, 120.0)
+            delay = min(delay * 2, COMEX_RATE_LIMIT_MAX_DELAY_S)
         raise CollectorError(f"Comex Stat kept answering 'too many requests' after {COMEX_RATE_LIMIT_RETRIES} "
                              f"retries ({title}); the data will be pulled on the next run")
 
     def _pull_window(self, ctx: CollectContext, state: dict, spec: ComexSpec, release: ComexRelease,
                      ws: Month, we: Month) -> None:
-        body = comex_query_body(spec, ws, we)
+        qs, qe = comex_query_period(ws, we)
+        body = comex_query_body(spec, qs, qe)
         title = f"Comex Stat honey exports {month_label(ws)}..{month_label(we)} {json.dumps(body, separators=(',', ':'))}"
         content, raw_id, unchanged = self._post_general(ctx, body, title)
         if unchanged and not ctx.force:
             log.info("[%s] %s..%s: same answer as already stored", self.key, month_label(ws), month_label(we))
             return
-        parsed = parse_comex_general(content, spec, ws, we)
+        parsed = parse_comex_general(content, spec, ws, we, query=(qs, qe))
         for p in parsed.problems:
             ctx.warn(p)
         if not parsed.rows and not parsed.bad_rows and not parsed.bad_months:

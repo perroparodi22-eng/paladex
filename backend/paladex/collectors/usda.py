@@ -5,15 +5,24 @@ Endpoints, field names and the confidence of every detail are documented in
 ``docs/research/usda.json``. Parsers are pure functions so tests can call them directly.
 
 ``usda_honey_report``: AMS Market News *National Honey Report* (FVMHONEY, monthly PDF)
-    * The keyless ESMIS API (USDA National Agricultural Library) lists releases. Each one
-      becomes a `Report`, and the newest ``HONEY_BACKFILL_RELEASES`` PDFs are downloaded
-      once and parsed.
+    * The keyless ESMIS API (USDA National Agricultural Library) lists releases (each one twice,
+      under 'AMS' and 'AMS-SC'; deduplicated). The newest ``HONEY_BACKFILL_RELEASES`` PDFs are
+      downloaded once and parsed, oldest first, so a corrected copy supersedes the original.
+      ESMIS also files other AMS reports under FVMHONEY (a tomato and a watermelon report in
+      2025): they are recognised from their title, remembered and ignored. ESMIS stopped at the
+      Sept 30, 2025 issue (checked Nov 2026); later issues come only from the AMS URL.
     * The AMS "latest issue" URL is fetched on every run, because ESMIS may lag. Its file is
       overwritten each month, so every download is archived by hash. If ESMIS is down, this
       is the fallback.
-    * The parser is versioned (``PARSER_VERSION``) and works on text lines, not on fixed
-      column positions, so it survives the Jan-2025 layout change. That change dropped the
-      narratives and switched prices from cents to dollars. Price types are kept apart:
+    * Real issues (2023-2026, checked against the PDFs) print the price tables with horizontally
+      compressed fonts, sometimes as two independent columns side by side (US beekeepers on the
+      left, Canadian beekeepers + importers on the right), as pivot tables whose floral-source cell
+      is left blank under the row it repeats, and in some months as pasted images. The PDF reader
+      therefore rebuilds words from glyph positions, splits two-column page regions at their
+      gutter, and the parser reads labels and floral sources from their column positions. Tables
+      printed as images are reported, never guessed. The prices refer to the market month printed
+      on page 1 ("HONEY MARKET FOR THE MONTH OF AUGUST 2025"), one month before the issue date.
+    * The parser is versioned (``PARSER_VERSION``). Price types are kept apart:
         - prices paid to US beekeepers           -> PriceType.PRODUCER (market USA, by state)
         - prices paid to Canadian beekeepers     -> PriceType.PRODUCER (market CAN)
         - prices paid to importers, by origin    -> PriceType.WHOLESALE_BULK (market USA)
@@ -277,7 +286,7 @@ CA_PROVINCES = {
 # label as printed is kept in `extra["label_as_printed"]`. Only exact, unambiguous slips are listed.
 _LABEL_TYPOS = {
     "orgeon": "OREGON", "louisana": "LOUISIANA", "flordia": "FLORIDA", "georiga": "GEORGIA",
-    "uruguary": "URUGUAY",
+    "uruguary": "URUGUAY", "wisconson": "WISCONSIN",
 }
 # Country names as CBP/AMS print them that the generic country vocabulary does not resolve.
 _ORIGIN_ALIASES = {
@@ -539,8 +548,9 @@ def find_gutter(rows: list[list[dict]], width: float, gap: float) -> tuple[float
             i = j
     if not found:
         return None
-    (a, b), hits = max(found.items(), key=lambda kv: (kv[1][0][1], kv[0][1] - kv[0][0]))
-    xs = sorted(x for x, _ in hits)
+    (a, b), hits = max(found.items(), key=lambda kv: (max(s for _, s in kv[1]), kv[0][1] - kv[0][0]))
+    best = max(s for _, s in hits)
+    xs = sorted(x for x, s in hits if s == best)
     groups: list[list[int]] = [[xs[0]]]
     for x in xs[1:]:
         if x == groups[-1][-1] + 1:
@@ -744,9 +754,11 @@ def ace_origin(label: str) -> tuple[str | None, str | None]:
     t = _collapse(label)
     if re.fullmatch(r"(?i)(grand\s+)?total(\s+all\s+countries)?|world", t):
         return "WLD", None
-    m = re.fullmatch(r"(?i)(.+?),\s*canada", t)
-    if m and m.group(1).strip().lower() in CA_PROVINCES:
+    m = re.fullmatch(r"(?i)(.+?),\s*canada", t)      # "BRITISH COLUMBIA (INTERIOR), CANADA"
+    if m and re.sub(r"\s*\(.*?\)", "", m.group(1)).strip().lower() in CA_PROVINCES:
         return "CAN", m.group(1).strip().upper()
+    if t.lower() in CA_PROVINCES:                    # a province printed without ", CANADA"
+        return "CAN", t.upper()
     return _geo(t, ACE_IMPORTS), None
 
 
@@ -802,9 +814,9 @@ def split_color(tokens: list[str]) -> tuple[list[str], str | None, int, str | No
     problem = None
     if grade is not None and (_COLORISH.search(" ".join(rest)) or
                               any(t.strip(".,;:()") in _COLOR_ABBR for t in rest)):
-        problem = f"more than one colour grade or a colour range in '{_collapse(' '.join(tokens))}'"
+        problem = "more than one colour grade or a colour range"
     elif grade is None and _COLORISH.search(" ".join(rest)):
-        problem = f"colour grade not readable in '{_collapse(' '.join(tokens))}'"
+        problem = "colour grade not readable"
     return rest, grade, start, problem
 
 
@@ -950,6 +962,7 @@ class _PrevRow:
     organic: bool
     has_floral_cell: bool
     color_x: float | None
+    readable: bool = True       # False: the row was skipped, its floral source is not known
 
 
 class _HoneyReportParser:
@@ -1184,8 +1197,35 @@ class _HoneyReportParser:
             self.warn(line, f"unknown origin '{label}' - row skipped")
             return
         if any(_PRICE_TOKEN.match(t) for t in desc_tokens):
+            self.prev = _PrevRow(None, False, True, None, readable=False)
             self.warn(line, "row holds more than one price (two tables side by side?) - skipped")
             return
+        # Floral source and colour first: a row skipped for its price still names the floral source
+        # that the colour-only rows below it continue.
+        rest, color, cstart, problem = split_color(desc_tokens)
+        color_x = desc_xs[cstart] if len(desc_xs) == len(desc_tokens) and cstart < len(desc_xs) else None
+        if problem or color is None:
+            self.prev = _PrevRow(None, False, True, color_x, readable=False)
+            self.warn(line, f"{problem or 'colour grade not recognised'} - row skipped")
+            return
+        inherited = False
+        continues = (not label_row and not rest and self.prev is not None and self.prev.has_floral_cell
+                     and color_x is not None and self.prev.color_x is not None
+                     and color_x >= self.prev.color_x - LABEL_COLUMN_TOLERANCE * line.char_w)
+        if rest:
+            floral, organic, variety = _floral(" ".join(rest))
+        elif not label_row and self.prev is not None and not self.prev.readable:
+            # a colour-only row under a row that was skipped: its floral source is not known
+            self.warn(line, "floral source of the row above not readable - row skipped")
+            return
+        elif continues:
+            # Pivot-table layout: a row starting in the colour column belongs to the floral source above.
+            floral, organic = self.prev.floral, self.prev.organic
+            _, _, variety = _floral(" ".join(filter(None, [floral, "organic" if organic else ""])))
+            inherited = True
+        else:
+            floral, organic, variety = None, False, Variety.UNSPECIFIED.value
+        self.prev = _PrevRow(floral, organic, bool(rest) or inherited, color_x)
         low, high, cents = price
         if high is not None and high < low:
             self.warn(line, "price range with low > high - skipped")
@@ -1194,27 +1234,6 @@ class _HoneyReportParser:
         if not (PRICE_MIN_USD_LB <= low <= PRICE_MAX_USD_LB) or (high is not None and high > PRICE_MAX_USD_LB):
             self.warn(line, f"implausible price {low}{'-' + str(high) if high else ''} per lb - skipped")
             return
-        rest, color, cstart, problem = split_color(desc_tokens)
-        if problem:
-            self.warn(line, f"{problem} - row skipped")
-            return
-        if color is None:
-            self.warn(line, "colour grade not recognised - row skipped")
-            return
-        color_x = desc_xs[cstart] if len(desc_xs) == len(desc_tokens) and cstart < len(desc_xs) else None
-        inherited = False
-        if rest:
-            floral, organic, variety = _floral(" ".join(rest))
-        elif (not label_row and self.prev is not None and self.prev.has_floral_cell
-              and color_x is not None and self.prev.color_x is not None
-              and color_x >= self.prev.color_x - LABEL_COLUMN_TOLERANCE * line.char_w):
-            # Pivot-table layout: a row starting in the colour column belongs to the floral source above.
-            floral, organic = self.prev.floral, self.prev.organic
-            _, _, variety = _floral(" ".join(filter(None, [floral, "organic" if organic else ""])))
-            inherited = True
-        else:
-            floral, organic, variety = None, False, Variety.UNSPECIFIED.value
-        self.prev = _PrevRow(floral, organic, bool(rest) or inherited, color_x)
         heading = " ".join(self.heading_lines)
         currency = "USD"
         if self.section == CANADA:
@@ -1365,6 +1384,27 @@ def _date_from_match(m: re.Match) -> date | None:
         return None
 
 
+def group_warnings(warnings: list[str]) -> list[str]:
+    """Merge parser warnings that differ only by page and row ('p.1: colour grade not readable - row
+    skipped [Valley Extra Light / Light $2.80]') into one line per message with a few examples, so
+    one issue cannot fill the run's warning list."""
+    groups: dict[str, list[tuple[str, str | None]]] = {}
+    for w in warnings:
+        m = re.fullmatch(r"(?:p\.(\d+): )?(.*?)(?: \[(.*)\])?", w, re.S)
+        page, msg, snippet = m.groups() if m else (None, w, None)
+        example = (f"p.{page} [{snippet}]" if page else f"[{snippet}]") if snippet else None
+        groups.setdefault(msg, []).append((w, example))
+    out: list[str] = []
+    for msg, items in groups.items():
+        if len(items) == 1:
+            out.append(items[0][0])
+            continue
+        examples = [e for _, e in items if e]
+        more = f", e.g. {'; '.join(examples[:3])}" if examples else ""
+        out.append(f"{msg} ({len(items)}x{more})")
+    return out
+
+
 def parse_honey_report_lines(lines: list[ReportLine]) -> HoneyReportParse:
     """Parse the National Honey Report from text lines (pure; no I/O).
 
@@ -1457,6 +1497,10 @@ HONEY_BACKFILL_RELEASES = 24        # newest ESMIS issues downloaded and parsed
 ESMIS_MAX_PAGES = 2                 # ESMIS pages read for the first backfill (25 rows per page)
 ESMIS_EMPTY_RETRIES = 3             # ESMIS sometimes answers with an empty list; retry, 5 s apart
 REPORT_DATE_MATCH_DAYS = 4          # an AMS issue within this many days of an ESMIS release = same issue
+# A customs unit value says nothing about the bulk market on tiny consignments (samples, a few jars:
+# the Sep 2026 ACE table prints 61 kg from Ontario for $69,649), so a unit value is derived only from
+# at least this much. Same threshold as Comtrade, Eurostat and the official trade collectors.
+ACE_MIN_UNIT_VALUE_KG = 1_000.0
 
 
 class UsdaHoneyReportCollector(Collector):
@@ -1490,8 +1534,9 @@ class UsdaHoneyReportCollector(Collector):
         # 1) ESMIS archive: download the newest releases not yet parsed (oldest first, so a corrected
         #    copy supersedes the original), then register every listed release.
         releases: list[EsmisRelease] = []
+        listing_complete = False
         try:
-            releases = self._esmis_releases(ctx, state)
+            releases, listing_complete = self._esmis_releases(ctx, state)
             successes += 1
         except CollectorError as exc:
             errors.append(exc)
@@ -1519,8 +1564,8 @@ class UsdaHoneyReportCollector(Collector):
                 pending += 1
                 errors.append(exc)
                 ctx.warn(f"Issue of {key} ({rel.pdf_url}) not processed: {exc}")
-        if releases and not pending and not state.get("esmis_backfill_done"):
-            state["esmis_backfill_done"] = True
+        if releases and listing_complete and not pending and not state.get("esmis_backfill_done"):
+            state["esmis_backfill_done"] = True         # later runs read only the first ESMIS page
             _save_state(ctx, state)
 
         for rel in releases:
@@ -1562,7 +1607,8 @@ class UsdaHoneyReportCollector(Collector):
         total = int(pager.get("total_pages") or 1) if isinstance(pager, dict) else 1
         return releases, total
 
-    def _esmis_releases(self, ctx: CollectContext, state: dict) -> list[EsmisRelease]:
+    def _esmis_releases(self, ctx: CollectContext, state: dict) -> tuple[list[EsmisRelease], bool]:
+        """(releases newest first, True when every page the backfill needs was read)."""
         releases: list[EsmisRelease] = []
         total_pages = 1
         for attempt in range(ESMIS_EMPTY_RETRIES + 1):
@@ -1574,22 +1620,22 @@ class UsdaHoneyReportCollector(Collector):
                 time.sleep(5)
         if not releases:
             ctx.warn("ESMIS returned an empty National Honey Report release list (transient?)")
-            return []
+            return [], False
         # First backfill (or a forced run): read further pages until the backfill window is covered.
-        page = 1
+        page, complete = 1, True
         while (len(releases) < HONEY_BACKFILL_RELEASES and page < min(total_pages, ESMIS_MAX_PAGES)
                and (ctx.force or not state.get("esmis_backfill_done"))):
             try:
                 more, _ = self._esmis_page(ctx, page)
             except CollectorError as exc:
                 ctx.warn(f"ESMIS page {page} unavailable ({exc}); older issues follow on a later run")
-                state["esmis_backfill_done"] = False
+                complete = False
                 break
             known = {r.release_id or r.pdf_url for r in releases}
             releases += [r for r in more if (r.release_id or r.pdf_url) not in known]
             page += 1
         releases.sort(key=lambda r: r.release_date, reverse=True)
-        return releases
+        return releases, complete
 
     def _report(self, ctx: CollectContext, report_key: str) -> Report | None:
         return ctx.session.scalars(
@@ -1686,7 +1732,7 @@ class UsdaHoneyReportCollector(Collector):
     def _store(self, ctx: CollectContext, parsed: HoneyReportParse, issue: date, *, title: str,
                source_url: str, raw_document_id: int, fetched_from: str | None = None) -> None:
         provenance = {"fetched_from": fetched_from} if fetched_from else {}
-        for w in parsed.warnings:
+        for w in group_warnings(parsed.warnings):
             ctx.warn(f"{title}: {w}")
         stored: set[str] = set()
         prices = parsed.prices
@@ -1731,7 +1777,7 @@ class UsdaHoneyReportCollector(Collector):
             if (r.year, r.month) > (issue.year, issue.month):
                 ctx.warn(f"{title}: import table month {r.year}-{r.month:02d} is after the issue date - skipped")
                 continue
-            if not r.kilograms or not r.value or r.kilograms <= 0 or r.value <= 0:
+            if not r.kilograms or not r.value or r.kilograms < ACE_MIN_UNIT_VALUE_KG or r.value <= 0:
                 continue
             ps_i, pe_i = month_bounds(r.year, r.month)
             m_label = _period_label(r.year, r.month)
@@ -2391,9 +2437,11 @@ class UsdaNassHoneyCollector(Collector):
 
 
 __all__ = [
-    "PARSER_VERSION", "ReportLine", "HoneyPrice", "HoneyImportRow", "HoneyReportParse", "words_to_lines",
+    "PARSER_VERSION", "ReportLine", "HoneyPrice", "HoneyImportRow", "HoneyReportParse", "NotAHoneyReport",
+    "words_to_lines", "chars_to_words", "dedupe_glyphs", "find_gutter", "column_blocks", "pdf_layout",
     "pdf_to_lines", "lines_from_text", "parse_honey_report_lines", "parse_honey_report_pdf", "parse_price_token",
-    "split_price_tail", "extract_color", "describe", "parse_esmis_releases", "parse_gats_release_dates",
+    "split_price_tail", "split_color", "market_month", "ace_origin", "group_warnings", "extract_color", "describe",
+    "parse_esmis_releases", "parse_gats_release_dates",
     "select_gats_months", "parse_gats_imports", "parse_gats_commodities", "hs10_attributes", "parse_nass_rows",
     "UsdaHoneyReportCollector", "UsdaFasGatsCollector", "UsdaNassHoneyCollector",
 ]

@@ -358,6 +358,8 @@ def test_cuneo_end_to_end_real_and_idempotent(run_with_routes, session_factory, 
         assert acacia_y.price_value == 8.09 and acacia_y.period_label == "2025" and acacia_y.price_low is None
         assert acacia_y.extra["statistic"] == "annual_average" and acacia_y.data_status == "published"
         assert "media tra prezzo minimo e massimo" in acacia_y.notes
+        assert acacia_y.terms == "fusto da 3 q.li; media annua; franco partenza dal magazzino; IVA compresa"
+        assert acacia_y.extra["vat_included"] is True
         dec = next(r for r in monthly if r.variety_raw == "Millefiori" and r.period_label == "2025-12")
         assert dec.price_value == 5.55 and dec.extra["statistic"] == "monthly_average"
         assert not any(r.period_label in ("2025-01", "2025-02", "2025-03", "2025-04") and r.variety == "acacia"
@@ -380,6 +382,26 @@ def test_cuneo_monthly_list_wins_over_the_average(run_with_routes, session_facto
         assert sept[0].extra["packaging"] == "fusti da 3 q.li (quantitativi >10 q.li)" and sept[0].extra["drum"] is True
         aug = [r for r in acacia if r.period_label == "2025-08"]
         assert [(r.series_key, r.price_value) for r in aug] == [("wholesale_bulk|cuneo-media|acacia|2025-08", 8.0)]
+
+
+def test_cuneo_average_for_a_month_the_list_did_not_quote_is_flagged(run_with_routes, session_factory, today_2026):
+    """Real disagreement: the list of 30 May 2025 says 'n.q.' for Tiglio, Millefiori di Alta
+    Montagna and Rododendro, while the 2025 averages PDF prints May values (6,50 / 8,00 /
+    8,50). The published average is kept, flagged and explained; nothing is resolved."""
+    page = _only_lists(fx("real_cuneo_category_miele.html"), {20353, 18386})
+    res = run_with_routes("cciaa_cuneo_miele", _cuneo_routes(page, **{CUNEO_HTML.format(id=18386): fx("real_cuneo_list_18386.html")}))
+    assert res["status"] == "success", res
+    with session_factory() as s:
+        may = {r.series_key: r for r in _prices(s, "cciaa_cuneo_miele") if r.period_label == "2025-05"}
+        tiglio = may["wholesale_bulk|cuneo-media|tiglio|2025-05"]
+        assert tiglio.price_value == 6.5 and tiglio.extra["list_says_not_quoted"] is True
+        assert "riporta 'n.q.'" in tiglio.notes
+        assert may["wholesale_bulk|cuneo-media|rododendro|2025-05"].price_value == 8.5
+        # acacia was quoted (8,00-8,50): the list wins, no average for that month
+        assert (may["wholesale_bulk|cuneo|acacia|2025-05"].price_low, may["wholesale_bulk|cuneo|acacia|2025-05"].price_high) == (8.0, 8.5)
+        assert "wholesale_bulk|cuneo-media|acacia|2025-05" not in may
+        june = next(r for r in _prices(s, "cciaa_cuneo_miele") if r.series_key == "wholesale_bulk|cuneo-media|tiglio|2025-06")
+        assert "list_says_not_quoted" not in june.extra                  # no list held for June: plain gap fill
 
 
 def test_cuneo_list_selection_newest_and_backfill_window(run_with_routes, monkeypatch, today_2026):

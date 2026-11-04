@@ -200,7 +200,7 @@ def test_parse_comex_updated_and_variants():
     assert rel3.latest == (2026, 9) and rel3.released is None
     with pytest.raises(CollectorError, match="year/month"):
         to.parse_comex_updated(json.dumps({"data": {"updated": "2026-10-06"}}).encode())
-    with pytest.raises(CollectorError, match="success=false"):
+    with pytest.raises(CollectorError, match="answered with an error"):
         to.parse_comex_updated(json.dumps({"success": False, "message": "manutenção"}).encode())
     with pytest.raises(CollectorError, match="not valid JSON"):
         to.parse_comex_updated(b"<html>maintenance</html>")
@@ -228,6 +228,23 @@ def test_resolve_comex_spec_from_metadata_and_drift():
         to.parse_comex_names(json.dumps({"data": {"list": [{"text": "only text"}]}}).encode(), "metrics")
 
 
+def test_real_comex_metadata_and_rate_limit_answer():
+    """Real answers of 2026-11-04: dates/updated, filters, details, metrics and the HTTP 429 body."""
+    rel = to.parse_comex_updated(F("real_comex_dates_updated_2026-10-06.json"))
+    assert (rel.latest, rel.released, rel.raw) == ((2026, 9), date(2026, 10, 6), "2026-10-06")
+    filters = to.parse_comex_names(F("real_comex_filters.json"), "filters")
+    details = to.parse_comex_names(F("real_comex_details.json"), "details")
+    metrics = to.parse_comex_names(F("real_comex_metrics.json"), "metrics")
+    assert {"ncm", "country", "state", "heading"} <= set(filters) and filters == details
+    assert metrics == ["metricFOB", "metricKG", "metricStatistic", "metricFreight", "metricInsurance", "metricCIF"]
+    assert to.resolve_comex_spec(filters, details, metrics) == comex_spec()
+    limited = F("real_comex_rate_limited_429.json")
+    assert to.is_comex_rate_limited(429, limited) and to.is_comex_rate_limited(200, limited)
+    assert "tente novamente" in to._comex_error_text(limited)
+    with pytest.raises(CollectorError, match="answered with an error"):
+        to.parse_comex_general(limited, comex_spec(), (2026, 9), (2026, 9))
+
+
 def test_parse_comex_general_maps_columns_dynamically():
     rows = [
         # code/name pairs, ISO column, numbers as strings, month as "09"
@@ -252,6 +269,22 @@ def test_parse_comex_general_maps_columns_dynamically():
     assert any("invalid FOB" in p for p in out.problems)
 
 
+def test_comex_query_period_uses_whole_years_across_a_year_boundary():
+    """Comex Stat applies the month range of `period` to every year of its year range (live check
+    2026-11-04): a span over a year boundary must ask for whole years."""
+    assert to.comex_query_period((2026, 8), (2026, 10)) == ((2026, 8), (2026, 10))
+    assert to.comex_query_period((2023, 10), (2026, 9)) == ((2023, 1), (2026, 12))
+    assert to.comex_query_period((2026, 11), (2027, 1)) == ((2026, 1), (2027, 12))
+    rows = [{"year": y, "monthNumber": m, "country": "Canada", "state": "Paraná", "coNcm": "04090000", "metricFOB": "10",
+             "metricKG": "2"}
+            for y, m in (("2026", "1"), ("2026", "11"), ("2026", "12"), ("2027", "1"))]
+    out = to.parse_comex_general(comex_doc(rows), comex_spec(), (2026, 11), (2027, 1), query=((2026, 1), (2027, 12)))
+    assert [r.period for r in out.rows] == ["2026-11", "2026-12", "2027-01"] and out.problems == []
+    only_asked = to.parse_comex_general(comex_doc(rows[:1]), comex_spec(), (2026, 11), (2027, 1),
+                                        query=((2026, 1), (2027, 12)))
+    assert only_asked.rows == [] and only_asked.problems == []      # nothing in the window yet: not an error
+
+
 def test_parse_comex_general_fails_loudly_on_drift():
     good = {"year": "2026", "monthNumber": "9", "country": "United States", "state": "Piauí",
             "coNcm": "04090000", "ncm": "Natural honey", "metricFOB": "1", "metricKG": "1"}
@@ -267,7 +300,7 @@ def test_parse_comex_general_fails_loudly_on_drift():
     with pytest.raises(CollectorError, match="no record list"):
         to.parse_comex_general(json.dumps({"data": {"rows_v2": {}}, "success": True}).encode(), comex_spec(),
                                (2026, 9), (2026, 9))
-    with pytest.raises(CollectorError, match="success=false"):
+    with pytest.raises(CollectorError, match="answered with an error"):
         to.parse_comex_general(json.dumps({"success": False, "message": "Invalid filter: ncm"}).encode(),
                                comex_spec(), (2026, 9), (2026, 9))
     assert to.parse_comex_general(comex_doc([]), comex_spec(), (2026, 9), (2026, 9)).rows == []
@@ -297,11 +330,30 @@ def comex_routes(updated: str = "comex_dates_updated_2026-10-06.json", **over) -
     return routes
 
 
+BACKFILL = {w: F(f"comex_general_{w}.json") for w in ("2025-10_2026-09", "2024-10_2025-09", "2023-10_2024-09")}
+# The backfill is ONE query for whole years (to.comex_query_period): 2023-10..2026-09 is asked as
+# period 2023-01..2026-12. The three reconstructed pieces above answer it together.
+BACKFILL_QUERY = "2023-01_2026-12"
+
+
 def comex_post(windows: dict):
-    """Answer POST /general by the requested period: {"2025-10_2026-09": bytes | callable}."""
+    """Answer POST /general by the requested period: {"2026-08_2026-10": bytes | callable}. The
+    backfill query is answered by the BACKFILL pieces (overridable one by one) merged into one
+    document; a piece that answers an error or a rate limit is returned as is."""
     def handler(request):
         body = json.loads(request.content)
         key = f"{body['period']['from']}_{body['period']['to']}"
+        if key == BACKFILL_QUERY and key not in windows and all(w in windows for w in BACKFILL):
+            merged: list = []
+            for w in BACKFILL:
+                spec = windows[w]
+                if callable(spec):
+                    resp = spec(request)
+                    if resp.status_code != 200 or to.is_comex_rate_limited(resp.status_code, resp.content):
+                        return resp
+                    spec = resp.content
+                merged += json.loads(spec)["data"]["list"]
+            return httpx.Response(200, content=comex_doc(merged), headers={"content-type": "application/json"})
         if key not in windows:
             raise AssertionError(f"unexpected Comex Stat window {key}")
         spec = windows[key]
@@ -311,15 +363,11 @@ def comex_post(windows: dict):
     return handler
 
 
-BACKFILL = {w: F(f"comex_general_{w}.json") for w in ("2025-10_2026-09", "2024-10_2025-09", "2023-10_2024-09")}
-
-
 def test_comex_backfill_end_to_end(run, session_factory):
     res = run("br_comexstat", comex_routes(), post=comex_post(BACKFILL))
     assert res["status"] == "success", res
     posts = [r for r in run.sent if r.method == "POST"]
-    assert [json.loads(r.content)["period"] for r in posts] == [
-        {"from": "2025-10", "to": "2026-09"}, {"from": "2024-10", "to": "2025-09"}, {"from": "2023-10", "to": "2024-09"}]
+    assert [json.loads(r.content)["period"] for r in posts] == [{"from": "2023-01", "to": "2026-12"}]   # one query
     assert all(r.url.params["language"] == "en" for r in posts)
     assert json.loads(posts[0].content)["filters"] == [{"filter": "ncm", "values": ["04090000"]}]
 
@@ -339,7 +387,7 @@ def test_comex_backfill_end_to_end(run, session_factory):
         assert [(st["state"], st["fob_usd"], st["kg"]) for st in u.extra["states"]] == [
             ("Piauí", 4_260_000, 1_200_000), ("Ceará", 2_100_000, 600_000), ("Rio Grande do Sul", 1_110_000, 300_000)]
         assert u.extra["ncm"] == "04090000" and u.extra["state_detail"] is True
-        assert u.extra["query"]["period"] == {"from": "2025-10", "to": "2026-09"}
+        assert u.extra["query"]["period"] == {"from": "2023-01", "to": "2026-12"}
         assert {t.partner_iso3 for t in trades} == {"USA", "CAN", "NLD", "SGP", "AUS", "DEU"}
 
         prices = _rows(s, P, "br_comexstat")
@@ -360,8 +408,8 @@ def test_comex_backfill_end_to_end(run, session_factory):
         assert [x.price_value for x in _rows(s, P, "br_comexstat", market_iso3="SGP")] == [4.5]
 
         raw = _rows(s, RawDocument, "br_comexstat")
-        assert len(raw) == 3 and all(d.url == to.COMEX_SOURCE_URL for d in raw)
-        assert any("2025-10..2026-09" in (d.title or "") for d in raw)
+        assert len(raw) == 1 and all(d.url == to.COMEX_SOURCE_URL for d in raw)
+        assert "2023-10..2026-09" in (raw[0].title or "")
         st = _state(s, "br_comexstat")
         assert st["release"] == "2026-09|2026-10-06" and st["latest_month"] == "2026-09" and st["backfill_done"]
         assert st["spec"]["fob_metric"] == "metricFOB"
@@ -431,11 +479,12 @@ def test_comex_rate_limit_backoff_then_success(run, session_factory, monkeypatch
     monkeypatch.setattr(base.time, "sleep", sleeps.append)      # after the harness's own no-op patch
     res = run("br_comexstat", comex_routes(), post=comex_post(windows))
     assert res["status"] == "success", res
-    # HTTP 429: the polite fetch honoured Retry-After; the two JSON rate-limit answers: 10 s, then 20 s
-    assert 3.0 in sleeps and 10.0 in sleeps and 20.0 in sleeps
+    # HTTP 429, then two JSON rate-limit answers: the collector's own backoff, 15 s, 30 s, 60 s
+    assert [x for x in sleeps if x >= to.COMEX_RATE_LIMIT_DELAY_S] == [15.0, 30.0, 60.0]
+    assert sum(r.method == "POST" for r in run.sent) == 4               # no extra quick retries in between
     with session_factory() as s:
         assert len(_rows(s, T, "br_comexstat")) == 14
-        assert len(_rows(s, RawDocument, "br_comexstat")) == 3          # rate-limit answers are not archived
+        assert len(_rows(s, RawDocument, "br_comexstat")) == 1          # rate-limit answers are not archived
 
 
 def test_comex_persistent_rate_limit_fails_without_storing(run, session_factory):
@@ -457,11 +506,10 @@ def test_comex_schema_drift_fails_loudly(run, session_factory):
     assert res["status"] == "failed" and "metric KG" in res["error"], res
     assert not [r for r in run.sent if r.method == "POST"]          # nothing queried
 
-    doc = json.loads(F("comex_general_2025-10_2026-09.json"))
-    for r in doc["data"]["list"]:
+    rows = [r for w in BACKFILL for r in json.loads(BACKFILL[w])["data"]["list"]]
+    for r in rows:
         r.pop("metricKG")
-    res2 = run("br_comexstat", comex_routes(),
-               post=comex_post(dict(BACKFILL, **{"2025-10_2026-09": json.dumps(doc).encode()})))
+    res2 = run("br_comexstat", comex_routes(), post=comex_post({BACKFILL_QUERY: comex_doc(rows)}))
     assert res2["status"] == "failed" and "KG" in res2["error"], res2
 
     doc = json.loads(F("comex_general_2025-10_2026-09.json"))
@@ -595,7 +643,7 @@ def test_classify_census_country():
     assert c("5590", "SINGAPORE") == ("SGP", "name")                # code not in the table: mapped by name
     assert c("6140", "NEW ZEALAND") == ("NZL", "name")              # code not in the table: mapped by name
     assert c("4801", "MONTENEGRO") == (None, "conflict")            # table and published name disagree
-    assert c("5682", "BHUTAN") == (None, "unknown")
+    assert c("5682", "TOKELAU") == (None, "unknown")
     assert c("-", "SOMETHING ELSE") == (None, "unknown")
     assert c("9999", "NOWHERE") == (None, "unknown")
 
@@ -869,22 +917,22 @@ def test_census_hs10_unavailable_keeps_totals(run, session_factory, pin_today):
 def test_census_unmapped_partner_is_skipped_and_warned_once(run, session_factory, pin_today):
     rows = json.loads(F("census_hs6_2025-11_2026-10.json"))
     template = rows[-1]
-    bhutan = list(template)
-    bhutan[0], bhutan[1] = "5682", "BHUTAN"
+    tokelau = list(template)
+    tokelau[0], tokelau[1] = "5682", "TOKELAU"
     clash = list(template)
     clash[0], clash[1] = "4801", "MONTENEGRO"
-    rows += [bhutan, clash]
+    rows += [tokelau, clash]
     routes = census_routes(**{census_q("HS6", "from 2025-11 to 2026-10"): json.dumps(rows).encode()})
     res = run("us_census_trade", routes)
     assert res["status"] == "partial", res
-    assert sum("BHUTAN" in w for w in res["warnings"]) == 1
+    assert sum("TOKELAU" in w for w in res["warnings"]) == 1
     assert sum("MONTENEGRO" in w and "code table" in w for w in res["warnings"]) == 1
     with session_factory() as s:
         partners = {t.partner_iso3 for t in _rows(s, T, "us_census_trade")}
         assert "SRB" not in partners and "MNE" not in partners and "BTN" not in partners
-        assert _state(s, "us_census_trade")["unknown_partners"] == {"5682": "BHUTAN", "4801": "MONTENEGRO"}
+        assert _state(s, "us_census_trade")["unknown_partners"] == {"5682": "TOKELAU", "4801": "MONTENEGRO"}
     res2 = run("us_census_trade", routes, force=True)
-    assert not any("BHUTAN" in w or "MONTENEGRO" in w for w in res2["warnings"]), res2
+    assert not any("TOKELAU" in w or "MONTENEGRO" in w for w in res2["warnings"]), res2
 
 
 def test_census_annual_revision_triggers_full_window_once(run, session_factory, pin_today):
