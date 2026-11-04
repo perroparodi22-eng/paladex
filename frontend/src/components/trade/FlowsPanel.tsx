@@ -2,8 +2,8 @@
 // and the trend of the selected partner (or of the total), one line per source.
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { DemoBadge, ErrorBlock, FreshnessBadge, Loading, Note, Panel, Segmented, Select, SourceLine } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
@@ -19,7 +19,15 @@ const MARKET_ORDER = ['ITA', 'DEU', 'USA', 'EU27', 'FRA', 'ESP', 'GBR', 'BEL', '
 export function FlowsPanel({ facets, year, metric }: { facets: FacetsResponse; year: number | null; metric: TradeMetric }) {
   const { t, lang } = useI18n()
   const { country } = useLabels()
-  const [flow, setFlow] = useState<TradeFlow>('import')
+  // Deep links (e.g. from a data-quality issue: /commercio?reporter=USA&partner=ARG&flow=import)
+  // open this panel on that market, flow and partner.
+  const [sp] = useSearchParams()
+  const linked = {
+    reporter: sp.get('reporter')?.toUpperCase() || null,
+    partner: sp.get('partner')?.toUpperCase() || 'WLD',
+    flow: (sp.get('flow') === 'export' ? 'export' : 'import') as TradeFlow,
+  }
+  const [flow, setFlow] = useState<TradeFlow>(linked.flow)
   const reporters = useMemo(() => facets.reporters
     .filter((r) => r.flows[flow])
     .sort((a, b) => {
@@ -28,12 +36,24 @@ export function FlowsPanel({ facets, year, metric }: { facets: FacetsResponse; y
       if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
       return nameOf(a, lang).localeCompare(nameOf(b, lang))
     }), [facets, flow, lang])
-  const [reporter, setReporter] = useState<string | null>(null)
-  const [partner, setPartner] = useState('WLD')
+  const [reporter, setReporter] = useState<string | null>(linked.reporter)
+  const [partner, setPartner] = useState(linked.partner)
   const [freq, setFreq] = useState<TradeFreq>('A')
 
   const rep = reporters.find((r) => r.iso3 === reporter) ?? reporters[0]
-  useEffect(() => { setPartner('WLD') }, [rep?.iso3, flow])
+  // A new market or flow starts again from its total (but not on mount: keep a linked partner).
+  const shownKey = useRef(`${rep?.iso3}|${flow}`)
+  useEffect(() => {
+    const k = `${rep?.iso3}|${flow}`
+    if (shownKey.current === k) return
+    shownKey.current = k
+    setPartner('WLD')
+  }, [rep?.iso3, flow])
+  const panelRef = useRef<HTMLDivElement>(null)
+  const linkedOnMount = useRef(Boolean(linked.reporter))
+  useEffect(() => {
+    if (linkedOnMount.current) panelRef.current?.scrollIntoView({ block: 'start' })
+  }, [])
   const hasMonthly = Boolean(rep?.flows[flow]?.frequencies.includes('M'))
   useEffect(() => { if (!hasMonthly) setFreq('A') }, [hasMonthly])
   const repYears = rep?.flows[flow]?.years ?? []
@@ -60,6 +80,7 @@ export function FlowsPanel({ facets, year, metric }: { facets: FacetsResponse; y
     : t(flow === 'import' ? 'trade.series.subtitleImport' : 'trade.series.subtitleExport', { r: repName, p: partnerName })
 
   return (
+    <div ref={panelRef} className="scroll-mt-28">
     <Panel
       title={flow === 'import' ? t('trade.flows.title') : t('trade.flows.titleExport')}
       eyebrow={t('trade.flows.eyebrow')}
@@ -114,6 +135,7 @@ export function FlowsPanel({ facets, year, metric }: { facets: FacetsResponse; y
         </div>
       </div>
     </Panel>
+    </div>
   )
 }
 

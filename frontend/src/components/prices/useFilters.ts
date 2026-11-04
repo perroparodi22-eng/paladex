@@ -12,16 +12,32 @@ function oneOf<T extends string>(v: string | null, allowed: readonly T[], fallba
   return v && (allowed as readonly string[]).includes(v) ? (v as T) : fallback
 }
 
+/** English parameter names used by links the backend builds (overview briefing and price tiles,
+ * global search, data-quality issues: /prezzi?origin=ARG&variety=acacia&price_type=…). They are
+ * read when the Italian name is absent and dropped as soon as that filter is changed here. */
+const ALIASES: Record<string, string> = {
+  tipo: 'price_type', origini: 'origin', varieta: 'variety', mercato: 'market', fonte: 'source', colore: 'color_grade',
+}
+
+function param(sp: URLSearchParams, key: string): string | null {
+  const v = sp.get(key)
+  if (v !== null) return v
+  const alias = ALIASES[key]
+  if (!alias) return null
+  const all = sp.getAll(alias).filter(Boolean)
+  return all.length ? all.join(',') : null
+}
+
 export function usePriceFilters() {
   const [sp, setSp] = useSearchParams()
 
   const state: PriceFilterState = useMemo(() => ({
-    type: [...PRICE_TYPE_ORDER, 'other'].includes(sp.get('tipo') ?? '') ? (sp.get('tipo') as PriceTypeKey) : null,
-    origins: (sp.get('origini') ?? '').split(',').filter(Boolean),
-    variety: sp.get('varieta') ?? '',
-    market: sp.get('mercato') ?? '',
-    source: sp.get('fonte') ?? '',
-    color: sp.get('colore') ?? '',
+    type: [...PRICE_TYPE_ORDER, 'other'].includes(param(sp, 'tipo') ?? '') ? (param(sp, 'tipo') as PriceTypeKey) : null,
+    origins: (param(sp, 'origini') ?? '').split(',').map((x) => x.trim()).filter(Boolean),
+    variety: param(sp, 'varieta') ?? '',
+    market: param(sp, 'mercato') ?? '',
+    source: param(sp, 'fonte') ?? '',
+    color: param(sp, 'colore') ?? '',
     ccy: oneOf<Ccy>(sp.get('valuta'), ['USD', 'EUR'], DEFAULTS.ccy),
     unit: oneOf<MassUnit>(sp.get('unita'), ['kg', 'lb'], DEFAULTS.unit),
     range: oneOf<RangePreset>(sp.get('periodo'), ['1y', '3y', '5y', 'all'], DEFAULTS.range),
@@ -33,6 +49,7 @@ export function usePriceFilters() {
       const next = new URLSearchParams(prev)
       const set = (k: string, v: string | null | undefined, def = '') => {
         if (v === undefined) return
+        if (ALIASES[k]) next.delete(ALIASES[k])
         if (v === null || v === def) next.delete(k)
         else next.set(k, v)
       }
@@ -40,7 +57,10 @@ export function usePriceFilters() {
       // origins, varieties, markets and sources differs per type, and the chart restarts.
       // (Not when the default type is first filled in: filters from a shared link survive.)
       if (patch.type !== undefined && state.type !== null && patch.type !== state.type) {
-        for (const k of ['origini', 'varieta', 'mercato', 'fonte', 'colore']) next.delete(k)
+        for (const k of ['origini', 'varieta', 'mercato', 'fonte', 'colore']) {
+          next.delete(k)
+          next.delete(ALIASES[k])
+        }
       }
       set('tipo', patch.type)
       if (patch.origins !== undefined) set('origini', patch.origins.join(','))
