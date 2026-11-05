@@ -1086,3 +1086,29 @@ def test_census_value_without_consistent_lines_is_stored_without_a_weight(census
         assert arg.extra["quantity_unavailable"] is True and arg.extra["hs10_missing_for_partner"] is True
         assert not _rows(s, P, "us_census_trade", origin_iso3="ARG", period_label="2026-08")
         assert _rows(s, P, "us_census_trade", origin_iso3="ARG", period_label="2026-07")    # other months fine
+
+
+def test_census_answers_an_older_version_could_not_read_are_read_again(census_key, run, session_factory, pin_today):
+    """An install that ran the old parser stored Census's answers but no rows (HS-6 quantity '-');
+    after the update the unchanged answers must be read again, once."""
+    assert run("us_census_trade", real_census_routes())["status"] == "success"
+    with session_factory() as s:                # simulate the older version: answers kept, no rows, old state
+        s.query(P).filter(P.source_id == s.scalars(select(Source.id).where(Source.key == "us_census_trade")).one()).delete()
+        s.query(T).filter(T.source_id == s.scalars(select(Source.id).where(Source.key == "us_census_trade")).one()).delete()
+        st = _state(s, "us_census_trade")
+        st.pop("parser_version", None)
+        s.merge(AppSetting(key="collector_state:us_census_trade", value=st))
+        s.commit()
+    res = run("us_census_trade", real_census_routes())
+    assert res["status"] == "success" and res["new"] > 1000, res
+    with session_factory() as s:
+        assert _rows(s, T, "us_census_trade", partner_iso3="ARG", period_label="2026-08")[0].net_weight_kg == 6_462_982
+        assert _state(s, "us_census_trade")["parser_version"] == to.CENSUS_PARSER_VERSION
+    # A later routine run asks only for the trailing months: same figures, nothing new or revised.
+    routes = real_census_routes()
+    for level, name in (("HS6", "real_census_hs6_2025-11_2026-10.json"), ("HS10", "real_census_hs10_2025-11_2026-10.json")):
+        table = json.loads(F(name))
+        tail = [table[0]] + [r for r in table[1:] if r[table[0].index("time")] >= "2026-07"]
+        routes[census_q(level, "from 2026-07 to 2026-10")] = json.dumps(tail).encode()
+    again = run("us_census_trade", routes)
+    assert again["status"] in ("no_change", "success") and again["new"] == 0 and again["revised"] == 0, again

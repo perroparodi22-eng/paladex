@@ -990,6 +990,10 @@ CENSUS_BACKFILL_MONTHS = 36
 CENSUS_REPULL_MONTHS = 3
 CENSUS_MAX_MONTHS_PER_QUERY = 12
 CENSUS_ANNUAL_REVISION = (6, 15)            # Census publishes the annual revision in early June
+# Bumped whenever the parsing changes: answers already stored (unchanged since) are then read again
+# once, so rows an older version could not read are not skipped forever as "already seen".
+# 2: HS-6 rows without a quantity take their weight from the HS-10 lines (Nov 2026).
+CENSUS_PARSER_VERSION = 2
 
 # `get=` list from the research (official_north_america_oceania.json, official_tariffs_trade_policy.json).
 CENSUS_REQUIRED_VARS = ("CTY_CODE", "CTY_NAME", "I_COMMODITY", "GEN_VAL_MO", "GEN_QY1_MO", "UNIT_QY1",
@@ -1258,8 +1262,9 @@ class UsCensusTradeCollector(Collector):
             latest = parse_month_label(state.get("latest")) or end
             start = max(shift_month(min(latest, end, key=_midx), -(CENSUS_REPULL_MONTHS - 1)), floor, key=_midx)
         newest = parse_month_label(state.get("latest"))
+        reparse = ctx.force or not _has_rows(ctx) or state.get("parser_version") != CENSUS_PARSER_VERSION
         for ws, we in month_windows(start, end, CENSUS_MAX_MONTHS_PER_QUERY):
-            got = self._pull_window(ctx, state, get_vars, api_key, ws, we)
+            got = self._pull_window(ctx, state, get_vars, api_key, ws, we, reparse=reparse)
             if got and (newest is None or _midx(got) > _midx(newest)):
                 newest = got
             _save_state(ctx, state)
@@ -1271,6 +1276,7 @@ class UsCensusTradeCollector(Collector):
             if t >= date(t.year, *CENSUS_ANNUAL_REVISION):
                 state["annual_refresh_year"] = t.year
         state["pulled_at"] = utcnow().isoformat(timespec="seconds")
+        state["parser_version"] = CENSUS_PARSER_VERSION
         _save_state(ctx, state)
 
     @staticmethod
@@ -1324,8 +1330,9 @@ class UsCensusTradeCollector(Collector):
         return _CensusQuery(public_url=public_url, raw_id=raw_id, unchanged=unchanged, content=doc.content)
 
     def _pull_window(self, ctx: CollectContext, state: dict, get_vars: list[str], api_key: str | None,
-                     ws: Month, we: Month) -> Month | None:
-        """Pull one window. Returns the newest month the answer contains (None if empty)."""
+                     ws: Month, we: Month, *, reparse: bool = False) -> Month | None:
+        """Pull one window. Returns the newest month the answer contains (None if empty).
+        `reparse`: read the answer even when it is unchanged since it was stored."""
         try:
             q = self._query(ctx, get_vars, "HS6", HONEY_HS6, ws, we, api_key)
         except CensusError as exc:
@@ -1333,7 +1340,7 @@ class UsCensusTradeCollector(Collector):
         if q is None:
             log.info("[%s] no HS 0409 imports published for %s..%s", self.key, month_label(ws), month_label(we))
             return None
-        if q.unchanged and not ctx.force:
+        if q.unchanged and not reparse:
             log.info("[%s] %s..%s: same answer as already stored", self.key, month_label(ws), month_label(we))
             return _newest_in(q.content)
         parsed = parse_census_imports(q.content, level="HS6", start=ws, end=we)
