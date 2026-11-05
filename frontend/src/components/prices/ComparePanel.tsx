@@ -135,7 +135,10 @@ function BarList({ d, by, name, unit, open, setOpen }: {
                           {c.organic && <span className="text-muted"> · {t('prices.organic')}</span>}
                         </td>
                         <td className="py-1.5 pr-3 num text-right whitespace-nowrap">{fmtPrice(toUnit(c.value, unit), lang)}</td>
-                        <td className="py-1.5 pr-3 num whitespace-nowrap">{fmtPeriodLabel(c.period_label, lang)}</td>
+                        <td className="py-1.5 pr-3 num whitespace-nowrap">
+                          {fmtPeriodLabel(c.period_label, lang)}
+                          {c.partial && <span className="ml-1 text-[0.72rem] text-warn">({t('prices.compare.partial')})</span>}
+                        </td>
                         <td className="py-1.5 pr-3 text-muted">
                           {c.source?.publisher || c.source?.name}
                           {c.published_at && <> · {t('prov.published')} {fmtDate(c.published_at, lang)}</>}

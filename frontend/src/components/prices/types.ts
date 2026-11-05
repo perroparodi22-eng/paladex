@@ -161,6 +161,8 @@ export interface CompareComponent {
   market_iso3: string | null
   source: SourceBrief | null
   period_label: string
+  /** The period is still open (e.g. a month with only some of its weekly quotes). */
+  partial?: boolean
   value: number
   low: number | null
   high: number | null
