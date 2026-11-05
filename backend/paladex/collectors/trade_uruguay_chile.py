@@ -36,9 +36,11 @@ fixtures and docs/DATA_SOURCES.md):
   unit value. Checked on the real 2026 files: the DUS base reproduces these workbooks exactly
   (FOB and gross kg by destination, month and line).
 
-Privacy. The SIE pages embed the full autocomplete list of exporting companies and persons. The
+Privacy. The SIE pages embed the full autocomplete list of exporting companies and persons. This
 collector never queries by company, never archives a whole SIE page: only the result caption and
-table (destination or month totals) are archived. The Chilean base has no exporter fields.
+table (destination or month totals) are archived. The company view ("Por Empresa", names and FOB
+values only) is read by ``companies_official.uy_sie_honey_exporters``. The Chilean base has no
+exporter fields.
 
 Revisions. Every changed figure is a new revision (``services.ingest``); a destination-month the
 source no longer reports is withdrawn (kept in the history, never deleted). A change of status
@@ -496,8 +498,9 @@ class UyHoneyExportsCollector(Collector):
     expected_update_en = "Checked weekly: the SIE is updated every 48 hours; months of the running year stay provisional"
     expected_max_age_days = 40
     terms_note = ("Fuente: Uruguay XXI – Sistema de Información Estadística (SIE), built on Dirección Nacional de "
-                  "Aduanas data and updated every 48 hours. Public web tool, no reuse terms published; Paladex reads "
-                  "only the honey (NCM 0409) totals by destination and month, never the company view, and archives "
+                  "Aduanas data and updated every 48 hours. Public web tool, no reuse terms published; this collector "
+                  "reads the honey (NCM 0409) totals by destination and month (the company view is a separate "
+                  "source, uy_sie_honey_exporters) and archives "
                   "only the result tables. Values in US$ FOB. The SIE publishes no weights: no net weight and no unit "
                   "value are stored. Months of the running year (shown 'YYYY (ene - mmm)') are provisional; the "
                   "current month is never stored. Destinations that are not countries (free zones, special customs "

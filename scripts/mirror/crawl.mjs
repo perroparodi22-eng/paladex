@@ -40,7 +40,7 @@ const log = (...m) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0).padS
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // Interface constants (keep in step with the frontend).
-const SEEDS = ['/', '/prezzi', '/notizie', '/paesi', '/commercio', '/raccolti', '/normative', '/fonti']
+const SEEDS = ['/', '/prezzi', '/notizie', '/paesi', '/commercio', '/aziende', '/raccolti', '/normative', '/fonti']
 const PRICE_TYPES = ['wholesale_bulk', 'import_unit_value', 'producer', 'export_unit_value', 'retail', 'other'] // prices/utils.ts
 const MIN_RELEVANT = 35                                     // news/useNewsFilters.ts MIN_RELEVANT_SCORE
 const MARKET_ORDER = ['ITA', 'DEU', 'USA', 'EU27', 'FRA', 'ESP', 'GBR', 'BEL', 'NLD', 'JPN', 'CHN', 'SAU'] // trade/FlowsPanel.tsx
@@ -49,7 +49,7 @@ const TOP_PARTNERS = 10                                     // FlowsPanel top=10
 const NEWS_PAGES = 5                                        // "Mostra altre notizie" up to 100 articles
 const DOC_PAGES = 10                                        // "Mostra altri documenti" up to 200 documents
 const SHARE_AS_DEFAULT = 0.9                                // a filter value covering >= 90% of a view = the view itself
-const ALLOWED_ROUTES = /^\/(|prezzi|notizie|paesi|paesi\/[A-Za-z0-9_]+|commercio|normative|fonti|raccolti(\/.*)?)$/
+const ALLOWED_ROUTES = /^\/(|prezzi|notizie|paesi|paesi\/[A-Za-z0-9_]+|commercio|aziende|normative|fonti|raccolti(\/.*)?)$/
 const MAX_DISCOVERED = 400
 
 // ---------------------------------------------------------------------------------------------
@@ -371,6 +371,10 @@ async function plan() {
   const cl = await api('/countries')
   const countries = cl.countries.filter((c) => Object.values(c.available ?? {}).some(Boolean)).map((c) => c.iso3).sort()
   for (const c of countries) add('it', `/paesi/${c}`, { links: true })
+
+  // Companies: every country of the official company lists (its availability, and its lists when any).
+  const co = await api('/companies')
+  for (const c of co.countries ?? []) add('it', `/aziende?paese=${c.iso3}`)
 
   // Trade: the latest years in both metrics and both views of exports (select and switches),
   // then every market and flow (its top partners and total trend open from the address).

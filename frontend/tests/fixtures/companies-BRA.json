@@ -1,0 +1,21 @@
+{
+ "country": {
+  "iso3": "BRA",
+  "name_it": "Brasile",
+  "name_en": "Brazil",
+  "region": "South America",
+  "priority": true
+ },
+ "availability": {
+  "status": "not_published",
+  "authority": "MDIC / SECEX (Secretaria de Comércio Exterior)",
+  "url": "https://www.gov.br/mdic/pt-br/assuntos/comercio-exterior/estatisticas/perguntas-frequentes-faq",
+  "reason_it": "Il ministero (MDIC) dichiara che non pubblica né fornisce elenchi di aziende esportatrici o importatrici, né dati che le rivelino (segreto fiscale: decreto 11.544/2023, art. 13; Codice tributario, art. 198). Tra le sue statistiche (dati aperti, Comex Stat) non c'è alcun elenco di aziende.",
+  "reason_en": "The ministry (MDIC) states that it neither publishes nor provides lists of exporting or importing companies, nor data that would reveal them (tax secrecy: Decree 11,544/2023, art. 13; Tax Code, art. 198). Its statistics (open data, Comex Stat) contain no list of companies.",
+  "source_keys": [],
+  "roles": [],
+  "checked_on": "2026-11-05"
+ },
+ "checked_on": "2026-11-05",
+ "lists": []
+}

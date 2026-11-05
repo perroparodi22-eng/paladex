@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Star } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { Badge, DemoBadge, EmptyState, ErrorBlock, Loading, PageHeader, Panel, StatTile, StatusBadge } from '@/components/ui'
+import { CountryCompaniesBlock } from '@/components/companies/CountryCompanies'
 import { AvailabilityChips, countryName, useRegion } from '@/components/countries/parts'
 import { ProfileProduction } from '@/components/countries/ProfileProduction'
 import { ProfileContext, ProfileMissing, ProfileNews, ProfilePrices, ProfileRegulations } from '@/components/countries/ProfileSections'
@@ -68,6 +69,7 @@ function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
       </div>
 
       <div className="mb-5"><ProfileTrade p={p} /></div>
+      <div className="mb-5"><CountryCompaniesBlock iso3={c.iso3} /></div>
       <div className="mb-5"><ProfilePrices p={p} /></div>
 
       <div className="grid gap-5 xl:grid-cols-2 items-start mb-5">

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
 import {
-  Archive, BarChart3, Bell, Bot, CloudSun, Database, FileText, Globe2, LayoutDashboard,
+  Archive, BarChart3, Bell, Bot, Building2, CloudSun, Database, FileText, Globe2, LayoutDashboard,
   Menu, Newspaper, RefreshCw, Scale, Search, Ship, WifiOff, X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
@@ -26,6 +26,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { to: '/notizie', key: 'nav.news', icon: <Newspaper size={19} /> },
       { to: '/paesi', key: 'nav.countries', icon: <Globe2 size={19} /> },
       { to: '/commercio', key: 'nav.trade', icon: <Ship size={19} /> },
+      { to: '/aziende', key: 'nav.companies', icon: <Building2 size={19} /> },
       { to: '/raccolti', key: 'nav.harvest', icon: <CloudSun size={19} /> },
       { to: '/normative', key: 'nav.regulations', icon: <Scale size={19} /> },
     ],

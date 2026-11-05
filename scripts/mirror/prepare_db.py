@@ -27,6 +27,7 @@ from pathlib import Path
 KEEP = {
     "countries", "sources", "collection_runs", "raw_documents", "fx_rates",
     "price_observations", "trade_flows", "production_stats", "weather_observations", "tariff_measures",
+    "company_records",          # official company lists (public sources only: Uruguay XXI, HMRC)
     "reports", "news_articles", "regulations", "data_quality_issues", "app_settings", "briefings",
 }
 # Settings removed from the copy (preferences of the computer, and anything that sounds private).

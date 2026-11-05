@@ -14,8 +14,8 @@ import { RunHistory } from './RunHistory'
 import type { ApiKeyInfo } from './types'
 import { Switch } from './widgets'
 
-const GROUP_ORDER = ['prices', 'trade', 'production', 'reports', 'news', 'regulation', 'weather', 'fx', 'quotes', 'other']
-const COUNT_KEYS = ['prices', 'trade', 'production', 'news', 'reports', 'regulations'] as const
+const GROUP_ORDER = ['prices', 'trade', 'production', 'companies', 'reports', 'news', 'regulation', 'weather', 'fx', 'quotes', 'other']
+const COUNT_KEYS = ['prices', 'trade', 'production', 'companies', 'news', 'reports', 'regulations'] as const
 
 export function groupOf(s: SourceInfo): string {
   return GROUP_ORDER.includes(s.category) ? s.category : 'other'

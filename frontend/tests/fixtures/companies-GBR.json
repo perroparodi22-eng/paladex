@@ -1,0 +1,918 @@
+{
+ "country": {
+  "iso3": "GBR",
+  "name_it": "Regno Unito",
+  "name_en": "United Kingdom",
+  "region": "Europe",
+  "priority": false
+ },
+ "availability": {
+  "status": "register",
+  "authority": "HM Revenue & Customs (HMRC) – UK Trade Info, \"Find UK traders\"",
+  "url": "https://www.uktradeinfo.com/find-uk-traders/",
+  "reason_it": "La dogana britannica pubblica ogni mese i nomi e la località delle aziende che hanno importato o esportato miele (codice 04090000). Per legge non pubblica quantità né valori: è un elenco di nomi, non una classifica.",
+  "reason_en": "UK customs publish every month the names and location of the businesses that imported or exported honey (code 04090000). By law they publish no quantities or values: a list of names, not a ranking.",
+  "source_keys": [
+   "uk_hmrc_honey_traders"
+  ],
+  "roles": [
+   "importer",
+   "exporter"
+  ],
+  "checked_on": "2026-11-05"
+ },
+ "checked_on": "2026-11-05",
+ "lists": [
+  {
+   "role": "exporter",
+   "hs_code": "04090000",
+   "measure_kind": "none",
+   "source": {
+    "key": "uk_hmrc_honey_traders",
+    "name": "Regno Unito – HMRC (UK Trade Info): importatori ed esportatori di miele (codice 04090000), solo nomi",
+    "publisher": "HM Revenue & Customs (HMRC), UK Trade Info",
+    "reliability": "official",
+    "homepage": "https://www.uktradeinfo.com/find-uk-traders/",
+    "freshness": {
+     "status": "current",
+     "age_days": 0,
+     "reference_date": "2026-11-05"
+    },
+    "expected_update": "Mensile (circa 6 settimane dopo il mese); controllo settimanale",
+    "expected_update_en": "Monthly (about 6 weeks after the month); checked weekly",
+    "terms_note": "HMRC UK Trade Info, 'Find UK traders' (api.uktradeinfo.com, open data). Businesses that imported or exported commodity 04090000 in a month, with registered name and address. HMRC publishes no quantities or values for traders, nor their VAT/EORI numbers or partner countries, and omits traders who asked to be removed: names only, never ranked. Paladex stores the name and a town-level location (last address line, postcode district), never the street or full postcode.",
+    "latest_period_label": "2026-08",
+    "last_success_at": "2026-11-05T20:47:57.452027"
+   },
+   "source_url": "https://api.uktradeinfo.com/Export?%24filter=CommodityId+eq+4090000+and+MonthId+ge+202411&%24expand=Trader",
+   "web_url": "https://www.uktradeinfo.com/find-uk-traders/",
+   "published_at": null,
+   "collected_at": "2026-11-05T20:47:57.347462",
+   "last_seen_at": "2026-11-05T20:47:57.347462",
+   "reliability": "official",
+   "is_demo": false,
+   "notes": "Azienda che ha esportato miele naturale (codice 04090000) nel mese, secondo le dichiarazioni doganali (HMRC, UK Trade Info). HMRC non pubblica quantità né valori per azienda.",
+   "company_count": 93,
+   "periods": [
+    "2024-11",
+    "2024-12",
+    "2025-01",
+    "2025-02",
+    "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06",
+    "2025-07",
+    "2025-08",
+    "2025-09",
+    "2025-10",
+    "2025-11",
+    "2025-12",
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08"
+   ],
+   "first_period": "2024-11",
+   "latest_period": "2026-08",
+   "companies": [
+    {
+     "name": "A & E CONNOCK (PERFUMERY AND COSMETICS) LIMITED",
+     "location": "WIMBORNE, BH21",
+     "periods": [
+      "2025-05",
+      "2026-08"
+     ],
+     "latest_period": "2026-08"
+    },
+    {
+     "name": "ANDREW JAMES CAMPBELL SCARLETT",
+     "location": "SCOTLAND, PH12",
+     "periods": [
+      "2024-11",
+      "2024-12",
+      "2025-01",
+      "2025-02",
+      "2025-04",
+      "2025-05",
+      "2025-06",
+      "2025-07",
+      "2025-08",
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-02",
+      "2026-04",
+      "2026-06",
+      "2026-08"
+     ],
+     "latest_period": "2026-08"
+    },
+    {
+     "name": "AYK TRADING LTD",
+     "location": "MANCHESTER, M20",
+     "periods": [
+      "2025-05",
+      "2026-08"
+     ],
+     "latest_period": "2026-08"
+    },
+    {
+     "name": "BALQEES RAW HONEY UK LTD",
+     "location": "SHEFFIELD, S10",
+     "periods": [
+      "2025-02",
+      "2025-03"
+     ],
+     "latest_period": "2025-03"
+    },
+    {
+     "name": "BELL SONS & CO (DRUGGISTS) LIMITED",
+     "location": "CHESHIRE, WA8",
+     "periods": [
+      "2025-11"
+     ],
+     "latest_period": "2025-11"
+    },
+    {
+     "name": "BESTWAY WHOLESALE LIMITED",
+     "location": "LONDON, NW10",
+     "periods": [
+      "2025-02"
+     ],
+     "latest_period": "2025-02"
+    },
+    {
+     "name": "BIO-SYNERGY LTD",
+     "location": "LONDON, NW3",
+     "periods": [
+      "2025-07",
+      "2026-02"
+     ],
+     "latest_period": "2026-02"
+    },
+    {
+     "name": "CAPITAL HEALTH LIMITED",
+     "location": "WELWYN GARDEN CITY, AL7",
+     "periods": [
+      "2025-03"
+     ],
+     "latest_period": "2025-03"
+    },
+    {
+     "name": "CARIBBEAN TRADING LIMITED",
+     "location": "SURREY, KT15",
+     "periods": [
+      "2024-11",
+      "2025-01",
+      "2025-03"
+     ],
+     "latest_period": "2025-03"
+    },
+    {
+     "name": "CENTURY PARK TRADING INTERNATIONAL LIMITED",
+     "location": "BIRMINGHAM, B9",
+     "periods": [
+      "2025-04"
+     ],
+     "latest_period": "2025-04"
+    },
+    {
+     "name": "CHEADLE WAREHOUSE SERVICES",
+     "location": "STOKE-ON-TRENT, ST10",
+     "periods": [
+      "2025-05",
+      "2025-08",
+      "2025-10",
+      "2025-12",
+      "2026-03",
+      "2026-08"
+     ],
+     "latest_period": "2026-08"
+    },
+    {
+     "name": "CLF DISTRIBUTION LIMITED",
+     "location": "SOUTHAMPTON, SO16",
+     "periods": [
+      "2025-04",
+      "2025-07",
+      "2025-08"
+     ],
+     "latest_period": "2025-08"
+    },
+    {
+     "name": "COSTCO WHOLESALE UK LTD",
+     "location": "HERTS, WD25",
+     "periods": [
+      "2024-11",
+      "2024-12",
+      "2025-01",
+      "2025-02",
+      "2025-03",
+      "2025-05",
+      "2025-06",
+      "2025-07",
+      "2025-08",
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08"
+     ],
+     "latest_period": "2026-08"
+    },
+    {
+     "name": "CPT INTERNATIONAL (UK) LIMITED",
+     "location": "BIRMINGHAM, B9",
+     "periods": [
+      "2024-11",
+      "2024-12",
+      "2025-01",
+      "2025-02",
+      "2025-03",
+      "2025-04",
+      "2025-05",
+      "2025-06",
+      "2025-07",
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07"
+     ],
+     "latest_period": "2026-07"
+    },
+    {
+     "name": "CURATYX LIMITED",
+     "location": "LONDON, EC4A",
+     "periods": [
+      "2025-04",
+      "2025-05",
+      "2025-06",
+      "2025-07",
+      "2025-10",
+      "2025-11",
+      "2026-03",
+      "2026-04",
+      "2026-05"
+     ],
+     "latest_period": "2026-05"
+    },
+    {
+     "name": "DAIRYFRESH LTD",
+     "location": "BIRMINGHAM, B6",
+     "periods": [
+      "2026-08"
+     ],
+     "latest_period": "2026-08"
+    },
+    {
+     "name": "DANDY LIONS LIMITED",
+     "location": "NORTHAMPTONSHIRE, NN11",
+     "periods": [
+      "2024-11",
+      "2025-01",
+      "2025-02",
+      "2025-03",
+      "2025-04",
+      "2025-05",
+      "2025-06",
+      "2025-07",
+      "2025-08",
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07"
+     ],
+     "latest_period": "2026-07"
+    },
+    {
+     "name": "DHL DISTRIBUTION HOLDINGS (UK) LIMITED",
+     "location": "BERKSHIRE, SL3",
+     "periods": [
+      "2025-10",
+      "2025-12",
+      "2026-03",
+      "2026-05"
+     ],
+     "latest_period": "2026-05"
+    },
+    {
+     "name": "DJAMAL GUESMIA",
+     "location": "LONDON, SE18",
+     "periods": [
+      "2024-12",
+      "2025-10"
+     ],
+     "latest_period": "2025-10"
+    },
+    {
+     "name": "DOVER STREET MARKET INTERNATIONAL LIMITED",
+     "location": "LONDON, W1F",
+     "periods": [
+      "2025-09"
+     ],
+     "latest_period": "2025-09"
+    },
+    {
+     "name": "DR. ORGANIC LIMITED",
+     "location": "SWANSEA, SA6",
+     "periods": [
+      "2025-01",
+      "2025-03",
+      "2025-07",
+      "2025-10",
+      "2025-12",
+      "2026-03"
+     ],
+     "latest_period": "2026-03"
+    },
+    {
+     "name": "EARTHBREATH LTD",
+     "location": "FIFE, KY11",
+     "periods": [
+      "2025-06"
+     ],
+     "latest_period": "2025-06"
+    },
+    {
+     "name": "EDINBURGH HONEY COMPANY LTD",
+     "location": "CITY OF EDINBURGH, EH6",
+     "periods": [
+      "2025-03"
+     ],
+     "latest_period": "2025-03"
+    },
+    {
+     "name": "EUROP FOODS HOLDING LTD",
+     "location": "SOLIHULL, B90",
+     "periods": [
+      "2026-05"
+     ],
+     "latest_period": "2026-05"
+    },
+    {
+     "name": "F DUERR & SONS LTD",
+     "location": "MANCHESTER, M23",
+     "periods": [
+      "2024-11",
+      "2025-02",
+      "2025-03",
+      "2025-04",
+      "2025-06",
+      "2025-07",
+      "2025-08",
+      "2025-12",
+      "2026-01",
+      "2026-02",
+      "2026-06"
+     ],
+     "latest_period": "2026-06"
+    },
+    {
+     "name": "FAIRWAY PSD LIMITED",
+     "location": "SWINDON, SN3",
+     "periods": [
+      "2024-12"
+     ],
+     "latest_period": "2024-12"
+    },
+    {
+     "name": "FAMILY FOODS LIMITED",
+     "location": "LICHFIELD, WS13",
+     "periods": [
+      "2024-11",
+      "2024-12",
+      "2025-01",
+      "2025-02",
+      "2025-03",
+      "2025-04",
+      "2025-06",
+      "2025-07",
+      "2025-08",
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-03",
+      "2026-04",
+      "2026-06"
+     ],
+     "latest_period": "2026-06"
+    },
+    {
+     "name": "FIC SHARECO LIMITED",
+     "location": "ALTRINCHAM, WA15",
+     "periods": [
+      "2024-11",
+      "2025-06"
+     ],
+     "latest_period": "2025-06"
+    },
+    {
+     "name": "FOODS OF EUROPE LTD",
+     "location": "HANTS, GU35",
+     "periods": [
+      "2024-11",
+      "2024-12",
+      "2025-01",
+      "2025-02",
+      "2025-03",
+      "2025-04",
+      "2025-05",
+      "2025-06",
+      "2025-07",
+      "2025-08",
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08"
+     ],
+     "latest_period": "2026-08"
+    },
+    {
+     "name": "FORTNUM & MASON PLC",
+     "location": "LONDON, W1A",
+     "periods": [
+      "2025-03",
+      "2025-05",
+      "2025-06",
+      "2025-07",
+      "2025-08",
+      "2025-10"
+     ],
+     "latest_period": "2025-10"
+    }
+   ]
+  },
+  {
+   "role": "importer",
+   "hs_code": "04090000",
+   "measure_kind": "none",
+   "source": {
+    "key": "uk_hmrc_honey_traders",
+    "name": "Regno Unito – HMRC (UK Trade Info): importatori ed esportatori di miele (codice 04090000), solo nomi",
+    "publisher": "HM Revenue & Customs (HMRC), UK Trade Info",
+    "reliability": "official",
+    "homepage": "https://www.uktradeinfo.com/find-uk-traders/",
+    "freshness": {
+     "status": "current",
+     "age_days": 0,
+     "reference_date": "2026-11-05"
+    },
+    "expected_update": "Mensile (circa 6 settimane dopo il mese); controllo settimanale",
+    "expected_update_en": "Monthly (about 6 weeks after the month); checked weekly",
+    "terms_note": "HMRC UK Trade Info, 'Find UK traders' (api.uktradeinfo.com, open data). Businesses that imported or exported commodity 04090000 in a month, with registered name and address. HMRC publishes no quantities or values for traders, nor their VAT/EORI numbers or partner countries, and omits traders who asked to be removed: names only, never ranked. Paladex stores the name and a town-level location (last address line, postcode district), never the street or full postcode.",
+    "latest_period_label": "2026-08",
+    "last_success_at": "2026-11-05T20:47:57.452027"
+   },
+   "source_url": "https://api.uktradeinfo.com/Import?%24filter=CommodityId+eq+4090000+and+MonthId+ge+202411&%24expand=Trader",
+   "web_url": "https://www.uktradeinfo.com/find-uk-traders/",
+   "published_at": null,
+   "collected_at": "2026-11-05T20:47:57.047307",
+   "last_seen_at": "2026-11-05T20:47:57.047307",
+   "reliability": "official",
+   "is_demo": false,
+   "notes": "Azienda che ha importato miele naturale (codice 04090000) nel mese, secondo le dichiarazioni doganali (HMRC, UK Trade Info). HMRC non pubblica quantità né valori per azienda.",
+   "company_count": 469,
+   "periods": [
+    "2024-11",
+    "2024-12",
+    "2025-01",
+    "2025-02",
+    "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06",
+    "2025-07",
+    "2025-08",
+    "2025-09",
+    "2025-10",
+    "2025-11",
+    "2025-12",
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08"
+   ],
+   "first_period": "2024-11",
+   "latest_period": "2026-08",
+   "companies": [
+    {
+     "name": "100 PURE NEW ZEALAND HONEY LIMITED",
+     "location": "GREATER LONDON, WC1N",
+     "periods": [
+      "2024-11",
+      "2025-01",
+      "2025-02",
+      "2025-05",
+      "2025-06",
+      "2025-07",
+      "2025-11",
+      "2026-01",
+      "2026-04"
+     ],
+     "latest_period": "2026-04"
+    },
+    {
+     "name": "309 HONEY UK LTD",
+     "location": "EDINBURGH, EH4",
+     "periods": [
+      "2026-04"
+     ],
+     "latest_period": "2026-04"
+    },
+    {
+     "name": "365 MANUFACTURING LTD",
+     "location": "COALVILLE, LE67",
+     "periods": [
+      "2025-02",
+      "2025-09"
+     ],
+     "latest_period": "2025-09"
+    },
+    {
+     "name": "A N WALLIS & COMPANY LIMITED",
+     "location": "NOTTINGHAM, NG6",
+     "periods": [
+      "2025-12"
+     ],
+     "latest_period": "2025-12"
+    },
+    {
+     "name": "A&M EXPORTS LTD",
+     "location": "EH12",
+     "periods": [
+      "2025-12"
+     ],
+     "latest_period": "2025-12"
+    },
+    {
+     "name": "A&S MARKET II LTD",
+     "location": "RG21",
+     "periods": [
+      "2024-11",
+      "2025-03"
+     ],
+     "latest_period": "2025-03"
+    },
+    {
+     "name": "ABDULLATIF FAISAL",
+     "location": "LE2",
+     "periods": [
+      "2025-01",
+      "2025-06",
+      "2026-01",
+      "2026-03"
+     ],
+     "latest_period": "2026-03"
+    },
+    {
+     "name": "ABIKER LTD",
+     "location": "ASHFORD, TN23",
+     "periods": [
+      "2025-05",
+      "2025-10",
+      "2026-08"
+     ],
+     "latest_period": "2026-08"
+    },
+    {
+     "name": "ABO ABDO LTD",
+     "location": "M12",
+     "periods": [
+      "2025-02",
+      "2025-05",
+      "2025-11",
+      "2026-04",
+      "2026-07"
+     ],
+     "latest_period": "2026-07"
+    },
+    {
+     "name": "AD TRADING, BUSINESS AND CON SULTANCY SERVICES LTD",
+     "location": "DH8",
+     "periods": [
+      "2025-03",
+      "2026-04"
+     ],
+     "latest_period": "2026-04"
+    },
+    {
+     "name": "ADM TRADE LIMITED",
+     "location": "WEST DRAYTON, UB7",
+     "periods": [
+      "2024-11",
+      "2024-12",
+      "2025-01",
+      "2025-02",
+      "2025-03",
+      "2025-04",
+      "2025-05",
+      "2025-07",
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05"
+     ],
+     "latest_period": "2026-05"
+    },
+    {
+     "name": "ADUGS FOODS LIMITED",
+     "location": "NORTHAMPTON, NN4",
+     "periods": [
+      "2024-11",
+      "2024-12",
+      "2025-01",
+      "2025-03",
+      "2025-04",
+      "2025-05",
+      "2025-06",
+      "2025-08",
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-03",
+      "2026-04",
+      "2026-06",
+      "2026-07"
+     ],
+     "latest_period": "2026-07"
+    },
+    {
+     "name": "AFAK TRADING LTD",
+     "location": "BIRMINGHAM, B11",
+     "periods": [
+      "2025-04",
+      "2025-08",
+      "2026-01",
+      "2026-04"
+     ],
+     "latest_period": "2026-04"
+    },
+    {
+     "name": "AGA FOOD LTD",
+     "location": "MANCHESTER, M17",
+     "periods": [
+      "2024-11",
+      "2025-11",
+      "2025-12"
+     ],
+     "latest_period": "2025-12"
+    },
+    {
+     "name": "AGORA GREEK DELICACIES LTD",
+     "location": "GLASGOW, G69",
+     "periods": [
+      "2024-12",
+      "2025-02",
+      "2025-05",
+      "2025-09",
+      "2025-10",
+      "2026-01",
+      "2026-04",
+      "2026-08"
+     ],
+     "latest_period": "2026-08"
+    },
+    {
+     "name": "AH EMPIRE LIMITED",
+     "location": "LONDON, HA9",
+     "periods": [
+      "2025-08"
+     ],
+     "latest_period": "2025-08"
+    },
+    {
+     "name": "AL-AMEEN HONEY PRODUCTS LIMITED",
+     "location": "NEWCASTLE UPON TYNE, NE15",
+     "periods": [
+      "2024-11",
+      "2025-12"
+     ],
+     "latest_period": "2025-12"
+    },
+    {
+     "name": "ALBERTI & SANTI UK LIMITED",
+     "location": "MAIDSTONE, ME16",
+     "periods": [
+      "2025-11"
+     ],
+     "latest_period": "2025-11"
+    },
+    {
+     "name": "ALBION FINE FOODS LIMITED",
+     "location": "DARTFORD, DA2",
+     "periods": [
+      "2026-07"
+     ],
+     "latest_period": "2026-07"
+    },
+    {
+     "name": "ALI YAD",
+     "location": "LE2",
+     "periods": [
+      "2024-11",
+      "2025-06"
+     ],
+     "latest_period": "2025-06"
+    },
+    {
+     "name": "ALIMAK GROUP UK LTD",
+     "location": "NORTHANTS, NN10",
+     "periods": [
+      "2026-06"
+     ],
+     "latest_period": "2026-06"
+    },
+    {
+     "name": "ALLICIO NUTRITION LIMITED",
+     "location": "LEEK, ST13",
+     "periods": [
+      "2025-01",
+      "2025-03",
+      "2025-12"
+     ],
+     "latest_period": "2025-12"
+    },
+    {
+     "name": "ALVI LONDON LTD",
+     "location": "E15",
+     "periods": [
+      "2024-11"
+     ],
+     "latest_period": "2024-11"
+    },
+    {
+     "name": "AMAN FRUIT & VEG LTD",
+     "location": "BRADFORD, BD4",
+     "periods": [
+      "2026-03"
+     ],
+     "latest_period": "2026-03"
+    },
+    {
+     "name": "AMBERSEA LTD",
+     "location": "LINCS, PE21",
+     "periods": [
+      "2025-02",
+      "2025-03",
+      "2025-06",
+      "2025-10",
+      "2025-12",
+      "2026-03",
+      "2026-07"
+     ],
+     "latest_period": "2026-07"
+    },
+    {
+     "name": "AMBROS NW LIMITED",
+     "location": "ILLOWS, WA12",
+     "periods": [
+      "2025-11",
+      "2026-03"
+     ],
+     "latest_period": "2026-03"
+    },
+    {
+     "name": "AMELIA ROSE TRADING LTD",
+     "location": "WORCESTER, WR2",
+     "periods": [
+      "2025-02"
+     ],
+     "latest_period": "2025-02"
+    },
+    {
+     "name": "AMPHIPOLIS LIMITED",
+     "location": "LONDON, N21",
+     "periods": [
+      "2024-12"
+     ],
+     "latest_period": "2024-12"
+    },
+    {
+     "name": "ANATOLIOTIS SPYROS",
+     "location": "London, EC1N",
+     "periods": [
+      "2024-11",
+      "2025-02",
+      "2026-03"
+     ],
+     "latest_period": "2026-03"
+    },
+    {
+     "name": "ANDROS UK LIMITED",
+     "location": "SOMERSET, BA11",
+     "periods": [
+      "2024-11",
+      "2024-12",
+      "2025-01",
+      "2025-02",
+      "2025-03",
+      "2025-04",
+      "2025-05",
+      "2025-06",
+      "2025-07",
+      "2025-08",
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08"
+     ],
+     "latest_period": "2026-08"
+    },
+    {
+     "name": "HONEY NEW ZEALAND EUROPE LTD",
+     "location": "HINCKLEY, LE10",
+     "periods": [
+      "2024-11",
+      "2024-12",
+      "2025-01",
+      "2025-02",
+      "2025-03",
+      "2025-04",
+      "2025-05",
+      "2025-06",
+      "2025-07",
+      "2025-08",
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08"
+     ],
+     "latest_period": "2026-08"
+    },
+    {
+     "name": "NELSON HONEY UK LIMITED",
+     "location": "GLOUCESTERSHIRE, GL17",
+     "periods": [
+      "2025-01",
+      "2025-07",
+      "2026-01",
+      "2026-05",
+      "2026-07"
+     ],
+     "latest_period": "2026-07"
+    }
+   ]
+  }
+ ]
+}
