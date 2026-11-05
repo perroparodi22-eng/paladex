@@ -162,6 +162,7 @@ export default {
     'rec.next': 'Successivi',
     'rec.pageOf': 'Pagina {p} di {n}',
     'rec.total': '{n} rilevazioni',
+    'rec.totalOne': '1 rilevazione',
     'rec.revision': 'revisione {n}',
 
     'empty.title': 'Dato non disponibile',
@@ -344,6 +345,7 @@ export default {
     'rec.next': 'Next',
     'rec.pageOf': 'Page {p} of {n}',
     'rec.total': '{n} observations',
+    'rec.totalOne': '1 observation',
     'rec.revision': 'revision {n}',
 
     'empty.title': 'Data not available',

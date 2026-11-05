@@ -743,3 +743,22 @@ def test_eurlex_http_error_on_one_query(run_with_routes, session_factory, pin_to
     with session_factory() as s:
         items = _items(s, "eurlex_honey")
         assert {"52026PC9903", "32024L1438"} <= set(items)       # the title query still ran and was kept
+
+
+def test_federal_register_bracketed_entities_are_decoded(api, db):
+    """Review 2026-11-05: abstracts showed 'Asociaci[oacute]n' and 'Agroind[uacute]stria' (the Federal Register's
+    entity notation). Decoded when collected, and on display for rows stored before."""
+    from sqlalchemy import select as _select
+
+    from paladex.collectors.regulation import clean_text, decode_fr_entities
+    from paladex.models import RegulationItem, Source
+
+    assert decode_fr_entities("Asociaci[oacute]n Concei[ccedil][atilde]o [Reserved]") == "Asociación Conceição [Reserved]"
+    assert clean_text("<p>Agroind[uacute]stria &amp; Co</p>") == "Agroindústria & Co"
+    src = db.scalars(_select(Source).where(Source.key == "us_federal_register")).one()
+    db.add(RegulationItem(source_id=src.id, jurisdiction="US", doc_type="antidumping", reference="2026-99999",
+                          title="Raw Honey From Argentina", url="https://www.federalregister.gov/d/2026-99999",
+                          summary_en="Asociaci[oacute]n De Cooperativas Argentinas made sales below normal value."))
+    db.commit()
+    items = api.get("/api/regulations").json()["items"]
+    assert any(i["summary_en"].startswith("Asociación De Cooperativas") for i in items)

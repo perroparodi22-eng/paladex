@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { ResultGroup, priceHitTarget } from '@/components/search/SearchResults'
 import type { PriceHit, SearchGroup } from '@/components/search/types'
-import { hrefs, render } from './helpers'
+import { hrefs, render, text } from './helpers'
 
 const hit = (o: Partial<PriceHit>): PriceHit => ({
   origin_iso3: 'MEX', origin_name_it: 'Messico', origin_name_en: 'Mexico', variety: 'unspecified', variety_it: 'Non specificata',
@@ -31,4 +31,12 @@ test('a link that already names a type, or a hit without types, is left alone', 
   assert.equal(priceHitTarget(hit({ target: '/prezzi?tipo=producer' })), '/prezzi?tipo=producer')
   assert.equal(priceHitTarget(hit({ price_types: [] })), '/prezzi?origin=MEX&variety=unspecified')
   assert.equal(priceHitTarget(hit({ target: '/prezzi', price_types: ['retail'] })), '/prezzi?price_type=retail')
+})
+
+// Review of 5 Nov 2026: a series with a single observation read "1 osservazioni".
+test('one observation is singular', () => {
+  const group = (n: number) => ({ key: 'prices', items: [hit({ observations: n })], total: 1, see_all: null } as SearchGroup)
+  assert.match(text(render(<ResultGroup group={group(1)} query="messico" />, { url: '/cerca?q=messico' })), /· 1 osservazione ·/)
+  assert.match(text(render(<ResultGroup group={group(1339)} query="messico" />, { url: '/cerca?q=messico' })), /· 1\.339 osservazioni ·/)
+  assert.match(text(render(<ResultGroup group={group(1)} query="mexico" />, { url: '/cerca?q=mexico', lang: 'en' })), /· 1 observation ·/)
 })

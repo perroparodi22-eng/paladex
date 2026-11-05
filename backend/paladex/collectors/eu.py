@@ -1,8 +1,9 @@
 """European Union honey sources: four collectors in one module.
 
 * ``eurostat_comext``: Eurostat Comext DS-045409 (JSON-stat 2.0). Monthly imports and exports
-  of CN 04090000 for the EU27 and the main member states, by partner, with derived import
-  and export unit values.
+  of CN 04090000 for the EU27 and every member state, by partner (main extra-EU origins and
+  destinations, the other member states, intra-/extra-EU and world totals), with derived
+  import and export unit values for extra-EU trade.
 * ``ec_taxud_weekly``: EC Agri-food Data Portal, TAXUD weekly import surveillance for the
   "Honey" sector. Provisional customs data, about 5 weeks ahead of Comext.
 * ``ec_honey_market``: DG AGRI honey page. Detects new "Honey market overview / presentation"
@@ -64,6 +65,7 @@ def today() -> date:
 GEO_OVERRIDES: dict[str, str] = {
     "EU27_2020": "EU27",
     "EXT_EU27_2020": "EXTRA_EU",
+    "INT_EU27_2020": "INTRA_EU",
     "WORLD": "WLD",
     "XS": "SRB",
     "EL": "GRC",
@@ -76,7 +78,7 @@ GEO_OVERRIDES: dict[str, str] = {
 # countries not specified ...). They are skipped quietly: they are not origins.
 NON_COUNTRY_CODES = frozenset({"QP", "QQ", "QR", "QS", "QU", "QV", "QW", "QX", "QY", "QZ", "XX"})
 
-AGGREGATE_CODES = frozenset({"EU27", "EXTRA_EU", "WLD"})
+AGGREGATE_CODES = frozenset({"EU27", "EXTRA_EU", "INTRA_EU", "WLD"})
 
 
 def map_geo(code: Any) -> str | None:
@@ -296,12 +298,24 @@ def decode_jsonstat(doc: Any) -> JsonStatDataset:
 COMEXT_DATASET = "DS-045409"
 COMEXT_URL = f"https://ec.europa.eu/eurostat/api/comext/dissemination/statistics/1.0/data/{COMEXT_DATASET}"
 HONEY_CN8 = "04090000"
-COMEXT_REPORTERS = ["EU27_2020", "IT", "DE", "ES", "BE", "FR", "PL", "PT", "NL"]
-# Main origins (Serbia is XS in Comext) plus the extra-EU aggregate and the world total.
-COMEXT_PARTNERS = [
-    "CN", "UA", "AR", "XS", "BR", "VN", "IN", "MX", "TR", "MD", "UY", "CL", "TH", "CU", "NZ",
-    "GT", "SV", "NI", "US", "CA", "EXT_EU27_2020", "WORLD",
-]
+# Every member state reports (Comext codes: Greece is GR), and the EU27 as a whole. One request per
+# reporter keeps each answer small (every partner x 2 flows x 2 indicators x 60 months: a few hundred
+# kB, about one second) and well inside the API's size limits.
+EU_MEMBER_CODES = ["AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR", "HU", "IE",
+                   "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK"]
+EU_MEMBER_ISO3 = frozenset({"AUT", "BEL", "BGR", "CYP", "CZE", "DEU", "DNK", "EST", "ESP", "FIN", "FRA", "GRC",
+                            "HRV", "HUN", "IRL", "ITA", "LTU", "LUX", "LVA", "MLT", "NLD", "POL", "PRT", "ROU",
+                            "SWE", "SVN", "SVK"})
+COMEXT_REPORTERS = ["EU27_2020", *EU_MEMBER_CODES]
+# Main extra-EU origins of the honey the EU imports (Serbia is XS in Comext) ...
+COMEXT_ORIGINS = ["CN", "UA", "AR", "XS", "BR", "VN", "IN", "MX", "TR", "MD", "UY", "CL", "TH", "CU", "NZ",
+                  "GT", "SV", "NI", "US", "CA", "TZ"]
+# ... and main extra-EU destinations of EU exports (Comext, Sep 2025 - Aug 2026: GB, CH, SA, US and JP
+# first). These lists are the EU27 reporter's partners; a member state gets every partner.
+COMEXT_DESTINATIONS = ["GB", "CH", "NO", "IS", "SA", "AE", "QA", "KW", "JO", "IL", "JP", "KR", "HK", "SG",
+                       "PH", "AU", "MA", "BA"]
+# Partners of the EU27 reporter: extra-EU partners, the extra-EU aggregate and the world total.
+COMEXT_PARTNERS = [*COMEXT_ORIGINS, *COMEXT_DESTINATIONS, "EXT_EU27_2020", "WORLD"]
 COMEXT_VALUE = "VALUE_IN_EUROS"
 COMEXT_QTY = "QUANTITY_IN_100KG"
 COMEXT_DIMS = ("freq", "reporter", "partner", "product", "flow", "indicators", "time")
@@ -456,12 +470,38 @@ def comext_data_status(year: int, updated: date, flags: dict[str, str] | None = 
     return DataStatus.PROVISIONAL if updated < date(year + 1, 10, 1) else DataStatus.PUBLISHED
 
 
-def _comext_params(since: str, *, reporters: list[str], partners: list[str], flows: list[str],
+# Aggregates kept from an answer for every partner: extra-EU, intra-EU and world totals. The others
+# (euro area, the pre-2020 EU, EU27 itself as a partner) would only repeat the countries.
+COMEXT_KEPT_AGGREGATES = frozenset({"EXT_EU27_2020", "INT_EU27_2020", "WORLD"})
+
+
+def comext_partners(reporter: str) -> list[str] | None:
+    """Partners requested for one reporter; None = every partner. A member state gets every partner:
+    most of its honey trade is with other member states (Austria imports mainly from Germany, Hungary
+    and Romania; Italy's main buyers are Germany and France, not the honey-origin countries) and a fixed
+    list always left destinations out. The EU27 reporter gets the extra-EU list: as partners, member
+    states would mix intra-EU trade into a breakdown whose total is the extra-EU row."""
+    if reporter == "EU27_2020":
+        return list(COMEXT_PARTNERS)
+    return None
+
+
+def comext_panel() -> str:
+    """Identity of the requested reporters x partners, kept in the state: when it changes (a reporter
+    or a partner added) the next run pulls the full back-fill, so the new series get their history."""
+    spec = {r: comext_partners(r) for r in COMEXT_REPORTERS}
+    return hashlib.sha1(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:12]
+
+
+def _comext_params(since: str, *, reporters: list[str], partners: list[str] | None, flows: list[str],
                    indicators: list[str]) -> dict:
-    return {
+    params = {
         "format": "JSON", "lang": "EN", "freq": "M", "reporter": reporters, "partner": partners,
         "product": HONEY_CN8, "flow": flows, "indicators": indicators, "sinceTimePeriod": since,
     }
+    if partners is None:
+        del params["partner"]           # no filter: every partner the reporter traded with
+    return params
 
 
 def _http_error_label(content: bytes) -> str:
@@ -504,7 +544,9 @@ class EurostatComextCollector(Collector):
         # interrupted back-fill leaves for the reporters already checkpointed) says whether the
         # full back-fill has been done. 'since' stands in for 'backfill_since' in older states.
         backfill_since = str(state.get("backfill_since") or state.get("since") or "")
-        backfilled = bool(state.get("updated")) and bool(backfill_since) and backfill_since <= f"{by:04d}-{bm:02d}"
+        panel = comext_panel()
+        backfilled = (bool(state.get("updated")) and bool(backfill_since) and backfill_since <= f"{by:04d}-{bm:02d}"
+                      and state.get("panel") == panel)
         has_rows = _has_rows(ctx, TradeFlowObservation)
         if backfilled and has_rows and not ctx.force:
             probe_updated = self._probe(ctx)
@@ -519,11 +561,20 @@ class EurostatComextCollector(Collector):
             months = COMEXT_BACKFILL_MONTHS
         sy, sm = _shift_month(t.year, t.month, -(months - 1))
         since = f"{sy:04d}-{sm:02d}"
-        doc, release = self._pull(ctx, since)
-        self._store(ctx, doc, release)
+        vintages: list[tuple[datetime, str]] = []
+        for reporter in COMEXT_REPORTERS:          # one polite request per reporter, committed one by one
+            doc, release = self._pull(ctx, since, reporter)
+            self._store(ctx, doc, release, reporter)
+            vintages.append((release.updated, release.updated_raw))
+        # A vintage published while the reporters were being pulled: keep the oldest, so the next
+        # cheap check sees the newer one and pulls again.
+        oldest = min(vintages)[1]
+        if len({v for v, _ in vintages}) > 1:
+            log.info("[%s] Comext published a new vintage during the pull; it will be pulled again", self.key)
         _set_state(ctx.session, self.key, {
-            "updated": release.updated_raw, "since": since, "pulled_at": utcnow().isoformat(timespec="seconds"),
+            "updated": oldest, "since": since, "pulled_at": utcnow().isoformat(timespec="seconds"),
             "backfill_since": since if months == COMEXT_BACKFILL_MONTHS else backfill_since,
+            "panel": panel,
         })
 
     def _probe(self, ctx: CollectContext) -> str:
@@ -534,16 +585,16 @@ class EurostatComextCollector(Collector):
         doc = ctx.fetch(COMEXT_URL, params=params, headers=JSON_HEADERS, store=False)
         return parse_comext_updated(doc.content)
 
-    def _pull(self, ctx: CollectContext, since: str) -> tuple[FetchResult, ComextRelease]:
-        partners = list(COMEXT_PARTNERS)
+    def _pull(self, ctx: CollectContext, since: str, reporter: str) -> tuple[FetchResult, ComextRelease]:
+        partners = comext_partners(reporter)
         while True:
-            params = _comext_params(since, reporters=COMEXT_REPORTERS, partners=partners, flows=["1", "2"],
+            params = _comext_params(since, reporters=[reporter], partners=partners, flows=["1", "2"],
                                     indicators=[COMEXT_VALUE, COMEXT_QTY])
             doc = ctx.fetch(COMEXT_URL, params=params, headers=JSON_HEADERS, accept_status=(200, 400, 404),
-                            title=f"Eurostat {COMEXT_DATASET} honey since {since}")
+                            title=f"Eurostat {COMEXT_DATASET} honey, reporter {reporter}, since {since}")
             if doc.status_code == 200:
                 return doc, parse_comext(doc.content)
-            if "WORLD" in partners:
+            if partners is not None and "WORLD" in partners:
                 # The WORLD aggregate is optional: if the API rejects it, retry without it.
                 log.warning("[%s] Comext rejected the request (HTTP %s: %s); retrying without WORLD",
                             self.key, doc.status_code, _http_error_label(doc.content))
@@ -551,25 +602,36 @@ class EurostatComextCollector(Collector):
                 continue
             raise CollectorError(f"Eurostat Comext answered HTTP {doc.status_code}: {_http_error_label(doc.content)}")
 
-    def _store(self, ctx: CollectContext, doc: FetchResult, release: ComextRelease) -> None:
+    def _store(self, ctx: CollectContext, doc: FetchResult, release: ComextRelease, reporter_code: str) -> None:
+        """Store the rows of ONE reporter (the one requested; rows of any other are not ours to store
+        from this answer) and commit them as one batch."""
         published = release.updated.date()
         if release.dropped_periods:
-            log.info("[%s] months without data dropped (not zero-filled): %s", self.key, ", ".join(release.dropped_periods))
-        by_reporter: dict[str, list[ComextRecord]] = defaultdict(list)
+            log.debug("[%s] %s: months without data dropped (not zero-filled): %s", self.key, reporter_code,
+                      ", ".join(release.dropped_periods))
+        reporter = map_geo(reporter_code)
+        if reporter is None or reporter in ("EXTRA_EU", "INTRA_EU", "WLD"):
+            ctx.warn(f"Comext: unexpected reporter code {reporter_code!r}; its rows were skipped")
+            return
+        asked = comext_partners(reporter_code)
+        skipped: Counter = Counter()
         for rec in release.records:
-            by_reporter[rec.reporter].append(rec)
-        for reporter_code in sorted(by_reporter):
-            reporter = map_geo(reporter_code)
-            if reporter is None or reporter in ("EXTRA_EU", "WLD"):
-                ctx.warn(f"Comext: unexpected reporter code {reporter_code!r}; its rows were skipped")
+            if rec.reporter != reporter_code:
                 continue
-            for rec in by_reporter[reporter_code]:
-                partner = map_geo(rec.partner)
-                if partner is None:
+            if asked is None and len(rec.partner) != 2 and rec.partner not in COMEXT_KEPT_AGGREGATES:
+                continue                # euro area, EU27 as a partner...: repeats the countries
+            partner = map_geo(rec.partner)
+            if partner is None:
+                if asked is not None:
                     ctx.warn(f"Comext: partner code {rec.partner!r} ({rec.partner_label}) has no mapping; row skipped")
-                    continue
-                self._store_record(ctx, doc, release, published, rec, reporter, partner)
-            ctx.checkpoint()        # one batch per reporter
+                else:           # every partner was asked for: special codes (stores, Kosovo, Ceuta) are expected
+                    skipped[f"{rec.partner} ({rec.partner_label})"] += 1
+                continue
+            self._store_record(ctx, doc, release, published, rec, reporter, partner)
+        if skipped:
+            log.info("[%s] %s: partner codes without a country mapping skipped: %s", self.key, reporter_code,
+                     dict(skipped))
+        ctx.checkpoint()            # one batch per reporter
         for p in release.problems:
             ctx.warn(p)
 
@@ -595,8 +657,12 @@ class EurostatComextCollector(Collector):
             value=rec.value_eur, net_weight_kg=kg, value_basis=basis, extra=extra, **common,
         )
         # Derived unit value. WORLD is excluded: it mixes extra-EU origins with intra-EU
-        # consignments (re-dispatched honey), so it is not a price "by origin".
-        if partner == "WLD" or not rec.value_eur or kg is None or kg < MIN_UNIT_VALUE_WEIGHT_KG:
+        # consignments (re-dispatched honey), so it is not a price "by origin". Intra-EU trade (another
+        # member state, the intra-EU total) is excluded for the same reason: it is recorded by member
+        # state of consignment, so Chinese or Argentine honey re-dispatched from Belgium is "Belgian".
+        if partner in ("WLD", "INTRA_EU") or partner in EU_MEMBER_ISO3 and reporter in EU_MEMBER_ISO3:
+            return
+        if not rec.value_eur or kg is None or kg < MIN_UNIT_VALUE_WEIGHT_KG:
             return
         if is_import:
             price_type, origin, market = PriceType.IMPORT_UNIT_VALUE, partner, reporter

@@ -48,9 +48,11 @@ const TONES: Record<Tone, string> = {
   neutral: 'bg-ivory text-charcoal-soft border-line',
   forest: 'bg-forest-50 text-forest-800 border-forest-100',
   gold: 'bg-gold-pale text-gold-dark border-gold-light/50',
-  up: 'bg-[#E6F2EA] text-up border-[#CBE4D4]',
+  // Badge text is small (0.72rem): the up/warn tokens read 4.4:1 and 3.2:1 on these tints, below
+  // the 4.5:1 minimum, so the badges use a darker shade of the same hue (4.75:1 and 4.7:1).
+  up: 'bg-[#E6F2EA] text-[#2B774B] border-[#CBE4D4]',
   down: 'bg-[#F7E7E3] text-down border-[#EBCDC6]',
-  warn: 'bg-[#FBF0DC] text-warn border-[#EED9B0]',
+  warn: 'bg-[#FBF0DC] text-[#946016] border-[#EED9B0]',
   demo: 'bg-[#FDE8E4] text-[#9A2A17] border-[#E9B4A8] font-semibold tracking-wide',
   ai: 'bg-[#EEEAF6] text-[#4B3F7A] border-[#D7D0EA]',
   outline: 'bg-transparent text-muted border-line',
@@ -135,7 +137,8 @@ export function StatTile({ label, value, sub, delta, deltaLabel, footer, demo }:
   return (
     <div className="panel p-4 flex flex-col gap-1 min-w-0">
       <div className="flex items-center justify-between gap-2">
-        <span className="eyebrow truncate">{label}</span>
+        {/* wraps rather than truncates: on a phone "NOTIZIE (30 GIO…" lost what it counts */}
+        <span className="eyebrow min-w-0 break-words">{label}</span>
         {demo && <DemoBadge />}
       </div>
       <div className="num text-[1.7rem] leading-tight text-charcoal">{value}</div>

@@ -12,6 +12,11 @@ data/
 *.sqlite3
 *.db
 .env
+# a key file left half-written by the app (envfile.py writes .env.<random> then renames it)
+.env.*
+!.env.example
+# the owner's local opt-out of automatic updates (committing it would stop every installation updating)
+.no-auto-update
 *.tsbuildinfo
 # Read-only online copy (scripts/mirror): Netlify CLI state and local build output
 .netlify/

@@ -17,7 +17,7 @@ export default {
         muted: '#6B6A62',
         up: '#2E7D4F',
         down: '#A33A2A',
-        warn: '#B7791F',
+        warn: '#946016',
       },
       fontFamily: {
         serif: ['"Source Serif 4"', 'Georgia', 'serif'],

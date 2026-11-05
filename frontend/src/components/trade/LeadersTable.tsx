@@ -82,7 +82,7 @@ export function LeadersTable({ flow, data, isLoading, error, refetch, basis, onB
         <>
           {/* Phones: the table keeps a readable width and scrolls sideways inside its panel. */}
           <div className="relative overflow-x-auto">
-          <table className="w-full min-w-[30rem] table-fixed text-[0.92rem]">
+          <table className="w-full min-w-[31rem] table-fixed text-[0.92rem]">
             <colgroup>
               <col className="w-[2.6rem]" />
               <col />
@@ -137,7 +137,9 @@ function Row({ r, max, metric, mirror }: { r: LeaderRow; max: number; metric: Tr
     <tr className="border-b border-line-soft last:border-0 hover:bg-ivory/50">
       <td className="py-2 pl-5 num text-[0.8rem] text-muted align-top pt-[0.6rem]">{r.rank}</td>
       <td className="py-2 px-2">
-        <div className="flex items-center min-w-0" title={srcTitle}>
+        {/* flex-wrap: in a narrow column the badges move under the name instead of cutting it
+            to "Stati…" (phones, and the longer English "ESTIMATE") */}
+        <div className="flex flex-wrap items-center gap-y-1 min-w-0" title={srcTitle}>
           <Link to={r.link} className="truncate text-charcoal hover:text-forest-800 hover:underline decoration-gold/50 underline-offset-2">
             {nameOf(r, lang, country)}
           </Link>

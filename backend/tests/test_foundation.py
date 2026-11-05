@@ -70,6 +70,38 @@ def test_revisions_are_append_only(db):
     assert rows[1].is_current is True and rows[1].revision == 2 and rows[1].supersedes_id == rows[0].id
 
 
+def test_revision_lookup_uses_the_series_key_index(db):
+    """Review 2026-11-05: the current-revision lookup filtered source, key, is_current and is_demo in SQL, and
+    SQLite used the is_demo index (every real row matches) - a full table scan per stored row, 30 ms each on
+    the real database. The lookup must search by series_key; the other conditions still hold (demo rows,
+    other sources and superseded revisions are never taken for the current row)."""
+    from sqlalchemy import event
+
+    src = db.scalars(select(Source).where(Source.key == "ecb_fx")).one()
+    other = db.scalars(select(Source).where(Source.key == "faostat")).one()
+    common = dict(series_key="k", price_type=PriceType.WHOLESALE_BULK.value, variety="acacia", currency="EUR",
+                  unit="kg", price_per_kg=5.0, period_start=date(2026, 1, 1), period_end=date(2026, 1, 31),
+                  period_label="2026-01", frequency="M", data_status="published", reliability="official")
+    ingest.record(db, PriceObservation, source_id=other.id, price_value=9.0, **common)
+    ingest.record(db, PriceObservation, source_id=src.id, is_demo=True, price_value=7.0, **common)
+    statements: list[str] = []
+    engine = db.get_bind()
+    listener = lambda conn, cursor, stmt, params, *a: statements.append((stmt, params))   # noqa: E731
+    event.listen(engine, "before_cursor_execute", listener)
+    try:
+        assert ingest.record(db, PriceObservation, source_id=src.id, price_value=5.0, **common)[0] == "new"
+    finally:
+        event.remove(engine, "before_cursor_execute", listener)
+    stmt, params = next((st, pa) for st, pa in statements if st.lstrip().upper().startswith("SELECT"))
+    plan = " ".join(str(r) for r in db.connection().exec_driver_sql("EXPLAIN QUERY PLAN " + stmt, params))
+    assert "series_key" in plan, plan
+    assert ingest.record(db, PriceObservation, source_id=src.id, price_value=5.0, **common)[0] == "unchanged"
+    assert ingest.record(db, PriceObservation, source_id=src.id, price_value=5.5, **common)[0] == "revised"
+    assert ingest.retire(db, PriceObservation, source_id=src.id, series_key="k") == 1
+    current = db.scalars(select(PriceObservation).where(PriceObservation.is_current.is_(True))).all()
+    assert sorted((r.source_id == src.id, r.is_demo, r.price_value) for r in current) == [(False, False, 9.0), (True, True, 7.0)]
+
+
 def test_per_kg_units():
     assert round(ingest.per_kg(2.0, "lb"), 4) == 4.4092
     assert ingest.per_kg(3000, "t") == 3.0

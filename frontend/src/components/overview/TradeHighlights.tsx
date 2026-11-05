@@ -30,7 +30,7 @@ function Side({ side, title, fallbackEmpty }: { side: TradeSide | null; title: s
           <li key={row.iso3} className="grid grid-cols-[1.1rem_minmax(0,1fr)_auto_4.6rem] items-center gap-x-2 border-b border-line-soft py-[0.45rem] last:border-0">
             <span className="num text-[0.78rem] text-muted">{i + 1}</span>
             <div className="min-w-0">
-              <Link to={row.link} className="block truncate text-[0.93rem] text-charcoal hover:text-forest-800 hover:underline decoration-gold/50 underline-offset-2">
+              <Link to={row.link} className="block break-words text-[0.93rem] leading-snug text-charcoal hover:text-forest-800 hover:underline decoration-gold/50 underline-offset-2">
                 {row.name}
               </Link>
               <div className="mt-1 h-[3px] rounded-full bg-forest-50">

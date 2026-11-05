@@ -35,8 +35,14 @@ export function fmtMetric(v: number | null, m: MapMetric, lang: Lang, newsUnit: 
   return `${fmtNumber(v, lang, v < 10 ? 1 : 0)} t`
 }
 
-/** Compact legend bound: 66 811 -> "67 mila" / "67k" */
+/** Compact legend bound: 66 811 -> "66,8 mila" / "66.8K"; small volumes keep their decimals
+ * (0,09 t), otherwise the lowest class read "0 – 0". */
 export function fmtBound(v: number, m: MapMetric, lang: Lang): string {
   if (m === 'news') return fmtNumber(v, lang)
-  return new Intl.NumberFormat(lang === 'it' ? 'it-IT' : 'en-GB', { notation: 'compact', maximumFractionDigits: v < 1000 ? 0 : 1 }).format(v)
+  // Italian CLDR abbreviates thousands as "K", which is not Italian usage: write "mila".
+  if (lang === 'it' && v >= 1000 && v < 1e6) {
+    return `${new Intl.NumberFormat('it-IT', { maximumFractionDigits: 1 }).format(v / 1000)} mila`
+  }
+  const digits = v < 1 ? 2 : v < 10 ? 1 : v < 1000 ? 0 : 1
+  return new Intl.NumberFormat(lang === 'it' ? 'it-IT' : 'en-GB', { notation: 'compact', maximumFractionDigits: digits }).format(v)
 }

@@ -114,6 +114,8 @@ export interface CountryProfile {
   context: {
     available: boolean; label_it: string; label_en: string; is_collected_data: false; varieties: string[]
     harvest: string | null; notes_it: string | null; notes_en: string | null; refs: string[]
+    /** per-language harvest season, when the backend provides one (otherwise `harvest`, written in English) */
+    harvest_it?: string | null; harvest_en?: string | null
   }
   missing: MissingItem[]
   sources: SourceUsed[]

@@ -3,6 +3,7 @@
 import { ArrowRight, BookOpen, CircleSlash, ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { AiBadge, Badge, DemoBadge, Note, Panel, StatusBadge } from '@/components/ui'
+import { colorLabel } from '@/components/prices/utils'
 import { DataMissing, useProviderText } from '@/components/trade/bits'
 import { pickLang, useI18n } from '@/i18n'
 import { fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
@@ -54,7 +55,7 @@ export function ProfilePrices({ p }: { p: CountryProfile }) {
                   </tbody>
                 </table>
               </div>
-              {g.count > g.rows.length && <div className="mt-1 text-[0.82rem] text-muted">{t('countries.prices.more', { n: g.count - g.rows.length })}</div>}
+              {g.count > g.rows.length && <div className="mt-1 text-[0.82rem] text-muted">{g.count - g.rows.length === 1 ? t('countries.prices.moreOne') : t('countries.prices.more', { n: g.count - g.rows.length })}</div>}
             </section>
           ))}
         </div>
@@ -73,7 +74,7 @@ function PriceLine({ r }: { r: PriceRow }) {
       <td>
         {variety(r.variety)}
         {r.organic && <span className="ml-1.5"><Badge tone="forest">{t('countries.prices.organic')}</Badge></span>}
-        {r.color_grade && <div className="text-[0.78rem] text-muted">{r.color_grade}</div>}
+        {r.color_grade && <div className="text-[0.78rem] text-muted">{colorLabel(r.color_grade, t)}</div>}
       </td>
       <td className="text-[0.9rem]">
         {r.market_iso3 ? country(r.market_iso3) : '—'}
@@ -126,7 +127,7 @@ export function ProfileNews({ p }: { p: CountryProfile }) {
                 <span className="text-charcoal-soft">{n.publisher || n.source?.publisher || n.source?.name}</span>
                 {n.published_at && <span>· {fmtDate(n.published_at, lang)}</span>}
                 {n.language && n.language.slice(0, 2) !== lang && <span className="uppercase">· {n.language.slice(0, 2)}</span>}
-                {n.duplicate_count > 0 && <span>· {t('countries.news.duplicates', { n: n.duplicate_count })}</span>}
+                {n.duplicate_count > 0 && <span>· {n.duplicate_count === 1 ? t('countries.news.duplicatesOne') : t('countries.news.duplicates', { n: n.duplicate_count })}</span>}
               </div>
             </li>
           ))}
@@ -180,11 +181,28 @@ export function ProfileRegulations({ p }: { p: CountryProfile }) {
 // Context (curated background — never presented as collected data)
 // ---------------------------------------------------------------------------
 
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS_IT = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
+const SEASON_WORDS_IT: [RegExp, string][] = [
+  [/\byear-round\b/gi, 'tutto l’anno'], [/\bpeaks?\b/gi, 'picco'], [/\bregion-dependent\b/gi, 'secondo la regione'],
+]
+
+/** The curated harvest season is written in English ("Apr–Sep", "year-round, peaks Sep–Mar"):
+ * in Italian, month names and the few words used are translated ("apr–set", "tutto l’anno, picco set–mar"). */
+export function harvestSeason(text: string, lang: 'it' | 'en'): string {
+  if (lang === 'en') return text
+  let out = text.replace(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/g, (m) => MONTHS_IT[MONTHS_EN.indexOf(m)])
+  for (const [re, it] of SEASON_WORDS_IT) out = out.replace(re, it)
+  return out
+}
+
 export function ProfileContext({ p }: { p: CountryProfile }) {
   const { t, lang } = useI18n()
   const { variety } = useLabels()
   const c = p.context
   const notes = lang === 'it' ? c.notes_it ?? c.notes_en : c.notes_en ?? c.notes_it
+  const harvestText = lang === 'it' ? c.harvest_it : c.harvest_en
+  const harvest = harvestText ?? (c.harvest ? harvestSeason(c.harvest, lang) : null)
   return (
     <Panel title={t('countries.ctx.title')} className="min-w-0">
       <div className="mb-3 flex items-start gap-2 rounded-sm border border-dashed border-line px-2.5 py-1.5 text-[0.8rem] text-muted"
@@ -205,10 +223,10 @@ export function ProfileContext({ p }: { p: CountryProfile }) {
               </div>
             </div>
           )}
-          {c.harvest && (
+          {harvest && (
             <div>
               <div className="eyebrow mb-0.5">{t('countries.ctx.harvest')}</div>
-              <div className="text-charcoal-soft">{c.harvest}</div>
+              <div className="text-charcoal-soft">{harvest}</div>
             </div>
           )}
           {c.refs.length > 0 && (

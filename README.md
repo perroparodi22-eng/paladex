@@ -10,7 +10,7 @@ A private, local intelligence platform for the global honey market: prices, inte
 
 ### Cosa fa
 
-* Raccoglie automaticamente dati ufficiali e notizie sul miele: USDA (USA), Commissione Europea / Eurostat, Osservatorio Nazionale Miele e listini delle Camere di Commercio, UN Comtrade, FAO, cambi BCE e notizie di settore.
+* Raccoglie automaticamente dati ufficiali e notizie sul miele: USDA e US Census (USA), Commissione Europea / Eurostat, Osservatorio Nazionale Miele e listini delle Camere di Commercio, UN Comtrade, FAO, fonti ufficiali dei paesi d'origine (per esempio Brasile, Argentina, India), dazi UE e USA, meteo NASA delle zone di produzione, cambi BCE e notizie di settore.
 * Salva tutto sul computer, senza mai cancellare lo storico. Funziona anche senza internet, con i dati già salvati.
 * Ogni numero mostra la fonte, la data di pubblicazione, il periodo e il tipo (all'ingrosso, al produttore, valore doganale…). Nessun dato viene inventato. Quando un dato manca, l'applicazione lo dice.
 
@@ -25,7 +25,7 @@ A private, local intelligence platform for the global honey market: prices, inte
 * **Windows:** doppio clic su **`Avvia Paladex.bat`**.
 * **Mac:** doppio clic su **`Avvia Paladex.command`**.
 
-Il primo avvio richiede qualche minuto (installazione). Poi il browser si apre da solo su <http://127.0.0.1:8765> e mostra **subito i dati reali** già raccolti dalle fonti ufficiali, inclusi nel programma (cartella `starter/`, con la data di raccolta indicata in alto). Intanto Paladex ricontrolla tutte le fonti da questo computer: la prima volta servono circa 30–40 minuti in background, e i dati più recenti compaiono man mano. Per chiudere l'applicazione basta chiudere la finestra nera.
+Il primo avvio richiede qualche minuto (installazione). Poi il browser si apre da solo su <http://127.0.0.1:8765> e mostra **subito i dati reali** già raccolti dalle fonti ufficiali, inclusi nel programma (cartella `starter/`, con la data di raccolta indicata in alto). Intanto Paladex ricontrolla tutte le fonti da questo computer: la prima volta servono circa 30–40 minuti in background, e i dati più recenti compaiono man mano. Per chiudere l'applicazione basta chiudere la finestra che si è aperta all'avvio (su Windows è nera). Se Paladex è già aperto, un nuovo doppio clic su **Avvia Paladex** apre soltanto il browser.
 
 I dati si aggiornano da soli mentre l'applicazione è aperta, e all'avvio se l'ultimo aggiornamento risale a più di 6 ore prima. Il pulsante **"Aggiorna dati"** in alto aggiorna tutto subito. La pagina **Fonti e qualità dati** mostra, per ogni fonte, quando è stata controllata e se ci sono problemi.
 
@@ -38,9 +38,9 @@ I dati si aggiornano da soli mentre l'applicazione è aperta, e all'avvio se l'u
 | `PALADEX_USDA_NASS_API_KEY` | Produzione e prezzi del miele negli USA (USDA NASS) | <https://quickstats.nass.usda.gov/api> |
 | `PALADEX_CENSUS_API_KEY` *(facoltativa)* | Importazioni USA dal Census Bureau (funziona anche senza chiave, con limite giornaliero) | <https://api.census.gov/data/key_signup.html> |
 | `PALADEX_FAOSTAT_USERNAME` / `PASSWORD` *(facoltativi)* | FAOSTAT via API e flussi bilaterali (senza account si usano i file pubblici) | <https://www.fao.org/faostat/en/#developer> |
-| `PALADEX_LLM_PROVIDER` + `PALADEX_ANTHROPIC_API_KEY` (oppure `PALADEX_OPENAI_API_KEY`) | Riassunti e traduzioni delle notizie (in seguito: assistente e sintesi giornaliera) | console.anthropic.com oppure platform.openai.com (a pagamento, in base all'uso) |
+| `PALADEX_LLM_PROVIDER` + `PALADEX_ANTHROPIC_API_KEY` (oppure `PALADEX_OPENAI_API_KEY`) | Riassunti e traduzioni delle notizie, assistente IA e sintesi giornaliera | console.anthropic.com oppure platform.openai.com (a pagamento, in base all'uso) |
 
-Facoltativo: per leggere il prezzo minimo all'export del miele indiano (avvisi DGFT scansionati) installare il programma gratuito **Tesseract OCR** (Windows: installer «UB Mannheim»; Mac: `brew install tesseract`).
+Facoltativo: per leggere il prezzo minimo all'export del miele indiano (avvisi DGFT scansionati) installare il programma gratuito **Tesseract OCR** (Windows: installer «UB Mannheim», nella cartella che propone; Mac: `brew install tesseract`).
 
 Senza chiavi l'applicazione funziona comunque: le fonti che le richiedono vengono saltate (o usate in versione ridotta) e la pagina Fonti lo segnala.
 
@@ -52,11 +52,11 @@ Per provare l'interfaccia prima che arrivino i dati reali, nella pagina **Fonti 
 
 ### Aggiornare Paladex
 
-Paladex si aggiorna da solo: a ogni avvio con **Avvia Paladex** scarica l'ultima versione (serve che la cartella sia stata scaricata con `git`) e, se servono, le librerie nuove. Se non c'è connessione o qualcosa non va, parte semplicemente la versione attuale. I dati (`data/`) e le chiavi (`.env`) non vengono mai toccati; i nuovi dati iniziali inclusi in una versione si aggiungono solo dove mancano. Per disattivare l'aggiornamento automatico: creare nella cartella un file vuoto chiamato `.no-auto-update`. Aggiornamento manuale: `git pull` nella cartella `paladex`.
+Paladex si aggiorna da solo: a ogni avvio con **Avvia Paladex** scarica l'ultima versione (servono il programma `git` e una cartella scaricata con `git`) e, se servono, le librerie nuove. Se non c'è connessione o qualcosa non va, parte semplicemente la versione attuale. I dati (`data/`) e le chiavi (`.env`) non vengono mai toccati; i nuovi dati iniziali inclusi in una versione si aggiungono solo dove mancano. Per disattivare l'aggiornamento automatico: creare nella cartella un file vuoto chiamato `.no-auto-update`. Aggiornamento manuale: `git pull` nella cartella `paladex`.
 
 ### Backup
 
-Tutti i dati si trovano nella cartella `data/`. Per fare una copia di sicurezza, copiare quella cartella.
+Tutti i dati si trovano nella cartella `data/` e le chiavi nel file `.env`. Per fare una copia di sicurezza, chiudere Paladex e copiare la cartella `data/` e il file `.env`.
 
 ---
 
@@ -74,7 +74,7 @@ Tutti i dati si trovano nella cartella `data/`. Per fare una copia di sicurezza,
 * **macOS:** double-click `Avvia Paladex.command`.
 * **Linux:** run `./start.sh`.
 
-The browser opens at <http://127.0.0.1:8765> and shows real data straight away: the app ships with data already collected from the official sources (`starter/`, merged once per version at start-up, never overwriting local data, collection date shown at the top). Collection then runs automatically on a schedule, on start-up when the last run is older than 6 hours, and on demand with the **"Aggiorna dati"** button. The app updates itself: at every start the launcher runs `git pull --ff-only` (never merges, never asks for a password, gives up after 90 s and starts the current version on any problem), reinstalls the Python libraries when `backend/requirements.txt` changed, then starts (`scripts/launch.py`). Opt out with an empty `.no-auto-update` file or `PALADEX_AUTO_UPDATE=false`. Free source keys can be pasted on the Sources page (saved to the local `.env`, never sent back to the browser).
+The browser opens at <http://127.0.0.1:8765> and shows real data straight away: the app ships with data already collected from the official sources (`starter/`, merged once per version at start-up, never overwriting local data, collection date shown at the top). Collection then runs automatically on a schedule, on start-up when the last run is older than 6 hours, and on demand with the **"Aggiorna dati"** button. The app updates itself: at every start the launcher downloads the latest version with `git fetch` (gives up after 90 s) and moves forward only by fast-forward (`git merge --ff-only`: never merges, never asks for a password; on any problem the current version starts), reinstalls the Python libraries when `backend/requirements.txt` changed, then starts (`scripts/launch.py`). Starting it again while it runs only opens the browser. Opt out with an empty `.no-auto-update` file or `PALADEX_AUTO_UPDATE=false`. Free source keys can be pasted on the Sources page (saved to the local `.env`, never sent back to the browser).
 
 ### Command line (advanced)
 
@@ -94,5 +94,5 @@ python -m paladex serve --no-browser
 * `docs/ARCHITECTURE.md` covers the design, data model and milestones.
 * `docs/DATA_SOURCES.md` describes each source: access, formats, update frequency, limits and licensing.
 * `docs/DEVELOPING.md` gives the conventions and the non-negotiable data rules.
-* Backend tests: `cd backend && python -m pytest`.
+* Backend tests: `cd backend && .venv/bin/pip install pytest respx && .venv/bin/python -m pytest` (Windows: `.venv\Scripts\...`).
 * Frontend dev server: `cd frontend && npm install && npm run dev` (proxies `/api` to port 8765).

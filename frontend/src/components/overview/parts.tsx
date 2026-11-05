@@ -134,7 +134,9 @@ export function Delta({ value, suffix, title, className }: { value: number | nul
 export function BlockHead({ eyebrow, title, right, sub }: { eyebrow: string; title: ReactNode; right?: ReactNode; sub?: ReactNode }) {
   return (
     <div className="border-b border-line-soft px-5 py-3">
-      <div className="flex items-start justify-between gap-3">
+      {/* flex-wrap: on a phone a wide badge goes under the title instead of squeezing it into a
+          narrow column ("SINTESI / DEL / GIORNO") */}
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
         <div className="min-w-0">
           <div className="eyebrow">{eyebrow}</div>
           <h2 className="panel-title leading-snug">{title}</h2>

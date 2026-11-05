@@ -267,6 +267,124 @@ def test_comext_retries_without_world_when_rejected(run_with_routes, session_fac
         assert urls and any("WORLD" not in u for u in urls)
 
 
+def _comext_doc(rows: list[tuple[str, str, str, str, float, float]], updated: str = "2026-10-16T11:00:00+0200") -> bytes:
+    """A DS-045409 JSON-stat answer: rows = (reporter, partner, flow, period, value EUR, quantity 100 kg)."""
+    dims = {"freq": ["M"], "reporter": sorted({r[0] for r in rows}), "partner": sorted({r[1] for r in rows}),
+            "product": [eu.HONEY_CN8], "flow": ["1", "2"], "indicators": [eu.COMEXT_VALUE, eu.COMEXT_QTY],
+            "time": sorted({r[3] for r in rows})}
+    ids = list(dims)
+    size = [len(dims[d]) for d in ids]
+    values = {}
+    for rep, par, flow, period, value, qty in rows:
+        for ind, v in ((eu.COMEXT_VALUE, value), (eu.COMEXT_QTY, qty)):
+            pos = {"freq": 0, "reporter": dims["reporter"].index(rep), "partner": dims["partner"].index(par),
+                   "product": 0, "flow": dims["flow"].index(flow), "indicators": dims["indicators"].index(ind),
+                   "time": dims["time"].index(period)}
+            idx = 0
+            for d, n in zip(ids, size):
+                idx = idx * n + pos[d]
+            values[str(idx)] = v
+    doc = {"version": "2.0", "class": "dataset", "updated": updated, "id": ids, "size": size, "value": values,
+           "dimension": {d: {"category": {"index": {c: i for i, c in enumerate(cs)}, "label": {c: c for c in cs}}}
+                         for d, cs in dims.items()}}
+    return json.dumps(doc).encode()
+
+
+def test_comext_panel_covers_every_member_state_with_its_main_partners():
+    """Lead request 2026-11-05: Eurostat Comext reported only the EU27 and 8 member states. Every member
+    state now reports; a member state also gets the other member states and the intra-EU total (most of
+    its honey trade), the EU27 aggregate only extra-EU partners (its total is the extra-EU row)."""
+    assert len(eu.EU_MEMBER_CODES) == 27 and eu.COMEXT_REPORTERS == ["EU27_2020", *eu.EU_MEMBER_CODES]
+    assert {eu.map_geo(c) for c in eu.EU_MEMBER_CODES} == set(eu.EU_MEMBER_ISO3)
+    assert eu.map_geo("INT_EU27_2020") == "INTRA_EU"
+    # a member state: every partner (Italy's main buyers are Germany and France, not honey origins)
+    assert all(eu.comext_partners(rep) is None for rep in eu.EU_MEMBER_CODES)
+    assert "partner" not in eu._comext_params("2026-01", reporters=["IT"], partners=None, flows=["2"], indicators=["X"])
+    eu27 = eu.comext_partners("EU27_2020")
+    assert len(eu27) == len(set(eu27)) and all(eu.map_geo(p) for p in eu27)
+    assert {"EXT_EU27_2020", "WORLD", "GB", "CH", "US", "SA", "JP", "UA", "CN", "AR"} <= set(eu27)
+    assert not set(eu27) & set(eu.EU_MEMBER_CODES) and "INT_EU27_2020" not in eu27
+
+
+def test_comext_pulls_each_member_state_with_intra_eu_partners(run_with_routes, session_factory, pin_today, monkeypatch):
+    """One request per reporter; Austria's trade with Germany and the intra-EU total is stored, but no 'unit
+    value by origin' is derived from intra-EU trade (recorded by member state of consignment)."""
+    from paladex.models import AppSetting
+
+    doc = _comext_doc([
+        ("AT", "DE", "1", "2026-08", 900_000.0, 1_500.0), ("AT", "UA", "1", "2026-08", 300_000.0, 1_000.0),
+        ("AT", "INT_EU27_2020", "1", "2026-08", 1_200_000.0, 2_200.0),
+        ("AT", "EXT_EU27_2020", "1", "2026-08", 310_000.0, 1_030.0),
+        ("AT", "WORLD", "1", "2026-08", 1_510_000.0, 3_230.0), ("AT", "CH", "2", "2026-08", 160_000.0, 200.0),
+        ("AT", "IT", "2", "2026-08", 80_000.0, 120.0),
+        # an answer for every partner also holds other aggregates and special codes: skipped quietly
+        ("AT", "EXT_EA21", "1", "2026-08", 400_000.0, 1_100.0), ("AT", "EU27_2020", "1", "2026-08", 1.0, 1.0),
+        ("AT", "XK", "2", "2026-08", 5_000.0, 10.0), ("AT", "QS", "2", "2026-08", 900.0, 1.0),
+    ])
+    empty = _comext_doc([("EU27_2020", "CN", "1", "2026-08", 1.0, 1.0)])     # served to every other reporter
+    at_only = r"^https://ec\.europa\.eu/eurostat/api/comext/.*DS-045409\?(?=.*reporter=AT&)(?=.*QUANTITY_IN_100KG)"
+    routes = {at_only: doc, COMEXT_MAIN: empty, COMEXT_ANY: fixture_bytes("eu/comext_probe_2026-10-16.json")}
+    asked: list[dict] = []
+    real_params = eu._comext_params
+
+    def params(since, **kw):
+        if eu.COMEXT_QTY in kw["indicators"]:
+            asked.append(kw)
+        return real_params(since, **kw)
+
+    monkeypatch.setattr(eu, "_comext_params", params)
+    res = run_with_routes("eurostat_comext", routes)
+    assert res["status"] == "success", res
+    with session_factory() as s:
+        trades = _rows(s, TradeFlowObservation, "eurostat_comext", reporter_iso3="AUT")
+        assert {(t.partner_iso3, t.flow) for t in trades} == {
+            ("DEU", "import"), ("UKR", "import"), ("INTRA_EU", "import"), ("EXTRA_EU", "import"), ("WLD", "import"),
+            ("CHE", "export"), ("ITA", "export")}
+        de = next(t for t in trades if t.partner_iso3 == "DEU")
+        assert de.net_weight_kg == 150_000 and de.value == 900_000 and de.value_basis == "CIF"
+        prices = _rows(s, PriceObservation, "eurostat_comext")
+        assert {(p.origin_iso3, p.market_iso3, p.price_type) for p in prices} == {
+            ("UKR", "AUT", "import_unit_value"), ("EXTRA_EU", "AUT", "import_unit_value"),
+            ("AUT", "CHE", "export_unit_value")}            # not from DEU, INTRA_EU, WLD or the export to ITA
+        state = s.get(AppSetting, "collector_state:eurostat_comext").value
+        assert state["panel"] == eu.comext_panel() and state["backfill_since"] == "2021-12"
+    # one request per reporter, each naming exactly that reporter; the member states also ask for the
+    # other member states and the intra-EU total, the EU27 does not
+    assert [q["reporters"] for q in asked] == [[r] for r in eu.COMEXT_REPORTERS]
+    at_q = next(q for q in asked if q["reporters"] == ["AT"])
+    assert at_q["partners"] is None                                           # every partner
+    eu_q = next(q for q in asked if q["reporters"] == ["EU27_2020"])
+    assert "DE" not in eu_q["partners"] and "INT_EU27_2020" not in eu_q["partners"]
+
+
+def test_comext_new_panel_triggers_the_full_backfill(run_with_routes, session_factory, pin_today, monkeypatch):
+    """An installation whose state was written for the old 9-reporter panel pulls five years for everyone,
+    even though the Eurostat vintage did not change (the new member states would otherwise wait a month
+    and then get 24 months only)."""
+    from paladex.models import AppSetting
+
+    routes = {COMEXT_MAIN: fixture_bytes("eu/comext_honey_2026-10-16.json"),
+              COMEXT_ANY: fixture_bytes("eu/comext_probe_2026-10-16.json")}
+    assert run_with_routes("eurostat_comext", routes)["status"] == "success"
+    assert run_with_routes("eurostat_comext", routes)["status"] == "no_change"      # same vintage, same panel
+    with session_factory() as s:
+        row = s.get(AppSetting, "collector_state:eurostat_comext")
+        row.value = {k: v for k, v in row.value.items() if k != "panel"}            # state of the old version
+    seen: list[str] = []
+    real_pull = eu.EurostatComextCollector._pull
+
+    def pull(self, ctx, since, reporter):
+        seen.append(f"{reporter}:{since}")
+        return real_pull(self, ctx, since, reporter)
+
+    monkeypatch.setattr(eu.EurostatComextCollector, "_pull", pull)
+    res = run_with_routes("eurostat_comext", routes)
+    assert res["status"] in ("success", "no_change"), res
+    assert seen == [f"{r}:2021-12" for r in eu.COMEXT_REPORTERS]
+    with session_factory() as s:
+        assert s.get(AppSetting, "collector_state:eurostat_comext").value["panel"] == eu.comext_panel()
+
+
 # ---------------------------------------------------------------------------
 # TAXUD weekly surveillance
 # ---------------------------------------------------------------------------

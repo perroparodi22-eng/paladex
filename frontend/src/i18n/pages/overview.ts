@@ -55,9 +55,10 @@ export default {
     'briefing.generatedRules': 'Generata automaticamente il {date} alle {time} con regole fisse sui dati raccolti.',
     'briefing.generatedAi': 'Generata il {date} alle {time} dal modello {model}. Verificare sempre sulla fonte indicata.',
     'briefing.checked': 'Controlli eseguiti',
-    'briefing.found': '{n} trovati',
-    'briefing.found1': '1 trovato',
-    'briefing.found0': 'nessuno',
+    // gender-neutral: the checks are about «variazioni», «report» and «notizie» alike
+    'briefing.found': '{n} risultati',
+    'briefing.found1': '1 risultato',
+    'briefing.found0': 'nessun risultato',
     'briefing.period': 'periodo {p}',
     'briefing.noSource': 'fonte non indicata',
 

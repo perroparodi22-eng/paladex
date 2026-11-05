@@ -50,7 +50,7 @@ export function RecordsTable({ filters, from, ccy, unit }: {
     <Panel
       className="mb-5"
       title={t('prices.rec.title')}
-      eyebrow={d ? t('prices.rec.total', { n: fmtNumber(d.total, lang) }) : undefined}
+      eyebrow={d ? (d.total === 1 ? t('prices.rec.totalOne') : t('prices.rec.total', { n: fmtNumber(d.total, lang) })) : undefined}
       bodyClassName="p-0"
       actions={isMirror() ? undefined : (
         <a href={csvHref} download className="btn-secondary !py-1.5" aria-disabled={!d?.total}>
@@ -61,13 +61,14 @@ export function RecordsTable({ filters, from, ccy, unit }: {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span>{t('prices.rec.subtitle')}</span>
           {d && d.pages > 1 && (
+            // Phones: arrows only (the words stay for screen readers), so the three controls fit the panel.
             <div className="flex items-center gap-2">
               <button type="button" className="btn-secondary !px-2.5 !py-1" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                <ChevronLeft size={16} /> {t('prices.rec.prev')}
+                <ChevronLeft size={16} aria-hidden /> <span className="max-sm:sr-only">{t('prices.rec.prev')}</span>
               </button>
-              <span className="num text-charcoal-soft px-1">{t('prices.rec.pageOf', { p: page, n: d.pages })}</span>
+              <span className="num whitespace-nowrap text-charcoal-soft px-1">{t('prices.rec.pageOf', { p: page, n: d.pages })}</span>
               <button type="button" className="btn-secondary !px-2.5 !py-1" disabled={page >= d.pages} onClick={() => setPage((p) => p + 1)}>
-                {t('prices.rec.next')} <ChevronRight size={16} />
+                <span className="max-sm:sr-only">{t('prices.rec.next')}</span> <ChevronRight size={16} aria-hidden />
               </button>
             </div>
           )}

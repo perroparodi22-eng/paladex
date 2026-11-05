@@ -114,3 +114,21 @@ export function seriesLabel(s: SeriesIdentity, dims: ReturnType<typeof varyingDi
   if (dims.terms && s.terms && !dims.source) parts.push(s.terms)
   return parts.join(' · ')
 }
+
+/** Series that still share a label (same origin, variety and source, different terms: Cuneo's
+ * monthly list next to its annual average) get the terms the others lack ("media annua"), so the
+ * chart legend never lists two identical names. */
+export function disambiguateLabels(series: (SeriesIdentity & { id: string })[], labels: Record<string, string>): Record<string, string> {
+  const groups = new Map<string, (SeriesIdentity & { id: string })[]>()
+  for (const s of series) groups.set(labels[s.id], [...(groups.get(labels[s.id]) ?? []), s])
+  const out = { ...labels }
+  for (const [label, group] of groups) {
+    if (group.length < 2) continue
+    const parts = group.map((s) => (s.terms ?? '').split(';').map((x) => x.trim()).filter(Boolean))
+    group.forEach((s, i) => {
+      const own = parts[i].filter((p) => !parts.every((other) => other.includes(p)))
+      if (own.length) out[s.id] = `${label} · ${own.join('; ')}`
+    })
+  }
+  return out
+}

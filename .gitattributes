@@ -1,5 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 *.bat text eol=crlf
+# Shell scripts keep LF even when checked out on Windows and copied to a Mac
+*.sh text eol=lf
+*.command text eol=lf
 backend/tests/fixtures/** -text
 starter/*.xz binary

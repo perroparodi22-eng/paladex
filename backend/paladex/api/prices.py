@@ -10,7 +10,8 @@ Rules enforced here (see docs/DEVELOPING.md):
   (`price_per_kg`, `usd_per_kg`, `eur_per_kg`); no exchange rate is guessed here. A row
   without a stored conversion has `value = null` in that currency and keeps its original.
 * Quarterly/annual aggregation averages the months that exist, with the number of months
-  reported. Gaps are never filled, changes are never extrapolated. Customs unit values
+  reported; a period with fewer months than it holds (a year still open) is flagged `partial`,
+  never shown as a full period. Gaps are never filled, changes are never extrapolated. Customs unit values
   (import/export) are weighted by the declared volume when every observation carries one
   (value / weight over the period, `weighting="volume"`); every other price is a simple
   average (`weighting="simple"`). A weekly row counts in the month of its ISO Thursday.
@@ -97,6 +98,18 @@ def _is_member(code: str | None, aggregate: str | None) -> bool:
     if aggregate == "EXTRA_EU":
         return code not in EU27_MEMBERS
     return True     # WLD covers every country
+
+
+_HTS10_LINE = re.compile(r"\bHTS\s*(\d{10})\b")
+
+
+def customs_line(terms: str | None) -> str | None:
+    """The tariff line a customs unit value covers when it is ONE HTS-10 line of HS 0409 (USDA ACE
+    tables and USDA FAS GATS lines: terms ending in 'HTS 0409000010'), else None (the whole heading:
+    totals, Comtrade, Comext, TAXUD...). A line (e.g. retail-packed honey) and the heading total are
+    different products: they are never compared as one thing."""
+    m = _HTS10_LINE.search(terms or "")
+    return m.group(1) if m else None
 
 
 def _is_total_line(terms: str | None, variety_raw: Iterable[str | None] | str | None = None) -> bool:
@@ -343,6 +356,12 @@ def _row_weight(r: PriceObservation) -> float | None:
     return r.volume_kg if r.price_type in UNIT_VALUE_TYPES and r.volume_kg and r.volume_kg > 0 else None
 
 
+def _thursdays(month_start: date) -> int:
+    """ISO weeks counted in a month (`_bucket_date`): the Thursdays that fall in it."""
+    first = month_start + timedelta(days=(3 - month_start.weekday()) % 7)
+    return (_month_end(month_start.year, month_start.month).day - first.day) // 7 + 1
+
+
 def _bucket_date(r: PriceObservation) -> date:
     """Date that decides a row's month: an ISO week (Monday start) counts in the month of its
     Thursday, where most of its days fall, so week 36/2026 (31 Aug - 6 Sep) is September."""
@@ -390,6 +409,8 @@ def _combine(items: list[dict], label: str, start: date, end: date, expected: in
         "original": original,
         "n_points": len(have),
         "expected_points": expected,
+        # fewer sub-periods than the period holds (a year still open, a month missing): never a full period
+        "partial": expected is not None and len(have) < expected,
         "weighting": "volume" if weighted else "simple",
         "volume_kg": _r(sum(i["weight"] for i in have), 1) if weighted else None,
         "periods": sorted({p for i in items for p in i.get("periods", [i["period_label"]])}),
@@ -474,6 +495,7 @@ def build_points(rows: list[PriceObservation], currency: Currency, freq: str) ->
     base_groups: dict[str, list[dict]] = defaultdict(list)
     base_bounds: dict[str, tuple[date, date]] = {}
     finest: dict[str, str] = {}
+    weekly: set[str] = set()
     for r in rows:
         label, s, e = bucket(_bucket_date(r), base_f)
         base_groups[label].append(_row_item(r, currency))
@@ -481,12 +503,18 @@ def build_points(rows: list[PriceObservation], currency: Currency, freq: str) ->
         rf = _base_freq(r.frequency)
         if FREQ_RANK[rf] < FREQ_RANK[finest.get(label, base_f)]:
             finest[label] = rf
+        if r.frequency == "W":
+            weekly.add(label)
     base_points = []
     for label in sorted(base_groups):
         s, e = base_bounds[label]
-        # Defence in depth: a bucket built from finer rows always says how many it expected.
+        # Defence in depth: a bucket built from finer rows always says how many it expected. A month
+        # of weekly quotes expects the weeks whose Thursday falls in it (4 or 5): one week of November
+        # is not "November".
         fin = finest.get(label, base_f)
         exp = PERIODS_PER_YEAR[base_f] // PERIODS_PER_YEAR[fin] if fin != base_f else None
+        if exp is None and base_f == "M" and label in weekly:
+            exp = _thursdays(s)
         p = _combine(base_groups[label], label, s, e, exp)
         p["_start"] = s
         base_points.append(p)
@@ -641,8 +669,10 @@ def find_discrepancies(db: Session, rows: list[PriceObservation], currency: Curr
     Like for like only: within one source, rows of different lines (`terms`: a total and its
     HTS-10 sub-lines, drums vs buckets ...) are never averaged together. Each source contributes
     ONE line: its total/aggregate line when it has one (largest declared volume, or terms ending
-    in "total"), and its other lines are listed apart (`other_lines`), not compared. Values are
-    compared per kg in a common currency (USD when `currency` is 'original'); customs unit values
+    in "total"), and its other lines are listed apart (`other_lines`), not compared. Across sources,
+    an HTS-10 line is compared only with the same line, never with a heading total (`customs_line`:
+    a retail-packed line is not all honey). Values are compared per kg in a common currency (USD
+    when `currency` is 'original'); customs unit values
     are volume-weighted within the period. Demo rows are only compared with demo rows. Nothing is
     resolved: every source's value is returned with its provenance.
     """
@@ -671,7 +701,8 @@ def find_discrepancies(db: Session, rows: list[PriceObservation], currency: Curr
     for (pt, origin, variety, color, organic, market, label, demo), by_src in groups.items():
         if len(by_src) < 2:
             continue
-        entries = []
+        # an HTS-10 line is compared with the same line of another source, never with a heading total
+        by_line: dict[str | None, list[dict]] = defaultdict(list)
         for sid, lines in by_src.items():
             valued = {t: rs for t, rs in lines.items() if any(convert_row(r, cmp_ccy)["value"] is not None for r in rs)}
             if not valued:
@@ -684,7 +715,7 @@ def find_discrepancies(db: Session, rows: list[PriceObservation], currency: Curr
                     ov, on, _ = line_value(ors)
                     others.append({"terms": t, "value": _r(ov), "n_rows": on})
             latest = max(rs, key=lambda r: (r.published_at or date.min, r.collected_at))
-            entries.append({
+            by_line[customs_line(terms)].append({
                 "source": source_brief(sources.get(sid)),
                 "value": _r(value),
                 "n_rows": n,
@@ -698,18 +729,19 @@ def find_discrepancies(db: Session, rows: list[PriceObservation], currency: Curr
                 "data_status": _most_cautious(r.data_status for r in rs),
                 "is_demo": demo,
             })
-        if len(entries) < 2:
-            continue
-        lo, hi = min(e["value"] for e in entries), max(e["value"] for e in entries)
-        if lo <= 0 or (hi - lo) / lo <= threshold:
-            continue
-        entries.sort(key=lambda e: e["value"])
-        out.append({
-            "price_type": pt, "origin_iso3": origin, "variety": variety, "color_grade": color, "organic": organic,
-            "market_iso3": market, "period_label": label, "currency": cmp_ccy, "unit": "kg",
-            "min": lo, "max": hi, "spread_pct": round((hi - lo) / lo * 100, 1),
-            "threshold_pct": round(threshold * 100), "is_demo": demo, "entries": entries,
-        })
+        for entries in by_line.values():
+            if len(entries) < 2:
+                continue
+            lo, hi = min(e["value"] for e in entries), max(e["value"] for e in entries)
+            if lo <= 0 or (hi - lo) / lo <= threshold:
+                continue
+            entries.sort(key=lambda e: e["value"])
+            out.append({
+                "price_type": pt, "origin_iso3": origin, "variety": variety, "color_grade": color, "organic": organic,
+                "market_iso3": market, "period_label": label, "currency": cmp_ccy, "unit": "kg",
+                "min": lo, "max": hi, "spread_pct": round((hi - lo) / lo * 100, 1),
+                "threshold_pct": round(threshold * 100), "is_demo": demo, "entries": entries,
+            })
     out.sort(key=lambda d: (d["period_label"], d["spread_pct"]), reverse=True)
     return out
 
@@ -856,6 +888,7 @@ def _point_ref(p: dict | None) -> dict | None:
     if p is None:
         return None
     return {"period_label": p["period_label"], "value": p["value"], "n_points": p["n_points"],
+            "expected_points": p.get("expected_points"), "partial": p.get("partial", False),
             "published_at": p["published_at"]}
 
 
@@ -982,7 +1015,8 @@ def compare(
             "series_id": s["id"], "origin_iso3": s["origin_iso3"], "variety": s["variety"],
             "color_grade": s["color_grade"], "terms": s["terms"], "organic": s["organic"], "market_iso3": s["market_iso3"],
             "market_location": s["market_location"], "native_frequency": s["native_frequency"],
-            "source": s["source"], "period_label": p["period_label"], "value": p["value"], "low": p["low"], "high": p["high"],
+            "source": s["source"], "period_label": p["period_label"], "partial": p.get("partial", False),
+            "value": p["value"], "low": p["low"], "high": p["high"],
             "published_at": p["published_at"], "source_url": p["source_url"], "data_status": p["data_status"],
             "is_demo": p["is_demo"], "freshness": s["freshness"],
             "_line": (s["source"] or {}).get("key"), "_total": _is_total_line(s["terms"], s["variety_raw"]),

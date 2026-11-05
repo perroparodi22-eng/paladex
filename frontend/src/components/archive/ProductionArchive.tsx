@@ -6,7 +6,7 @@ import { DemoBadge, EmptyState, ErrorBlock, Loading, Panel, Segmented, SourceLin
 import { DocLink } from '@/components/prices/bits'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
-import { fmtDate, fmtNumber } from '@/lib/format'
+import { fmtDate, fmtNumber, fmtProdUnit } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import type { Lang } from '@/lib/types'
 import { ChangeCell } from './PriceArchive'
@@ -17,7 +17,8 @@ export function fmtProduction(v: number | null, unit: string, lang: Lang): strin
   if (v === null) return '—'
   if (unit === 't') return `${fmtNumber(v, lang, 0)} t`
   if (unit === 'number') return fmtNumber(v, lang, 0)
-  return `${fmtNumber(v, lang, 1)} ${unit}`
+  if (/^1000 [A-Z]{3}$/.test(unit)) return `${fmtNumber(v, lang, 0)} ${fmtProdUnit(unit, lang)}`
+  return `${fmtNumber(v, lang, 1)} ${fmtProdUnit(unit, lang)}`
 }
 
 export function ProductionTable({ points, unit }: { points: ProductionPoint[]; unit: string }) {

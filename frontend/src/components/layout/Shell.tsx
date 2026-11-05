@@ -4,7 +4,7 @@ import {
   Archive, BarChart3, Bell, Bot, CloudSun, Database, FileText, Globe2, LayoutDashboard,
   Menu, Newspaper, RefreshCw, Scale, Search, Ship, WifiOff, X,
 } from 'lucide-react'
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
@@ -47,6 +47,14 @@ const NAV: { section: string; items: NavItem[] }[] = [
 
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n()
+  // Phones: when the menu opens, keyboard focus moves into it (onto its close button). Deferred: the
+  // menu's visibility transition still reads "hidden" at its first instant, which would ignore focus().
+  const closeButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const id = window.setTimeout(() => closeButton.current?.focus(), 50)
+    return () => window.clearTimeout(id)
+  }, [open])
   // The read-only online copy lists only what it contains (lib/mirror.ts); empty groups go too.
   const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => !mirrorHidesRoute(i.to)) })).filter((g) => g.items.length > 0)
   return (
@@ -69,7 +77,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
             <div className="font-serif text-[1.15rem] font-semibold tracking-wide">{t('app.name')}</div>
             <div className="text-[0.7rem] uppercase tracking-[0.2em] text-gold-light">{t('app.subtitle')}</div>
           </div>
-          <button type="button" onClick={onClose} aria-label={t('mirror.closeMenu')}
+          <button ref={closeButton} type="button" onClick={onClose} aria-label={t('mirror.closeMenu')}
             className="md:hidden ml-auto -mr-2 inline-flex h-10 w-10 items-center justify-center rounded-sm text-forest-100 hover:bg-forest-800 hover:text-ivory">
             <X size={22} />
           </button>
@@ -125,7 +133,7 @@ function LanguageSwitch() {
   )
 }
 
-function TopBar({ onMenu }: { onMenu: () => void }) {
+function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean }) {
   const { t, lang } = useI18n()
   const mirror = isMirror()   // read-only online copy: no search, no collection, no alerts
   const navigate = useNavigate()
@@ -183,7 +191,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
         <div className="bg-[#9A2A17] text-white text-center text-[0.78rem] tracking-[0.14em] py-1 font-semibold">{t('top.demoOn')}</div>
       )}
       <div className="flex items-center gap-2 sm:gap-4 px-3 sm:px-4 md:px-8 h-[56px] md:h-[64px]">
-        <button type="button" onClick={onMenu} aria-label={t('mirror.menu')} aria-controls="app-menu"
+        <button type="button" onClick={onMenu} aria-label={t('mirror.menu')} aria-controls="app-menu" aria-expanded={menuOpen}
           className="md:hidden -ml-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-sm text-forest-800 hover:bg-forest-50">
           <Menu size={22} />
         </button>
@@ -243,21 +251,31 @@ function AttributionFooter() {
 export function Shell({ children }: { children: ReactNode }) {
   // Phones (below md): the menu slides in over the page; any navigation or Esc closes it.
   const [menuOpen, setMenuOpen] = useState(false)
+  // Closing with Esc, the close button or the backdrop gives focus back to the menu button.
+  const opener = useRef<HTMLElement | null>(null)
+  const openMenu = () => {
+    opener.current = document.activeElement as HTMLElement | null
+    setMenuOpen(true)
+  }
+  const closeMenu = () => {
+    setMenuOpen(false)
+    opener.current?.focus?.()
+  }
   const location = useLocation()
   useEffect(() => setMenuOpen(false), [location.key])
   useEffect(() => {
     if (!menuOpen) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMenu() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [menuOpen])
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
-      {menuOpen && <div className="md:hidden fixed inset-0 z-[1090] bg-forest-950/50" onClick={() => setMenuOpen(false)} aria-hidden />}
+      <Sidebar open={menuOpen} onClose={closeMenu} />
+      {menuOpen && <div className="md:hidden fixed inset-0 z-[1090] bg-forest-950/50" onClick={closeMenu} aria-hidden />}
       <div className="flex-1 min-w-0 flex flex-col">
-        <TopBar onMenu={() => setMenuOpen(true)} />
+        <TopBar onMenu={openMenu} menuOpen={menuOpen} />
         <main className="flex-1 px-4 py-5 md:px-8 md:py-7 max-w-[1600px] w-full min-w-0">
           {mirrorHidesRoute(location.pathname) ? <NotInCopy /> : children}
         </main>

@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -145,11 +145,14 @@ def report_file(report_id: int, db: Session = Depends(get_db)):
     """Serve the archived original exactly as downloaded (never regenerated)."""
     r = _get_visible_report(db, report_id)
     doc = db.get(RawDocument, r.raw_document_id) if r.raw_document_id else None
-    if doc is None:
-        raise HTTPException(404, "No archived document for this report")
-    path = safe_raw_path(get_settings().raw_dir, doc.path)
+    path = safe_raw_path(get_settings().raw_dir, doc.path) if doc is not None else None
     if path is None or not path.is_file():
-        raise HTTPException(404, "Archived document not available")
+        # The owner clicked a document link: send them to the publisher's original rather than a bare
+        # error (never to this same route, which would loop).
+        if (r.url or "").lower().startswith(("https://", "http://")):
+            return RedirectResponse(r.url, status_code=307)
+        raise HTTPException(404, "No archived document for this report" if doc is None
+                            else "Archived document not available")
     media_type = (doc.content_type or "").split(";")[0].strip().lower() or (
         mimetypes.guess_type(path.name)[0] or "application/octet-stream")
     src = db.get(Source, r.source_id)

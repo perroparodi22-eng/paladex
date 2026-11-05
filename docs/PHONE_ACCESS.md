@@ -8,8 +8,8 @@ Una **copia online di sola lettura** delle pagine di mercato di Paladex, da apri
 
 * Indirizzo: <https://paladex-pg-mobile.netlify.app> (progetto Netlify «paladex-pg-mobile»).
 * È **privata**: si apre solo dopo l'accesso con l'account Netlify del titolare. Nessun altro può vederla.
-* Si aggiorna **da sola ogni mattina** (verso le 5–6 ora italiana): GitHub raccoglie i dati dalle stesse fonti ufficiali del computer, prepara la copia e la pubblica. Il computer non serve.
-* In cima a ogni pagina una fascia dice **fino a quando sono stati raccolti i dati** («Copia online di sola lettura · dati raccolti fino al …»). Se la copia non viene aggiornata da più di un giorno e mezzo, la fascia diventa gialla con un avviso.
+* Si aggiorna **da sola ogni mattina** (la copia nuova è pronta verso le 6:30 ora italiana, le 7:30 con l'ora legale): GitHub raccoglie i dati dalle stesse fonti ufficiali del computer, prepara la copia e la pubblica. Il computer non serve.
+* In cima a ogni pagina una fascia dice **fino a quando sono stati raccolti i dati** («Copia online di sola lettura · dati raccolti fino al …»). Se la copia non viene aggiornata da più di un giorno e mezzo, o se le fonti non rispondono da tre giorni, la fascia diventa gialla con un avviso.
 
 Consiglio: sul telefono, aprire l'indirizzo e scegliere «Aggiungi a schermata Home» per averla come un'app.
 
@@ -37,9 +37,18 @@ Facoltativo: le chiavi gratuite delle fonti dati (le stesse del file `.env` del 
 
 ### Aggiornare subito la copia
 
-Su GitHub: scheda **Actions** → a sinistra **Online copy (phone)** → **Run workflow** → **Run workflow**. Dopo 15–60 minuti (la prima volta di più) la copia è aggiornata. Nella stessa pagina si vede l'esito di ogni aggiornamento: verde = pubblicato; se manca la chiave Netlify il riepilogo lo dice («Not published: … NETLIFY_AUTH_TOKEN …»).
+Su GitHub: scheda **Actions** → a sinistra **Online copy (phone)** → **Run workflow** → **Run workflow**. Dopo circa un'ora (40–60 minuti) la copia è aggiornata. Nella stessa pagina si vede l'esito di ogni aggiornamento:
+
+* segno verde, e nel riepilogo «Online copy» con la data dei dati = pubblicato (il riepilogo «Collection» dice anche quali fonti non hanno risposto);
+* segno verde con l'avviso «Skipped: the repository secret NETLIFY_AUTH_TOKEN is missing…» = manca la chiave Netlify, non è stato pubblicato nulla;
+* croce rossa = errore: sul telefono resta la copia precedente.
 
 Se la chiave Netlify scade, crearne una nuova (punto 1) e sostituire il valore del secret `NETLIFY_AUTH_TOKEN` (punto 2).
+
+### Costi
+
+* GitHub: ogni aggiornamento usa circa 50 minuti di GitHub Actions, circa 1.550 minuti al mese (il piano gratuito di GitHub ne include 2.000 al mese per i repository privati).
+* Netlify: una pubblicazione al giorno. Con i piani Netlify a crediti ogni pubblicazione costa 15 crediti, circa 450 al mese: il piano gratuito ne include 300, il piano Personal 1.000. Il piano si controlla su <https://app.netlify.com> → team → **Billing**.
 
 ---
 
@@ -51,8 +60,8 @@ A **read-only online copy** of Paladex's market pages, to open on the phone when
 
 * Address: <https://paladex-pg-mobile.netlify.app> (Netlify project "paladex-pg-mobile").
 * It is **private**: it opens only after logging in with the owner's Netlify account. Nobody else can see it.
-* It **refreshes itself every morning** (around 5–6 am Italian time): GitHub collects the data from the same official sources as the computer, prepares the copy and publishes it. The computer is not needed.
-* A strip at the top of every page says **up to when the data was collected** ("Read-only online copy · data collected up to …"). If the copy has not been refreshed for more than a day and a half, the strip turns amber with a warning.
+* It **refreshes itself every morning** (the new copy is ready around 6:30 am Italian time, 7:30 am in summer time): GitHub collects the data from the same official sources as the computer, prepares the copy and publishes it. The computer is not needed.
+* A strip at the top of every page says **up to when the data was collected** ("Read-only online copy · data collected up to …"). If the copy has not been refreshed for more than a day and a half, or the sources have not answered for three days, the strip turns amber with a warning.
 
 Tip: on the phone, open the address and choose "Add to Home Screen" to use it like an app.
 
@@ -80,9 +89,18 @@ Optional: the free data-source keys (the same as in the computer's `.env`: `PALA
 
 ### Refreshing the copy now
 
-On GitHub: **Actions** tab → **Online copy (phone)** on the left → **Run workflow** → **Run workflow**. After 15–60 minutes (longer the first time) the copy is up to date. The same page shows the outcome of every refresh: green = published; if the Netlify key is missing the summary says so ("Not published: … NETLIFY_AUTH_TOKEN …").
+On GitHub: **Actions** tab → **Online copy (phone)** on the left → **Run workflow** → **Run workflow**. After about an hour (40–60 minutes) the copy is up to date. The same page shows the outcome of every refresh:
+
+* green tick, and an "Online copy" summary with the data date = published (the "Collection" summary also lists the sources that did not answer);
+* green tick with the warning "Skipped: the repository secret NETLIFY_AUTH_TOKEN is missing…" = the Netlify key is missing, nothing was published;
+* red cross = error: the phone keeps the previous copy.
 
 If the Netlify key expires, create a new one (step 1) and replace the value of the `NETLIFY_AUTH_TOKEN` secret (step 2).
+
+### Costs
+
+* GitHub: each refresh uses about 50 minutes of GitHub Actions, about 1,550 minutes a month (GitHub's free plan includes 2,000 a month for private repositories).
+* Netlify: one deploy a day. On Netlify's credit-based plans each production deploy costs 15 credits, about 450 a month: the free plan includes 300, the Personal plan 1,000. Check the plan at <https://app.netlify.com> → team → **Billing**.
 
 ### For developers
 

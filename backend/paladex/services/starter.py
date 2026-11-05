@@ -83,6 +83,37 @@ def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
 
 
+def _sql_literal(value) -> str | None:
+    if isinstance(value, bool):
+        return str(int(value))
+    if isinstance(value, (int, float)):
+        return repr(value)
+    if isinstance(value, str):
+        return "'" + value.replace("'", "''") + "'"
+    return None
+
+
+def _missing_required(conn: sqlite3.Connection, table: str) -> dict[str, str] | None:
+    """Columns of the local table that the snapshot lacks (it was built by an older version)
+    and that cannot stay empty: {column: SQL literal of the model's default}. None when one of
+    them has no simple default: that table is then left out of the merge (the others go on)."""
+    from .. import models  # noqa: F401 - registers the tables on Base.metadata
+    from ..db import Base
+
+    snap_cols = set(_columns(conn, table, "snap"))
+    model = Base.metadata.tables.get(table)
+    out: dict[str, str] = {}
+    for _cid, name, _type, notnull, default, pk in conn.execute(f'PRAGMA main.table_info("{table}")'):
+        if name in snap_cols or pk or not notnull or default is not None:
+            continue
+        col = model.columns.get(name) if model is not None else None
+        literal = _sql_literal(getattr(col.default, "arg", None)) if col is not None and col.default is not None else None
+        if literal is None:
+            return None
+        out[name] = literal
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Building the snapshot (developer command: python -m paladex starter-build --from <db>)
 # ---------------------------------------------------------------------------
@@ -213,6 +244,7 @@ def import_snapshot(xz: Path, meta: dict) -> dict:
         "imported_at": _utcnow_iso(),
         "inserted": stats["inserted"],
         "kept_local": stats["kept_local"],
+        "skipped": stats["skipped"],
     }
     with session_scope() as s:
         row = s.get(AppSetting, SETTING_KEY)
@@ -228,6 +260,7 @@ def merge(conn: sqlite3.Connection) -> dict:
     """Merge the attached ``snap`` database into ``main`` (inside the caller's transaction)."""
     inserted: dict[str, int] = {}
     kept_local: dict[str, int] = {}
+    skipped: list[str] = []
     main_tables, snap_tables = _tables(conn, "main"), _tables(conn, "snap")
 
     conn.execute("DROP TABLE IF EXISTS temp.starter_src_map")
@@ -238,16 +271,29 @@ def merge(conn: sqlite3.Connection) -> dict:
         snap_cols = set(_columns(conn, table, "snap"))
         return [c for c in _columns(conn, table, "main") if c in snap_cols]
 
+    def mergeable(table: str) -> dict[str, str] | None:
+        """Both databases hold the table: the defaults of the local columns the snapshot lacks."""
+        if table not in snap_tables or table not in main_tables:
+            return None
+        fill = _missing_required(conn, table)
+        if fill is None:
+            log.warning("starter data: %s left out (the snapshot lacks a required column; rebuild it)", table)
+            skipped.append(table)
+        return fill
+
     # 1. ECB exchange rates (unique per date and currency).
-    if "fx_rates" in snap_tables and "fx_rates" in main_tables:
+    fill = mergeable("fx_rates")
+    if fill is not None:
         cols = [c for c in common("fx_rates") if c != "id"]
-        cl = ", ".join(f'"{c}"' for c in cols)
-        cur = conn.execute(f'INSERT OR IGNORE INTO main.fx_rates ({cl}) SELECT {cl} FROM snap.fx_rates ORDER BY id')
+        cl = ", ".join(f'"{c}"' for c in [*cols, *fill])
+        sel = ", ".join([*(f'"{c}"' for c in cols), *fill.values()])
+        cur = conn.execute(f'INSERT OR IGNORE INTO main.fx_rates ({cl}) SELECT {sel} FROM snap.fx_rates ORDER BY id')
         inserted["fx_rates"] = cur.rowcount
 
     # 2. Observation series: copied whole, only when the local database has no row of that series.
     for t in SERIES_TABLES:
-        if t not in snap_tables or t not in main_tables:
+        fill = mergeable(t)
+        if fill is None:
             continue
         offset = conn.execute(f'SELECT COALESCE(MAX(id), 0) FROM main."{t}"').fetchone()[0]
         # The series already held locally, in a small indexed temp table: the anti-join below then
@@ -277,8 +323,8 @@ def merge(conn: sqlite3.Connection) -> dict:
                 exprs.append("NULL")
             else:
                 exprs.append(f's."{c}"')
-        cl = ", ".join(f'"{c}"' for c in cols)
-        cur = conn.execute(f'INSERT INTO main."{t}" ({cl}) SELECT {", ".join(exprs)} FROM snap."{t}" s '
+        cl = ", ".join(f'"{c}"' for c in [*cols, *fill])
+        cur = conn.execute(f'INSERT INTO main."{t}" ({cl}) SELECT {", ".join([*exprs, *fill.values()])} FROM snap."{t}" s '
                            f"JOIN temp.starter_rows r ON r.id = s.id ORDER BY s.id")
         inserted[t] = cur.rowcount
         total = conn.execute(f'SELECT COUNT(*) FROM snap."{t}" WHERE is_demo = 0').fetchone()[0]
@@ -288,17 +334,20 @@ def merge(conn: sqlite3.Connection) -> dict:
 
     # 3. Reports and regulations: unique per source and report key / reference.
     for t in UNIQUE_TABLES:
-        if t not in snap_tables or t not in main_tables:
+        fill = mergeable(t)
+        if fill is None:
             continue
         cols = [c for c in common(t) if c != "id"]
         exprs = ["mp.local_id" if c == "source_id" else "NULL" if c == "raw_document_id" else f's."{c}"' for c in cols]
-        cl = ", ".join(f'"{c}"' for c in cols)
+        exprs += fill.values()
+        cl = ", ".join(f'"{c}"' for c in [*cols, *fill])
         cur = conn.execute(f'INSERT OR IGNORE INTO main."{t}" ({cl}) SELECT {", ".join(exprs)} FROM snap."{t}" s '
                            f"JOIN temp.starter_src_map mp ON mp.snap_id = s.source_id WHERE s.is_demo = 0 ORDER BY s.id")
         inserted[t] = cur.rowcount
 
     # 4. News (unique canonical URL); duplicate links re-pointed by URL afterwards.
-    if "news_articles" in snap_tables and "news_articles" in main_tables:
+    fill = mergeable("news_articles")
+    if fill is not None:
         offset = int(conn.execute("SELECT COALESCE(MAX(id), 0) FROM main.news_articles").fetchone()[0])
         cols = common("news_articles")
         exprs = []
@@ -311,8 +360,8 @@ def merge(conn: sqlite3.Connection) -> dict:
                 exprs.append("NULL")
             else:
                 exprs.append(f's."{c}"')
-        cl = ", ".join(f'"{c}"' for c in cols)
-        cur = conn.execute(f'INSERT OR IGNORE INTO main.news_articles ({cl}) SELECT {", ".join(exprs)} '
+        cl = ", ".join(f'"{c}"' for c in [*cols, *fill])
+        cur = conn.execute(f'INSERT OR IGNORE INTO main.news_articles ({cl}) SELECT {", ".join([*exprs, *fill.values()])} '
                            f"FROM snap.news_articles s JOIN temp.starter_src_map mp ON mp.snap_id = s.source_id "
                            f"WHERE s.is_demo = 0 ORDER BY s.id")
         inserted["news_articles"] = cur.rowcount
@@ -353,7 +402,7 @@ def merge(conn: sqlite3.Connection) -> dict:
                 conn.execute(f"UPDATE main.sources SET {', '.join(f'{k} = ?' for k in upd)} WHERE id = ?",
                              (*upd.values(), local_id))
     conn.execute("DROP TABLE temp.starter_src_map")
-    return {"inserted": inserted, "kept_local": kept_local}
+    return {"inserted": inserted, "kept_local": kept_local, "skipped": skipped}
 
 
 def _after_import() -> None:

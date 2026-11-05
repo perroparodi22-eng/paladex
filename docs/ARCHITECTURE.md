@@ -6,7 +6,7 @@ Paladex is the Parodi Group Global Honey Intelligence Platform: a local applicat
 
 | Requirement | Consequence for the design |
 |---|---|
-| Runs locally on one PC, non-technical user | One process (FastAPI) serves both the API and the built interface. A double-click launcher opens the browser. No accounts, no cloud. |
+| Runs locally on one PC, non-technical user | One process (FastAPI) serves both the API and the built interface. A double-click launcher installs, updates itself and opens the browser. No accounts. The only cloud part is optional: a read-only copy of the market pages for the phone, built from public data (`docs/PHONE_ACCESS.md`). |
 | Works offline with saved data | Everything is stored in local SQLite. The map has no tile server (it uses country shapes bundled in the app), and fonts are bundled too. Collectors detect that the PC is offline and simply skip. |
 | Automatic collection | In-process APScheduler. Each source has its own cadence, plus a catch-up run at start-up if the last run is older than 6 hours. A manual "Aggiorna dati" button runs everything. |
 | Accuracy and trust | Every fact carries provenance. Price types, data statuses and reliability levels are controlled vocabularies. History is append-only with revisions. A data-quality engine reports stale, missing, outlier and conflicting values. |
@@ -67,6 +67,7 @@ Tables:
 * `reports` lists official publication releases (e.g. USDA National Honey Report, October 2026), with extracted narrative and AI summary fields.
 * `news_articles` stores the canonical URL, publisher, language, snippet, image, countries, topics, relevance, AI title/summary in IT/EN, and the duplicate chain.
 * `regulations` covers EU/US/IT measures with reference (CELEX, Federal Register number), type, status, dates, URL and affected countries.
+* `tariff_measures` holds import duties on honey by origin (EU TARIC through the UK XI service, US HTS): measure type, duty as published, ad valorem rate, tariff quotas and their balances, with the same revision columns.
 * `supplier_quotes`, `alert_rules`, `alert_events` and `briefings` hold user and business data (Milestones 6–7).
 * `data_quality_issues` tracks stale, missing, outlier, discrepancy, parse_warning and collection_failed issues, with auto-resolution.
 * `sources`, `collection_runs`, `raw_documents`, `countries` and `app_settings` support the system itself.
@@ -93,10 +94,12 @@ Tables:
 | 5 | Map (offline), country profiles and trade leaders/flows; regulations and duties UI; harvest & production: FAOSTAT production plus NASA POWER monthly weather and anomalies vs 1991-2020 for 64 honey regions (130 points), transparent rule-based signals (drought watch, heat stress, wet season) labelled as automatic assessments (Open-Meteo not used: its free tier is non-commercial) | **done** |
 | 6 | AI assistant (database-grounded, cited answers, number and citation post-check; retrieval-only answers without an AI key), daily AI briefing (only with an AI key; the rule-based daily summary, labelled "not AI", stays otherwise) | **done** |
 | 7 | Supplier quotes and landed-cost calculator (official EU/US duties incl. tariff quotas, ECB rates), alert center (5 rule types, no flood on bulk imports), historical archive (year-on-year views, revision history) | **done** |
-| 8 | Polish, source verification on the live machine, performance, installer | in progress: real starter data shipped with the app (`starter/`, merged once per version at start-up so a new installation opens with data); first-run notice |
+| 8 | Polish, source verification on the live machine, performance, installer | in progress. Done: real starter data shipped with the app (`starter/`, merged once per version at start-up so a new installation opens with data); first-run notice; start scripts that install, check the Python version and update the program at every start (`scripts/launch.py`); keys pasted on the Sources page; responsive layout and a private read-only copy for the phone (GitHub Actions + Netlify, `docs/PHONE_ACCESS.md`); local server protection (§6) |
 
 ## 6. Security and privacy
 
 * The server binds to `127.0.0.1` only, so it is not reachable from the network.
-* API keys live in `.env` (git-ignored) and are only used server-side. They are stripped from stored URLs.
-* Supplier quotes and business data never leave the PC. The only outbound data are requests to public sources and, if enabled, the article titles and snippets sent to the configured LLM provider for summaries. Supplier data is never sent.
+* It answers only the owner's own Paladex tab (`main.LocalOnlyGuard`): requests addressed to another host name are refused (a web page elsewhere that points its own domain at 127.0.0.1, "DNS rebinding", reads nothing); `/api` requests that the browser marks as sent by another site (`Sec-Fetch-Site`), and changing requests (POST, PUT, PATCH, DELETE) whose `Origin` is another site, are refused, so a page elsewhere cannot start a collection, load demo data or spend AI credits. No CORS header is ever sent, and the pages cannot be shown inside another site's frame (`X-Frame-Options`, CSP `frame-ancestors`). Anything that changes data or calls a paid service is a POST, PUT or DELETE, never a GET.
+* API keys live in `.env` (git-ignored) and are only used server-side: in a request header where the source allows it, otherwise as a query parameter whose value is replaced by `REDACTED` in stored URLs, error messages and the log. A key pasted on the Sources page is written to `.env` (readable by the owner only) and never sent back to the browser.
+* Supplier quotes, alerts, the assistant's questions and the settings never leave the PC. The starter data (`services/starter.py`) and the online copy for the phone (`scripts/mirror/prepare_db.py`) are built without them, and the copy is checked for every key value before it is published (`scripts/mirror/scan_secrets.py`).
+* Outbound data: requests to the public sources (generic client name `Paladex/0.1 (internal research tool)`, never the company name) and, only when an AI key is set, what the configured AI provider needs: news headlines and excerpts (summaries, translations), the database facts behind an assistant answer or the daily briefing, and the owner's question. Offers are included only when the question is about offers, as "Offer A/B/C", never with the supplier's name or the notes.

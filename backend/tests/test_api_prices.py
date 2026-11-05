@@ -497,8 +497,10 @@ def test_discrepancies_compare_one_like_for_like_line_per_source(api, db):
     d = api.get("/api/prices/discrepancies").json()
     assert d["total"] == 0                     # total 2.90 vs 2.95; the old blended GATS mean 3.32 said +12.6%
 
-    # a second source publishing a white line 3.50 is compared with GATS' white line (3.10) only
-    add_price(db, comtrade, value=3.50, volume=50_000, color="white", terms="white line", **uv)
+    # a second source publishing the same white line (USDA ACE, HTS 0409000035) at 3.50 is compared with
+    # GATS' white line (3.10) only
+    add_price(db, comtrade, value=3.50, volume=50_000, color="white",
+              terms="US customs value / net kg (CBP ACE; excludes freight, insurance & duty), HTS 0409000035", **uv)
     db.commit()
     d = api.get("/api/prices/discrepancies").json()
     assert d["total"] == 1
@@ -515,6 +517,29 @@ def test_discrepancies_compare_one_like_for_like_line_per_source(api, db):
     g = next(e for e in unc["entries"] if e["source"]["key"] == "t_gats")
     assert g["value"] == 2.9 and g["terms"] == [f"{GATS_TERMS}, HS 0409 total"]
     assert [o["value"] for o in g["other_lines"]] == [3.4]
+
+
+def test_discrepancies_never_compare_an_hts_line_with_the_heading_total(api, db):
+    """Review 2026-11-05: half the listed discrepancies (155 of 322) put the USDA report's retail-packed line
+    (HTS 0409000010: 'Comb honey and honey packaged for retail sale', 8.38 USD/kg) against the Census
+    HS 0409 total (2.45 USD/kg) as if they were the same thing. A line is compared only with the same line."""
+    census, ams, comtrade = make_src(db, "t_census"), make_src(db, "t_ams"), make_src(db, "t_comtrade")
+    uv = {"price_type": "import_unit_value", "origin": "ARG", "market": "USA", "variety": "unspecified",
+          "period": "2025-05"}
+    add_price(db, census, value=2.445, volume=5_457_986, terms=f"{GATS_TERMS}, HS 0409 total",
+              variety_raw="HS 0409 natural honey (all lines)", **uv)
+    add_price(db, ams, value=8.3842, volume=16_664,
+              terms="US customs value / net kg (CBP ACE; excludes freight, insurance & duty), HTS 0409000010", **uv)
+    db.commit()
+    assert api.get("/api/prices/discrepancies").json()["total"] == 0
+    # two heading totals are still compared
+    add_price(db, comtrade, value=2.95, volume=6_000_000, terms="CIF customs value / net weight", **uv)
+    db.commit()
+    d = api.get("/api/prices/discrepancies").json()
+    assert d["total"] == 1
+    assert [e["source"]["key"] for e in d["items"][0]["entries"]] == ["t_census", "t_comtrade"]
+    assert prices_api.customs_line("US customs value / net kg (CBP ACE), HTS 0409000010") == "0409000010"
+    assert prices_api.customs_line(f"{GATS_TERMS}, HS 0409 total") is None
 
 
 def test_compare_keeps_markets_apart_and_never_averages_aggregates_or_sub_lines(api, db):
@@ -709,3 +734,44 @@ def test_small_customs_consignments_are_not_shown_as_bulk_prices(api):
     assert [r["latest"]["period_label"] for r in rows] == ["2026-07"]       # the 2.3 t August lot is hidden
     shown = api.get(base + "&small=true").json()["rows"]
     assert [r["latest"]["period_label"] for r in shown] == ["2026-08"]      # shown on request
+
+
+def test_partial_periods_are_never_shown_as_full_ones(api, db):
+    """Review 2026-11-05: one weekly quote (CCIAA Siena, week 45) became 'November 2026', and freq=A turned
+    January-August 2026 into '2026', both without saying so. A month of weekly quotes expects the weeks whose
+    Thursday falls in it; a year expects 12 months; fewer is flagged `partial`."""
+    siena, cuneo = make_src(db, "t_siena"), make_src(db, "t_cuneo")
+    q = {"origin": "ITA", "market": "ITA", "variety": "polyflora", "currency": "EUR"}
+    add_price(db, siena, period="2026-W45", value=6.5, freq="W", **q)                 # Thu 5 Nov: November
+    for w in (40, 41, 42, 43, 44):                                                   # Thursdays of October 2026
+        add_price(db, siena, period=f"2026-W{w}", value=6.4, freq="W", **q)
+    for m in range(1, 13):
+        add_price(db, cuneo, period=f"2025-{m:02d}", value=5.0, **q)
+    for m in range(1, 9):
+        add_price(db, cuneo, period=f"2026-{m:02d}", value=5.2, **q)
+    db.commit()
+    s = api.get("/api/prices/series?price_type=wholesale_bulk&currency=EUR&freq=M").json()
+    weekly = next(x for x in s["series"] if x["source"]["key"] == "t_siena")
+    pts = {p["period_label"]: p for p in weekly["points"]}
+    assert (pts["2026-11"]["n_points"], pts["2026-11"]["expected_points"], pts["2026-11"]["partial"]) == (1, 4, True)
+    assert (pts["2026-10"]["n_points"], pts["2026-10"]["expected_points"], pts["2026-10"]["partial"]) == (5, 5, False)
+    latest = api.get("/api/prices/latest?price_type=wholesale_bulk&currency=EUR").json()
+    w = next(r for r in latest["rows"] if r["source"]["key"] == "t_siena")
+    assert w["latest"]["partial"] is True and w["previous"]["partial"] is False
+    a = api.get("/api/prices/series?price_type=wholesale_bulk&currency=EUR&freq=A").json()
+    years = {p["period_label"]: p for x in a["series"] if x["source"]["key"] == "t_cuneo" for p in x["points"]}
+    assert (years["2026"]["n_points"], years["2026"]["partial"]) == (8, True) and years["2025"]["partial"] is False
+
+
+def test_country_prices_leave_out_small_lots(api, db):
+    """Review 2026-11-05: the country page listed Chile -> US at 8.48 USD/kg on a 1.16 t lot, which the price
+    pages hide (10 t rule)."""
+    census = make_src(db, "t_census")
+    uv = {"price_type": "import_unit_value", "origin": "CHL", "market": "USA", "variety": "unspecified",
+          "terms": f"{GATS_TERMS}, HS 0409 total"}
+    add_price(db, census, period="2026-09", value=8.48, volume=1_160, **uv)
+    add_price(db, census, period="2026-08", value=3.10, volume=250_000, **uv)
+    db.commit()
+    groups = api.get("/api/countries/CHL").json()["prices"]["groups"]
+    rows = [r for g in groups for r in g["rows"]]
+    assert [(r["period_label"], r["price_per_kg"]) for r in rows] == [("2026-08", 3.1)]

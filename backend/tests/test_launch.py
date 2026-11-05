@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -96,3 +97,91 @@ def test_requirements_are_reinstalled_only_when_they_change(tmp_path, monkeypatc
     monkeypatch.setattr(launch.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1))
     req.write_text("fastapi\nnewlib\nother\n")
     assert launch.requirements(req, stamp) == "failed"           # offline: the start goes on
+
+
+def test_missing_libraries_reads_the_requirement_names(tmp_path):
+    req = tmp_path / "requirements.txt"
+    req.write_text("# comment\nfastapi>=0.110\nuvicorn[standard]>=0.29\npydantic-settings>=2.2\n\n"
+                   "surely-not-installed-lib>=1  # comment\n-r other.txt\n")
+    assert launch.missing_libraries(req) == ["surely-not-installed-lib"]
+
+
+def _no_update(monkeypatch, requirements: str = "ok") -> None:
+    monkeypatch.setattr(launch, "update", lambda: "current")
+    monkeypatch.setattr(launch, "requirements", lambda: requirements)
+
+
+def test_a_failed_installation_is_explained_and_the_app_is_not_started(monkeypatch, capsys):
+    _no_update(monkeypatch, "failed")
+    monkeypatch.setattr(launch, "missing_libraries", lambda: ["fastapi"])
+    monkeypatch.setattr(launch, "serve", lambda argv: pytest.fail("started without its libraries"))
+    assert launch.main([]) == 1
+    assert "connessione internet" in capsys.readouterr().out
+    monkeypatch.setattr(launch, "missing_libraries", lambda: [])        # only an update failed: start anyway
+    monkeypatch.setattr(launch, "serve", lambda argv: 0)
+    assert launch.main([]) == 0
+
+
+def test_a_stop_with_an_error_is_reported_and_a_too_old_python_refused(monkeypatch, capsys):
+    _no_update(monkeypatch)
+    monkeypatch.setattr(launch, "serve", lambda argv: 3)
+    assert launch.main([]) == 3 and "errore" in capsys.readouterr().out
+    monkeypatch.setattr(launch, "serve", lambda argv: 0)
+    assert launch.main([]) == 0 and "errore" not in capsys.readouterr().out
+    monkeypatch.setattr(launch.sys, "version_info", (3, 10, 12))
+    assert launch.main([]) == 1 and "3.11" in capsys.readouterr().out
+
+
+class _FakeServer:
+    def __init__(self, second_wait):
+        self.waits, self.killed, self.second_wait = [], False, second_wait
+
+    def wait(self, timeout=None):
+        self.waits.append(timeout)
+        if len(self.waits) == 1:
+            raise KeyboardInterrupt                        # Ctrl+C reaches both processes
+        if len(self.waits) == 2 and self.second_wait is not None:
+            raise self.second_wait
+        return 0
+
+    def kill(self):
+        self.killed = True
+
+
+@pytest.mark.parametrize("second_wait, killed", [(None, False), (subprocess.TimeoutExpired("x", 20), True)])
+def test_ctrl_c_lets_the_server_close_properly(monkeypatch, second_wait, killed):
+    proc = _FakeServer(second_wait)
+    monkeypatch.setattr(launch.subprocess, "Popen", lambda *a, **k: proc)
+    assert launch.serve([]) == 0
+    assert proc.waits[:2] == [None, 20] and proc.killed is killed
+
+
+def test_launchers_survive_an_update_while_running_and_stay_in_step():
+    bat = (ROOT / "Avvia Paladex.bat").read_bytes()
+    assert b"\n" not in bat.replace(b"\r\n", b"")                     # CRLF only: cmd misreads LF files
+    # The last command runs as one block: an update may rewrite the file while it runs.
+    assert b"(backend\\.venv\\Scripts\\python.exe scripts\\launch.py & exit /b)" in bat
+    sh = (ROOT / "start.sh").read_bytes()
+    assert sh == (ROOT / "Avvia Paladex.command").read_bytes() and b"\r" not in sh
+    assert b'exec backend/.venv/bin/python scripts/launch.py "$@"' in sh
+
+
+@pytest.mark.skipif(shutil.which("bash") is None or sys.platform == "win32", reason="needs bash")
+def test_start_script_explains_a_missing_or_too_old_python(tmp_path):
+    """Only an old Python on the computer (e.g. 3.9): a clear message, nothing installed."""
+    app, bin_dir = tmp_path / "Paladex app", tmp_path / "bin"
+    (app / "backend").mkdir(parents=True)
+    bin_dir.mkdir()
+    shutil.copy(ROOT / "start.sh", app / "start.sh")
+    old = bin_dir / "python3"
+    old.write_text("#!/bin/sh\nexit 1\n")                              # fails the 3.11 check
+    old.chmod(0o755)
+    for tool in ("dirname", "uname", "rm", "cp"):
+        (bin_dir / tool).symlink_to(shutil.which(tool))
+    # Without the Homebrew folders the script adds (this machine's own Python must not be found).
+    script = (app / "start.sh").read_text().replace('export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"', "")
+    (app / "start.sh").write_text(script)
+    res = subprocess.run([shutil.which("bash"), str(app / "start.sh")], capture_output=True, text=True,
+                         env={"PATH": str(bin_dir), "HOME": str(tmp_path)}, timeout=60)
+    assert res.returncode == 1 and "Python 3.11 o superiore non trovato" in res.stdout
+    assert not (app / "backend" / ".venv").exists()

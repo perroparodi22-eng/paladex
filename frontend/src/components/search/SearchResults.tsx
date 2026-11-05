@@ -132,7 +132,7 @@ function PriceRow({ p }: { p: PriceHit }) {
             </div>
             <div className="mt-1.5 text-[0.88rem] text-muted tabular-nums">
               {t('search.prices.latest')}: <span className="text-charcoal-soft">{fmtPeriod(p.latest_period_label, lang)}</span>
-              {' · '}{t('search.prices.observations', { n: fmtNumber(p.observations, lang) })}
+              {' · '}{p.observations === 1 ? t('search.prices.observationsOne') : t('search.prices.observations', { n: fmtNumber(p.observations, lang) })}
               {' · '}{p.sources === 1 ? t('search.prices.sourcesOne') : t('search.prices.sources', { n: p.sources })}
             </div>
           </div>

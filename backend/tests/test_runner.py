@@ -258,3 +258,22 @@ def test_no_internet_stays_offline_and_raises_no_issue(db, monkeypatch, session_
 ])
 def test_explain_error_names_the_precise_reason(error, word):
     assert word in quality.explain_error(error)["it"]
+
+
+def test_offline_run_all_leaves_disabled_sources_alone(db, monkeypatch, session_factory):
+    """Review 2026-11-05: with no internet, `run_all` recorded an 'offline' run for every registered source,
+    the 15 Google News feeds switched off by default included, so a source the owner never enabled showed
+    'last update: offline' on the Sources page. A disabled source is skipped, as when the PC is online."""
+    monkeypatch.setattr(runner, "is_online", lambda *a, **k: False)
+    with session_factory() as s:
+        off = s.scalars(select(Source).where(Source.enabled.is_(False))).all()
+        assert off, "the registry has opt-in sources switched off by default"
+        off_keys = {o.key for o in off}
+    results = runner.run_all(trigger="test")
+    assert results and all(r["status"] == "offline" for r in results)
+    assert not off_keys & {r["source"] for r in results}
+    with session_factory() as s:
+        for src in s.scalars(select(Source).where(Source.key.in_(off_keys))):
+            assert src.last_run_status is None and src.last_run_at is None
+        assert not s.scalars(select(CollectionRun).where(
+            CollectionRun.source_id.in_(select(Source.id).where(Source.key.in_(off_keys))))).first()

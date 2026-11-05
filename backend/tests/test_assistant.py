@@ -599,6 +599,28 @@ def _reply(payload: dict) -> httpx.Response:
                                      "stop_reason": "end_turn"})
 
 
+def test_company_name_never_reaches_the_ai_provider(market, llm_on):
+    """Review 2026-11-05: the system prompts and the purchase-cost note named the company ("Parodi Group") and
+    the origins it buys from in every request to the external AI provider. The provider needs neither."""
+    from paladex.services import ai_enrich
+
+    bodies: list[str] = []
+
+    def model(request: httpx.Request) -> httpx.Response:
+        bodies.append(request.content.decode())
+        return _reply({"sections": [], "insufficient_note": "Dati insufficienti."})
+
+    with respx.mock(assert_all_called=True) as mock:
+        mock.post(llm.ANTHROPIC_URL).mock(side_effect=model)
+        ask(market, "Quali sviluppi recenti possono influire sui nostri costi di acquisto?")
+        ask(market, "What is happening to Argentine honey prices?", lang="en")
+    assert len(bodies) == 2
+    assert all("parodi" not in b.lower() for b in bodies)
+    assert "l'azienda acquista abitualmente" in bodies[0]          # the note is still there, without the name
+    prompts = [*A.SYSTEM_PROMPT.values(), *B.SYSTEM_PROMPT.values(), ai_enrich.SYSTEM_PROMPT]
+    assert all("parodi" not in t.lower() for t in prompts)
+
+
 def test_ai_answer_is_post_checked(market, llm_on):
     seen: dict = {}
 

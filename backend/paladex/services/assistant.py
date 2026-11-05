@@ -889,10 +889,11 @@ class Retriever:
         last = pts[idx]
         freq = last.frequency
         prev_m = prev_y = None
+        earlier = ov.same_product(pts[:idx], last)     # never a change from one honey of the bucket to another
         if freq in ("D", "W", "M"):
-            prev_m = ov._find_point(pts[:idx], last.period_start - ov.relativedelta(months=1), ov._tolerance(freq))
+            prev_m = ov._find_point(earlier, last.period_start - ov.relativedelta(months=1), ov._tolerance(freq))
         if freq in ("D", "W", "M", "Q", "A"):
-            prev_y = ov._find_point(pts[:idx], last.period_start - ov.relativedelta(years=1), ov._tolerance(freq))
+            prev_y = ov._find_point(earlier, last.period_start - ov.relativedelta(years=1), ov._tolerance(freq))
         return {
             "mom_pct": ov.pct_change(last.price_per_kg, prev_m.price_per_kg) if prev_m else None,
             "mom_period_label": prev_m.period_label if prev_m else None,
@@ -1924,9 +1925,10 @@ def _plan_costs(r: Retriever) -> None:
     r.regulation_facts(days=90, limit=4, doc_types=COST_DOC_TYPES)
     r.regulation_facts(days=60, limit=2, doc_types=["food_safety_notification"], countries=origins)
     r.news_facts(days=NEWS_DAYS, limit=3, min_relevance=NEWS_HIGH)
-    r.note("Sono considerate le origini da cui Parodi Group acquista abitualmente: "
+    # The notes go to the AI provider with the question: never the company name.
+    r.note("Sono considerate le origini da cui l'azienda acquista abitualmente: "
            + ", ".join(r.country(o) for o in origins) + ".",
-           "The origins Parodi Group usually buys from are considered: " + ", ".join(r.country(o) for o in origins) + ".")
+           "The origins the company usually buys from are considered: " + ", ".join(r.country(o) for o in origins) + ".")
 
 
 def _plan_quotes(r: Retriever, quote_ids: list[int] | None) -> None:
@@ -2197,7 +2199,7 @@ def check_sentences(items: list[Any], facts: FactSet, *, require_refs: bool, ext
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = {
-    "it": """Sei l'analista di mercato di Parodi Group, importatore italiano e statunitense di miele sfuso (container da 20 t, fusti da 300 kg). Rispondi in italiano, in modo chiaro e breve, alla domanda del titolare.
+    "it": """Sei l'analista di mercato di un importatore italiano e statunitense di miele sfuso (container da 20 t, fusti da 300 kg). Rispondi in italiano, in modo chiaro e breve, alla domanda del titolare.
 
 Usa ESCLUSIVAMENTE i blocchi del CONTESTO, che provengono dal database locale (fonti ufficiali, listini di settore, notizie, offerte inserite dall'utente). Regole obbligatorie:
 1. Non aggiungere nessun fatto, numero, data, nome, causa o conseguenza che non sia scritto nel contesto, anche se pensi che sia vero. Nessuna conoscenza esterna.
@@ -2207,7 +2209,7 @@ Usa ESCLUSIVAMENTE i blocchi del CONTESTO, che provengono dal database locale (f
 5. Sezioni (ometti quelle vuote): "verified" = Fatti verificati (dati ufficiali o pubblicati recenti; un dato provvisorio va detto provvisorio); "historical" = Contesto storico (dati più vecchi); "estimates" = Stime (stime o previsioni della fonte, dichiarate come tali); "analysis" = Analisi (IA): la tua interpretazione per un importatore, basata solo sui fatti citati, senza numeri nuovi; "forecast" = Previsioni (IA, incerte): solo tendenze possibili, qualitative, senza numeri, con l'incertezza esplicita.
 6. Se i dati non bastano per rispondere, scrivilo chiaramente in "insufficient_note" e non inventare.
 7. Al massimo 220 parole in totale. Frasi brevi, per un lettore non tecnico.""",
-    "en": """You are the market analyst of Parodi Group, an Italian and US importer of bulk honey (20 t containers, 300 kg drums). Answer the owner's question in English, clearly and briefly.
+    "en": """You are the market analyst of an Italian and US importer of bulk honey (20 t containers, 300 kg drums). Answer the owner's question in English, clearly and briefly.
 
 Use ONLY the blocks of the CONTEXT, which come from the local database (official sources, industry price lists, news, offers entered by the user). Mandatory rules:
 1. Do not add any fact, number, date, name, cause or consequence that is not written in the context, even if you believe it is true. No outside knowledge.

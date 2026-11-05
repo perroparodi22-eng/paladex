@@ -94,7 +94,8 @@ function SourceRow({ s, state }: { s: SourceInfo; state: RowState }) {
   const manual = s.kind === 'manual'
   const expanded = state.expanded.has(s.key)
   const isRunning = state.collectRunning && (state.runningKeys === null || state.runningKeys.includes(s.key))
-  const counts = COUNT_KEYS.filter((k) => (s.counts?.[k] ?? 0) > 0).map((k) => t(`sources.row.counts.${k}`, { n: fmtNumber(s.counts[k], lang) }))
+  const counts = COUNT_KEYS.filter((k) => (s.counts?.[k] ?? 0) > 0)
+    .map((k) => (s.counts[k] === 1 ? t(`sources.row.countOne.${k}`) : t(`sources.row.counts.${k}`, { n: fmtNumber(s.counts[k], lang) })))
   const keyInfo = s.requires_key ? state.keyInfo(s.requires_key) : undefined
   const optional = keyInfo?.sources.find((x) => x.key === s.key)?.optional ?? false
   const lastError = state.lastError(s.key)

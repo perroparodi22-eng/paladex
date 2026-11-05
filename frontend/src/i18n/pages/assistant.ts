@@ -2,10 +2,10 @@
 const it = {
   eyebrow: 'Azienda · Assistente IA',
   title: 'Assistente di mercato',
-  subtitle: 'Fate una domanda sul mercato del miele: la risposta usa solo i dati raccolti in questo database, e ogni dato riporta fonte, data e periodo. L\'eventuale analisi dell\'intelligenza artificiale è sempre indicata come tale.',
+  subtitle: 'Fai una domanda sul mercato del miele: la risposta usa solo i dati raccolti in questo database, e ogni dato riporta fonte, data e periodo. L\'eventuale analisi dell\'intelligenza artificiale è sempre indicata come tale.',
 
   // composer
-  'ask.label': 'La vostra domanda',
+  'ask.label': 'La tua domanda',
   'ask.placeholder': 'Es. «Cosa sta succedendo ai prezzi del miele argentino?»',
   'ask.submit': 'Chiedi',
   'ask.pending': 'Cerco nel database…',
@@ -13,19 +13,19 @@ const it = {
   'ask.hint': 'Invio per chiedere · Maiusc+Invio per andare a capo',
   'ask.chars': '{n}/{max}',
   'ask.privacy': 'Domande e risposte restano su questo computer.',
-  'ask.privacyAi': 'Al servizio di IA arrivano solo i dati pubblici recuperati per la domanda; le vostre offerte solo se la domanda le riguarda, senza nomi dei fornitori né note.',
+  'ask.privacyAi': 'Al servizio di IA arrivano solo i dati pubblici recuperati per la domanda; le tue offerte solo se la domanda le riguarda, senza nomi dei fornitori né note.',
   'ask.error': 'La domanda non è andata a buon fine.',
 
   // offers picker
   'quotes.title': 'Offerte da confrontare',
-  'quotes.hint': 'Scegliete le offerte; senza scelta confronto le tre valide più recenti.',
+  'quotes.hint': 'Scegli le offerte; senza scelta confronto le tre valide più recenti.',
   'quotes.none': 'Nessuna offerta valida nel database.',
   'quotes.add': 'Inserisci le offerte',
   'quotes.received': 'ricevuta il {date}',
 
   // empty state / suggestions
-  'welcome.title': 'Che cosa volete sapere?',
-  'welcome.text': 'Scegliete una domanda o scrivetene una vostra. Paladex cerca prezzi, commercio, produzione, notizie, report ufficiali, normative e dazi nel database locale e mostra ogni dato con la sua fonte.',
+  'welcome.title': 'Che cosa vuoi sapere?',
+  'welcome.text': 'Scegli una domanda o scrivine una tua. Paladex cerca prezzi, commercio, produzione, notizie, report ufficiali, normative e dazi nel database locale e mostra ogni dato con la sua fonte.',
   'suggest.title': 'Domande suggerite',
   'suggest.q1': 'Cosa sta succedendo ai prezzi del miele argentino?',
   'suggest.q2': 'Confronta Argentina e Ucraina',
@@ -55,8 +55,8 @@ const it = {
   'answer.howToEnable': 'Analisi IA non attiva',
   'answer.sources': 'Fonti citate ({n})',
   'answer.sourcesHide': 'Nascondi le fonti',
-  'answer.private': 'Contiene le vostre offerte (dati privati, non lasciano questo computer).',
-  'answer.privateSent': 'Le vostre offerte sono state inviate al servizio di IA come «Offerta A/B/C», senza nomi dei fornitori né note.',
+  'answer.private': 'Contiene le tue offerte (dati privati, non lasciano questo computer).',
+  'answer.privateSent': 'Le tue offerte sono state inviate al servizio di IA come «Offerta A/B/C», senza nomi dei fornitori né note.',
   'answer.askedAt': 'Chiesto il {date}',
 
   // section badges
@@ -64,7 +64,7 @@ const it = {
   'badge.historical': 'Dato storico',
   'badge.estimates': 'Stima',
   'badge.news': 'Stampa · non verificato',
-  'badge.quotes': 'Dati vostri',
+  'badge.quotes': 'I tuoi dati',
   'badge.analysis': 'Analisi IA',
   'badge.forecast': 'Previsione IA · incerta',
   'badge.aiText': 'Testo IA',
@@ -94,6 +94,7 @@ const it = {
   'history.confirm': 'Cancellare tutte le domande salvate su questo computer?',
   'history.ai': 'IA',
   'history.facts': '{n} dati',
+  'history.factsOne': '1 dato',
   'history.noFacts': 'nessun dato',
   'briefing.title': 'Briefing del giorno',
   'briefing.aiStored': 'Scritto dall\'IA il {date} alle {time} ({model}): {n} punti, visibile nella Panoramica.',
@@ -198,6 +199,7 @@ const en: typeof it = {
   'history.confirm': 'Delete all the questions saved on this computer?',
   'history.ai': 'AI',
   'history.facts': '{n} data points',
+  'history.factsOne': '1 data point',
   'history.noFacts': 'no data',
   'briefing.title': 'Daily briefing',
   'briefing.aiStored': 'Written by the AI on {date} at {time} ({model}): {n} points, shown on the Overview.',

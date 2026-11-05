@@ -244,3 +244,29 @@ def test_first_run_state_and_status_endpoint(db, built, api):
     db.add(CollectionRun(source_id=usda.id, status="no_change", started_at=utcnow(), finished_at=utcnow()))
     db.commit()
     assert api.get("/api/collect/status").json()["first_run"]["local_runs"] == {"no_change": 1}
+
+
+def test_snapshot_from_an_older_version_still_merges(db, built):
+    """A snapshot built before a required column existed: the column gets its default; a table
+    whose missing column has no simple default is left out instead of failing the whole import."""
+    import lzma
+
+    out, _meta = built
+    raw = out.with_name("old.sqlite3")
+    raw.write_bytes(lzma.decompress(out.read_bytes()))
+    c = sqlite3.connect(raw)
+    c.execute("ALTER TABLE price_observations DROP COLUMN organic")      # NOT NULL, default False
+    c.execute("ALTER TABLE reports DROP COLUMN collected_at")            # NOT NULL, default = now (no literal)
+    c.commit()
+    c.close()
+    out.write_bytes(lzma.compress(raw.read_bytes()))
+    meta = json.loads(starter.meta_path(out).read_text())
+    meta["sha256"] = starter._sha256(out)
+    starter.meta_path(out).write_text(json.dumps(meta))
+
+    res = starter.import_if_needed()
+    assert res is not None and res["skipped"] == ["reports"]
+    assert res["inserted"]["price_observations"] == 3 and res["inserted"]["regulations"] == 1
+    db.expire_all()
+    assert {r.organic for r in db.scalars(select(PriceObservation))} == {False}
+    assert db.scalar(select(Report.id)) is None

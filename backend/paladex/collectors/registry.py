@@ -28,8 +28,9 @@ COLLECTOR_MODULES: list[str] = [
     "paladex.collectors.official_watchers",  # origin-country notices: MAPA (BR), SENASA/Boletín Oficial (AR), DGFT (IN)
     "paladex.collectors.tariffs",          # EU TARIC (UK XI mirror) and US HTS duties on honey by origin
     "paladex.collectors.weather",          # NASA POWER monthly weather anomalies per honey region
-    "paladex.collectors.trade_south",      # Argentina INDEC, Uruguay customs/Uruguay XXI (official exports)
-    "paladex.collectors.production_official",  # Statistics Canada, Mexico SIAP, Turkey TUIK, Brazil IBGE
+    "paladex.collectors.trade_argentina",  # Argentina: official honey exports by destination, producer prices
+    "paladex.collectors.trade_uruguay_chile",  # Uruguay and Chile: official honey exports by destination
+    "paladex.collectors.production_official",  # official production: Brazil IBGE and other South American agencies
 ]
 
 IMPORT_ERRORS: dict[str, str] = {}

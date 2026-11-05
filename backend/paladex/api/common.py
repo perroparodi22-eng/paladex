@@ -1,7 +1,9 @@
 """Shared API helpers: demo-data switch, freshness, serialisation."""
 from __future__ import annotations
 
-from datetime import date, datetime
+import calendar
+import re
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -34,6 +36,38 @@ def demo_clause(model, session: Session):
     return model.is_demo.is_(False)
 
 
+def _period_end(start: date, label: str | None) -> date:
+    """Last day of the period starting on `start` labelled `label` ('2026', '2026-Q3', '2026-09',
+    '2026-W44'); the start itself for any other label (a day, a source-specific week)."""
+    lab = (label or "").strip().upper()
+    if re.fullmatch(r"\d{4}", lab):
+        return date(start.year, 12, 31)
+    if m := re.fullmatch(r"\d{4}-?Q([1-4])", lab):
+        last_month = int(m[1]) * 3
+        return date(start.year, last_month, calendar.monthrange(start.year, last_month)[1])
+    if re.fullmatch(r"\d{4}-\d{2}", lab):
+        return date(start.year, start.month, calendar.monthrange(start.year, start.month)[1])
+    if re.fullmatch(r"\d{4}-W\d{2}", lab):
+        return start + timedelta(days=6)
+    return start
+
+
+def source_reference_date(source: Source) -> date | None:
+    """The date a source's newest data is judged from: its newest publication date. A source that
+    gives none is dated by when new data last reached us, unless that data was already older than
+    one publication cycle when it arrived (a first collection, or a source that stopped publishing:
+    ISMEA's June prices collected in November): then by the end of its newest period, which no
+    publication can precede. Old data must never look current."""
+    if source.latest_published_at:
+        return source.latest_published_at
+    collected = source.last_new_data_at.date() if source.last_new_data_at else None
+    end = _period_end(source.latest_period_start, source.latest_period_label) if source.latest_period_start else None
+    if end is not None and (collected is None or (source.expected_max_age_days
+                                                  and (collected - end).days > source.expected_max_age_days)):
+        return end
+    return collected
+
+
 def freshness(source: Source, today: date | None = None) -> dict:
     """How current is a source's newest data, judged against its own publication rhythm.
 
@@ -44,7 +78,7 @@ def freshness(source: Source, today: date | None = None) -> dict:
             "unknown"  – no expected cycle defined
     """
     today = today or date.today()
-    ref = source.latest_published_at or (source.last_new_data_at.date() if source.last_new_data_at else None)
+    ref = source_reference_date(source)
     if ref is None:
         return {"status": "never", "age_days": None, "reference_date": None}
     age = (today - ref).days

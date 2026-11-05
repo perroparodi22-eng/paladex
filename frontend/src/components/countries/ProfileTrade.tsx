@@ -98,7 +98,7 @@ function FlowView({ p, s, flow }: { p: CountryProfile; s: TradeFlowSection; flow
                     ))}
                     {partners.others && (
                       <tr className="border-b border-line-soft text-charcoal-soft">
-                        <td className="py-1.5 px-2 italic">{t('trade.flows.others', { n: partners.others.count })}</td>
+                        <td className="py-1.5 px-2 italic">{partners.others.count === 1 ? t('trade.flows.othersOne') : t('trade.flows.others', { n: partners.others.count })}</td>
                         <td className="py-1.5 px-2 num text-right">{fmtT(partners.others.net_weight_kg, lang)}</td>
                         <td className="py-1.5 px-2"><span className="num text-[0.82rem]">{fmtPct(partners.others.share_volume_pct, lang, 1, false)}</span></td>
                         <td />

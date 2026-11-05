@@ -51,9 +51,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 150
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
           cache: pip
@@ -89,7 +89,7 @@ jobs:
 
       - name: Restore the database of the previous run
         id: db
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ci-data
           key: paladex-db-${{ github.run_id }}
@@ -117,7 +117,7 @@ jobs:
           start=$SECONDS
           python -m paladex collect > "$RUNNER_TEMP/collect.jsonl" || echo "::warning::The collection stopped with an error; publishing what was collected."
           python - "$RUNNER_TEMP/collect.jsonl" <<'EOF'
-          import collections, json, sys
+          import collections, json, os, sys
           rows = []
           for line in open(sys.argv[1], encoding="utf-8"):
               try:
@@ -125,22 +125,29 @@ jobs:
               except ValueError:
                   pass
           by = collections.Counter(r.get("status", "?") for r in rows)
-          print(f"{len(rows)} sources checked: " + ", ".join(f"{k} {v}" for k, v in sorted(by.items())))
+          lines = [f"{len(rows)} sources checked: " + ", ".join(f"{k} {v}" for k, v in sorted(by.items()))]
           for r in rows:
               if r.get("status") in ("failed", "offline"):
-                  print(f"  {r.get('source')}: {r.get('status')}")
+                  why = (r.get("error") or "").strip().splitlines()[:1]
+                  lines.append(f"  {r.get('source')}: {r.get('status')}" + (f" ({why[0][:300]})" if why else ""))
+          skipped = sorted(r.get("source", "?") for r in rows if r.get("status") == "skipped" and r.get("error") != "disabled")
+          if skipped:
+              lines.append("  skipped for a missing key: " + ", ".join(skipped))
+          print("\n".join(lines))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+              f.write("### Collection\n\n```\n" + "\n".join(lines) + "\n```\n")
           EOF
           echo "Collection took $(( (SECONDS - start) / 60 )) min $(( (SECONDS - start) % 60 )) s"
           python -c "import sqlite3, os; c = sqlite3.connect(os.path.join(os.environ['PALADEX_DATA_DIR'], 'paladex.sqlite3')); c.execute('PRAGMA wal_checkpoint(TRUNCATE)'); c.close()"
 
       - name: Keep the database for the next run
         if: always() && hashFiles('ci-data/paladex.sqlite3') != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ci-data
           key: paladex-db-${{ github.run_id }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
@@ -171,7 +178,9 @@ jobs:
             exit 0
           fi
           start=$SECONDS
-          npx --yes netlify-cli deploy --prod --no-build --dir "$RUNNER_TEMP/mirror-out" \
+          # A fixed version of the Netlify command (the one that published the first copy): a new
+          # release can never change what this step does without a change to this file.
+          npx --yes netlify-cli@27.16.2 deploy --prod --no-build --dir "$RUNNER_TEMP/mirror-out" \
             --site "$NETLIFY_SITE_ID" --auth "$NETLIFY_AUTH_TOKEN" --message "Daily copy, run ${{ github.run_number }}"
           echo "Publishing took $((SECONDS - start)) s"
 
