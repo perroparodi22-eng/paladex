@@ -32,6 +32,7 @@ from paladex.models import (
     TradeFlowObservation,
     utcnow,
 )
+from paladex.models_companies import CompanyRecord, record_company
 from paladex.services import ingest, starter
 
 COLLECTED = datetime(2026, 11, 4, 20, 35, 12)
@@ -87,7 +88,13 @@ def cloud_db(db, tmp_path):
                       value=73_000.0, unit="t", flag_raw="A", period_start=date(2024, 1, 1), period_end=date(2024, 12, 31),
                       period_label="2024", frequency="A", published_at=date(2025, 12, 31),
                       data_status="published", reliability="official")
-        for model in (PriceObservation, TradeFlowObservation, ProductionStat):
+        # A company as an official register publishes it (Uruguay XXI SIE: exact FOB per year).
+        record_company(s, source_id=sid["uy_sie_honey_exporters"], series_key="UY:NECTARBEE:export:2025",
+                      country_iso3="URY", company_name="NECTARBEE S.A.", role="exporter", hs_code="0409",
+                      measure_kind="exact_value", value=15_571_168.32, currency="USD", value_basis="FOB",
+                      period_start=date(2025, 1, 1), period_end=date(2025, 12, 31), period_label="2025", frequency="A",
+                      published_at=date(2026, 11, 5), data_status="published", reliability="official")
+        for model in (PriceObservation, TradeFlowObservation, ProductionStat, CompanyRecord):
             for row in s.scalars(select(model)):
                 row.collected_at = COLLECTED
                 row.last_seen_at = COLLECTED
@@ -135,6 +142,7 @@ def test_snapshot_ships_only_data_never_private_rows(built):
     out, meta = built
     assert meta["counts"]["price_observations"] == 3          # A rev1 + rev2, B; not the demo row
     assert meta["counts"]["trade_flows"] == 1 and meta["counts"]["production_stats"] == 1
+    assert meta["counts"]["company_records"] == 1
     assert meta["data_collected_until"] == "2026-11-04T20:35:12"
     assert json.loads(starter.meta_path(out).read_text())["sha256"] == meta["sha256"]
     import lzma
@@ -178,6 +186,10 @@ def test_import_keeps_provenance_history_and_local_data_wins(db, built):
     assert db.scalar(select(Report.title)) == "National Honey Report"
     assert db.scalar(select(RegulationItem.reference)) == "32001L0110"
     assert db.scalar(select(TariffMeasure.duty_text)) == "17.30 %"
+    company = db.scalars(select(CompanyRecord)).one()
+    uy = db.scalars(select(Source).where(Source.key == "uy_sie_honey_exporters")).one()
+    assert (company.company_name, company.value, company.source_id) == ("NECTARBEE S.A.", 15_571_168.32, uy.id)
+    assert company.collected_at == COLLECTED and company.is_current
     news = {n.canonical_url: n for n in db.scalars(select(NewsArticle))}
     assert news["https://n/2"].duplicate_of_id == news["https://n/1"].id
 

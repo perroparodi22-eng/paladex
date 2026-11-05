@@ -37,7 +37,8 @@ FORMAT = 1
 SETTING_KEY = "starter_data"
 
 # Observation-like tables: identity = (source, series_key); copied as whole series.
-SERIES_TABLES = ("price_observations", "trade_flows", "production_stats", "weather_observations", "tariff_measures")
+SERIES_TABLES = ("price_observations", "trade_flows", "production_stats", "weather_observations", "tariff_measures",
+                 "company_records")   # companies as officially published (names, places, values): no private data
 # Tables with a natural unique key: rows are added when that key is missing (INSERT OR IGNORE).
 UNIQUE_TABLES = ("reports", "regulations")
 KEEP_TABLES = frozenset({"sources", "fx_rates", "news_articles", *SERIES_TABLES, *UNIQUE_TABLES})
