@@ -990,6 +990,10 @@ CENSUS_BACKFILL_MONTHS = 36
 CENSUS_REPULL_MONTHS = 3
 CENSUS_MAX_MONTHS_PER_QUERY = 12
 CENSUS_ANNUAL_REVISION = (6, 15)            # Census publishes the annual revision in early June
+# Bumped whenever the parsing changes: answers already stored (unchanged since) are then read again
+# once, so rows an older version could not read are not skipped forever as "already seen".
+# 2: HS-6 rows without a quantity take their weight from the HS-10 lines (Nov 2026).
+CENSUS_PARSER_VERSION = 2
 
 # `get=` list from the research (official_north_america_oceania.json, official_tariffs_trade_policy.json).
 CENSUS_REQUIRED_VARS = ("CTY_CODE", "CTY_NAME", "I_COMMODITY", "GEN_VAL_MO", "GEN_QY1_MO", "UNIT_QY1",
@@ -1140,7 +1144,14 @@ def parse_census_imports(content: bytes, *, level: str, start: Month, end: Month
             dut_val=_num(r.get("DUT_VAL_MO")), cal_dut=_num(r.get("CAL_DUT_MO")),
             summary_lvl=(str(r["SUMMARY_LVL"]).strip().upper() or None) if r.get("SUMMARY_LVL") else None,
         )
-        if rec.con_val is None or rec.con_kg is None or rec.con_val < 0 or rec.con_kg < 0:
+        # Census does not total quantities at HS-6 for honey: the HS-6 rows carry unit "-" and
+        # quantity 0 (checked live, Nov 2026). That 0 is "not reported", never a weight: it is
+        # dropped here and the weight comes from the HS-10 lines (all in KG) in `_store`.
+        weight_from_lines = level == "HS6" and rec.unit in ("", "-")
+        if weight_from_lines:
+            rec.unit, rec.con_kg, rec.gen_kg = "", None, None
+        if (rec.con_val is None or rec.con_val < 0 or (rec.con_kg is None and not weight_from_lines)
+                or (rec.con_kg is not None and rec.con_kg < 0)):
             out.problems.append(f"Census row {i} ({code} {rec.cty_name}, {rec.period}): invalid CON_VAL_MO="
                                 f"{r.get('CON_VAL_MO')!r} / CON_QY1_MO={r.get('CON_QY1_MO')!r}; not stored")
             out.bad.add((code, rec.period))
@@ -1251,8 +1262,9 @@ class UsCensusTradeCollector(Collector):
             latest = parse_month_label(state.get("latest")) or end
             start = max(shift_month(min(latest, end, key=_midx), -(CENSUS_REPULL_MONTHS - 1)), floor, key=_midx)
         newest = parse_month_label(state.get("latest"))
+        reparse = ctx.force or not _has_rows(ctx) or state.get("parser_version") != CENSUS_PARSER_VERSION
         for ws, we in month_windows(start, end, CENSUS_MAX_MONTHS_PER_QUERY):
-            got = self._pull_window(ctx, state, get_vars, api_key, ws, we)
+            got = self._pull_window(ctx, state, get_vars, api_key, ws, we, reparse=reparse)
             if got and (newest is None or _midx(got) > _midx(newest)):
                 newest = got
             _save_state(ctx, state)
@@ -1264,6 +1276,7 @@ class UsCensusTradeCollector(Collector):
             if t >= date(t.year, *CENSUS_ANNUAL_REVISION):
                 state["annual_refresh_year"] = t.year
         state["pulled_at"] = utcnow().isoformat(timespec="seconds")
+        state["parser_version"] = CENSUS_PARSER_VERSION
         _save_state(ctx, state)
 
     @staticmethod
@@ -1317,8 +1330,9 @@ class UsCensusTradeCollector(Collector):
         return _CensusQuery(public_url=public_url, raw_id=raw_id, unchanged=unchanged, content=doc.content)
 
     def _pull_window(self, ctx: CollectContext, state: dict, get_vars: list[str], api_key: str | None,
-                     ws: Month, we: Month) -> Month | None:
-        """Pull one window. Returns the newest month the answer contains (None if empty)."""
+                     ws: Month, we: Month, *, reparse: bool = False) -> Month | None:
+        """Pull one window. Returns the newest month the answer contains (None if empty).
+        `reparse`: read the answer even when it is unchanged since it was stored."""
         try:
             q = self._query(ctx, get_vars, "HS6", HONEY_HS6, ws, we, api_key)
         except CensusError as exc:
@@ -1326,7 +1340,7 @@ class UsCensusTradeCollector(Collector):
         if q is None:
             log.info("[%s] no HS 0409 imports published for %s..%s", self.key, month_label(ws), month_label(we))
             return None
-        if q.unchanged and not ctx.force:
+        if q.unchanged and not reparse:
             log.info("[%s] %s..%s: same answer as already stored", self.key, month_label(ws), month_label(we))
             return _newest_in(q.content)
         parsed = parse_census_imports(q.content, level="HS6", start=ws, end=we)
@@ -1428,12 +1442,13 @@ class UsCensusTradeCollector(Collector):
                hs10: dict[tuple[str, str], list[CensusRecord]], hs10_status: str) -> str:
         recs = agg.recs
         con_val = float(sum(r.con_val for r in recs))
-        con_kg = float(sum(r.con_kg for r in recs))
-        gen_val, gen_kg = _sum_opt(r.gen_val for r in recs), _sum_opt(r.gen_kg for r in recs)
+        gen_val = _sum_opt(r.gen_val for r in recs)
         con_cif, gen_cif = _sum_opt(r.con_cif for r in recs), _sum_opt(r.gen_cif for r in recs)
         dut_val, cal_dut = _sum_opt(r.dut_val for r in recs), _sum_opt(r.cal_dut for r in recs)
         lines: list[dict] | None = None
         flags: dict[str, Any] = {}
+        line_recs: list[CensusRecord] = []
+        lines_agree = False
         if hs10_status == "ok":
             line_recs = [ln for c in agg.codes for ln in hs10.get((c, agg.period), [])]
             lines = [{"hs10": ln.commodity, "description": ln.description, "kg": ln.con_kg, "value_usd": ln.con_val,
@@ -1445,6 +1460,23 @@ class UsCensusTradeCollector(Collector):
                 flags["hs10_missing_for_partner"] = True
             elif abs(line_sum - con_val) > max(0.01 * con_val, 1.0):
                 flags["hs10_sum_differs_from_total"] = True
+            else:
+                lines_agree = True
+        if all(r.con_kg is not None for r in recs):
+            con_kg: float | None = float(sum(r.con_kg for r in recs))
+            gen_kg = _sum_opt(r.gen_kg for r in recs)
+            quantity_field = "CON_QY1_MO"
+        elif lines_agree and all(ln.unit == CENSUS_KG_UNIT and ln.con_kg is not None for ln in line_recs):
+            # HS-6 totals carry no quantity: the weight is the sum of the HS-10 lines (all in KG),
+            # used only when their values add up to the HS-6 value.
+            con_kg = float(sum(ln.con_kg for ln in line_recs))
+            gen_kg = _sum_opt(ln.gen_kg for ln in line_recs)
+            quantity_field = "CON_QY1_MO, sum of the HS-10 lines (Census gives no HS-6 quantity)"
+            flags["quantity_from_hs10_lines"] = True
+        else:
+            con_kg, gen_kg = None, None   # value only: a weight is never guessed
+            quantity_field = None
+            flags["quantity_unavailable"] = True
         p_start, p_end = month_bounds(agg.year, agg.month)
         published_name = agg.names[0] if agg.names else ""
         label = country_name(agg.iso3, "en")
@@ -1454,7 +1486,8 @@ class UsCensusTradeCollector(Collector):
             "cty_code": agg.codes[0] if len(agg.codes) == 1 else agg.codes, "cty_name": published_name,
             "mapped_by": agg.how, "hs6": HONEY_HS6,
             "same_underlying_data_as": "usda_fas_gats", "overlap_note": CENSUS_OVERLAP_NOTE,
-            "value_field": "CON_VAL_MO", "quantity_field": "CON_QY1_MO", "quantity_unit": CENSUS_KG_UNIT,
+            "value_field": "CON_VAL_MO", "quantity_field": quantity_field,
+            "quantity_unit": CENSUS_KG_UNIT if con_kg is not None else None,
             "general_imports": {"value_usd": gen_val, "kg": gen_kg},
             "cif_value_usd": con_cif, "general_cif_value_usd": gen_cif,
             "dutiable_value_usd": dut_val, "calculated_duty_usd": cal_dut,
@@ -1477,7 +1510,7 @@ class UsCensusTradeCollector(Collector):
         price_series = f"census|USA|{agg.iso3}|0409|{agg.period}"
         if agg.iso3 == "WLD":
             return series                   # the world total is not a price "by origin"
-        if con_kg >= MIN_UNIT_VALUE_WEIGHT_KG and con_val > 0:
+        if con_kg is not None and con_kg >= MIN_UNIT_VALUE_WEIGHT_KG and con_val > 0:
             ctx.add_price(
                 series_key=price_series, price_type=PriceType.IMPORT_UNIT_VALUE, variety=Variety.UNSPECIFIED.value,
                 price_value=round(con_val / con_kg, 4), currency="USD", unit="kg", origin_iso3=agg.iso3,

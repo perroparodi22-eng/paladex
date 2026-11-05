@@ -1030,3 +1030,85 @@ def test_census_rate_limit_message(run, session_factory, pin_today):
     limited = (429, b"Too Many Requests", "text/plain")
     res = run("us_census_trade", {to.CENSUS_VARIABLES_URL: F("census_variables.json"), CENSUS_DATA: limited})
     assert res["status"] == "failed" and "rate limit" in res["error"] and "PALADEX_CENSUS_API_KEY" in res["error"], res
+
+
+# ---------------------------------------------------------------------------------------------
+# US Census: real answers (captured 5 Nov 2026 with a key; the key is not in the files)
+# ---------------------------------------------------------------------------------------------
+
+def real_census_routes() -> dict:
+    routes = {to.CENSUS_VARIABLES_URL: F("census_variables.json"),
+              census_q("HS6", "from 2025-11 to 2026-10"): F("real_census_hs6_2025-11_2026-10.json"),
+              census_q("HS10", "from 2025-11 to 2026-10"): F("real_census_hs10_2025-11_2026-10.json")}
+    for span in ("from 2024-11 to 2025-10", "from 2023-11 to 2024-10"):
+        routes[census_q("HS6", span)] = (204, b"")
+    return routes
+
+
+def test_real_census_hs6_rows_carry_no_quantity():
+    out = to.parse_census_imports(F("real_census_hs6_2025-11_2026-10.json"), level="HS6",
+                                  start=(2025, 11), end=(2026, 10))
+    assert out.records and not out.problems and not out.bad
+    assert all(r.con_kg is None and r.gen_kg is None and r.unit == "" for r in out.records)   # "-" and 0: not a weight
+    lines = to.parse_census_imports(F("real_census_hs10_2025-11_2026-10.json"), level="HS10",
+                                    start=(2025, 11), end=(2026, 10))
+    assert lines.records and all(r.unit == "KG" and r.con_kg is not None for r in lines.records)
+
+
+def test_real_census_weights_come_from_the_hs10_lines(census_key, run, session_factory, pin_today):
+    res = run("us_census_trade", real_census_routes())
+    assert res["status"] == "success", res
+    assert not [w for w in res["warnings"] if "quantity unit" in w]
+    with session_factory() as s:
+        arg = _rows(s, T, "us_census_trade", partner_iso3="ARG", period_label="2026-08")[0]
+        assert (arg.value, arg.net_weight_kg) == (18_532_949, 6_462_982)       # 4 HS-10 lines, all KG
+        assert arg.extra["quantity_from_hs10_lines"] is True and "HS-10" in arg.extra["quantity_field"]
+        assert sum(ln["value_usd"] for ln in arg.extra["hs10_lines"]) == arg.value
+        wld = _rows(s, T, "us_census_trade", partner_iso3="WLD", period_label="2026-08")[0]
+        assert (wld.value, wld.net_weight_kg) == (75_292_017, 27_021_970)
+        ind = _rows(s, P, "us_census_trade", origin_iso3="IND", period_label="2026-08")[0]
+        pa = _rows(s, P, "us_census_trade", origin_iso3="ARG", period_label="2026-08")[0]
+        assert (pa.price_value, pa.volume_kg, ind.price_value) == (2.8676, 6_462_982, 1.653)
+        latest = max(t.period_label for t in _rows(s, T, "us_census_trade"))
+        assert latest == "2026-09"
+
+
+def test_census_value_without_consistent_lines_is_stored_without_a_weight(census_key, run, session_factory, pin_today):
+    lines = json.loads(F("real_census_hs10_2025-11_2026-10.json"))
+    h = lines[0]
+    keep = [lines[0]] + [r for r in lines[1:] if not (r[h.index("CTY_CODE")] == "3570" and r[h.index("time")] == "2026-08")]
+    routes = real_census_routes()
+    routes[census_q("HS10", "from 2025-11 to 2026-10")] = json.dumps(keep).encode()
+    assert run("us_census_trade", routes)["status"] == "success"
+    with session_factory() as s:
+        arg = _rows(s, T, "us_census_trade", partner_iso3="ARG", period_label="2026-08")[0]
+        assert arg.value == 18_532_949 and arg.net_weight_kg is None              # never guessed
+        assert arg.extra["quantity_unavailable"] is True and arg.extra["hs10_missing_for_partner"] is True
+        assert not _rows(s, P, "us_census_trade", origin_iso3="ARG", period_label="2026-08")
+        assert _rows(s, P, "us_census_trade", origin_iso3="ARG", period_label="2026-07")    # other months fine
+
+
+def test_census_answers_an_older_version_could_not_read_are_read_again(census_key, run, session_factory, pin_today):
+    """An install that ran the old parser stored Census's answers but no rows (HS-6 quantity '-');
+    after the update the unchanged answers must be read again, once."""
+    assert run("us_census_trade", real_census_routes())["status"] == "success"
+    with session_factory() as s:                # simulate the older version: answers kept, no rows, old state
+        s.query(P).filter(P.source_id == s.scalars(select(Source.id).where(Source.key == "us_census_trade")).one()).delete()
+        s.query(T).filter(T.source_id == s.scalars(select(Source.id).where(Source.key == "us_census_trade")).one()).delete()
+        st = _state(s, "us_census_trade")
+        st.pop("parser_version", None)
+        s.merge(AppSetting(key="collector_state:us_census_trade", value=st))
+        s.commit()
+    res = run("us_census_trade", real_census_routes())
+    assert res["status"] == "success" and res["new"] > 1000, res
+    with session_factory() as s:
+        assert _rows(s, T, "us_census_trade", partner_iso3="ARG", period_label="2026-08")[0].net_weight_kg == 6_462_982
+        assert _state(s, "us_census_trade")["parser_version"] == to.CENSUS_PARSER_VERSION
+    # A later routine run asks only for the trailing months: same figures, nothing new or revised.
+    routes = real_census_routes()
+    for level, name in (("HS6", "real_census_hs6_2025-11_2026-10.json"), ("HS10", "real_census_hs10_2025-11_2026-10.json")):
+        table = json.loads(F(name))
+        tail = [table[0]] + [r for r in table[1:] if r[table[0].index("time")] >= "2026-07"]
+        routes[census_q(level, "from 2026-07 to 2026-10")] = json.dumps(tail).encode()
+    again = run("us_census_trade", routes)
+    assert again["status"] in ("no_change", "success") and again["new"] == 0 and again["revised"] == 0, again
