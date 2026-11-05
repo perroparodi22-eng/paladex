@@ -5,6 +5,7 @@ import { useI18n } from '@/i18n'
 import { fmtDate, fmtNumber, fmtPeriod, fmtTonnes } from '@/lib/format'
 import { BlockEmpty, BlockHead, BlockStamp, Delta, SectionLink } from './parts'
 import type { TradeBlock, TradeSide } from './types'
+import { isMappedUrl, pageUrl } from '@/lib/links'
 
 function Side({ side, title, fallbackEmpty }: { side: TradeSide | null; title: string; fallbackEmpty: string }) {
   const { t, lang } = useI18n()
@@ -56,8 +57,9 @@ function Side({ side, title, fallbackEmpty }: { side: TradeSide | null; title: s
         {side.published_at && <span>· {t('prov.published')} {fmtDate(side.published_at, lang)}</span>}
         <FreshnessBadge status={side.freshness.status} ageDays={side.freshness.age_days} />
         {side.source_url && (
-          <a href={side.source_url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
-            {t('prov.original')} <ExternalLink size={12} />
+          <a href={pageUrl(side.source_url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5"
+            title={isMappedUrl(side.source_url) ? t('prov.exactAddress', { url: side.source_url }) : undefined}>
+            {t(isMappedUrl(side.source_url) ? 'prov.officialPage' : 'prov.original')} <ExternalLink size={12} />
           </a>
         )}
       </div>

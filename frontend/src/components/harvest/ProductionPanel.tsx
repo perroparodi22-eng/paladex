@@ -13,6 +13,7 @@ import { api } from '@/lib/api'
 import { fmtDate, fmtNumber, fmtProdUnit } from '@/lib/format'
 import type { ProductionCountry, ProductionCountryResponse, ProductionResponse, ProductionValue } from './types'
 import type { ProdScope, YearsRange } from './useHarvestParams'
+import { pageUrl } from '@/lib/links'
 
 /** Fill of a production bar by status: official figure (forest), estimate (gold), provisional (pale gold),
  * forecast (white, dashed outline). The same marks as the page's reading guide. */
@@ -96,7 +97,7 @@ function ProdRow({ c, selected, onSelect, mainSource }: {
       <td className="py-1.5 px-2 num text-right whitespace-nowrap">
         {v ? fmtProd(v, lang, t('harvest.prod.unitT')) : '—'}
         {v?.source_url && (
-          <a href={v.source_url} target="_blank" rel="noreferrer" className="ml-1 inline-block align-[-1px] text-forest-700"
+          <a href={pageUrl(v.source_url) ?? undefined} target="_blank" rel="noreferrer" className="ml-1 inline-block align-[-1px] text-forest-700"
             title={`${t('prov.original')} · ${s?.source?.name ?? ''}`} aria-label={t('prov.original')}>
             <ExternalLink size={12} />
           </a>

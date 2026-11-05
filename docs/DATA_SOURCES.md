@@ -81,6 +81,47 @@ Only official sources that publish company-level information; nothing is inferre
 | Serbia | Uprava za veterinu publishes registers (identification, kennels, shelters, animal testing) but no list of establishments approved for export | no (unavailable: TRACES) |
 | Moldova | ANSA authorises EU honey exporters (TRACES); its only published list ("întreprinderi autorizate ... import/export", .doc) was last saved Feb 2020, has no honey operator and carries personal phone numbers: not used | no (unavailable) |
 
+## Links: what opens when a source is clicked (checked live 5 Nov 2026)
+
+Every figure keeps the exact official address it was read from (provenance; never rewritten, also in
+the CSV export). Most of those addresses are pages, PDFs or files and open as they are. Some are
+machine-only: an official data service answering raw JSON/XML (several only to the application's own
+form requests, an error in a browser) or a bulk archive of tens of MB. For those the interface opens
+**the same publisher's own page for that dataset** (`frontend/src/lib/links.ts`), and the exact
+address stays in the link's description. No other site is ever linked.
+
+| Stored address (machine-only) | Opens |
+|---|---|
+| INDEC `comexbe.indec.gob.ar/public-api` | comex.indec.gob.ar query page |
+| MDIC `api-comexstat.mdic.gov.br` | Comex Stat "General Data" |
+| IBGE `apisidra.ibge.gov.br/values/t/74/...` | SIDRA table 74 |
+| MAGyP / data.gov.ua (CKAN) file downloads | the dataset / file page on the same portal |
+| Aduanas Chile yearly database (~26 MB) and statistics workbooks | the two aduana.cl pages that publish them |
+| DG AGRI `api.tech.ec.europa.eu/agrifood/api/taxud` | agridata TAXUD weekly imports dashboard |
+| UK Online Trade Tariff (XI) API | the commodity / heading page of the same service |
+| Eurostat Comext API | Eurostat international trade in goods database page |
+| FAOSTAT bulk ZIPs | FAOSTAT domain page (QCL, PP, TCL, TM) |
+| India EIC `api/facilities` | EIC commodity-wise facilities page |
+| SIAP `cierre_pecuario/?xajax=...` | SIAP year-end close page |
+| NASA POWER API | POWER Data Access Viewer |
+| HMRC `api.uktradeinfo.com` (OTS, traders) | uktradeinfo overseas trade table / Find UK traders |
+| UN Comtrade API | the same query on comtradeplus.un.org Trade Data (reporter, period, flow, HS) |
+| US Census international trade API | census.gov international trade data page |
+| USITC HTS export service | HTS search for the heading |
+
+Kept as stored because they open: statistics pages, PDFs (USDA ESMIS, ONM, EC, DGFT), TÜİK's official
+Excel table (its press page answers "cannot be displayed"), Uruguay XXI result pages, the INEGI cube
+viewer. A report Paladex kept a copy of (`/api/reports/<id>/file`, e.g. the USDA "latest" PDF whose
+address is reused every month) opens that copy, on the computer and in the online copy
+(`scripts/mirror/report_files.py`).
+
+Live check of all 764 addresses the pages show (701 destinations): 646 open directly; EUR-Lex (35)
+and the Federal Register answer automated checks with an anti-robot page, Google News searches (15)
+with "unusual traffic", INEGI with a captcha: all open in a browser. Not reachable from the
+development network (to check from the owner's PC): customs.gov.cn, nafiqad.gov.vn,
+micor.agriculture.gov.au, mymarketnews.ams.usda.gov (the USDA homepage now links the ESMIS archive
+instead), one Argentine news site.
+
 ## Source priority
 
 Government and intergovernmental sources are the primary sources: USDA, US Census, USITC, the Federal Register, the European Commission and Eurostat, EUR-Lex, RASFF, the UN, FAO, the ECB, Brazil's MDIC and MAPA, Argentina's SENASA and Boletín Oficial, and India's DGFT. Industry bodies come next: the Osservatorio Nazionale Miele, ISMEA and the Chambers of Commerce. Trade press and news aggregators come last. Every row carries its reliability level. The Sources page lists official sources first in each category, and the interface never mixes reliability levels without showing which is which. More official sources were researched and are queued: Argentina INDEC/ARCA customs files, Uruguay customs, Mexico INEGI/SIAP, Japan e-Stat, India TradeStat, Turkey TÜİK and China GACC (manual import). See `research/official_*.json`.

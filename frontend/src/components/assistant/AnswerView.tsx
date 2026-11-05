@@ -9,6 +9,7 @@ import { useI18n } from '@/i18n'
 import { fmtDate, fmtPeriod } from '@/lib/format'
 import { Citations } from './Citation'
 import type { Answer, AnswerSection, AssistantFact, FactStatus, HowToEnable } from './types'
+import { pageUrl } from '@/lib/links'
 
 type Tone = 'forest' | 'neutral' | 'warn' | 'outline' | 'gold'
 const SECTION_TONE: Record<string, Tone> = { verified: 'forest', historical: 'neutral', estimates: 'warn', news: 'outline', quotes: 'gold' }
@@ -78,7 +79,7 @@ function SourcesList({ facts }: { facts: AssistantFact[] }) {
                 <span>· {f.status_label}</span>
                 {f.is_demo && <DemoBadge />}
                 {f.url && !f.private && (
-                  <a href={f.url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
+                  <a href={pageUrl(f.url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
                     {t('prov.original')} <ExternalLink size={11} />
                   </a>
                 )}

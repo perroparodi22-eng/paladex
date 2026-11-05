@@ -12,6 +12,7 @@ import { fmtDate, fmtPeriod } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import { useArchiveParams } from './state'
 import type { NewsArchiveResponse } from './types'
+import { pageUrl } from '@/lib/links'
 
 function isoDay(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -39,7 +40,7 @@ export function NewsList({ d }: { d: NewsArchiveResponse }) {
               <span>· {t('archive.n.relevance', { n: a.relevance_score })}</span>
               {a.countries.length > 0 && <span className="break-words">· {a.countries.slice(0, 4).map((c) => country(c)).join(', ')}</span>}
             </div>
-            <a href={a.url} target="_blank" rel="noreferrer" className="font-serif text-[1.05rem] leading-snug hover:text-forest-700 break-words">
+            <a href={pageUrl(a.url) ?? undefined} target="_blank" rel="noreferrer" className="font-serif text-[1.05rem] leading-snug hover:text-forest-700 break-words">
               {shown?.title ?? a.title}
               <ExternalLink size={13} className="inline ml-1 align-[-1px] text-muted" />
             </a>

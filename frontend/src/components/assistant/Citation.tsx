@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { useI18n } from '@/i18n'
 import { fmtDate, fmtPeriod } from '@/lib/format'
 import type { AssistantFact } from './types'
+import { pageUrl } from '@/lib/links'
 
 export function citationTitle(f: AssistantFact, t: (k: string, v?: Record<string, string | number>) => string, lang: 'it' | 'en'): string {
   const parts = [f.private ? t('assistant.cite.private') : f.source_name || t('assistant.cite.noSource')]
@@ -28,7 +29,7 @@ export function Citation({ fact }: { fact: AssistantFact }) {
   return (
     <span className="group relative inline-block align-baseline">
       {external ? (
-        <a href={fact.url!} target="_blank" rel="noreferrer" title={title} aria-label={`[${fact.id}] ${title}`}>{label}</a>
+        <a href={pageUrl(fact.url!) ?? undefined} target="_blank" rel="noreferrer" title={title} aria-label={`[${fact.id}] ${title}`}>{label}</a>
       ) : fact.link ? (
         <Link to={fact.link} title={title} aria-label={`[${fact.id}] ${title}`}>{label}</Link>
       ) : (

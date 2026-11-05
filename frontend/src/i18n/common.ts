@@ -39,6 +39,8 @@ export const common = {
     'prov.collected': 'Raccolto',
     'prov.period': 'Periodo',
     'prov.original': 'Documento originale',
+    'prov.officialPage': 'Pagina ufficiale',
+    'prov.exactAddress': 'Pagina ufficiale della fonte con questi dati. Indirizzo esatto da cui sono stati letti: {url}',
     'prov.unit': 'Unità',
     'prov.type': 'Tipo',
 
@@ -132,6 +134,8 @@ export const common = {
     'prov.collected': 'Collected',
     'prov.period': 'Period',
     'prov.original': 'Original document',
+    'prov.officialPage': 'Official page',
+    'prov.exactAddress': 'The source\'s official page for these data. Exact address they were read from: {url}',
     'prov.unit': 'Unit',
     'prov.type': 'Type',
 

@@ -13,10 +13,11 @@ import { fmtDate } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import { useQuoteLabels } from './labels'
 import type { Landed, Rate } from './types'
+import { pageUrl } from '@/lib/links'
 
 function Ext({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
+    <a href={pageUrl(href) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
       {children} <ExternalLink size={12} />
     </a>
   )

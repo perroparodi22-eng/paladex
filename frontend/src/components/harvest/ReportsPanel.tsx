@@ -8,6 +8,7 @@ import { pickLang, useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtDate, fmtPeriod } from '@/lib/format'
 import type { HarvestNews, HarvestReport, ReportsResponse } from './types'
+import { pageUrl } from '@/lib/links'
 
 export function ReportsPanel() {
   const { t } = useI18n()
@@ -59,7 +60,7 @@ function ReportItem({ r }: { r: HarvestReport }) {
   const summary = lang === 'it' ? r.summary_it ?? r.summary_en : r.summary_en ?? r.summary_it
   return (
     <li className="py-2.5 first:pt-0">
-      <a href={r.source_url} target="_blank" rel="noreferrer" className="link inline-flex items-start gap-1 font-medium [overflow-wrap:anywhere]">
+      <a href={pageUrl(r.source_url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-start gap-1 font-medium [overflow-wrap:anywhere]">
         {r.title} <ExternalLink size={13} className="mt-1 shrink-0" />
       </a>
       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8rem] text-muted">
@@ -88,7 +89,7 @@ function NewsItem({ n }: { n: HarvestNews }) {
   const summary = pickLang(n as unknown as Record<string, unknown>, 'summary', lang)
   return (
     <li className="py-2.5 first:pt-0">
-      <a href={n.url} target="_blank" rel="noreferrer" className="link inline-flex items-start gap-1 font-medium [overflow-wrap:anywhere]">
+      <a href={pageUrl(n.url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-start gap-1 font-medium [overflow-wrap:anywhere]">
         {title} <ExternalLink size={13} className="mt-1 shrink-0" />
       </a>
       {translated && translated !== n.title && (

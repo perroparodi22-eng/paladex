@@ -11,6 +11,7 @@ import { isMirror } from '@/lib/mirror'
 import { sourceName, useLabels } from '@/lib/meta'
 import { fmtNewsDate, fmtNewsDateTime, RelevanceMeter, TagButton, useLangName, utc } from './bits'
 import type { DuplicateOutlet, NewsItem } from './types'
+import { pageUrl } from '@/lib/links'
 
 const EXCERPT_CLAMP_CHARS = 280
 
@@ -68,7 +69,7 @@ function Outlets({ outlets }: { outlets: DuplicateOutlet[] }) {
           <span className="hidden min-w-0 flex-1 truncate text-[0.8rem] text-muted md:block" title={((lang === 'en' && o.source_name_en) || o.source_name) ?? undefined}>
             {o.source_name && <>· {t('news.card.via')} {(lang === 'en' && o.source_name_en) || o.source_name}</>}
           </span>
-          <a href={o.url} target="_blank" rel="noreferrer" className="link ml-auto inline-flex shrink-0 items-center gap-1 text-[0.86rem]" title={t('news.card.opensNewTab')}>
+          <a href={pageUrl(o.url) ?? undefined} target="_blank" rel="noreferrer" className="link ml-auto inline-flex shrink-0 items-center gap-1 text-[0.86rem]" title={t('news.card.opensNewTab')}>
             {t('news.card.outletOpen')} <ExternalLink size={13} />
           </a>
         </li>
@@ -146,7 +147,7 @@ export function NewsCard({ item, actions }: { item: NewsItem; actions: CardActio
         <div className="min-w-0 flex-1">
           {/* headline */}
           <h3 id={`news-${item.id}`} className="mt-1.5 font-serif text-[1.32rem] font-semibold leading-snug text-charcoal">
-            <a href={item.url} target="_blank" rel="noreferrer" className="decoration-gold/60 underline-offset-[3px] hover:text-forest-800 hover:underline"
+            <a href={pageUrl(item.url) ?? undefined} target="_blank" rel="noreferrer" className="decoration-gold/60 underline-offset-[3px] hover:text-forest-800 hover:underline"
               lang={d.title_is_ai ? lang : item.language ?? undefined}>
               {d.title}
             </a>
@@ -203,7 +204,7 @@ export function NewsCard({ item, actions }: { item: NewsItem; actions: CardActio
 
       {/* actions + feed provenance */}
       <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.92rem]">
-        <a href={item.url} target="_blank" rel="noreferrer" title={t('news.card.opensNewTab')}
+        <a href={pageUrl(item.url) ?? undefined} target="_blank" rel="noreferrer" title={t('news.card.opensNewTab')}
           className="inline-flex items-center gap-1.5 font-medium text-forest-800 underline decoration-gold/50 underline-offset-[3px] hover:decoration-gold">
           {t('news.card.readOriginal')} <ExternalLink size={14} />
         </a>

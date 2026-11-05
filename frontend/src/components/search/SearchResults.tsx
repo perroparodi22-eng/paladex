@@ -12,6 +12,7 @@ import { PRICE_TYPE_ORDER } from '@/components/prices/utils'
 import type {
   CountryHit, GroupKey, NewsHit, PriceHit, RegulationHit, ReportHit, SearchGroup, SourceHit, VarietyHit,
 } from './types'
+import { pageUrl } from '@/lib/links'
 
 const RESULT = 'data-result'
 const resultProps = { [RESULT]: '' }
@@ -149,7 +150,7 @@ function NewsRow({ n }: { n: NewsHit }) {
   const summary = lang === 'it' ? n.summary_it ?? n.summary_en : n.summary_en ?? n.summary_it
   return (
     <li className="px-5 py-4">
-      <a href={n.url} target="_blank" rel="noreferrer" className="group inline-flex items-start gap-1.5 text-[1.05rem] font-semibold text-charcoal hover:text-forest-700 leading-snug" {...resultProps}>
+      <a href={pageUrl(n.url) ?? undefined} target="_blank" rel="noreferrer" className="group inline-flex items-start gap-1.5 text-[1.05rem] font-semibold text-charcoal hover:text-forest-700 leading-snug" {...resultProps}>
         <span className="group-hover:underline decoration-gold/60 underline-offset-2">{n.title}</span>
         <ExternalLink size={14} className="mt-1 shrink-0 text-muted" />
       </a>
@@ -176,7 +177,7 @@ function ReportRow({ r }: { r: ReportHit }) {
   const summary = pickLang(r as unknown as Record<string, unknown>, 'summary', lang)
   return (
     <li className="px-5 py-4">
-      <a href={r.url} target="_blank" rel="noreferrer" className="group inline-flex items-start gap-1.5 text-[1.05rem] font-semibold text-charcoal hover:text-forest-700 leading-snug" {...resultProps}>
+      <a href={pageUrl(r.url) ?? undefined} target="_blank" rel="noreferrer" className="group inline-flex items-start gap-1.5 text-[1.05rem] font-semibold text-charcoal hover:text-forest-700 leading-snug" {...resultProps}>
         <span className="group-hover:underline decoration-gold/60 underline-offset-2">{r.title}</span>
         <ExternalLink size={14} className="mt-1 shrink-0 text-muted" />
       </a>
@@ -194,7 +195,7 @@ function ReportRow({ r }: { r: ReportHit }) {
       )}
       {r.excerpt && <p className="mt-1.5 text-[0.92rem] text-muted leading-relaxed italic">“{r.excerpt}”</p>}
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[0.88rem]">
-        <a href={r.url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-1">{t('search.report.original')} <ExternalLink size={13} /></a>
+        <a href={pageUrl(r.url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-1">{t('search.report.original')} <ExternalLink size={13} /></a>
         {r.file_url && (
           <a href={r.file_url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-1">{t('search.report.archived')} <FileDown size={13} /></a>
         )}
@@ -215,7 +216,7 @@ function RegulationRow({ r }: { r: RegulationHit }) {
         {r.published_at && <span>· {fmtDate(r.published_at, lang)}</span>}
         {r.effective_date && <span>· {t('search.reg.effective')} {fmtDate(r.effective_date, lang)}</span>}
       </div>
-      <a href={r.url} target="_blank" rel="noreferrer" className="group mt-1 inline-flex items-start gap-1.5 text-[1.05rem] font-semibold text-charcoal hover:text-forest-700 leading-snug" {...resultProps}>
+      <a href={pageUrl(r.url) ?? undefined} target="_blank" rel="noreferrer" className="group mt-1 inline-flex items-start gap-1.5 text-[1.05rem] font-semibold text-charcoal hover:text-forest-700 leading-snug" {...resultProps}>
         <span className="group-hover:underline decoration-gold/60 underline-offset-2">{r.title}</span>
         <ExternalLink size={14} className="mt-1 shrink-0 text-muted" />
       </a>

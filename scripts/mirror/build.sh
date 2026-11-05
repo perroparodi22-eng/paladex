@@ -69,6 +69,9 @@ VITE_PALADEX_MIRROR=1 npx vite build --outDir "$WORK/site" --emptyOutDir --logLe
 cd "$ROOT"
 
 step "3/6 backend on the copy"
+# The documents kept next to the database (raw/: official reports as downloaded) are read in place,
+# so the copy can serve the report files its pages link to (report_files.py, step 4).
+if [[ -d "$(dirname "$DB")/raw" && ! -e "$WORK/data/raw" ]]; then ln -s "$(dirname "$DB")/raw" "$WORK/data/raw"; fi
 PORT="$(free_port)"
 (
   cd "$ROOT/backend"
@@ -89,6 +92,8 @@ echo "   backend on port $PORT"
 step "4/6 crawl of the normal interface"
 node "$ROOT/scripts/mirror/crawl.mjs" --base "http://127.0.0.1:$PORT" --out "$WORK/site/mirror" \
   --report "$WORK/crawl-report.json" --concurrency "${MIRROR_CONCURRENCY:-4}" --max-file-mb "${MIRROR_MAX_FILE_MB:-8}"
+# Report documents linked from the recorded pages (/api/reports/<id>/file): served by the copy too.
+"$PY" "$ROOT/scripts/mirror/report_files.py" "http://127.0.0.1:$PORT" "$WORK/site" > "$WORK/report-rules.txt"
 kill "$BACKEND_PID" 2>/dev/null && wait "$BACKEND_PID" 2>/dev/null || true
 BACKEND_PID=""
 
@@ -109,12 +114,16 @@ cat > "$SITE/_headers" <<'EOF'
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 EOF
-cat > "$SITE/_redirects" <<'EOF'
-# Read-only online copy of Paladex (scripts/mirror/build.sh). Existing files are served as they are.
+{
+  echo "# Read-only online copy of Paladex (scripts/mirror/build.sh). Existing files are served as they are."
+  echo "# Report documents the pages link to (report_files.py):"
+  cat "$WORK/report-rules.txt"
+  cat <<'EOF'
 /mirror/*  /mirror-missing.json  404
 /api/*     /mirror-missing.json  404
 /*         /index.html           200
 EOF
+} > "$SITE/_redirects"
 printf 'User-agent: *\nDisallow: /\n' > "$SITE/robots.txt"
 printf '{"missing": true}\n' > "$SITE/mirror-missing.json"
 "$PY" - "$SITE/index.html" <<'EOF'

@@ -8,6 +8,7 @@ import { fmtAgo, fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
 import { sourceName, useLabels } from '@/lib/meta'
 import { isMirrorMissing } from '@/lib/mirror'
 import type { FreshnessStatus, Provenance } from '@/lib/types'
+import { isMappedUrl, pageUrl } from '@/lib/links'
 
 export function PageHeader({ title, subtitle, eyebrow, actions }: { title: string; subtitle?: ReactNode; eyebrow?: string; actions?: ReactNode }) {
   return (
@@ -122,8 +123,9 @@ export function SourceLine({ p, compact = false, className }: { p: Partial<Prove
       {p.published_at && <span>· {t('prov.published')} {fmtDate(p.published_at, lang)}</span>}
       {p.collected_at && !compact && <span>· {t('prov.collected')} {fmtAgo(p.collected_at, lang)}</span>}
       {p.source_url && (
-        <a href={p.source_url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
-          {t('prov.original')} <ExternalLink size={12} />
+        <a href={pageUrl(p.source_url)} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5"
+          title={isMappedUrl(p.source_url) ? t('prov.exactAddress', { url: p.source_url }) : undefined}>
+          {t(isMappedUrl(p.source_url) ? 'prov.officialPage' : 'prov.original')} <ExternalLink size={12} />
         </a>
       )}
     </div>

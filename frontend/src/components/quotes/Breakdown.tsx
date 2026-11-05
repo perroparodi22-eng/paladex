@@ -10,6 +10,7 @@ import { legalLabel } from '@/components/regulations/format'
 import { useQuoteLabels } from './labels'
 import type { Landed, Line } from './types'
 import { fmtAmount, fmtPerKg, fmtPlain, fmtPrice, fmtTons } from './utils'
+import { pageUrl } from '@/lib/links'
 
 type T = (k: string, v?: Record<string, string | number>) => string
 
@@ -150,7 +151,7 @@ export function Breakdown({ landed }: { landed: Landed }) {
                     <div>{m.source?.publisher ?? m.source?.name ?? t('quotes.duty.official')}</div>
                     {m.as_of && <div>{t('quotes.line.checked', { date: fmtDate(m.as_of, lang) })}</div>}
                     {m.legal_url && legal && (
-                      <a href={m.legal_url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
+                      <a href={pageUrl(m.legal_url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
                         {legal} <ExternalLink size={11} />
                       </a>
                     )}

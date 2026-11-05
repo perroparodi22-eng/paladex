@@ -12,6 +12,7 @@ import { fmtAgo, fmtDate, fmtNumber } from '@/lib/format'
 import { sourceName, useLabels } from '@/lib/meta'
 import type { DocSource, RegulationDoc, RegulationsResponse } from './types'
 import { useDocFilters } from './useDocFilters'
+import { pageUrl } from '@/lib/links'
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 450
@@ -108,7 +109,7 @@ function DocItem({ doc }: { doc: RegulationDoc }) {
           {doc.is_demo && <DemoBadge />}
         </div>
         <h3 className="mt-1 text-[1.02rem] font-medium leading-snug text-charcoal">
-          <a href={doc.url} target="_blank" rel="noreferrer" className="hover:text-forest-700 hover:underline decoration-gold/60 underline-offset-2"
+          <a href={pageUrl(doc.url) ?? undefined} target="_blank" rel="noreferrer" className="hover:text-forest-700 hover:underline decoration-gold/60 underline-offset-2"
             title={t('regulations.docs.open')}>
             {doc.title}
             <ExternalLink size={13} className="ml-1 inline-block align-baseline text-muted" />
