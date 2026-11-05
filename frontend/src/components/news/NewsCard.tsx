@@ -7,6 +7,7 @@ import { AiBadge, DemoBadge, ReliabilityBadge } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { ApiError } from '@/lib/api'
 import { fmtAgo } from '@/lib/format'
+import { isMirror } from '@/lib/mirror'
 import { useLabels } from '@/lib/meta'
 import { fmtNewsDate, fmtNewsDateTime, RelevanceMeter, TagButton, useLangName, utc } from './bits'
 import type { DuplicateOutlet, NewsItem } from './types'
@@ -91,7 +92,7 @@ export function NewsCard({ item, actions }: { item: NewsItem; actions: CardActio
   // Syndicated copies from other outlets (the same outlet seen through two feeds is not "another source").
   const outlets = item.duplicate_outlets.filter((o) => (o.publisher ?? '').trim().toLowerCase() !== outlet.trim().toLowerCase())
   const nOutlets = outlets.length
-  const canTranslate = actions.llmEnabled && d.needs_translation
+  const canTranslate = actions.llmEnabled && d.needs_translation && !isMirror()
   const excerpt = d.excerpt
   const longExcerpt = (excerpt?.length ?? 0) > EXCERPT_CLAMP_CHARS
 

@@ -13,6 +13,7 @@ import { fmtT, SourcesFooter, useProviderText } from '@/components/trade/bits'
 import { useI18n } from '@/i18n'
 import { ApiError, api } from '@/lib/api'
 import { fmtNumber } from '@/lib/format'
+import { isMirrorMissing } from '@/lib/mirror'
 
 export default function CountryDetail() {
   const { iso3 = '' } = useParams()
@@ -21,7 +22,7 @@ export default function CountryDetail() {
   const q = useQuery({
     queryKey: ['countries', code],
     queryFn: () => api.get<CountryProfile>(`/countries/${encodeURIComponent(code)}`),
-    retry: (n, e) => !(e instanceof ApiError && e.status === 404) && n < 2,
+    retry: (n, e) => !(e instanceof ApiError && e.status === 404) && !isMirrorMissing(e) && n < 2,
   })
 
   const back = (

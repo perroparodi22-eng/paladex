@@ -9,6 +9,7 @@ import { Badge, EmptyState, ErrorBlock, Loading, Segmented } from '@/components/
 import { pickLang, useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtAgo, fmtDate, fmtDateTime, fmtNumber, fmtPct, fmtPeriod } from '@/lib/format'
+import { isMirror } from '@/lib/mirror'
 import type { Lang } from '@/lib/types'
 import { asUtc } from './explain'
 import type { QualityIssue, QualityIssues, QualityRunResult, Severity } from './types'
@@ -57,10 +58,12 @@ export function QualityPanel({ onNotice }: { onNotice: (n: { tone: 'ok' | 'warn'
           <p className="mt-1 text-[0.92rem] text-muted leading-relaxed">{t('sources.q.subtitle')}</p>
         </div>
         <div className="flex flex-col items-end gap-1.5">
-          <button className="btn-secondary" onClick={() => run.mutate()} disabled={run.isPending}>
-            {run.isPending ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
-            {run.isPending ? t('sources.q.rechecking') : t('sources.q.recheck')}
-          </button>
+          {!isMirror() && (
+            <button className="btn-secondary" onClick={() => run.mutate()} disabled={run.isPending}>
+              {run.isPending ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+              {run.isPending ? t('sources.q.rechecking') : t('sources.q.recheck')}
+            </button>
+          )}
           <span className="text-[0.82rem] text-muted" title={fmtDateTime(asUtc(q.data?.last_check_at), lang)}>
             {q.data?.last_check_at ? t('sources.q.lastCheck', { t: fmtAgo(q.data.last_check_at, lang) }) : t('sources.q.neverChecked')}
           </span>

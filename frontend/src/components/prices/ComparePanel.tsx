@@ -96,7 +96,7 @@ function BarList({ d, by, name, unit, open, setOpen }: {
               type="button"
               onClick={() => setOpen(isOpen ? null : barId)}
               aria-expanded={isOpen}
-              className="w-full grid grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)_4.5rem_6.5rem] items-center gap-3 py-2 text-left hover:bg-ivory/50"
+              className="w-full grid grid-cols-[minmax(5.5rem,11rem)_minmax(0,1fr)_4rem_5.5rem] gap-2 sm:grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)_4.5rem_6.5rem] items-center sm:gap-3 py-2 text-left hover:bg-ivory/50"
             >
               <span className="flex items-center gap-1 min-w-0 font-medium text-charcoal">
                 {isOpen ? <ChevronDown size={15} className="shrink-0 text-muted" /> : <ChevronRight size={15} className="shrink-0 text-muted" />}

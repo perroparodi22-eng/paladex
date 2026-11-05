@@ -1,5 +1,7 @@
 // Thin JSON client for the local backend. All calls are relative (/api/...), so the
 // same build works in dev (Vite proxy) and production (served by FastAPI).
+// In the read-only online copy (lib/mirror.ts) GETs read recorded answers and nothing is written.
+import { isMirror, mirrorGet, READ_ONLY_MESSAGE } from './mirror'
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -22,6 +24,10 @@ export function qs(params?: Params): string {
 }
 
 async function request<T>(method: string, path: string, body?: unknown, params?: Params): Promise<T> {
+  if (isMirror()) {
+    if (method !== 'GET') throw new ApiError(405, READ_ONLY_MESSAGE)
+    return mirrorGet<T>(`/api${path}${qs(params)}`)
+  }
   const res = await fetch(`/api${path}${qs(params)}`, {
     method,
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,

@@ -4,11 +4,13 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { I18nProvider } from './i18n'
+import { isMirrorMissing } from './lib/mirror'
 import './styles/index.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 60_000, retry: 1, refetchOnWindowFocus: false },
+    // One retry, except for a view the read-only online copy does not contain (lib/mirror.ts).
+    queries: { staleTime: 60_000, retry: (n, e) => n < 1 && !isMirrorMissing(e), refetchOnWindowFocus: false },
   },
 })
 

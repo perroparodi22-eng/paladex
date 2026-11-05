@@ -206,7 +206,7 @@ export function DocumentsPanel() {
         <div className="space-y-3 border-b border-line-soft px-5 py-4">
           <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
             <SearchBox value={state.q} onChange={(q) => f.update({ q })} />
-            <div className="shrink-0">
+            <div className="shrink-0 max-w-full">
               <span className="label">{t('regulations.docs.jurisdiction')}</span>
               <Segmented<string> size="sm" value={state.jurisdiction} onChange={(v) => f.update({ jurisdiction: v })} options={jOptions} />
             </div>

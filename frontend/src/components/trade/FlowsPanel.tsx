@@ -164,7 +164,8 @@ function FlowsTable({ d, partner, onPartner, flow }: { d: FlowsResponse; partner
   const altOthers = d.alternatives.filter((a) => a.source?.key !== d.source?.key)
   return (
     <div>
-      <table className="w-full text-[0.93rem]">
+      <div className="relative overflow-x-auto">
+      <table className="w-full min-w-[22rem] text-[0.93rem]">
         <thead>
           <tr className="border-b border-line bg-paper text-left text-[0.72rem] uppercase tracking-wider text-muted">
             <th className="py-2 pl-2 pr-1 font-medium w-7">#</th>
@@ -234,6 +235,7 @@ function FlowsTable({ d, partner, onPartner, flow }: { d: FlowsResponse; partner
           )}
         </tbody>
       </table>
+      </div>
       <div className="mt-3 flex flex-col gap-1 text-[0.8rem] text-muted">
         <div className="flex flex-wrap items-center gap-2">
           <SourceLine p={{ source: d.source ?? null, published_at: d.published_at, source_url: d.source_url, is_demo: d.is_demo, period_label: d.period_label ?? undefined }} />

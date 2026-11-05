@@ -8,6 +8,7 @@ import { Note } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtAgo } from '@/lib/format'
+import { isMirror } from '@/lib/mirror'
 import type { CollectState, SourceInfo } from '@/lib/types'
 import { utc } from './bits'
 import type { NewsListResponse } from './types'
@@ -48,7 +49,7 @@ export function NoNewsYet({ updated, newsSources }: { updated: NewsListResponse[
             : t('news.empty.none.never')}
         </p>
         <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-          {keys.length > 0 && (
+          {keys.length > 0 && !isMirror() && (
             <button type="button" className="btn-primary" onClick={() => start.mutate()} disabled={running || start.isPending}>
               {running || start.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
               {running ? t('news.empty.none.updating') : t('news.empty.none.update')}

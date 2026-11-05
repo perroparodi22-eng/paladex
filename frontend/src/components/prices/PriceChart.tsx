@@ -242,7 +242,7 @@ export function PriceChart({ data, labels, colorOf, toggle, hideAll, restore, vi
           </div>
           <p className="text-[0.8rem] text-muted mt-0.5 mb-2">{t('prices.chart.legendHint')}</p>
           {limitHit && <p className="text-[0.8rem] text-warn mb-2">{t('prices.chart.maxVisible', { n: MAX_VISIBLE })}</p>}
-          <ul className="grid grid-cols-2 xl:grid-cols-1 gap-x-5 max-h-[300px] xl:max-h-[392px] overflow-y-auto -mx-1 pr-1">
+          <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-x-5 max-h-[300px] xl:max-h-[392px] overflow-y-auto -mx-1 pr-1">
             {series.map((s) => {
               const c = colorOf(s.id)
               const lp = lastValue(s)

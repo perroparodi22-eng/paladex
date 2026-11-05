@@ -8,6 +8,7 @@ import { useI18n } from '@/i18n'
 import { api, qs } from '@/lib/api'
 import { fmtAgo, fmtDate, fmtNumber } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
+import { isMirror } from '@/lib/mirror'
 import { DocLink, ScrollHint, useOverflows } from './bits'
 import type { Ccy, MassUnit, ObservationsResponse } from './types'
 import { colorLabel, fmtPeriodLabel, fmtPrice, rowValuePerKg, toUnit, unitLabel } from './utils'
@@ -19,7 +20,8 @@ const PAGE_SIZE = 20
  * `FULL` cells exist only from xl up, `COMPACT` cells only below it. */
 const FULL = 'hidden xl:table-cell'
 const COMPACT = 'xl:hidden'
-const PINNED = 'sticky right-0 z-[1] border-l border-line-soft'
+// Phones: not pinned (the price must stay visible next to its origin); provenance follows it.
+const PINNED = 'sticky right-0 z-[1] border-l border-line-soft max-sm:static max-sm:min-w-[12rem]'
 
 export function RecordsTable({ filters, from, ccy, unit }: {
   filters: Record<string, string | string[] | undefined>
@@ -50,11 +52,11 @@ export function RecordsTable({ filters, from, ccy, unit }: {
       title={t('prices.rec.title')}
       eyebrow={d ? t('prices.rec.total', { n: fmtNumber(d.total, lang) }) : undefined}
       bodyClassName="p-0"
-      actions={
+      actions={isMirror() ? undefined : (
         <a href={csvHref} download className="btn-secondary !py-1.5" aria-disabled={!d?.total}>
           <Download size={16} /> {t('prices.rec.export')}
         </a>
-      }
+      )}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span>{t('prices.rec.subtitle')}</span>
@@ -77,7 +79,7 @@ export function RecordsTable({ filters, from, ccy, unit }: {
       ) : (
         <>
         {overflows && <ScrollHint />}
-        <div ref={wrap} className="overflow-x-auto">
+        <div ref={wrap} className="relative overflow-x-auto">
           <table className="table-clean [&_th]:whitespace-nowrap [&_th]:!px-2 [&_td]:!px-2 xl:[&_th]:!px-2.5 xl:[&_td]:!px-2.5 [&_td]:!py-2">
             <thead>
               <tr>

@@ -80,7 +80,9 @@ export function LeadersTable({ flow, data, isLoading, error, refetch, basis, onB
         </div>
       ) : (
         <>
-          <table className="w-full table-fixed text-[0.92rem]">
+          {/* Phones: the table keeps a readable width and scrolls sideways inside its panel. */}
+          <div className="relative overflow-x-auto">
+          <table className="w-full min-w-[30rem] table-fixed text-[0.92rem]">
             <colgroup>
               <col className="w-[2.6rem]" />
               <col />
@@ -103,6 +105,7 @@ export function LeadersTable({ flow, data, isLoading, error, refetch, basis, onB
               {shown.map((r) => <Row key={r.iso3} r={r} max={max} metric={metric} mirror={mirror} />)}
             </tbody>
           </table>
+          </div>
           {rows.length > INITIAL_ROWS && (
             <div className="px-5 py-2 border-t border-line-soft">
               <button type="button" className="link text-[0.88rem]" onClick={() => setExpanded((v) => !v)}>

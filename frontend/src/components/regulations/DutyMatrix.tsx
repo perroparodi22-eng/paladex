@@ -279,27 +279,28 @@ export function DutyMatrix({ d }: { d: DutiesResponse }) {
             <StatusStrip d={d} />
             <Note>{t('regulations.duties.intro')}</Note>
           </div>
-          <div className="overflow-x-auto">
-            <table className="table-clean min-w-[40rem] table-fixed">
-              <colgroup>
+          {/* Phones: one block per origin (name, then EU, then USA) instead of a three-column table. */}
+          <div className="relative overflow-x-auto">
+            <table className="table-clean min-w-[40rem] table-fixed max-sm:block max-sm:min-w-0">
+              <colgroup className="max-sm:hidden">
                 <col className="w-[8.5rem] xl:w-[11.5rem]" />
                 <col />
                 <col />
               </colgroup>
-              <thead>
+              <thead className="max-sm:hidden">
                 <tr>
                   <th>{t('regulations.duties.col.origin')}</th>
                   <th>{t('regulations.duties.col.eu')}<div className="font-normal normal-case tracking-normal">{t('regulations.duties.col.euSub')}</div></th>
                   <th>{t('regulations.duties.col.us')}<div className="font-normal normal-case tracking-normal">{t('regulations.duties.col.usSub')}</div></th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="max-sm:block">
                 {d.origins.map((o) => {
                   const isOpen = open === o.iso3
                   return (
                     <Fragment key={o.iso3}>
-                      <tr className={clsx(isOpen && 'bg-ivory/40')}>
-                        <td>
+                      <tr className={clsx('max-sm:block max-sm:border-b-2 max-sm:border-line', isOpen && 'bg-ivory/40')}>
+                        <td className="max-sm:block max-sm:!border-b-0 max-sm:!pb-1">
                           <div className="flex items-start gap-1.5">
                             {o.priority && <span className="mt-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-gold" title={t('regulations.duties.priority')} />}
                             <div className="min-w-0">
@@ -316,12 +317,18 @@ export function DutyMatrix({ d }: { d: DutiesResponse }) {
                             </div>
                           </div>
                         </td>
-                        <td><EuCell o={o} status={eu} general={eu.general} /></td>
-                        <td><UsCell o={o} status={us} general={us.general} /></td>
+                        <td className="max-sm:block max-sm:!border-b-0">
+                          <div className="sm:hidden eyebrow mb-1">{t('regulations.duties.col.eu')}</div>
+                          <EuCell o={o} status={eu} general={eu.general} />
+                        </td>
+                        <td className="max-sm:block">
+                          <div className="sm:hidden eyebrow mb-1">{t('regulations.duties.col.us')}</div>
+                          <UsCell o={o} status={us} general={us.general} />
+                        </td>
                       </tr>
                       {isOpen && (
-                        <tr className="bg-paper hover:!bg-paper">
-                          <td colSpan={3} className="!py-4"><HistoryPanel iso3={o.iso3} name={name(o)} /></td>
+                        <tr className="bg-paper hover:!bg-paper max-sm:block">
+                          <td colSpan={3} className="!py-4 max-sm:block"><HistoryPanel iso3={o.iso3} name={name(o)} /></td>
                         </tr>
                       )}
                     </Fragment>

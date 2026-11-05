@@ -2,6 +2,7 @@
 // on the backend). Each page keeps its own dictionary in ./pages/<page>.ts exporting
 // `{ it: {...}, en: {...} }`; they are merged automatically, so pages never edit a shared file.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { isMirror } from '@/lib/mirror'
 import type { Lang } from '@/lib/types'
 import { common } from './common'
 
@@ -46,7 +47,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-    fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: l }) }).catch(() => {})
+    // (The read-only online copy has no settings to save: the browser keeps the choice.)
+    if (!isMirror()) fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: l }) }).catch(() => {})
   }, [])
 
   useEffect(() => {

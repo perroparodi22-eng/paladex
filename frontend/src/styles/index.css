@@ -26,7 +26,7 @@
 
 @layer components {
   .panel { @apply bg-white border border-line rounded-sm; }
-  .panel-head { @apply flex items-center justify-between gap-3 px-5 py-3 border-b border-line-soft; }
+  .panel-head { @apply flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-line-soft; }
   .panel-title { @apply font-serif text-lg font-semibold text-charcoal; }
   .eyebrow { @apply text-[0.72rem] uppercase tracking-[0.14em] text-muted font-medium; }
   .num { @apply font-mono tabular-nums; }

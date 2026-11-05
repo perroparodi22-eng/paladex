@@ -1,14 +1,19 @@
-// Developer helper: node scripts/dev/screenshot.cjs <url> <out.png> [width] [height]
+// Developer helper: node scripts/dev/screenshot.cjs <url> <out.png> [width] [height] [mobile]
+// "mobile" emulates a phone (touch, mobile viewport) at the given size, e.g. 390 844 mobile.
 const { chromium } = require('playwright');
 (async () => {
-  const [,, url, out, w, h] = process.argv;
+  const [,, url, out, w, h, mode] = process.argv;
   const b = await chromium.launch();
-  const p = await b.newPage({ viewport: { width: +(w||1440), height: +(h||900) } });
+  const mobile = mode === 'mobile';
+  const p = await b.newPage({ viewport: { width: +(w||1440), height: +(h||900) }, ...(mobile ? { isMobile: true, hasTouch: true } : {}) });
   const errors = [];
   p.on('pageerror', e => errors.push(String(e)));
   p.on('console', m => { if (m.type() === 'error') errors.push(m.text()) });
   await p.goto(url, { waitUntil: 'networkidle' });
   await p.waitForTimeout(800);
+  // Horizontal overflow of the page itself (wide content must scroll inside its own box).
+  const overflow = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (overflow > 0) console.log(`HORIZONTAL OVERFLOW: ${overflow}px`);
   await p.screenshot({ path: out, fullPage: true });
   if (errors.length) console.log('ERRORS:', errors.join('\n'));
   await b.close();

@@ -47,7 +47,8 @@ function SortTh({ k, sort, onSort, children, className }: {
  * `COMPACT` cells only below it. */
 const FULL = 'hidden xl:table-cell'
 const COMPACT = 'xl:hidden'
-const PINNED = 'sticky right-0 z-[1] border-l border-line-soft'
+// Phones: not pinned (the price must stay visible next to its origin); provenance follows it.
+const PINNED = 'sticky right-0 z-[1] border-l border-line-soft max-sm:static max-sm:min-w-[12rem]'
 
 function shiftLabel(label: string, freq: string, steps: number): string {
   if (freq === 'A') return String(Number(label) + steps)
@@ -95,7 +96,8 @@ export function LatestTable({ rows, unit, colorOf, toggle }: {
       footer={t('prices.latest.subtitle')}
     >
       {overflows && <ScrollHint />}
-      <div ref={wrap} className="overflow-x-auto">
+      {/* relative: screen-reader-only labels inside stay within the scrolling box on phones */}
+      <div ref={wrap} className="relative overflow-x-auto">
         <table className="table-clean [&_th]:whitespace-nowrap [&_th]:!px-2 [&_td]:!px-2 xl:[&_th]:!px-2.5 xl:[&_td]:!px-2.5 [&_td]:!py-2">
           <thead>
             <tr>

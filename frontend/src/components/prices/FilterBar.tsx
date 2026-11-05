@@ -122,7 +122,7 @@ export function FilterBar({ facets, typeCounts, state, update, reset, hasDimFilt
         </div>
       )}
 
-      <div className="px-5 py-3.5 grid gap-x-4 gap-y-3 grid-cols-2 xl:grid-cols-4">
+      <div className="px-5 py-3.5 grid gap-x-4 gap-y-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <FieldSelect label={t('prices.f.variety')} value={state.variety} onChange={(v) => update({ variety: v })}
           disabled={singleOrAll(facets?.varieties.length ?? 0, state.variety)}>
           <option value="">{t('prices.f.allVarieties')}</option>

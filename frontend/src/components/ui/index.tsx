@@ -6,6 +6,7 @@ import type { ReactNode, SelectHTMLAttributes } from 'react'
 import { useI18n } from '@/i18n'
 import { fmtAgo, fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
+import { isMirrorMissing } from '@/lib/mirror'
 import type { FreshnessStatus, Provenance } from '@/lib/types'
 
 export function PageHeader({ title, subtitle, eyebrow, actions }: { title: string; subtitle?: ReactNode; eyebrow?: string; actions?: ReactNode }) {
@@ -172,6 +173,18 @@ export function Loading({ label }: { label?: string }) {
 
 export function ErrorBlock({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const { t } = useI18n()
+  // Read-only online copy: a view it does not contain is not an error (lib/mirror.ts).
+  if (isMirrorMissing(error)) {
+    return (
+      <div className="flex items-start gap-3 p-4 border border-forest-100 bg-forest-50 rounded-sm text-sm" role="status">
+        <Info size={18} className="text-forest-700 mt-0.5 shrink-0" />
+        <div className="flex-1">
+          <div className="font-medium text-forest-800">{t('mirror.missingTitle')}</div>
+          <div className="text-charcoal-soft mt-0.5">{t('mirror.missing')}</div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="flex items-start gap-3 p-4 border border-[#EBCDC6] bg-[#FBF1EE] rounded-sm text-sm">
       <AlertTriangle size={18} className="text-down mt-0.5 shrink-0" />
@@ -210,7 +223,8 @@ export function Segmented<T extends string>({ value, onChange, options, size = '
   value: T; onChange: (v: T) => void; options: { value: T; label: string }[]; size?: 'sm' | 'md'
 }) {
   return (
-    <div className="inline-flex border border-line rounded-sm bg-white overflow-hidden" role="tablist">
+    // max-w-full + overflow-x-auto: on a phone a long row of options scrolls inside itself.
+    <div className="inline-flex max-w-full border border-line rounded-sm bg-white overflow-x-auto" role="tablist">
       {options.map((o) => (
         <button
           key={o.value}

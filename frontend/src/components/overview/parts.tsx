@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtAgo, fmtDate, fmtPct } from '@/lib/format'
+import { isMirror } from '@/lib/mirror'
 import type { Lang } from '@/lib/types'
 import type { Provider } from './types'
 
@@ -41,6 +42,7 @@ export function RefreshButton({ running, variant = 'primary' }: { running?: bool
   const { t } = useI18n()
   const collect = useCollectNow()
   const busy = running || collect.isPending
+  if (isMirror()) return null   // read-only online copy: data is collected on the computer
   return (
     <button
       className={clsx(variant === 'primary' ? 'btn-primary' : 'btn-secondary', '!py-1.5')}

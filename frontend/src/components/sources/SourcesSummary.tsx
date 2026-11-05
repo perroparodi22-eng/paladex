@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, Info, KeyRound, Loader2, RefreshCw, WifiOf
 import type { ReactNode } from 'react'
 import { useI18n } from '@/i18n'
 import { fmtAgo, fmtDateTime, fmtNumber } from '@/lib/format'
+import { isMirror } from '@/lib/mirror'
 import type { CollectState, SourceInfo } from '@/lib/types'
 import { asUtc } from './explain'
 import type { QualitySummary } from './types'
@@ -62,10 +63,12 @@ export function SourcesSummary({ summary, sources, collect, onUpdateAll, startin
               </dd>
             </div>
           </dl>
-          <button className="btn-primary !px-5 !py-2.5" onClick={onUpdateAll} disabled={running || starting}>
-            <RefreshCw size={17} className={clsx(running && 'animate-spin')} />
-            {running ? t('sources.sum.updating') : t('sources.sum.updateAll')}
-          </button>
+          {!isMirror() && (
+            <button className="btn-primary !px-5 !py-2.5" onClick={onUpdateAll} disabled={running || starting}>
+              <RefreshCw size={17} className={clsx(running && 'animate-spin')} />
+              {running ? t('sources.sum.updating') : t('sources.sum.updateAll')}
+            </button>
+          )}
         </div>
       </div>
 

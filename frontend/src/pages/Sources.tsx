@@ -12,6 +12,7 @@ import { Notice } from '@/components/sources/widgets'
 import { ErrorBlock, Loading, PageHeader } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
+import { isMirror } from '@/lib/mirror'
 import type { CollectState, SourceInfo } from '@/lib/types'
 
 type NoticeT = { tone: 'ok' | 'warn'; text: string } | null
@@ -145,7 +146,7 @@ export default function Sources() {
 
       {list && <SourceGroups sources={list} state={rowState} />}
 
-      {summary.data && <DemoPanel demo={summary.data.demo} onNotice={setNotice} />}
+      {summary.data && !isMirror() && <DemoPanel demo={summary.data.demo} onNotice={setNotice} />}
     </div>
   )
 }

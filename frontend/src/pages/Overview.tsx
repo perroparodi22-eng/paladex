@@ -15,6 +15,7 @@ import { TradeHighlights } from '@/components/overview/TradeHighlights'
 import type { OverviewData } from '@/components/overview/types'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
+import { isMirror } from '@/lib/mirror'
 import type { CollectState } from '@/lib/types'
 
 function FirstLaunch({ running }: { running: boolean }) {
@@ -51,7 +52,7 @@ function Body({ d, running }: { d: OverviewData; running: boolean }) {
         </div>
         {/* Right column; on tablets the four panels flow into two balanced columns. */}
         <div className="min-w-0 gap-6 md:columns-2 xl:columns-1 [&>*]:mb-6 [&>*]:break-inside-avoid">
-          <AlertsPanel block={d.alerts} />
+          {!isMirror() && <AlertsPanel block={d.alerts} />}
           <NewsPanel block={d.news} />
           <ReportsPanel block={d.reports} />
           <CountryActivityPanel block={d.countries} />

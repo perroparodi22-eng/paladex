@@ -1,0 +1,192 @@
+# Daily read-only online copy of Paladex for the owner's phone (docs/PHONE_ACCESS.md).
+#
+# Every morning: restore yesterday's database (or start from the real starter data shipped in
+# starter/), collect from the official sources, keep the database for tomorrow, build the
+# read-only copy (scripts/mirror/build.sh) and publish it on the private Netlify project.
+# Secrets are never printed: GitHub masks them, and the copy is checked for them before publishing.
+name: Online copy (phone)
+
+on:
+  schedule:
+    - cron: '17 4 * * *'      # 04:17 UTC = 05:17 in Italy in winter, 06:17 in summer
+  workflow_dispatch:          # "Run workflow" button (Actions tab)
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paladex-online-copy
+  cancel-in-progress: false
+
+env:
+  # The private Netlify project (not a secret); a repository variable or secret with the same name overrides it.
+  NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID || secrets.NETLIFY_SITE_ID || 'c063103b-a10a-4983-9388-abaa74eba5fe' }}
+  PALADEX_DATA_DIR: ${{ github.workspace }}/ci-data
+  PALADEX_SCHEDULER_ENABLED: 'false'
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  # Nothing runs until the Netlify key is in place: without it the copy could not be published,
+  # and collecting every day for nothing would only spend the repository's Actions minutes.
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.key.outputs.ready }}
+    steps:
+      - id: key
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          if [ -n "$NETLIFY_AUTH_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipped: the repository secret NETLIFY_AUTH_TOKEN is missing (docs/PHONE_ACCESS.md explains how to add it)."
+          fi
+
+  copy:
+    needs: check
+    if: needs.check.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Backend requirements
+        run: pip install -r backend/requirements.txt
+
+      - name: Optional source keys (repository secrets with the names used in .env)
+        env:
+          PALADEX_COMTRADE_API_KEY: ${{ secrets.PALADEX_COMTRADE_API_KEY }}
+          PALADEX_DATA_GOV_API_KEY: ${{ secrets.PALADEX_DATA_GOV_API_KEY }}
+          PALADEX_USDA_NASS_API_KEY: ${{ secrets.PALADEX_USDA_NASS_API_KEY }}
+          PALADEX_USDA_MMN_API_KEY: ${{ secrets.PALADEX_USDA_MMN_API_KEY }}
+          PALADEX_CENSUS_API_KEY: ${{ secrets.PALADEX_CENSUS_API_KEY }}
+          PALADEX_FAOSTAT_USERNAME: ${{ secrets.PALADEX_FAOSTAT_USERNAME }}
+          PALADEX_FAOSTAT_PASSWORD: ${{ secrets.PALADEX_FAOSTAT_PASSWORD }}
+          PALADEX_LLM_PROVIDER: ${{ secrets.PALADEX_LLM_PROVIDER }}
+          PALADEX_ANTHROPIC_API_KEY: ${{ secrets.PALADEX_ANTHROPIC_API_KEY }}
+          PALADEX_OPENAI_API_KEY: ${{ secrets.PALADEX_OPENAI_API_KEY }}
+        run: |
+          # Written to the git-ignored .env the backend reads (collection, and the copy's key status);
+          # the copy itself is checked for every one of these values before it is published.
+          umask 077
+          : > .env
+          n=0
+          for name in PALADEX_COMTRADE_API_KEY PALADEX_DATA_GOV_API_KEY PALADEX_USDA_NASS_API_KEY PALADEX_USDA_MMN_API_KEY \
+                      PALADEX_CENSUS_API_KEY PALADEX_FAOSTAT_USERNAME PALADEX_FAOSTAT_PASSWORD PALADEX_LLM_PROVIDER \
+                      PALADEX_ANTHROPIC_API_KEY PALADEX_OPENAI_API_KEY; do
+            if [ -n "${!name}" ]; then printf '%s=%s\n' "$name" "${!name}" >> .env; n=$((n+1)); fi
+          done
+          echo "$n optional source setting(s) configured (none is required)."
+
+      - name: Restore the database of the previous run
+        id: db
+        uses: actions/cache/restore@v4
+        with:
+          path: ci-data
+          key: paladex-db-${{ github.run_id }}
+          restore-keys: paladex-db-
+
+      - name: Prepare the database
+        working-directory: backend
+        run: |
+          if [ -f "$PALADEX_DATA_DIR/paladex.sqlite3" ]; then
+            echo "Database of the previous run restored ($(du -h "$PALADEX_DATA_DIR/paladex.sqlite3" | cut -f1))."
+            python -m paladex init-db
+          else
+            echo "No previous database: new database with the real starter data shipped in starter/."
+            python -m paladex init-db
+            if python -m paladex --help 2>&1 | grep -q starter-import; then
+              python -m paladex starter-import
+            else
+              echo "(starter-import not available: the collection fills the database)"
+            fi
+          fi
+
+      - name: Collect from the official sources
+        working-directory: backend
+        run: |
+          start=$SECONDS
+          python -m paladex collect > "$RUNNER_TEMP/collect.jsonl" || echo "::warning::The collection stopped with an error; publishing what was collected."
+          python - "$RUNNER_TEMP/collect.jsonl" <<'EOF'
+          import collections, json, sys
+          rows = []
+          for line in open(sys.argv[1], encoding="utf-8"):
+              try:
+                  rows.append(json.loads(line))
+              except ValueError:
+                  pass
+          by = collections.Counter(r.get("status", "?") for r in rows)
+          print(f"{len(rows)} sources checked: " + ", ".join(f"{k} {v}" for k, v in sorted(by.items())))
+          for r in rows:
+              if r.get("status") in ("failed", "offline"):
+                  print(f"  {r.get('source')}: {r.get('status')}")
+          EOF
+          echo "Collection took $(( (SECONDS - start) / 60 )) min $(( (SECONDS - start) % 60 )) s"
+          python -c "import sqlite3, os; c = sqlite3.connect(os.path.join(os.environ['PALADEX_DATA_DIR'], 'paladex.sqlite3')); c.execute('PRAGMA wal_checkpoint(TRUNCATE)'); c.close()"
+
+      - name: Keep the database for the next run
+        if: always() && hashFiles('ci-data/paladex.sqlite3') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: ci-data
+          key: paladex-db-${{ github.run_id }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Interface dependencies and browser
+        run: |
+          npm ci --prefix frontend --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/pw" playwright@1.63.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Build the read-only copy
+        env:
+          PALADEX_PYTHON: python
+        run: scripts/mirror/build.sh "$PALADEX_DATA_DIR/paladex.sqlite3" "$RUNNER_TEMP/mirror-out"
+
+      - name: Publish on Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          if [ -z "$NETLIFY_AUTH_TOKEN" ]; then
+            echo "::warning::Not published: the repository secret NETLIFY_AUTH_TOKEN is missing (docs/PHONE_ACCESS.md explains how to add it). The copy was built and checked."
+            exit 0
+          fi
+          if [ -z "$NETLIFY_SITE_ID" ]; then
+            echo "::warning::Not published: no Netlify project id (NETLIFY_SITE_ID)."
+            exit 0
+          fi
+          start=$SECONDS
+          npx --yes netlify-cli deploy --prod --no-build --dir "$RUNNER_TEMP/mirror-out" \
+            --site "$NETLIFY_SITE_ID" --auth "$NETLIFY_AUTH_TOKEN" --message "Daily copy, run ${{ github.run_number }}"
+          echo "Publishing took $((SECONDS - start)) s"
+
+      - name: Summary
+        if: always()
+        run: |
+          m="$RUNNER_TEMP/mirror-out/mirror/manifest.json"
+          if [ -f "$m" ]; then
+            {
+              echo "### Online copy"
+              echo
+              echo "- data collected up to: $(python -c "import json,sys; print(json.load(open(sys.argv[1]))['data_collected_until'])" "$m") (UTC)"
+              echo "- copy produced at: $(python -c "import json,sys; print(json.load(open(sys.argv[1]))['generated_at'])" "$m") (UTC)"
+              echo "- $(find "$RUNNER_TEMP/mirror-out" -type f | wc -l) files, $(du -sh "$RUNNER_TEMP/mirror-out" | cut -f1)"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Online copy not built" >> "$GITHUB_STEP_SUMMARY"
+          fi

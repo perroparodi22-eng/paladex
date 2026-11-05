@@ -6,6 +6,7 @@ import { ChevronDown, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { Badge, FreshnessBadge, ReliabilityBadge } from '@/components/ui'
 import { expectedUpdate, useI18n } from '@/i18n'
 import { fmtAgo, fmtDate, fmtDateTime, fmtNumber, fmtPeriod } from '@/lib/format'
+import { isMirror } from '@/lib/mirror'
 import type { Lang, SourceInfo } from '@/lib/types'
 import { asUtc, errorKey, runTone } from './explain'
 import { KeyHelp } from './KeyHelp'
@@ -159,8 +160,8 @@ function SourceRow({ s, state }: { s: SourceInfo; state: RowState }) {
           )}
         </div>
 
-        {/* actions */}
-        {!manual && (
+        {/* actions (not in the read-only online copy) */}
+        {!manual && !isMirror() && (
           <div className="col-span-2 xl:col-span-1 flex flex-wrap items-center gap-x-5 gap-y-2.5">
             <button
               className="btn-secondary !py-1.5 !px-3 justify-center xl:w-full"
@@ -186,10 +187,10 @@ function SourceRow({ s, state }: { s: SourceInfo; state: RowState }) {
         )}
       </div>
 
-      {(s.key_missing || !s.enabled || expanded) && (
+      {((s.key_missing && !isMirror()) || !s.enabled || expanded) && (
         <div className="px-5 pb-5 space-y-4">
           {!s.enabled && <p className="text-[0.9rem] text-muted">{t('sources.row.disabledNote')}</p>}
-          {s.key_missing && s.requires_key && s.enabled && <KeyHelp info={keyInfo} settingAttr={s.requires_key} optional={optional} defaultOpen={state.highlighted === s.key} />}
+          {s.key_missing && s.requires_key && s.enabled && !isMirror() && <KeyHelp info={keyInfo} settingAttr={s.requires_key} optional={optional} defaultOpen={state.highlighted === s.key} />}
           {expanded && <div id={`runs-${s.key}`}><RunHistory sourceKey={s.key} /></div>}
         </div>
       )}

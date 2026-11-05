@@ -73,7 +73,8 @@ function FlowView({ p, s, flow }: { p: CountryProfile; s: TradeFlowSection; flow
                     </span>
                   )}
                 </div>
-                <table className="w-full text-[0.92rem]">
+                <div className="relative overflow-x-auto">
+                <table className="w-full min-w-[20rem] text-[0.92rem]">
                   <thead>
                     <tr className="border-b border-line bg-paper text-left text-[0.7rem] uppercase tracking-wider text-muted">
                       <th className="py-1.5 px-2 font-medium">{flow === 'export' ? t('trade.flows.col.destination') : t('trade.flows.col.origin')}</th>
@@ -105,6 +106,7 @@ function FlowView({ p, s, flow }: { p: CountryProfile; s: TradeFlowSection; flow
                     )}
                   </tbody>
                 </table>
+                </div>
                 <div className="mt-2">
                   <SourceLine p={{ source: partners.source ?? null, published_at: partners.published_at, source_url: partners.source_url, is_demo: partners.is_demo, period_label: partners.period_label ?? undefined }} />
                   {partners.share_basis && <div className="text-[0.78rem] text-muted mt-0.5">{t(`trade.flows.shareBasis.${partners.share_basis}`)}</div>}
@@ -123,7 +125,8 @@ function FlowView({ p, s, flow }: { p: CountryProfile; s: TradeFlowSection; flow
             <span className="font-serif text-[1.02rem] font-semibold text-charcoal">{t('countries.trade.mirrorTitle')}</span>
             <span className="text-[0.8rem] text-muted max-w-2xl">{t(flow === 'export' ? 'countries.trade.mirrorHintExp' : 'countries.trade.mirrorHintImp', { c: name })}</span>
           </div>
-          <table className="w-full text-[0.92rem] mt-2">
+          <div className="relative overflow-x-auto mt-2">
+          <table className="w-full min-w-[20rem] text-[0.92rem]">
             <thead>
               <tr className="border-b border-line text-left text-[0.7rem] uppercase tracking-wider text-muted">
                 <th className="py-1.5 px-2 font-medium">{t('countries.trade.col.declaredBy')}</th>
@@ -148,6 +151,7 @@ function FlowView({ p, s, flow }: { p: CountryProfile; s: TradeFlowSection; flow
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
