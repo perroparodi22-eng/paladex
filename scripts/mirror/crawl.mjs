@@ -463,6 +463,35 @@ async function tradeExtras(tf, meta) {
   return { jobs: jobs.length, partnerMarkets: partnerJobs.length }
 }
 
+/** Same as frontend/src/components/prices/utils.ts rangeFrom, on the copy's clock (the browser
+ * contexts read the date in Europe/Rome). */
+function rangeFrom(range) {
+  if (range === 'all') return null
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: 'numeric' })
+    .formatToParts(new Date()).map((x) => [x.type, x.value]))
+  const years = range === '1y' ? 1 : range === '3y' ? 3 : 5
+  const idx = Number(parts.year) * 12 + Number(parts.month) - 1 - (years * 12 - 1)
+  return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, '0')}`
+}
+
+/** The chart answer of every price view the plan opens (each type in each currency, frequency and
+ * period), fetched with the parameters Prices.tsx sends. A large view (over a thousand customs series)
+ * can take the browser longer to draw than the quiet time a page visit waits for, and the visit would
+ * end before its chart was asked for: fetched here, it is in the copy all the same. */
+async function priceExtras(types, only) {
+  const jobs = []
+  for (const T of types) {
+    const views = [['', 'USD', 'M', '3y'], ['&valuta=EUR', 'EUR', 'M', '3y'], ['&freq=Q', 'USD', 'Q', '3y'], ['&freq=A', 'USD', 'A', '3y'],
+      ['&periodo=1y', 'USD', 'M', '1y'], ['&periodo=5y', 'USD', 'M', '5y'], ['&periodo=all', 'USD', 'M', 'all']]
+    for (const [suffix, currency, freq, range] of views) {
+      if (only && !only.test(`/prezzi?tipo=${T}${suffix}`)) continue
+      jobs.push({ price_type: T, from: rangeFrom(range) ?? undefined, freq, currency })
+    }
+  }
+  await pool(jobs, 3, (q) => direct('/prices/series', q, 'prices'))
+  return jobs.length
+}
+
 /** Last guard: the recorded overview must not carry alert events (private; the copy's database
  * has none and the export never runs alert code). Stops the export rather than publish them. */
 function privacyCheck() {
@@ -591,10 +620,12 @@ async function main() {
 
   log('trade: other years, value metric, monthly trends and partner trends of the main markets')
   const te = await tradeExtras(p.tf, meta)
+  log('prices: the chart answer of every price view (also those slow to draw)')
+  const pe = await priceExtras(p.types, only)
   privacyCheck()
   const m = await manifest()
   const r = report({ plan: { pages: p.tasks.length + followed.length, price_filters: p.priceCounts, countries: p.countries,
-    trade_markets: p.tradeViews, discovered_links_followed: followed.length, trade_direct: te }, manifest: m })
+    trade_markets: p.tradeViews, discovered_links_followed: followed.length, trade_direct: te, price_direct: pe }, manifest: m })
   if (args.report) writeFileSync(args.report, JSON.stringify({ ...r, tasks: [...p.tasks, ...followed] }, null, 1))
   log(`done: ${r.pages_visited} pages visited, ${r.files} answers recorded (${r.mb} MB), ${r.failed.length} failed request(s), `
     + `${tooLarge.size} too large, ${jsErrors.length} JavaScript error(s)`)

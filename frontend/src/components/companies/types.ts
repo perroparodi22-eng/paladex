@@ -111,6 +111,9 @@ export interface FiguresList extends ListBase {
 export interface RegisterList extends ListBase {
   measure_kind: 'none'
   periods: string[]
+  /** Unit of `periods`: 'M' monthly lists (HMRC), 'A' yearly lists (Canada's CID), 'register' (an
+   * official register, e.g. India's EIC: the months it was seen listing the company, not a period of trade). */
+  frequency?: string
   first_period: string
   latest_period: string
   companies: RegisterCompany[]

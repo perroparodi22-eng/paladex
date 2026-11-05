@@ -8,6 +8,7 @@ import { AiBadge, Panel } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtDate, fmtDateTime } from '@/lib/format'
+import { AiKeyForm } from './AiKeyPanel'
 import { HowToEnableBox } from './AnswerView'
 import type { AssistantStatus, BriefingResponse, HistoryItem, RegenerateResponse } from './types'
 
@@ -69,6 +70,7 @@ export function HistoryPanel({ items, onOpen, onClear, busy }: {
 
 export function AiStatusPanel({ status }: { status: AssistantStatus }) {
   const { t, lang } = useI18n()
+  const [change, setChange] = useState(false)
   return (
     <Panel>
       <div className="flex items-start gap-2.5">
@@ -76,12 +78,26 @@ export function AiStatusPanel({ status }: { status: AssistantStatus }) {
         <div className="min-w-0 space-y-2 text-[0.9rem] text-charcoal-soft">
           <div className="font-medium text-charcoal">{status.llm_enabled ? t('assistant.ai.on') : t('assistant.ai.off')}</div>
           {status.llm_enabled
-            ? <p>{t('assistant.ai.onText', { provider: status.provider ?? '', model: status.model ?? '' })}</p>
+            ? (
+              <>
+                <p>{t('assistant.ai.onText', { provider: status.provider ?? '', model: status.model ?? '' })}</p>
+                <button type="button" className="text-[0.85rem] text-forest-700 hover:text-forest-900" onClick={() => setChange((v) => !v)}
+                  aria-expanded={change}>{change ? t('assistant.key.close') : t('assistant.key.change')}</button>
+                {change && <div className="rounded-sm border border-line bg-paper px-3 py-2.5"><AiKeyForm status={status} /></div>}
+              </>
+            )
             : (
               <>
                 <p>{t('assistant.ai.offText')}</p>
                 {status.key_missing && <p className="text-warn">{t('assistant.ai.keyMissing')}</p>}
-                <HowToEnableBox how={status.how_to_enable[lang]} title={t('assistant.ai.howTo')} />
+                <div className="rounded-sm border border-line bg-paper px-3 py-2.5">
+                  <div className="mb-2 font-medium text-charcoal">{t('assistant.ai.howTo')}</div>
+                  <AiKeyForm status={status} />
+                </div>
+                <details className="text-[0.82rem] text-muted">
+                  <summary className="cursor-pointer">{t('assistant.key.manual')}</summary>
+                  <div className="mt-1.5"><HowToEnableBox how={status.how_to_enable[lang]} /></div>
+                </details>
               </>
             )}
         </div>

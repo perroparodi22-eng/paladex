@@ -471,6 +471,7 @@ class _Pull:
 class UkHmrcHoneyCollector(Collector):
     key = "uk_hmrc_honey"
     name = "Regno Unito – HMRC: importazioni ed esportazioni di miele per paese (NC8 04090000)"
+    name_en = "United Kingdom – HMRC: honey imports and exports by country (CN8 04090000)"
     publisher = "HM Revenue & Customs (United Kingdom) – Overseas Trade Statistics"
     homepage = "https://www.uktradeinfo.com/trade-data/"
     kind = SourceKind.API

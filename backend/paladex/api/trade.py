@@ -44,6 +44,7 @@ from ..db import get_db
 from ..enums import SourceKind
 from ..models import Country, Source, TradeFlowObservation
 from .common import demo_clause, freshness, iso, source_brief
+from .memo import cached
 
 router = APIRouter(prefix="/trade", tags=["trade"])
 
@@ -355,7 +356,7 @@ class Ctx:
             # Within each group, official/government sources before industry, press and aggregators.
             return (not s.enabled, local, pref, rank, s.name) if country_first else (not s.enabled, pref, local, rank, s.name)
 
-        return [{"key": s.key, "name": s.name, "publisher": s.publisher, "enabled": s.enabled,
+        return [{"key": s.key, "name": s.name, "name_en": s.name_en, "publisher": s.publisher, "enabled": s.enabled,
                  "last_run_status": s.last_run_status, "expected_update": s.expected_update,
                  "expected_update_en": s.expected_update_en}
                 for s in sorted(rows, key=key)]
@@ -393,6 +394,13 @@ class Totals:
     def __init__(self, ctx: Ctx, *, flows: Iterable[str] = FLOWS, reporters: Iterable[str] | None = None,
                  years: Iterable[int] | None = None, source_ids: Iterable[int] | None = None):
         self.ctx = ctx
+        params = tuple(None if v is None else tuple(v) for v in (flows, reporters, years, source_ids))
+        # Built once per database state (memo.py): the grouped query reads every trade row.
+        self.by_key: dict[tuple[str, str, int], list[Candidate]] = cached(
+            ctx.db, "trade.totals", params, lambda: self._build(ctx, *params))
+
+    @staticmethod
+    def _build(ctx: Ctx, flows, reporters, years, source_ids) -> dict[tuple[str, str, int], list[Candidate]]:
         where = base_where(ctx.db) + [T.flow.in_(list(flows)), T.frequency.in_(TOTAL_FREQS), _partner_filter()]
         if reporters is not None:
             where.append(T.reporter_iso3.in_(list(reporters)))
@@ -407,21 +415,22 @@ class Totals:
             .where(*where)
             .group_by(T.reporter_iso3, T.flow, _year_col(), T.source_id, T.frequency, _is_world())
         )
-        self.by_key: dict[tuple[str, str, int], list[Candidate]] = defaultdict(list)
+        by_key: dict[tuple[str, str, int], list[Candidate]] = defaultdict(list)
         cands: dict[tuple, Candidate] = {}
         for r in ctx.db.execute(q):
             k = (r.reporter, r.flow, int(r.year), r.sid, r.freq)
             c = cands.get(k)
             if c is None:
                 c = cands[k] = Candidate(r.reporter, r.flow, int(r.year), r.sid, r.freq)
-                self.by_key[(r.reporter, r.flow, int(r.year))].append(c)
+                by_key[(r.reporter, r.flow, int(r.year))].append(c)
             agg = Agg.from_row(r)
             if r.w:
                 c.world = agg
             else:
                 c.parts = agg
-        for lst in self.by_key.values():
+        for lst in by_key.values():
             lst.sort(key=ctx.rank_key, reverse=True)
+        return dict(by_key)   # shared between requests (memo): a plain dict, never filled by a lookup
 
     def candidates(self, reporter: str, flow: str, year: int) -> list[Candidate]:
         return self.by_key.get((reporter, flow, year), [])
@@ -461,8 +470,17 @@ class Totals:
                 return y
         return years[-1] if years else None
 
+    def _years_of(self, reporter: str, flow: str) -> list[int]:
+        idx = self.__dict__.get("_years_idx")
+        if idx is None:     # one pass, instead of one scan of every key per reporter
+            idx = defaultdict(set)
+            for (r, f, y) in self.by_key:
+                idx[(r, f)].add(y)
+            self._years_idx = idx
+        return sorted(idx.get((reporter, flow), ()), reverse=True)
+
     def latest_complete(self, reporter: str, flow: str) -> Candidate | None:
-        for y in sorted({y for (r, f, y) in self.by_key if r == reporter and f == flow}, reverse=True):
+        for y in self._years_of(reporter, flow):
             c = self.best(reporter, flow, y)
             if c is not None:
                 return c
@@ -603,6 +621,11 @@ def _iso(value: str | None, name: str) -> str | None:
 
 @router.get("/facets")
 def trade_facets(db: Session = Depends(get_db)):
+    # Five grouped queries over every trade row: one answer per database state and day (memo.py).
+    return cached(db, "trade.facets", (), lambda: _trade_facets(db))
+
+
+def _trade_facets(db: Session) -> dict:
     ctx = Ctx(db)
     where = base_where(db)
     totals = Totals(ctx)

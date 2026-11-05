@@ -307,6 +307,7 @@ def _internet_works() -> bool:
 class GdeltNewsCollector(Collector):
     key = "news_gdelt"
     name = "GDELT – notizie mondiali sul miele (11 lingue)"
+    name_en = "GDELT – worldwide honey news (11 languages)"
     publisher = "The GDELT Project"
     homepage = "https://www.gdeltproject.org/"
     kind = SourceKind.API

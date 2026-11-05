@@ -371,6 +371,7 @@ class RunState:
 class NasaPowerWeatherCollector(Collector):
     key = "nasa_power_weather"
     name = "NASA POWER — meteo mensile delle regioni del miele"
+    name_en = "NASA POWER — monthly weather in the honey regions"
     publisher = "NASA Langley Research Center (POWER Project)"
     homepage = "https://power.larc.nasa.gov/"
     kind = SourceKind.API

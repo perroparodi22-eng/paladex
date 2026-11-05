@@ -187,6 +187,9 @@ export function RegisterTable({ list, initialQuery = '' }: { list: RegisterList;
   const [query, setQuery] = useState(initialQuery)
   const [showAll, setShowAll] = useState(false)
   const { found, shown } = useFiltered(list.companies, query, showAll)
+  // How long a company is listed: months of a monthly list, years of a yearly one; for a register
+  // (approved establishments) the count of months it was seen listed says nothing about trade: no column.
+  const unit = list.frequency === 'A' ? 'years' : list.frequency === 'register' ? null : 'months'
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -200,8 +203,8 @@ export function RegisterTable({ list, initialQuery = '' }: { list: RegisterList;
           <thead>
             <tr>
               <th>{t('companies.col.company')}</th>
-              <th className="!text-right whitespace-nowrap">{t('companies.col.months')}</th>
-              <th className="!text-right whitespace-nowrap">{t('companies.col.latest')}</th>
+              {unit && <th className="!text-right whitespace-nowrap">{t(unit === 'years' ? 'companies.col.years' : 'companies.col.months')}</th>}
+              <th className="!text-right whitespace-nowrap">{t(unit === 'years' ? 'companies.col.latestYear' : unit ? 'companies.col.latest' : 'companies.col.latestList')}</th>
             </tr>
           </thead>
           <tbody>
@@ -211,13 +214,17 @@ export function RegisterTable({ list, initialQuery = '' }: { list: RegisterList;
                   <span className="font-medium">{c.name}</span>
                   {c.location && <span className="block text-[0.8rem] text-muted">{c.location}</span>}
                 </td>
-                <td className="text-right num whitespace-nowrap">
-                  {c.periods.length === 1 ? t('companies.monthsListedOne') : t('companies.monthsListed', { n: c.periods.length })}
-                </td>
+                {unit && (
+                  <td className="text-right num whitespace-nowrap">
+                    {unit === 'years'
+                      ? (c.periods.length === 1 ? t('companies.yearsListedOne') : t('companies.yearsListed', { n: c.periods.length }))
+                      : (c.periods.length === 1 ? t('companies.monthsListedOne') : t('companies.monthsListed', { n: c.periods.length }))}
+                  </td>
+                )}
                 <td className="text-right whitespace-nowrap">{fmtPeriod(c.latest_period, lang)}</td>
               </tr>
             ))}
-            {found.length === 0 && <tr><td colSpan={3} className="text-muted">{t('companies.noMatch')}</td></tr>}
+            {found.length === 0 && <tr><td colSpan={unit ? 3 : 2} className="text-muted">{t('companies.noMatch')}</td></tr>}
           </tbody>
         </table>
       </div>

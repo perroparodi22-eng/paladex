@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 import { FreshnessBadge } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { fmtAgo, fmtNumber } from '@/lib/format'
-import { useLabels } from '@/lib/meta'
+import { sourceName, useLabels } from '@/lib/meta'
 import type { SourceInfo } from '@/lib/types'
 import { useLangName, utc } from './bits'
 import type { CountryFacet, LanguageFacet, NewsFacets, NewsFilterState } from './types'
@@ -158,7 +158,7 @@ export function SourcesRail({ sources, facets, state, toggle }: {
             <li key={s.key} className={clsx('group flex items-start gap-2 px-4 py-2', active ? 'bg-forest-50' : 'hover:bg-paper')}>
               <button type="button" className="min-w-0 flex-1 text-left" onClick={() => toggle(s.key)} aria-pressed={active} title={t('news.rail.onlyThis')}>
                 <span className={clsx('line-clamp-2 text-[0.88rem] leading-snug', active ? 'font-medium text-forest-900' : s.enabled ? 'text-charcoal-soft' : 'text-muted')}>
-                  {s.name}
+                  {sourceName(s, lang)}
                 </span>
                 <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[0.76rem] text-muted">
                   {s.enabled ? <FreshnessBadge status={s.freshness.status} ageDays={s.freshness.age_days} /> : <span className="uppercase tracking-wide">{t('news.rail.disabled')}</span>}

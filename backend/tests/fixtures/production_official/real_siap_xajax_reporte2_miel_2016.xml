@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="iso-8859-1" ?><xjx><cmd n="as" t="Resultado" p="innerHTML"><![CDATA[
+		<div style="text-align:left">
+			<div class="textoTablaTitulo"><h1>Miel</h1></div>
+			<div class="textoTablaTitulo">Producci&oacute;n, precio y valor</div>
+			<div class="textoTablaTitulo">2016</div>
+		</div>
+		<br />
+		<div class="table-responsive">
+		<table id="Resultados-reporte" class="table table-striped table-bordered" border="1">
+			<tr class="estiloResult">
+				<th style="text-align:center;">Estado</th>
+				<th style="text-align:center;">Producci&oacute;n<br />(toneladas)</th>
+				<th style="text-align:center;">Precio<br />(pesos por kilogramo)</th>
+				<th style="text-align:center;">Valor de la Producci&oacute;n<br />(miles de pesos)</th>
+		  	</tr>
+		
+							<tr>
+								<td>Aguascalientes</td>
+								<td style="text-align:right">663.710</td>
+								<td style="text-align:right">43.05</td>
+								<td style="text-align:right">28,573.600</td>
+							</tr>
+						
+							<tr>
+								<td>Baja California</td>
+								<td style="text-align:right">88.506</td>
+								<td style="text-align:right">44.66</td>
+								<td style="text-align:right">3,952.414</td>
+							</tr>
+						
+							<tr>
+								<td>Baja California Sur</td>
+								<td style="text-align:right">224.878</td>
+								<td style="text-align:right">43.60</td>
+								<td style="text-align:right">9,803.603</td>
+							</tr>
+						
+							<tr>
+								<td>Campeche</td>
+								<td style="text-align:right">5,834.451</td>
+								<td style="text-align:right">33.69</td>
+								<td style="text-align:right">196,591.523</td>
+							</tr>
+						
+							<tr>
+								<td>Coahuila</td>
+								<td style="text-align:right">235.966</td>
+								<td style="text-align:right">50.40</td>
+								<td style="text-align:right">11,893.697</td>
+							</tr>
+						
+							<tr>
+								<td>Colima</td>
+								<td style="text-align:right">444.675</td>
+								<td style="text-align:right">43.66</td>
+								<td style="text-align:right">19,412.348</td>
+							</tr>
+						
+							<tr>
+								<td>Chiapas</td>
+								<td style="text-align:right">5,213.385</td>
+								<td style="text-align:right">38.31</td>
+								<td style="text-align:right">199,741.395</td>
+							</tr>
+						
+							<tr>
+								<td>Chihuahua</td>
+								<td style="text-align:right">709.095</td>
+								<td style="text-align:right">43.27</td>
+								<td style="text-align:right">30,684.759</td>
+							</tr>
+						
+							<tr>
+								<td>Ciudad de México</td>
+								<td style="text-align:right">96.090</td>
+								<td style="text-align:right">49.33</td>
+								<td style="text-align:right">4,739.980</td>
+							</tr>
+						
+							<tr>
+								<td>Durango</td>
+								<td style="text-align:right">475.524</td>
+								<td style="text-align:right">51.49</td>
+								<td style="text-align:right">24,483.928</td>
+							</tr>
+						
+							<tr>
+								<td>Guanajuato</td>
+								<td style="text-align:right">719.822</td>
+								<td style="text-align:right">45.44</td>
+								<td style="text-align:right">32,707.357</td>
+							</tr>
+						
+							<tr>
+								<td>Guerrero</td>
+								<td style="text-align:right">2,056.689</td>
+								<td style="text-align:right">44.30</td>
+								<td style="text-align:right">91,119.312</td>
+							</tr>
+						
+							<tr>
+								<td>Hidalgo</td>
+								<td style="text-align:right">1,133.021</td>
+								<td style="text-align:right">44.45</td>
+								<td style="text-align:right">50,359.225</td>
+							</tr>
+						
+							<tr>
+								<td>Jalisco</td>
+								<td style="text-align:right">4,589.807</td>
+								<td style="text-align:right">47.48</td>
+								<td style="text-align:right">217,933.717</td>
+							</tr>
+						
+							<tr>
+								<td>México</td>
+								<td style="text-align:right">1,066.992</td>
+								<td style="text-align:right">48.25</td>
+								<td style="text-align:right">51,479.735</td>
+							</tr>
+						
+							<tr>
+								<td>Michoacán</td>
+								<td style="text-align:right">2,084.850</td>
+								<td style="text-align:right">50.86</td>
+								<td style="text-align:right">106,038.680</td>
+							</tr>
+						
+							<tr>
+								<td>Morelos</td>
+								<td style="text-align:right">1,873.230</td>
+								<td style="text-align:right">51.31</td>
+								<td style="text-align:right">96,106.749</td>
+							</tr>
+						
+							<tr>
+								<td>Nayarit</td>
+								<td style="text-align:right">376.517</td>
+								<td style="text-align:right">38.56</td>
+								<td style="text-align:right">14,518.410</td>
+							</tr>
+						
+							<tr>
+								<td>Nuevo León</td>
+								<td style="text-align:right">99.245</td>
+								<td style="text-align:right">45.98</td>
+								<td style="text-align:right">4,563.690</td>
+							</tr>
+						
+							<tr>
+								<td>Oaxaca</td>
+								<td style="text-align:right">4,150.406</td>
+								<td style="text-align:right">44.11</td>
+								<td style="text-align:right">183,070.646</td>
+							</tr>
+						
+							<tr>
+								<td>Puebla</td>
+								<td style="text-align:right">2,193.947</td>
+								<td style="text-align:right">40.39</td>
+								<td style="text-align:right">88,623.400</td>
+							</tr>
+						
+							<tr>
+								<td>Querétaro</td>
+								<td style="text-align:right">31.343</td>
+								<td style="text-align:right">41.05</td>
+								<td style="text-align:right">1,286.591</td>
+							</tr>
+						
+							<tr>
+								<td>Quintana Roo</td>
+								<td style="text-align:right">2,884.597</td>
+								<td style="text-align:right">36.48</td>
+								<td style="text-align:right">105,234.204</td>
+							</tr>
+						
+							<tr>
+								<td>San Luis Potosí</td>
+								<td style="text-align:right">1,085.035</td>
+								<td style="text-align:right">44.69</td>
+								<td style="text-align:right">48,487.708</td>
+							</tr>
+						
+							<tr>
+								<td>Sinaloa</td>
+								<td style="text-align:right">193.674</td>
+								<td style="text-align:right">41.08</td>
+								<td style="text-align:right">7,955.297</td>
+							</tr>
+						
+							<tr>
+								<td>Sonora</td>
+								<td style="text-align:right">583.285</td>
+								<td style="text-align:right">45.23</td>
+								<td style="text-align:right">26,383.913</td>
+							</tr>
+						
+							<tr>
+								<td>Tabasco</td>
+								<td style="text-align:right">353.439</td>
+								<td style="text-align:right">41.03</td>
+								<td style="text-align:right">14,502.424</td>
+							</tr>
+						
+							<tr>
+								<td>Tamaulipas</td>
+								<td style="text-align:right">800.026</td>
+								<td style="text-align:right">47.17</td>
+								<td style="text-align:right">37,735.083</td>
+							</tr>
+						
+							<tr>
+								<td>Tlaxcala</td>
+								<td style="text-align:right">910.842</td>
+								<td style="text-align:right">39.98</td>
+								<td style="text-align:right">36,413.836</td>
+							</tr>
+						
+							<tr>
+								<td>Veracruz</td>
+								<td style="text-align:right">4,766.064</td>
+								<td style="text-align:right">40.07</td>
+								<td style="text-align:right">190,983.553</td>
+							</tr>
+						
+							<tr>
+								<td>Yucatán</td>
+								<td style="text-align:right">7,489.530</td>
+								<td style="text-align:right">34.54</td>
+								<td style="text-align:right">258,710.337</td>
+							</tr>
+						
+							<tr>
+								<td>Zacatecas</td>
+								<td style="text-align:right">1,929.403</td>
+								<td style="text-align:right">43.91</td>
+								<td style="text-align:right">84,718.643</td>
+							</tr>
+						
+			<tr class="estiloResult">
+				<th>Total</th>
+				<th style="text-align:right">55,358.044</th>
+				<th style="text-align:right">41.16</th>
+					<th style="text-align:right">2,278,809.757</th>
+				</tr>
+				
+				</table></div>
+			</div>
+			
+		<table style="width:100%"><tr><td class="textoTablaTitulo" align="left">Fuente: Dirección General del Servicio de Información Agroalimentaria y Pesquera (DGSIAP).</td></tr></table>]]></cmd><cmd n="js">stopLoad();</cmd></xjx>

@@ -7,12 +7,14 @@
 // - The eight suggested questions in Italian and English, the AI status panel and the page shell.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { AiKeyPanel } from '@/components/assistant/AiKeyPanel'
 import { AnswerView } from '@/components/assistant/AnswerView'
 import { isAboutOffers } from '@/components/assistant/AskBox'
 import { AiStatusPanel, Suggestions } from '@/components/assistant/SidePanels'
 import type { Answer, AssistantFact, AssistantStatus } from '@/components/assistant/types'
 import Assistant, { TurnView } from '@/pages/Assistant'
 import { fmtDate } from '@/lib/format'
+import { setMirrorMode } from '@/lib/mirror'
 import { hrefs, newQueryClient, render, text } from './helpers'
 
 function fact(o: Partial<AssistantFact>): AssistantFact {
@@ -173,4 +175,33 @@ test('page: welcome with the suggestions; a pending turn and an answered one', (
   const done = text(render(<TurnView turn={{ key: 'k', question: 'Q', pending: false, answer: plainAnswer() }} aiEnabled={false}
     onRetry={() => {}} onRemove={() => {}} />))
   assert.match(done, /Fatti verificati/)
+})
+
+test('AI service and key on screen: provider choice, a password field, paid per use, offers anonymised', () => {
+  const html = render(<AiStatusPanel status={{ ...status, provider_setting: 'none', keys_saved: { anthropic: false, openai: false } }} />)
+  const off = text(html)
+  assert.match(off, /Anthropic \(Claude\) OpenAI Nessuno \(IA spenta\)/)
+  assert.match(off, /Servizio a pagamento: il fornitore scelto addebita sul tuo conto ogni uso/)
+  assert.match(off, /offerte dei fornitori sono inviate solo quando la domanda riguarda le offerte, e in forma anonima/)
+  assert.match(off, /non viene mai mostrata di nuovo/)
+  assert.doesNotMatch(html, /type="password"/)                // no service chosen yet: no key field
+  // a service chosen with its key saved: a password field (empty), never the key
+  const chosen = render(<AiStatusPanel status={{ ...status, provider_setting: 'anthropic', provider_configured: true, key_missing: false,
+    llm_enabled: true, provider: 'anthropic', model: 'claude-sonnet-5-5', keys_saved: { anthropic: true, openai: false } }} />)
+  assert.match(text(chosen), /Cambia servizio o chiave/)
+  const qc = newQueryClient()
+  qc.setQueryData(['assistant', 'status'], { ...status, provider_setting: 'openai', provider_configured: true, key_missing: true,
+    keys_saved: { anthropic: false, openai: false } })
+  const panel = render(<AiKeyPanel />, { qc, lang: 'en' })
+  assert.match(panel, /type="password"/)
+  assert.match(text(panel), /AI service and key/)
+  assert.match(text(panel), /No key saved for this service/)
+  assert.match(text(panel), /Paid service: the chosen provider charges your account for every use/)
+  assert.match(text(panel), /sent only when the question is about offers, and anonymised/)
+  setMirrorMode(true)
+  try {
+    assert.equal(render(<AiKeyPanel />, { qc }), '')           // never in the read-only online copy
+  } finally {
+    setMirrorMode(null)
+  }
 })

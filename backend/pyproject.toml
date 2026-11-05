@@ -18,6 +18,7 @@ dependencies = [
   "lxml>=5.0",
   "openpyxl>=3.1",
   "rapidfuzz>=3.6",
+  "xlrd>=2.0",            # TÜİK statistical tables are legacy .xls (openpyxl reads .xlsx only)
 ]
 
 [project.optional-dependencies]

@@ -182,7 +182,7 @@ def api_keys(db: Session = Depends(get_db)):
     optional = quality_service._optional_key_sources()
     by_attr: dict[str, list[dict]] = {}
     for s in db.scalars(select(Source).where(Source.requires_key.is_not(None)).order_by(Source.name)):
-        by_attr.setdefault(s.requires_key, []).append({"key": s.key, "name": s.name, "optional": s.key in optional})
+        by_attr.setdefault(s.requires_key, []).append({"key": s.key, "name": s.name, "name_en": s.name_en, "optional": s.key in optional})
     out = []
     for attr, srcs in by_attr.items():
         help_ = quality_service.KEY_HELP.get(attr, {})

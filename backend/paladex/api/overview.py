@@ -42,7 +42,7 @@ from typing import Any
 from dateutil.relativedelta import relativedelta
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from ..db import get_db
 from ..enums import PriceType, Reliability, RunStatus, SourceKind
@@ -61,6 +61,7 @@ from ..models import (
 )
 from ..reference.varieties import LABELS as VARIETY_LABELS
 from .common import demo_clause, freshness, iso, show_demo, source_brief
+from .memo import cached
 from .meta import PRICE_TYPE_LABELS
 
 router = APIRouter(tags=["overview"])
@@ -271,6 +272,18 @@ def _max(values) -> Any:
 # ---------------------------------------------------------------------------
 
 
+# Columns no summary reads (the JSON `extra` alone is a third of the load time).
+_UNREAD = (defer(PriceObservation.extra), defer(PriceObservation.value_hash), defer(PriceObservation.series_key))
+
+
+def _detach(db: Session, objs) -> None:
+    """Take loaded rows out of the request's session: they are shared read-only between requests
+    (memo.py), so nothing done later in this session (a rollback expires its objects) may touch them."""
+    for o in objs:
+        if o in db:
+            db.expunge(o)
+
+
 @dataclass
 class PriceSeries:
     key: tuple
@@ -342,7 +355,7 @@ class Ctx:
                 if s.category in cats and s.key != "demo" and s.kind != SourceKind.MANUAL.value]
         # Enabled first, then official/government sources before industry, press and aggregators.
         rows.sort(key=lambda s: (not s.enabled, RELIABILITY_RANK.get(s.reliability, 9), s.name))
-        return [{"key": s.key, "name": s.name, "publisher": s.publisher, "enabled": s.enabled,
+        return [{"key": s.key, "name": s.name, "name_en": s.name_en, "publisher": s.publisher, "enabled": s.enabled,
                  "last_run_status": s.last_run_status} for s in rows]
 
     def sources_used(self, source_ids, data_ref: dict[int, tuple[date | None, str | None]] | None = None) -> list[dict]:
@@ -373,6 +386,12 @@ class Ctx:
         for m/m, y/y and sparklines."""
         if self._price_series is not None:
             return self._price_series
+        # Every recent observation of every series (about 17,000 rows): read once per database
+        # state and day (memo.py), shared read-only by the overview, the briefing and the assistant.
+        self._price_series = cached(self.db, "overview.price_series", (), self._load_price_series)
+        return self._price_series
+
+    def _load_price_series(self) -> list[PriceSeries]:
         P = PriceObservation
         cols = (P.source_id, P.price_type, P.origin_iso3, P.variety, P.market_iso3, P.market_location,
                 P.color_grade, P.organic, P.currency, P.terms, P.frequency)
@@ -392,7 +411,8 @@ class Ctx:
                     o.color_grade, o.organic, o.currency, o.terms, o.frequency)
 
         since = self.today - timedelta(days=PRICE_BULK_DAYS)
-        for o in self.db.scalars(select(P).where(*base, P.period_start >= since).order_by(P.period_start, P.id)):
+        for o in self.db.scalars(select(P).where(*base, P.period_start >= since).options(*_UNREAD)
+                                 .order_by(P.period_start, P.id)):
             s = series.get(key_of(o))
             if s is not None:
                 s.points.append(o)
@@ -407,7 +427,7 @@ class Ctx:
             q = (select(P).join(newest, on)
                  .where(*base, P.period_start < since,
                         P.period_start >= func.date(newest.c.newest, f"-{PRICE_HISTORY_DAYS} days"))
-                 .order_by(P.period_start, P.id))
+                 .options(*_UNREAD).order_by(P.period_start, P.id))
             older: dict[tuple, list] = defaultdict(list)
             for o in self.db.scalars(q):
                 older[key_of(o)].append(o)
@@ -415,8 +435,9 @@ class Ctx:
                 need_from = s.latest_start - timedelta(days=PRICE_HISTORY_DAYS)
                 # older rows all start before `since`, bulk rows on or after it: order is kept
                 s.points = [o for o in older.get(k, ()) if o.period_start >= need_from] + s.points
-        self._price_series = [s for s in series.values() if s.points]
-        return self._price_series
+        out = [s for s in series.values() if s.points]
+        _detach(self.db, (o for s in out for o in s.points))
+        return out
 
     def label_hint(self, s: PriceSeries) -> str | None:
         """What tells a series apart from others that would get the same tile label (same type,
@@ -708,6 +729,12 @@ def _choose_source_and_period(ctx: Ctx, rows: list, flow: str, freq: str) -> tup
 def trade_analysis(ctx: Ctx) -> dict:
     if ctx._trade is not None:
         return ctx._trade
+    # Thousands of partner rows: read once per database state (memo.py), shared read-only.
+    ctx._trade = cached(ctx.db, "overview.trade_analysis", (), lambda: _load_trade_analysis(ctx))
+    return ctx._trade
+
+
+def _load_trade_analysis(ctx: Ctx) -> dict:
     T = TradeFlowObservation
     base = (T.is_current.is_(True), demo_clause(T, ctx.db), T.hs_code.like("0409%"))
     freq = None
@@ -716,13 +743,13 @@ def trade_analysis(ctx: Ctx) -> dict:
             freq = f
             break
     if freq is None:
-        ctx._trade = {"freq": None}
-        return ctx._trade
+        return {"freq": None}
     latest = ctx.db.scalar(select(func.max(T.period_start)).where(*base, T.frequency == freq))
     since = latest - (relativedelta(years=3) if freq == "A" else relativedelta(months=26))
-    rows = list(ctx.db.scalars(select(T).where(*base, T.frequency == freq, T.period_start >= since)))
-    ctx._trade = {"freq": freq, "rows": rows}
-    return ctx._trade
+    rows = list(ctx.db.scalars(select(T).where(*base, T.frequency == freq, T.period_start >= since)
+                               .options(defer(T.extra), defer(T.value_hash), defer(T.series_key))))
+    _detach(ctx.db, rows)
+    return {"freq": freq, "rows": rows}
 
 
 def _period_label_for(rows: list, start: date) -> str | None:
@@ -1159,12 +1186,19 @@ def block_countries(ctx: Ctx) -> dict:
     tsince = ctx.now - timedelta(days=TRADE_NEW_DATA_DAYS)
     newest: dict[str, tuple[date, str]] = {}
     # Grouped in SQL: after a back-fill every row is "collected this week" (119k rows to read otherwise).
+    # Each period's newest collection time is kept once per database state (memo.py); a period
+    # counts when it was collected since `tsince` (same groups, same order as a filtered query).
     for col in (T.reporter_iso3, T.partner_iso3):
-        for iso3, label, start in ctx.db.execute(
-            select(col, T.period_label, T.period_start)
-            .where(T.is_current.is_(True), demo_clause(T, ctx.db), T.collected_at >= tsince, col.in_(sorted(pset)))
-            .group_by(col, T.period_label, T.period_start)
-        ):
+        def grouped(col=col) -> list[tuple]:
+            return [tuple(r) for r in ctx.db.execute(
+                select(col, T.period_label, T.period_start, func.max(T.collected_at))
+                .where(T.is_current.is_(True), demo_clause(T, ctx.db), col.in_(sorted(pset)))
+                .group_by(col, T.period_label, T.period_start))]
+
+        for iso3, label, start, collected in cached(ctx.db, "overview.trade_collected", (col.key, tuple(sorted(pset))),
+                                                    grouped):
+            if collected is None or collected < tsince:
+                continue
             if iso3 not in newest or start > newest[iso3][0]:
                 newest[iso3] = (start, label)        # the newest period wins
     trade_new = {iso3: label for iso3, (_, label) in newest.items()}
@@ -1230,7 +1264,7 @@ def block_status(ctx: Ctx) -> dict:
             counts["offline"] += 1
         elif s.last_run_status == RunStatus.SKIPPED.value:
             counts["skipped"] += 1
-        rows.append({"key": s.key, "name": s.name, "publisher": s.publisher, "category": s.category,
+        rows.append({"key": s.key, "name": s.name, "name_en": s.name_en, "publisher": s.publisher, "category": s.category,
                      "freshness": f, "last_run_status": s.last_run_status, "last_run_at": iso(s.last_run_at),
                      "latest_published_at": iso(s.latest_published_at)})
     last_run = ctx.db.scalars(

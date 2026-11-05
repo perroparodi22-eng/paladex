@@ -7,8 +7,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { LatestTable } from '@/components/prices/LatestTable'
+import { PriceChart } from '@/components/prices/PriceChart'
 import { RecordsTable } from '@/components/prices/RecordsTable'
-import type { LatestRow, ObservationsResponse, SeriesIdentity } from '@/components/prices/types'
+import type { LatestRow, ObservationsResponse, PriceSeries, SeriesIdentity, SeriesResponse } from '@/components/prices/types'
 import { disambiguateLabels } from '@/components/prices/utils'
 import { newQueryClient, render, text } from './helpers'
 
@@ -96,4 +97,28 @@ test('two series that would share a legend name get the terms that tell them apa
   assert.equal(out.b, same)
   assert.equal(out.c, 'Italia · Castagno')
   assert.equal(new Set([out.a, out.b]).size, 2)
+})
+
+test('a large view without every point: the legend keeps each series\' newest value', () => {
+  const point = (label: string, value: number) => ({ period_label: label, period_start: `${label}-01`, period_end: `${label}-28`, value,
+    low: null, high: null, original: null, n_points: 1, expected_points: null, periods: [label], fx_missing: 0, published_at: null,
+    collected_at: null, source_url: DOC, fx_date: null, data_status: 'published', is_demo: false })
+  const series = (id: string, origin: string, points: ReturnType<typeof point>[], last: { period_label: string; value: number } | null) => ({
+    id, source: SOURCE, price_type: 'import_unit_value', origin_iso3: origin, origin_label: null, market_iso3: 'ITA', market_location: null,
+    variety: 'polyflora', variety_raw: [], color_grade: null, terms: null, organic: false, currency: 'USD', unit: 'kg', native_frequency: 'M',
+    freq: 'M', n_points: 3, first_period: '2026-06', last_period: '2026-08', published_at: null, collected_at: null, source_url: DOC,
+    data_status: 'published', data_statuses: ['published'], reliability: 'official', is_demo: false, has_range: false, fx_missing_points: 0,
+    freshness: { status: 'current', age_days: 10, reference_date: '2026-08-31', expected_max_age_days: 60, basis: 'source' },
+    last_value: last, points, points_omitted: points.length === 0 }) as unknown as PriceSeries
+  const data = {
+    price_type: 'import_unit_value', currency: 'USD', unit: 'kg', freq: 'M', from: null, to: null, today: '2026-11-05', points_scope: 'first',
+    series: [series('a', 'ARG', [point('2026-07', 2.4), point('2026-08', 2.5)], { period_label: '2026-08', value: 2.5 }),
+      series('b', 'UKR', [], { period_label: '2026-08', value: 3.1234 })],
+    sources: [], discrepancies: [],
+  } as unknown as SeriesResponse
+  const html = render(<PriceChart data={data} labels={{ a: 'Argentina', b: 'Ucraina' }} colorOf={(id) => (id === 'a' ? '#2f6fb5' : undefined)}
+    toggle={() => {}} hideAll={() => {}} restore={() => {}} visibleCount={1} limitHit={false} unit="kg" typeLabel="Valore unitario" />)
+  const legend = text(html.slice(html.indexOf('<aside')))
+  assert.match(legend, /Argentina 2,50/)
+  assert.match(legend, /Ucraina 3,12/)        // no points sent for it, its newest value still shown
 })

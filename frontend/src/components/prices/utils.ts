@@ -24,6 +24,8 @@ export const SOURCES_BY_TYPE: Record<string, string[]> = {
  */
 export const SERIES_COLORS = ['#2f6fb5', '#c8741f', '#178a68', '#d4a017', '#b84f86', '#5f8f22', '#6b57c6', '#c2453a']
 export const MAX_VISIBLE = SERIES_COLORS.length
+/** Lines drawn when a view opens. A large view ships the points of these first series only:
+ * backend api/prices.py SERIES_DEFAULT_POINTS must stay equal. */
 export const DEFAULT_VISIBLE = 6
 
 export const KG_PER_LB = 0.45359237

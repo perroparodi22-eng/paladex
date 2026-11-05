@@ -73,6 +73,7 @@ class FeedSpec:
     country: str | None          # ISO3 of the publisher's country (None = international)
     homepage: str
     family: str = "rss"          # "google_news" | "rss"
+    name_en: str = ""            # English name ("" = `name`, already English)
     expected_max_age_days: int | None = 7
     expected_update: str = "Controllato ogni 3 ore; nuovi articoli quando l'editore pubblica"
     expected_update_en: str = "Checked every 3 hours; new articles whenever the publisher posts them"
@@ -102,6 +103,11 @@ _EDITIONS = {
     "pt-BR": ("pt-BR", "BR", "BR:pt-419", "portoghese, edizione Brasile"),
     "de": ("de", "DE", "DE:de", "tedesco"),
 }
+_EDITIONS_EN = {
+    "en": "English, US edition", "en-GB": "English, UK edition", "it": "Italian",
+    "es-AR": "Spanish, Argentina edition", "es-ES": "Spanish, Spain edition",
+    "pt-BR": "Portuguese, Brazil edition", "de": "German",
+}
 
 
 # Negative terms appended to every Google News search, by language: known noise named in
@@ -121,7 +127,7 @@ def google_news_url(query: str, edition: str, *, window: str = "7d") -> str:
     return f"https://news.google.com/rss/search?q={quote_plus(q)}&hl={hl}&gl={gl}&ceid={ceid}"
 
 
-def _gn(key: str, label: str, query: str, edition: str, *, max_age: int = 5) -> FeedSpec:
+def _gn(key: str, label: str, query: str, edition: str, *, max_age: int = 5, label_en: str = "") -> FeedSpec:
     hl, gl, ceid, ed_label = _EDITIONS[edition]
     exclude = _GN_EXCLUDE.get(edition.split("-")[0])
     if exclude:
@@ -129,6 +135,7 @@ def _gn(key: str, label: str, query: str, edition: str, *, max_age: int = 5) -> 
     return FeedSpec(
         key=f"news_gn_{key}",
         name=f"Google News · {label} ({ed_label})",
+        name_en=f"Google News · {label_en} ({_EDITIONS_EN[edition]})" if label_en else "",
         publisher="Google News (aggregatore)",
         url=google_news_url(query, edition),
         language=edition.split("-")[0],
@@ -147,34 +154,43 @@ def _gn(key: str, label: str, query: str, edition: str, *, max_age: int = 5) -> 
 
 FEEDS: list[FeedSpec] = [
     # --- Google News searches targeted at the honey TRADE ------------------------------
-    _gn("en_honey_prices", "prezzi del miele", '"honey prices" OR "honey price"', "en"),
-    _gn("en_honey_trade", "export e import di miele", '"honey exports" OR "honey imports" OR "honey shipments"', "en"),
+    _gn("en_honey_prices", "prezzi del miele", '"honey prices" OR "honey price"', "en", label_en="honey prices"),
+    _gn("en_honey_trade", "export e import di miele", '"honey exports" OR "honey imports" OR "honey shipments"', "en",
+        label_en="honey exports and imports"),
     _gn("en_honey_tariffs", "dazi e antidumping sul miele",
-        'honey (tariff OR tariffs OR "anti-dumping" OR antidumping OR countervailing)', "en", max_age=10),
+        'honey (tariff OR tariffs OR "anti-dumping" OR antidumping OR countervailing)', "en", max_age=10,
+        label_en="honey tariffs and anti-dumping"),
     _gn("en_honey_fraud", "miele adulterato e frodi",
-        'honey (adulteration OR adulterated OR "fake honey" OR "honey fraud")', "en", max_age=10),
+        'honey (adulteration OR adulterated OR "fake honey" OR "honey fraud")', "en", max_age=10,
+        label_en="honey adulteration and fraud"),
     _gn("en_honey_harvest", "raccolto e produzione di miele",
-        'honey (harvest OR "honey production" OR "honey crop") beekeepers', "en", max_age=7),
+        'honey (harvest OR "honey production" OR "honey crop") beekeepers', "en", max_age=7,
+        label_en="honey harvest and production"),
     _gn("en_eu_honey", "miele e politiche UE",
         'honey (EU OR "European Commission" OR "Breakfast Directive") (imports OR labelling OR regulation)',
-        "en-GB", max_age=14),
+        "en-GB", max_age=14, label_en="honey and EU policy"),
     _gn("it_prezzo_miele", "prezzo del miele", '"prezzo del miele" OR "prezzi del miele" OR "prezzo miele"', "it",
-        max_age=10),
+        max_age=10, label_en="honey price"),
     _gn("it_miele_import", "importazioni ed export di miele",
-        'miele (importazioni OR importazione OR esportazioni OR export OR dazi)', "it", max_age=7),
+        'miele (importazioni OR importazione OR esportazioni OR export OR dazi)', "it", max_age=7,
+        label_en="honey imports and exports"),
     _gn("it_miele_produzione", "produzione di miele in Italia",
-        'miele (produzione OR raccolto OR apicoltori OR "miele falso")', "it", max_age=5),
+        'miele (produzione OR raccolto OR apicoltori OR "miele falso")', "it", max_age=5,
+        label_en="honey production in Italy"),
     _gn("es_precio_miel", "precio de la miel", '"precio de la miel" OR "precios de la miel" OR "precio miel"', "es-AR",
-        max_age=10),
+        max_age=10, label_en="honey price"),
     _gn("es_miel_exportacion", "exportación de miel",
-        'miel (exportación OR exportaciones OR exportadores)', "es-AR", max_age=7),
-    _gn("es_miel_argentina", "miel argentina exportaciones", 'miel argentina exportaciones', "es-AR", max_age=10),
+        'miel (exportación OR exportaciones OR exportadores)', "es-AR", max_age=7, label_en="honey exports"),
+    _gn("es_miel_argentina", "miel argentina exportaciones", 'miel argentina exportaciones', "es-AR", max_age=10,
+        label_en="Argentine honey exports"),
     _gn("es_miel_espana", "miel en España (importaciones, etiquetado)",
-        'miel (importaciones OR etiquetado OR "miel china" OR apicultores)', "es-ES", max_age=7),
+        'miel (importaciones OR etiquetado OR "miel china" OR apicultores)', "es-ES", max_age=7,
+        label_en="honey in Spain (imports, labelling)"),
     _gn("pt_mel_exportacao", "exportação de mel (Brasile)",
-        '"exportação de mel" OR "exportações de mel" OR "preço do mel" OR "mel brasileiro"', "pt-BR", max_age=14),
+        '"exportação de mel" OR "exportações de mel" OR "preço do mel" OR "mel brasileiro"', "pt-BR", max_age=14,
+        label_en="honey exports (Brazil)"),
     _gn("de_honig_markt", "mercato del miele in Germania",
-        'Honig (Preis OR Preise OR Import OR Ernte OR Imker)', "de", max_age=7),
+        'Honig (Preis OR Preise OR Import OR Ernte OR Imker)', "de", max_age=7, label_en="honey market in Germany"),
 
     # --- Trade press ----------------------------------------------------------------------
     FeedSpec(
@@ -196,7 +212,7 @@ FEEDS: list[FeedSpec] = [
         verified="verified",  # fetched live 2026-11-04: WordPress RSS 2.0, 10 items
     ),
     FeedSpec(
-        key="news_apimondia", name="Apimondia – notizie",
+        key="news_apimondia", name="Apimondia – notizie", name_en="Apimondia – news",
         publisher="Apimondia (International Federation of Beekeepers' Associations)",
         url="https://apimondia.org/feed/", language="en", reliability=Reliability.INDUSTRY, country=None,
         homepage="https://apimondia.org/", expected_max_age_days=60,
@@ -207,6 +223,7 @@ FEEDS: list[FeedSpec] = [
     ),
     FeedSpec(
         key="news_food_safety_news", name="Food Safety News (filtrato: solo miele)",
+        name_en="Food Safety News (filtered: honey only)",
         publisher="Food Safety News (Marler Clark)", url="https://www.foodsafetynews.com/feed/", language="en",
         reliability=Reliability.TRADE_PRESS, country="USA", homepage="https://www.foodsafetynews.com/",
         expected_max_age_days=120,
@@ -217,6 +234,7 @@ FEEDS: list[FeedSpec] = [
     ),
     FeedSpec(
         key="news_foodnavigator", name="FoodNavigator (filtrato: solo miele)",
+        name_en="FoodNavigator (filtered: honey only)",
         publisher="FoodNavigator (William Reed)", url="https://www.foodnavigator.com/arc/outboundfeeds/rss/",
         language="en", reliability=Reliability.TRADE_PRESS, country=None, homepage="https://www.foodnavigator.com/",
         expected_max_age_days=120,
@@ -229,6 +247,7 @@ FEEDS: list[FeedSpec] = [
     FeedSpec(
         key="news_ec_agri",
         name="Commissione europea – DG Agricoltura, notizie (filtrato: solo miele)",
+        name_en="European Commission – DG Agriculture and Rural Development, news (filtered: honey only)",
         publisher="European Commission – DG Agriculture and Rural Development",
         url="https://agriculture.ec.europa.eu/node/2/rss_en",
         language="en", reliability=Reliability.OFFICIAL, country=None,
@@ -445,6 +464,7 @@ def _make_collector(spec: FeedSpec, index: int) -> type[FeedCollector]:
         "__doc__": f"News feed: {spec.name} ({spec.url}) [URL {spec.verified}]",
         "key": spec.key,
         "name": spec.name,
+        "name_en": spec.name_en,
         "publisher": spec.publisher,
         "homepage": spec.homepage,
         "reliability": spec.reliability,

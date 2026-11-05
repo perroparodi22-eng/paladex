@@ -749,7 +749,8 @@ def calculate(session: Session, q: QuoteInput, *, fx_mode: str = "received", tod
 def _brief(s: Source | None) -> dict | None:
     if s is None:
         return None
-    return {"key": s.key, "name": s.name, "publisher": s.publisher, "reliability": s.reliability, "homepage": s.homepage}
+    return {"key": s.key, "name": s.name, "name_en": s.name_en, "publisher": s.publisher, "reliability": s.reliability,
+            "homepage": s.homepage}
 
 
 def _duty_info(ctx: Context, plan: DutyPlan, q: QuoteInput, today: date, jurisdiction: str, ad_case: dict | None) -> dict:

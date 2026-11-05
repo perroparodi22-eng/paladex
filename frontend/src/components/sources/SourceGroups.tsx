@@ -6,6 +6,7 @@ import { ChevronDown, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { Badge, FreshnessBadge, ReliabilityBadge } from '@/components/ui'
 import { expectedUpdate, useI18n } from '@/i18n'
 import { fmtAgo, fmtDate, fmtDateTime, fmtNumber, fmtPeriod } from '@/lib/format'
+import { sourceName } from '@/lib/meta'
 import { isMirror } from '@/lib/mirror'
 import type { Lang, SourceInfo } from '@/lib/types'
 import { asUtc, errorKey, runTone } from './explain'
@@ -106,10 +107,10 @@ function SourceRow({ s, state }: { s: SourceInfo; state: RowState }) {
         {/* who / what */}
         <div className="col-span-2 xl:col-span-1 min-w-0">
           <div className={clsx('font-semibold text-[1.05rem] leading-snug', s.enabled ? 'text-charcoal' : 'text-muted')}>
-            {s.name}
+            {sourceName(s, lang)}
             {s.homepage && (
               <a href={s.homepage} target="_blank" rel="noreferrer" className="ml-1.5 inline-block align-[-1px] text-muted hover:text-forest-700"
-                title={t('sources.row.homepage')} aria-label={`${t('sources.row.homepage')}: ${s.name}`}>
+                title={t('sources.row.homepage')} aria-label={`${t('sources.row.homepage')}: ${sourceName(s, lang)}`}>
                 <ExternalLink size={14} />
               </a>
             )}

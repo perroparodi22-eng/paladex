@@ -444,7 +444,8 @@ class Collector(ABC):
     """Base class. Subclasses set the metadata attributes and implement `collect`."""
 
     key: str
-    name: str
+    name: str                           # Italian (the default interface language)
+    name_en: str = ""                   # official English name, shown in English ("" = `name`)
     publisher: str
     homepage: str
     kind: SourceKind
@@ -470,7 +471,8 @@ class Collector(ABC):
     @classmethod
     def source_spec(cls) -> dict:
         return {
-            "key": cls.key, "name": cls.name, "publisher": cls.publisher, "homepage": cls.homepage,
+            "key": cls.key, "name": cls.name, "name_en": cls.name_en or None, "publisher": cls.publisher,
+            "homepage": cls.homepage,
             "kind": cls.kind, "reliability": cls.reliability, "category": cls.category,
             "country_iso3": cls.country_iso3, "language": cls.language, "expected_update": cls.expected_update,
             "expected_update_en": cls.expected_update_en,

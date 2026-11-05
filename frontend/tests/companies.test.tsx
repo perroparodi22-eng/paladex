@@ -152,3 +152,30 @@ test('the online copy records the company lists (public official data only)', as
   assert.ok(capturable(mirrorKey('/api/companies/URY')))
   assert.ok(!capturable(mirrorKey('/api/companies/URY/raw')))
 })
+
+test('register lists: an approved-establishments register gets its own sentence; yearly lists count years, a register no periods', () => {
+  // Shapes of the India EIC register (role registered_exporter, frequency "register") and of Canada's
+  // yearly CID list (frequency "A"), built from the HMRC list so only role / frequency / periods differ.
+  const base = GBR.lists[1] as RegisterList
+  const eic: RegisterList = {
+    ...base, role: 'registered_exporter', frequency: 'register', company_count: 2, first_period: '2026-10', latest_period: '2026-11',
+    companies: [{ name: 'ALPHA HONEY PVT LTD', location: 'Punjab', periods: ['2026-10', '2026-11'], latest_period: '2026-11' },
+      { name: 'BETA APIARIES', location: null, periods: ['2026-11'], latest_period: '2026-11' }],
+  }
+  const ind = { ...GBR, country: { ...GBR.country, iso3: 'IND' }, lists: [eic] } as CompaniesCountry
+  const s = text(render(<CountryCompaniesBody d={ind} />))
+  assert.match(s, /2 stabilimenti autorizzati all'esportazione \(registro ufficiale, aggiornato a nov 2026\)/)
+  assert.match(text(render(<CountryCompaniesBody d={ind} />, { lang: 'en' })), /2 establishments approved for export \(official register, as of Nov 2026\)/)
+  const reg = text(render(<RegisterTable list={eic} />))
+  assert.doesNotMatch(reg, /mes[ei]/)                 // no "months listed" for a register
+  assert.match(reg, /Ultimo elenco consultato/)
+  const cid: RegisterList = {
+    ...base, role: 'importer', frequency: 'A', company_count: 1, first_period: '2024', latest_period: '2024',
+    companies: [{ name: 'GAMMA FOODS INC', location: 'Ontario', periods: ['2024'], latest_period: '2024' }],
+  }
+  const y = text(render(<RegisterTable list={cid} />))
+  assert.match(y, /Anni in elenco/)
+  assert.match(y, /GAMMA FOODS INC Ontario 1 anno 2024/)
+  assert.doesNotMatch(y, /1 mese/)
+  assert.match(text(render(<RegisterTable list={cid} />, { lang: 'en' })), /GAMMA FOODS INC Ontario 1 year 2024/)
+})

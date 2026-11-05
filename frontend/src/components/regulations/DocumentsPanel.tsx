@@ -9,7 +9,7 @@ import { Badge, DemoBadge, EmptyState, ErrorBlock, FreshnessBadge, Loading, Pane
 import { useI18n } from '@/i18n'
 import { api, ApiError } from '@/lib/api'
 import { fmtAgo, fmtDate, fmtNumber } from '@/lib/format'
-import { useLabels } from '@/lib/meta'
+import { sourceName, useLabels } from '@/lib/meta'
 import type { DocSource, RegulationDoc, RegulationsResponse } from './types'
 import { useDocFilters } from './useDocFilters'
 
@@ -155,7 +155,7 @@ function SourcesStatus({ sources }: { sources: DocSource[] }) {
     <ul className="mx-auto mt-2 max-w-2xl divide-y divide-line-soft rounded-sm border border-line-soft text-left text-[0.88rem]">
       {sources.map((s) => (
         <li key={s.key} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-          <span className="text-charcoal-soft">{s.name}</span>
+          <span className="text-charcoal-soft">{sourceName(s, lang)}</span>
           <span className="flex items-center gap-2 text-muted">
             <FreshnessBadge status={s.freshness.status} ageDays={s.freshness.age_days} />
             {s.last_run_at ? t('regulations.docs.sourceChecked', { ago: fmtAgo(s.last_run_at, lang) }) : t('regulations.docs.sourceNever')}

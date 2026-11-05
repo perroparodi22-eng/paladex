@@ -1393,6 +1393,7 @@ class _FaostatRun:
 class FaostatCollector(Collector):
     key = "faostat"
     name = "FAOSTAT — produzione, alveari, prezzi alla produzione e commercio di miele"
+    name_en = "FAOSTAT — honey production, beehives, producer prices and trade"
     publisher = "Food and Agriculture Organization of the United Nations (FAO), FAOSTAT"
     homepage = "https://www.fao.org/faostat/en/"
     kind = SourceKind.BULK_FILE

@@ -10,7 +10,7 @@ A private, local intelligence platform for the global honey market: prices, inte
 
 ### Cosa fa
 
-* Raccoglie automaticamente dati ufficiali e notizie sul miele: USDA e US Census (USA), Commissione Europea / Eurostat, Osservatorio Nazionale Miele e listini delle Camere di Commercio, UN Comtrade, FAO, fonti ufficiali dei paesi d'origine (per esempio Brasile, Argentina, India), dazi UE e USA, meteo NASA delle zone di produzione, cambi BCE e notizie di settore.
+* Raccoglie automaticamente dati ufficiali e notizie sul miele: USDA e US Census (USA), Commissione Europea / Eurostat, Osservatorio Nazionale Miele e listini delle Camere di Commercio, Regno Unito (HMRC), UN Comtrade, FAO, fonti ufficiali dei paesi d'origine (Brasile, Argentina, Uruguay, Cile, Messico, Ucraina, Turchia, Canada, India), dazi UE e USA, meteo NASA delle zone di produzione, cambi BCE e notizie di settore.
 * Salva tutto sul computer, senza mai cancellare lo storico. Funziona anche senza internet, con i dati già salvati.
 * Ogni numero mostra la fonte, la data di pubblicazione, il periodo e il tipo (all'ingrosso, al produttore, valore doganale…). Nessun dato viene inventato. Quando un dato manca, l'applicazione lo dice.
 
@@ -46,6 +46,8 @@ Senza chiavi l'applicazione funziona comunque: le fonti che le richiedono vengon
 
 **Il modo più semplice per inserire una chiave:** pagina **Fonti e qualità dati** → la fonte che chiede la chiave → incollarla nel riquadro «Hai già la chiave? Incollala qui» → **Salva la chiave**. Paladex la salva nel file `.env` di questo computer e scarica subito i dati di quella fonte.
 
+**Chiave dell'intelligenza artificiale:** pagina **Assistente** (oppure **Fonti e qualità dati**) → riquadro **«Servizio IA e chiave»** → scegliere Anthropic o OpenAI, incollare la chiave → **Salva**. L'analisi IA si attiva subito, senza riavviare. La chiave resta solo nel file `.env` di questo computer e non viene mai mostrata di nuovo.
+
 ### Dati dimostrativi
 
 Per provare l'interfaccia prima che arrivino i dati reali, nella pagina **Fonti e qualità dati** si possono caricare **dati dimostrativi**. Sono contrassegnati ovunque con un'etichetta rossa **DEMO** e da una fascia rossa in alto, e si possono eliminare con un clic. **Non sono dati reali.**
@@ -74,7 +76,7 @@ Tutti i dati si trovano nella cartella `data/` e le chiavi nel file `.env`. Per 
 * **macOS:** double-click `Avvia Paladex.command`.
 * **Linux:** run `./start.sh`.
 
-The browser opens at <http://127.0.0.1:8765> and shows real data straight away: the app ships with data already collected from the official sources (`starter/`, merged once per version at start-up, never overwriting local data, collection date shown at the top). Collection then runs automatically on a schedule, on start-up when the last run is older than 6 hours, and on demand with the **"Aggiorna dati"** button. The app updates itself: at every start the launcher downloads the latest version with `git fetch` (gives up after 90 s) and moves forward only by fast-forward (`git merge --ff-only`: never merges, never asks for a password; on any problem the current version starts), reinstalls the Python libraries when `backend/requirements.txt` changed, then starts (`scripts/launch.py`). Starting it again while it runs only opens the browser. Opt out with an empty `.no-auto-update` file or `PALADEX_AUTO_UPDATE=false`. Free source keys can be pasted on the Sources page (saved to the local `.env`, never sent back to the browser).
+The browser opens at <http://127.0.0.1:8765> and shows real data straight away: the app ships with data already collected from the official sources (`starter/`, merged once per version at start-up, never overwriting local data, collection date shown at the top). Collection then runs automatically on a schedule, on start-up when the last run is older than 6 hours, and on demand with the **"Aggiorna dati"** button. The app updates itself: at every start the launcher downloads the latest version with `git fetch` (gives up after 90 s) and moves forward only by fast-forward (`git merge --ff-only`: never merges, never asks for a password; on any problem the current version starts), reinstalls the Python libraries when `backend/requirements.txt` changed, then starts (`scripts/launch.py`). Starting it again while it runs only opens the browser. Opt out with an empty `.no-auto-update` file or `PALADEX_AUTO_UPDATE=false`. Free source keys can be pasted on the Sources page, and the AI service and key in the "AI service and key" panel on the Assistant or Sources page (saved to the local `.env`, applied at once, never sent back to the browser).
 
 ### Command line (advanced)
 

@@ -1,11 +1,13 @@
-// Developer helper: node scripts/dev/screenshot.cjs <url> <out.png> [width] [height] [mobile]
+// Developer helper: node scripts/dev/screenshot.cjs <url> <out.png> [width] [height] [mobile] [it|en]
 // "mobile" emulates a phone (touch, mobile viewport) at the given size, e.g. 390 844 mobile.
+// "it" / "en" opens the interface in that language (as chosen in the browser), e.g. 1440 900 desktop en.
 const { chromium } = require('playwright');
 (async () => {
-  const [,, url, out, w, h, mode] = process.argv;
+  const [,, url, out, w, h, mode, lang] = process.argv;
   const b = await chromium.launch();
   const mobile = mode === 'mobile';
   const p = await b.newPage({ viewport: { width: +(w||1440), height: +(h||900) }, ...(mobile ? { isMobile: true, hasTouch: true } : {}) });
+  if (lang === 'it' || lang === 'en') await p.addInitScript((l) => localStorage.setItem('paladex.lang', l), lang);
   const errors = [];
   p.on('pageerror', e => errors.push(String(e)));
   p.on('console', m => { if (m.type() === 'error') errors.push(m.text()) });

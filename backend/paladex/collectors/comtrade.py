@@ -1196,6 +1196,7 @@ def retire_estimated_unit_values(ctx: CollectContext) -> int:
 class ComtradeCollector(Collector):
     key = "un_comtrade"
     name = "UN Comtrade — commercio internazionale di miele (HS 0409)"
+    name_en = "UN Comtrade — international honey trade (HS 0409)"
     publisher = "United Nations Statistics Division (UN Comtrade)"
     homepage = "https://comtradeplus.un.org/"
     kind = SourceKind.API

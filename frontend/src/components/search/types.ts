@@ -36,7 +36,7 @@ export interface RegulationHit {
 }
 
 export interface SourceHit {
-  key: string; name: string; publisher: string | null; category: string; reliability: string; enabled: boolean
+  key: string; name: string; name_en?: string | null; publisher: string | null; category: string; reliability: string; enabled: boolean
   homepage: string | null; last_run_status: string | null; latest_published_at: string | null; freshness: Freshness
   target: string; external: false
 }

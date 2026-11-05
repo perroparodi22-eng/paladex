@@ -13,6 +13,7 @@ MANUAL_SOURCES = [
     {
         "key": "manual_quotes",
         "name": "Offerte fornitori (inserite a mano)",
+        "name_en": "Supplier quotes (entered by hand)",
         "publisher": "Parodi Group",
         "kind": SourceKind.MANUAL,
         "reliability": Reliability.USER,
@@ -21,6 +22,7 @@ MANUAL_SOURCES = [
     {
         "key": "demo",
         "name": "Dati dimostrativi (NON reali)",
+        "name_en": "Demonstration data (NOT real)",
         "publisher": "Paladex",
         "kind": SourceKind.MANUAL,
         "reliability": Reliability.DEMO,

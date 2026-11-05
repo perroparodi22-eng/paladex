@@ -1750,7 +1750,7 @@ class Retriever:
                                            f"New trade data · {_period(label, 'en')}"),
                 text=self.t(f"Nuovi dati di commercio pubblicati da {src.name if src else '—'} per {_period(label, 'it')}. "
                             f"Flussi principali: {flows}.",
-                            f"New trade data published by {src.name if src else '—'} for {_period(label, 'en')}. "
+                            f"New trade data published by {(src.name_en or src.name) if src else '—'} for {_period(label, 'en')}. "
                             f"Largest flows: {flows}."),
                 status=fact_status(status, src.reliability if src else None, None, self.today), source=source_brief(src),
                 url=top[0][4], link="/commercio", published_at=iso(pub), period_label=label, unit="t", data_status=status,
@@ -2268,11 +2268,12 @@ def how_to_enable(lang: str) -> dict:
         "file": ".env",
         "lines": ["PALADEX_LLM_PROVIDER=anthropic", "PALADEX_ANTHROPIC_API_KEY=…"],
         "alternative": ["PALADEX_LLM_PROVIDER=openai", "PALADEX_OPENAI_API_KEY=…"],
-        "text": _l(lang, "Per attivare l'analisi IA, aggiungere al file .env nella cartella del programma "
-                         "PALADEX_LLM_PROVIDER=anthropic e PALADEX_ANTHROPIC_API_KEY con la chiave (oppure openai e "
-                         "PALADEX_OPENAI_API_KEY), poi riavviare Paladex.",
-                   "To enable AI analysis, add PALADEX_LLM_PROVIDER=anthropic and PALADEX_ANTHROPIC_API_KEY with the key "
-                   "(or openai and PALADEX_OPENAI_API_KEY) to the .env file in the program folder, then restart Paladex."),
+        "text": _l(lang, "Per attivare l'analisi IA, scegliere il servizio (Anthropic oppure OpenAI) e incollare la "
+                         "chiave nel riquadro «Servizio IA e chiave» (qui o nella pagina Fonti e qualità): vale subito, "
+                         "senza riavviare. In alternativa, aggiungere al file .env nella cartella del programma:",
+                   "To enable AI analysis, choose the service (Anthropic or OpenAI) and paste the key in the "
+                   "\u201cAI service and key\u201d box (here or on the Sources & quality page): it applies at once, without "
+                   "restarting. Alternatively, add to the .env file in the program folder:"),
     }
 
 
@@ -2475,6 +2476,9 @@ def status(session: Session) -> dict:
         "provider": info.provider if info else None,
         "model": info.model if info else None,
         "provider_configured": s.llm_provider in ("anthropic", "openai"),
+        "provider_setting": s.llm_provider if s.llm_provider in ("anthropic", "openai") else "none",
+        # whether a key is saved for each service (never the key itself)
+        "keys_saved": {"anthropic": bool(s.anthropic_api_key), "openai": bool(s.openai_api_key)},
         "key_missing": s.llm_provider in ("anthropic", "openai") and not enabled,
         "how_to_enable": {"it": how_to_enable("it"), "en": how_to_enable("en")},
         "briefing": {

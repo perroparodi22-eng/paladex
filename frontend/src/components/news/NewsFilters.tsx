@@ -4,7 +4,7 @@ import { Search, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Segmented } from '@/components/ui'
 import { useI18n } from '@/i18n'
-import { useLabels } from '@/lib/meta'
+import { sourceName, useLabels } from '@/lib/meta'
 import { Field, FilterChip, Switch } from './bits'
 import type { NewsFacets, NewsFilterState, PeriodPreset } from './types'
 import { PERIODS } from './useNewsFilters'
@@ -152,7 +152,7 @@ export function NewsFilters({ state, facets, update, toggle }: {
             onChange={(e) => update({ sources: e.target.value ? [e.target.value] : [] })}>
             <option value="">{t('news.f.allSources')}</option>
             {sourceValue === '__many' && <option value="__many" disabled>{t('news.f.nSources', { n: state.sources.length })}</option>}
-            {sources.map((s) => <option key={s.key} value={s.key}>{s.name} ({s.count})</option>)}
+            {sources.map((s) => <option key={s.key} value={s.key}>{sourceName(s, lang)} ({s.count})</option>)}
             {selectedSourceMissing.map((k) => <option key={k} value={k}>{k} (0)</option>)}
           </select>
         </Field>

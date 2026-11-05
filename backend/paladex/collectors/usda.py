@@ -1506,6 +1506,7 @@ ACE_MIN_UNIT_VALUE_KG = 1_000.0
 class UsdaHoneyReportCollector(Collector):
     key = "usda_honey_report"
     name = "USDA AMS – National Honey Report (prezzi miele USA)"
+    name_en = "USDA AMS – National Honey Report (US honey prices)"
     publisher = "USDA Agricultural Marketing Service (AMS), Specialty Crops Market News"
     homepage = "https://mymarketnews.ams.usda.gov/viewReport/2901"
     kind = SourceKind.PDF
@@ -1992,6 +1993,7 @@ def hs10_attributes(description: str | None) -> tuple[str | None, bool]:
 class UsdaFasGatsCollector(Collector):
     key = "usda_fas_gats"
     name = "USDA FAS GATS – Importazioni USA di miele per origine (Census)"
+    name_en = "USDA FAS GATS – US honey imports by origin (Census)"
     publisher = "USDA Foreign Agricultural Service (data: US Census Bureau)"
     homepage = "https://apps.fas.usda.gov/gats/"
     kind = SourceKind.API
@@ -2358,6 +2360,7 @@ def parse_nass_rows(payload: Any) -> tuple[list[NassObservation], Counter]:
 class UsdaNassHoneyCollector(Collector):
     key = "usda_nass_honey"
     name = "USDA NASS – Produzione di miele USA (Quick Stats)"
+    name_en = "USDA NASS – US honey production (Quick Stats)"
     publisher = "USDA National Agricultural Statistics Service (NASS)"
     homepage = "https://quickstats.nass.usda.gov/"
     kind = SourceKind.API

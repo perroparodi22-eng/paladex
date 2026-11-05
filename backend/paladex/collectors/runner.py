@@ -245,6 +245,12 @@ def post_collection_hooks() -> None:
             pass
         except Exception:  # pragma: no cover
             log.exception("alert evaluation failed")
+        try:
+            from ..db import refresh_planner_stats
+
+            refresh_planner_stats()      # query-planner statistics follow the new data (speed only)
+        except Exception:  # pragma: no cover
+            log.exception("planner statistics failed")
     # AI enrichment waits on the LLM provider between short per-batch commits: it runs outside
     # the lock so it never holds collectors back for minutes (its commits wait busy_timeout).
     try:
@@ -256,6 +262,9 @@ def post_collection_hooks() -> None:
         pass
     except Exception:  # pragma: no cover
         log.exception("AI news enrichment failed")
+    from ..api import memo
+
+    memo.warm_in_background()      # in the server: rebuild the shared aggregates for the new data
 
 
 def fail_interrupted_runs() -> int:

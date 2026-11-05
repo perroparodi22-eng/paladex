@@ -109,6 +109,10 @@ export interface AssistantStatus {
   provider: string | null
   model: string | null
   provider_configured: boolean
+  /** The service chosen in the settings, even without a key. */
+  provider_setting?: 'anthropic' | 'openai' | 'none'
+  /** Whether a key is saved on this computer for each service (never the key itself). */
+  keys_saved?: { anthropic: boolean; openai: boolean }
   key_missing: boolean
   how_to_enable: Record<Lang, HowToEnable>
   briefing: {

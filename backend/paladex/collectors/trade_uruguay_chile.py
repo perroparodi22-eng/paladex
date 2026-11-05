@@ -487,6 +487,7 @@ def classify_sie_destination(code: str | None, name: str) -> tuple[str | None, s
 class UyHoneyExportsCollector(Collector):
     key = "uy_honey_exports"
     name = "Uruguay – Uruguay XXI (SIE, dati Dirección Nacional de Aduanas): esportazioni di miele (NCM 0409)"
+    name_en = "Uruguay – Uruguay XXI (SIE, National Customs Directorate data): honey exports (NCM 0409)"
     publisher = "Uruguay XXI – Instituto de Promoción de Inversiones, Exportaciones e Imagen País (data: DNA, MEF)"
     homepage = SIE_BASE
     kind = SourceKind.HTML
@@ -1062,6 +1063,7 @@ class _ClAgg:
 class ClHoneyExportsCollector(Collector):
     key = "cl_honey_exports"
     name = "Cile – Servicio Nacional de Aduanas: esportazioni di miele (SACH 0409) per destinazione"
+    name_en = "Chile – National Customs Service: honey exports (SACH 0409) by destination"
     publisher = "Servicio Nacional de Aduanas de Chile"
     homepage = CL_DUS_PAGE_URL
     kind = SourceKind.BULK_FILE

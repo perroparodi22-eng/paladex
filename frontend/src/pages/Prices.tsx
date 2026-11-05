@@ -2,7 +2,7 @@
 // One price type at a time (never mixed); every block shows its sources and freshness.
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo } from 'react'
-import { DemoBadge, ErrorBlock, Loading, PageHeader, Panel } from '@/components/ui'
+import { DemoBadge, ErrorBlock, Loading, Note, PageHeader, Panel } from '@/components/ui'
 import { ComparePanel } from '@/components/prices/ComparePanel'
 import { DiscrepancyNotice, DiscrepancyPanel } from '@/components/prices/DiscrepancyPanel'
 import { FilterBar } from '@/components/prices/FilterBar'
@@ -16,6 +16,7 @@ import { useSeriesSlots } from '@/components/prices/useSeriesSlots'
 import { disambiguateLabels, fmtPeriodLabel, PRICE_TYPE_ORDER, seriesLabel, varyingDims } from '@/components/prices/utils'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
+import { isMirrorMissing } from '@/lib/mirror'
 import { useLabels } from '@/lib/meta'
 
 export default function Prices() {
@@ -42,9 +43,11 @@ export default function Prices() {
     enabled: hasType,
     placeholderData: keepPreviousData,
   })
+  const seriesParams = useMemo(() => ({ ...apiFilters, from: from ?? undefined, freq: state.freq, currency: state.ccy }),
+    [apiFilters, from, state.freq, state.ccy])
   const series = useQuery({
-    queryKey: ['prices', 'series', apiFilters, from, state.freq, state.ccy],
-    queryFn: () => api.get<SeriesResponse>('/prices/series', { ...apiFilters, from: from ?? undefined, freq: state.freq, currency: state.ccy }),
+    queryKey: ['prices', 'series', seriesParams],
+    queryFn: () => api.get<SeriesResponse>('/prices/series', seriesParams),
     enabled: hasType,
     placeholderData: keepPreviousData,
   })
@@ -56,15 +59,38 @@ export default function Prices() {
   })
 
   // Never show data of the previous price type while the new one loads.
-  const seriesData = series.data?.price_type === type ? series.data : undefined
+  const listData = series.data?.price_type === type ? series.data : undefined
   const latestData = latest.data?.price_type === type ? latest.data : undefined
 
   const idsInOrder = useMemo(() => {
-    const ids = (seriesData?.series ?? []).map((s) => s.id)
-    for (const r of latestData?.rows ?? []) if (!ids.includes(r.series_id)) ids.push(r.series_id)
+    const ids = (listData?.series ?? []).map((s) => s.id)
+    const known = new Set(ids)
+    for (const r of latestData?.rows ?? []) if (!known.has(r.series_id)) { ids.push(r.series_id); known.add(r.series_id) }
     return ids
-  }, [seriesData, latestData])
+  }, [listData, latestData])
   const slots = useSeriesSlots(idsInOrder, type ?? '')
+
+  // A large view (customs unit values: over a thousand series) comes with the points of the lines
+  // drawn by default only. When a series without points is switched on, the points of every line
+  // on the chart are asked for by id (one answer, in the same view).
+  const wantIds = useMemo(() => {
+    const shown = (listData?.series ?? []).filter((s) => slots.slots[s.id] !== undefined)
+    return shown.some((s) => s.points_omitted) ? shown.map((s) => s.id).sort() : []
+  }, [listData, slots.slots])
+  const paramsKey = JSON.stringify(seriesParams)
+  const extra = useQuery({
+    queryKey: ['prices', 'series', seriesParams, 'ids', wantIds],
+    queryFn: async () => ({ key: paramsKey, data: await api.get<SeriesResponse>('/prices/series', { ...seriesParams, ids: wantIds.join(',') }) }),
+    enabled: hasType && wantIds.length > 0,
+    placeholderData: keepPreviousData,
+  })
+  const seriesData = useMemo(() => {
+    // points of the same view only (a kept previous answer may be of another currency or period)
+    const got = extra.data?.key === paramsKey ? extra.data.data : undefined
+    if (!listData || !got) return listData
+    const byId = new Map(got.series.filter((s) => !s.points_omitted).map((s) => [s.id, s]))
+    return { ...listData, series: listData.series.map((s) => (s.points_omitted && byId.get(s.id)) || s) }
+  }, [listData, extra.data, paramsKey])
 
   const labels = useMemo(() => {
     const items = [...(seriesData?.series ?? []), ...(latestData?.rows ?? [])]
@@ -112,6 +138,12 @@ export default function Prices() {
       ) : (
         <>
           <DiscrepancyNotice items={seriesData?.discrepancies ?? []} />
+          {extra.error && wantIds.length > 0 && (
+            <div className="mb-3">
+              {isMirrorMissing(extra.error) ? <Note>{t('prices.chart.notInCopy')}</Note>
+                : <ErrorBlock error={extra.error} onRetry={() => extra.refetch()} />}
+            </div>
+          )}
 
           {series.error ? <div className="mb-5"><ErrorBlock error={series.error} onRetry={() => series.refetch()} /></div>
             : !seriesData ? <Panel className="mb-5"><Loading /></Panel>

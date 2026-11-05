@@ -410,6 +410,7 @@ class _Year:
 class ArIndecExportsCollector(Collector):
     key = "ar_official_exports"
     name = "Argentina – INDEC: esportazioni di miele per destinazione (NCM 04090000)"
+    name_en = "Argentina – INDEC: honey exports by destination (NCM 04090000)"
     publisher = "INDEC – Instituto Nacional de Estadística y Censos (Argentina)"
     homepage = "https://comex.indec.gob.ar/#/search"
     kind = SourceKind.API
