@@ -17,7 +17,6 @@ provider then sees "Offerta A/B/C", never the supplier name or the notes (see se
 """
 from __future__ import annotations
 
-from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -88,7 +87,7 @@ def status(db: Session = Depends(get_db)) -> dict:
 def quotes(lang: str = Query("it", pattern="^(it|en)$"), db: Session = Depends(get_db)) -> dict:
     """Valid (not archived, not expired) offers, newest first: the choice for 'Confronta queste offerte'."""
     Q = SupplierQuote
-    today = date.today()
+    today = svc.clock_today()
     rows = db.scalars(select(Q).where(demo_clause(Q, db), Q.archived.is_(False),
                                       or_(Q.valid_until.is_(None), Q.valid_until >= today))
                       .order_by(Q.date_received.desc(), Q.id.desc()).limit(50)).all()
@@ -103,7 +102,7 @@ def quotes(lang: str = Query("it", pattern="^(it|en)$"), db: Session = Depends(g
 
 @router.get("/briefing")
 def briefing(lang: str = Query("it", pattern="^(it|en)$"), db: Session = Depends(get_db)) -> dict:
-    return {"enabled": llm.is_enabled(), "date": date.today().isoformat(), "schedule": "07:00",
+    return {"enabled": llm.is_enabled(), "date": svc.clock_today().isoformat(), "schedule": "07:00",
             "briefing": brief.stored(db, lang)}
 
 

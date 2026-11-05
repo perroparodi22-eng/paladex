@@ -23,7 +23,9 @@ One question (`answer()`):
    is not in the context and requires citations; the model returns sentences grouped into the
    sections 'Fatti verificati', 'Contesto storico', 'Stime', 'Analisi (IA)' and 'Previsioni (IA,
    incerte)'. **Post-check** (`check_sentences`): every citation must point at an existing block
-   and every number of a sentence must appear in the blocks it cites (formatting differences are
+   and every number of a sentence must appear in the blocks it cites AS THE SAME KIND (`scan_numbers`):
+   a quantity must be a quantity there, a date / period / document number the same date, period or
+   number, so a day, a year or a quota number never vouches for a price (formatting differences are
    allowed: 1,234.5 / 1.234,5 / 12 % / rounding to fewer decimals). Failing sentences are dropped;
    when too many fail, the AI answer is rejected and the retrieved facts are shown instead, with a
    warning. Without a provider the retrieved facts are the answer ("Ecco i dati disponibili nel
@@ -44,7 +46,7 @@ import threading
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -221,6 +223,16 @@ _MONTHS = {
 
 def _l(lang: str, it: str, en: str) -> str:
     return it if lang == "it" else en
+
+
+def clock_today() -> date:
+    """The assistant's and the briefing's 'today' (one place, patched in tests)."""
+    return date.today()
+
+
+def clock_now() -> datetime:
+    """'Now' as naive UTC, like every timestamp in the database (patched in tests)."""
+    return utcnow()
 
 
 # ---------------------------------------------------------------------------
@@ -572,7 +584,7 @@ def parse_varieties(text: str) -> list[str]:
 
 def parse_question(text: str, lang: str = "it", today: date | None = None) -> Question:
     """Deterministic understanding of a question (no AI involved)."""
-    today = today or date.today()
+    today = today or clock_today()
     lang = lang if lang in ("it", "en") else "it"
     f = fold(text or "")
     q = Question(text=text, lang=lang)
@@ -651,7 +663,7 @@ ENTITY_SCHEMA = {"countries": ["ISO3"], "varieties": ["polyflora"], "price_types
 
 def llm_entities(q: Question, today: date | None = None) -> Question:
     """Ask the model to read a question the rules did not understand; keep only validated values."""
-    today = today or date.today()
+    today = today or clock_today()
     system = ("You extract search entities from a question about the world honey market. "
               "countries: ISO 3166 alpha-3 codes of the countries named or implied by an adjective. "
               f"varieties: from {sorted(v.value for v in Variety)}. price_types: from {sorted(PRICE_TYPE_ORDER)}. "
@@ -784,8 +796,9 @@ class Retriever:
     def __init__(self, session: Session, lang: str = "it", today: date | None = None, limit: int = MAX_FACTS):
         self.db = session
         self.lang = lang
-        self.today = today or date.today()
-        self.now = utcnow()
+        self.today = today or clock_today()
+        # a day other than today (a briefing written for a given date) is read as of its noon
+        self.now = clock_now() if self.today == clock_today() else datetime.combine(self.today, time(12, 0))
         self.facts = FactSet(limit)
         self.notes: list[str] = []
         self._octx: ov.Ctx | None = None
@@ -797,6 +810,7 @@ class Retriever:
     def octx(self) -> ov.Ctx:
         if self._octx is None:
             self._octx = ov.Ctx(self.db, self.lang)
+            self._octx.today, self._octx.now = self.today, self.now   # the overview's rules on the same day
         return self._octx
 
     @property
@@ -1662,7 +1676,7 @@ class Retriever:
         if r.valid_until:
             dates += self.t(f", valida fino al {_date(r.valid_until, lang)}", f", valid until {_date(r.valid_until, lang)}")
         parts.append(dates)
-        landed = landed_cost_text(self.db, r, lang)
+        landed = landed_cost_text(self.db, r, lang, today=self.today)
         if landed:
             parts.append(landed)
         detail = "; ".join(parts) + "."
@@ -1748,13 +1762,13 @@ class Retriever:
 # ---------------------------------------------------------------------------
 
 
-def landed_cost_text(session: Session, quote: SupplierQuote, lang: str) -> str | None:
+def landed_cost_text(session: Session, quote: SupplierQuote, lang: str, *, today: date | None = None) -> str | None:
     """The landed cost per kg computed by `services.landed_cost` for an offer (a range when a tariff
     quota gives two alternatives), and what it lacks. Never estimated here: no result, no sentence."""
     try:
         from . import landed_cost as lc
 
-        res = lc.calculate(session, lc.input_from_model(quote))
+        res = lc.calculate(session, lc.input_from_model(quote), today=today or clock_today())
     except Exception:  # an optional enrichment must never break an answer
         log.warning("landed cost for quote %s not available", quote.id, exc_info=True)
         return None
@@ -1962,13 +1976,128 @@ def extract_citations(text: str) -> tuple[str, list[int]]:
     return re.sub(r"\s{2,}", " ", clean).strip(), list(dict.fromkeys(refs))
 
 
-def _all_values(text: str) -> set[Decimal]:
-    out: set[Decimal] = set()
-    for m in _NUM.finditer(text or ""):
+# Numbers are compared BY KIND. A quantity of the answer (price, volume, percentage, rate...) must
+# be a quantity of the cited context; a date, day, month, year, week or quarter must be the same
+# date or period there; an identifier (document, legal act, tariff-quota or customs-code number)
+# the same identifier. So an invented "5,00 USD/kg" never passes because 5 is the day of a
+# publication date, nor "2026 t" because 2026 is a year, nor "90881 t" because 090881 is a quota.
+
+_MONTH_WORDS = {
+    "gennaio": 1, "genn": 1, "gen": 1, "january": 1, "jan": 1,
+    "febbraio": 2, "february": 2, "feb": 2,
+    "marzo": 3, "march": 3, "mar": 3,
+    "aprile": 4, "april": 4, "apr": 4,
+    "maggio": 5, "may": 5, "mag": 5,
+    "giugno": 6, "june": 6, "jun": 6, "giu": 6,
+    "luglio": 7, "july": 7, "jul": 7, "lug": 7,
+    "agosto": 8, "august": 8, "aug": 8, "ago": 8,
+    "settembre": 9, "september": 9, "sept": 9, "sett": 9, "sep": 9, "set": 9,
+    "ottobre": 10, "october": 10, "oct": 10, "ott": 10,
+    "novembre": 11, "november": 11, "nov": 11,
+    "dicembre": 12, "december": 12, "dec": 12, "dic": 12,
+}
+_MON = r"(?P<mon>" + "|".join(sorted(_MONTH_WORDS, key=len, reverse=True)) + r")\.?(?!\w)"
+_YEAR = r"(?P<y>(?:19|20)\d{2})"
+# A number followed by a unit is a quantity, never a year or a code ("2026 t", "090881 kg").
+_UNIT = r"(?!\s*(?:%|\$|€|¢|£|(?:t|kg|lb|q\.?li|usd|eur|tonn\w*|tons?|mln|million\w*|mila|thousand|bn)\b))"
+_DASHES = str.maketrans({"–": "-", "—": "-", "‑": "-", "−": "-"})
+
+
+def _mon(m: re.Match) -> int:
+    return _MONTH_WORDS[m.group("mon").rstrip(".")]
+
+
+def _mkdate(y: int, mo: int, d: int) -> date | None:
+    try:
+        return date(y, mo, d)
+    except ValueError:
+        return None
+
+
+def _month(y: int, mo: int) -> tuple[int, int] | None:
+    return (y, mo) if 1 <= mo <= 12 else None
+
+
+# (kind, pattern, value builder): applied in this order; each match is masked before the next rule.
+_NUMBER_RULES: list[tuple[str, re.Pattern, Any]] = [
+    ("date", re.compile(r"\b(\d{4})-(\d{2})-(\d{2})(?:[t ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?\b"),
+     lambda m: _mkdate(int(m[1]), int(m[2]), int(m[3]))),
+    ("date", re.compile(r"\b(\d{1,2})[./](\d{1,2})[./](\d{4})\b"), lambda m: _mkdate(int(m[3]), int(m[2]), int(m[1]))),
+    ("period", re.compile(r"\b(\d{4})-w(\d{1,2})\b"), lambda m: (int(m[1]), "W", int(m[2]))),
+    ("period", re.compile(r"\b(?:settimana|sett\.|week|wk\.?)\s+(\d{1,2})\s+(?:del\s+|of\s+)?(\d{4})\b"),
+     lambda m: (int(m[2]), "W", int(m[1]))),
+    ("period", re.compile(r"\b(\d{4})-q([1-4])\b"), lambda m: (int(m[1]), "Q", int(m[2]))),
+    ("period", re.compile(r"\b[qt]([1-4])\s+(\d{4})\b"), lambda m: (int(m[2]), "Q", int(m[1]))),
+    ("period", re.compile(r"\b([1-4])°\s*trim\.?\s+(\d{4})\b"), lambda m: (int(m[2]), "Q", int(m[1]))),
+    ("date", re.compile(r"\b(?P<d>\d{1,2})\s+(?:de\s+)?" + _MON + r",?\s+(?:de\s+|del\s+)?" + _YEAR + r"\b"),
+     lambda m: _mkdate(int(m["y"]), _mon(m), int(m["d"]))),
+    ("date", re.compile(r"\b" + _MON + r"\s+(?P<d>\d{1,2}),?\s+" + _YEAR + r"\b"),
+     lambda m: _mkdate(int(m["y"]), _mon(m), int(m["d"]))),
+    ("month", re.compile(r"\b" + _MON + r"\s+(?:del\s+|of\s+|de\s+)?" + _YEAR + r"\b"), lambda m: (int(m["y"]), _mon(m))),
+    ("day", re.compile(r"\b(?P<d>\d{1,2})\s+(?:de\s+)?" + _MON), lambda m: (_mon(m), int(m["d"])) if int(m["d"]) <= 31 else None),
+    ("day", re.compile(r"\b" + _MON + r"\s+(?P<d>\d{1,2})\b(?![.,]\d)"),
+     lambda m: (_mon(m), int(m["d"])) if int(m["d"]) <= 31 else None),
+    ("month", re.compile(r"\b(\d{4})-(\d{2})\b(?!-\d)"), lambda m: _month(int(m[1]), int(m[2]))),
+    ("month", re.compile(r"\b(\d{1,2})[-/](\d{4})\b"), lambda m: _month(int(m[2]), int(m[1]))),
+    ("years", re.compile(r"\b((?:19|20)\d{2})\s*-\s*((?:19|20)\d{2})\b"), lambda m: (int(m[1]), int(m[2]))),
+    ("years", re.compile(r"\b((?:19|20)\d{2})[-/](\d{2})\b"),                       # season "2024-25"
+     lambda m: (int(m[1]), int(m[1]) + 1) if int(m[2]) == (int(m[1]) + 1) % 100 else None),
+    # identifiers: "N°09", "n. 44", "No. 09/2026-27"; Federal Register "2026-18701"; CELEX "32026R2228";
+    # legal acts "R1988/20", "2026/2228"; RASFF "2026.8785"; quota "090881"; customs code "0409.00.00"
+    ("id", re.compile(r"\b(?:n[°º]|no\.|nr\.?|n\.)\s*\d+(?:[/.-]\d+)*\b"), lambda m: m[0]),
+    ("id", re.compile(r"\b(?:19|20)\d{2}-\d{4,6}\b"), lambda m: m[0]),
+    ("id", re.compile(r"\b\d+[a-z]{1,4}\d+(?:[/.-]\d+)*\b"), lambda m: m[0]),
+    ("id", re.compile(r"\b[a-z]{1,6}\d+(?:[/.-]\d+)*\b"), lambda m: m[0]),
+    ("id", re.compile(r"\b\d{1,4}/\d{1,5}(?:-\d{2,4})?\b"), lambda m: m[0]),
+    ("id", re.compile(r"\b(?:19|20)\d{2}\.\d{3,}\b"), lambda m: m[0]),
+    ("id", re.compile(r"\b0\d{2,}(?:\.\d+)*\b" + _UNIT), lambda m: m[0]),
+    ("year", re.compile(r"(?<![\d.,'’  ])" + _YEAR + r"(?!\d)(?![.,'’]\d)" + _UNIT), lambda m: int(m["y"])),
+]
+
+
+@dataclass
+class NumberScan:
+    """The numbers of a text by kind (see `scan_numbers`)."""
+    values: set = field(default_factory=set)      # Decimal readings of the quantities
+    dates: set = field(default_factory=set)       # date
+    days: set = field(default_factory=set)        # (month, day) written without a year
+    months: set = field(default_factory=set)      # (year, month)
+    years: set = field(default_factory=set)       # int
+    periods: set = field(default_factory=set)     # (year, "W" | "Q", n)
+    ids: set = field(default_factory=set)         # normalised identifier text
+    tokens: list = field(default_factory=list)    # (position, kind, text as written, value), in order
+
+
+def scan_numbers(text: str) -> NumberScan:
+    """Classify every number of `text`: dates, periods and identifiers first, then years written
+    alone, then the remaining numbers as quantities (all their '.'/',' readings)."""
+    original = text or ""
+    # one character in, one character out: positions stay valid in the original text
+    norm = "".join(c.lower() if len(c.lower()) == 1 else c for c in original).translate(_DASHES)
+    chars = list(norm)
+    out = NumberScan()
+    sets = {"date": out.dates, "day": out.days, "month": out.months, "year": out.years, "period": out.periods,
+            "id": out.ids}
+    for kind, rx, build in _NUMBER_RULES:
+        for m in rx.finditer("".join(chars)):
+            value = build(m)
+            if value is None:
+                continue
+            if kind == "id":
+                value = re.sub(r"\s+", "", value)
+            out.tokens.append((m.start(), kind, original[m.start():m.end()], value))
+            if kind == "years":
+                out.years.update(value)
+            else:
+                sets[kind].add(value)
+            chars[m.start():m.end()] = " " * (m.end() - m.start())
+    for m in _NUM.finditer("".join(chars)):
         whole, parts = _readings(m.group(0))
-        out |= whole
+        out.tokens.append((m.start(), "num", original[m.start():m.end()], (whole, parts)))
+        out.values |= whole
         for p in parts:
-            out |= p
+            out.values |= p
+    out.tokens.sort(key=lambda tok: tok[0])
     return out
 
 
@@ -1987,21 +2116,36 @@ def _rounded_match(v: Decimal, allowed: set[Decimal]) -> bool:
     return False
 
 
+def _quantity_supported(readings: tuple[set, list], allowed: set[Decimal]) -> bool:
+    """A quantity of the answer is a quantity of the context: same value whatever the separators
+    (1,234.5 / 1.234,5 / 1 234,5), or the context's value rounded to fewer decimals."""
+    whole, parts = readings
+    if whole & allowed or (parts and all(p & allowed for p in parts)):
+        return True
+    if whole and any(_rounded_match(v, allowed) for v in whole):
+        return True
+    return bool(parts) and all(any(_rounded_match(v, allowed) for v in p) for p in parts)
+
+
 def unsupported_numbers(sentence: str, basis: str) -> list[str]:
-    """Numbers of `sentence` whose value is not in `basis` (formatting and rounding tolerant)."""
-    allowed = _all_values(basis)
-    bad = []
-    for m in _NUM.finditer(sentence or ""):
-        tok = m.group(0)
-        whole, parts = _readings(tok)
-        if whole & allowed or (parts and all(p & allowed for p in parts)):
-            continue
-        if whole and any(_rounded_match(v, allowed) for v in whole):
-            continue
-        if parts and all(any(_rounded_match(v, allowed) for v in p) for p in parts):
-            continue
-        bad.append(tok)
-    return bad
+    """Numbers of `sentence` (as written, in order) that are not in `basis` AS THE SAME KIND: a
+    quantity must be a quantity of the basis, a date / period / identifier the same date, period or
+    identifier. Date parts, years and document numbers of the basis never make a quantity valid."""
+    s, b = scan_numbers(sentence), scan_numbers(basis)
+    years = b.years | {d.year for d in b.dates} | {y for y, _ in b.months} | {p[0] for p in b.periods}
+    months = b.months | {(d.year, d.month) for d in b.dates}
+    days = b.days | {(d.month, d.day) for d in b.dates}
+    checks = {
+        "num": lambda v: _quantity_supported(v, b.values),
+        "date": lambda v: v in b.dates,
+        "day": lambda v: v in days,
+        "month": lambda v: v in months,
+        "year": lambda v: v in years,
+        "years": lambda v: all(y in years for y in v),
+        "period": lambda v: v in b.periods,
+        "id": lambda v: v in b.ids,
+    }
+    return [text for _pos, kind, text, value in s.tokens if not checks[kind](value)]
 
 
 def check_sentences(items: list[Any], facts: FactSet, *, require_refs: bool, extra_basis: str = "",
@@ -2204,7 +2348,7 @@ def answer(session: Session, question: str, lang: str = "it", *, quote_ids: list
             log.info("entity extraction by the model failed: %s", exc)
     r = retrieve(session, q, quote_ids=quote_ids, today=today)
     out: dict[str, Any] = {
-        "question": question, "lang": lang, "asked_at": iso(utcnow()), "understood": q.understood(),
+        "question": question, "lang": lang, "asked_at": iso(clock_now()), "understood": q.understood(),
         "ai_used": False, "ai": {"enabled": ai_enabled, "provider": None, "model": None},
         "facts": [f.to_dict(lang) for f in r.facts], "notes": list(r.notes), "warnings": warnings,
         "is_demo": any(f.is_demo for f in r.facts), "insufficient": len(r.facts) == 0, "insufficient_note": None,
@@ -2319,7 +2463,7 @@ def status(session: Session) -> dict:
     s = get_settings()
     enabled = s.llm_enabled()
     info = llm.provider_info(s) if enabled else None
-    today = date.today()
+    today = clock_today()
     briefings = session.scalars(select(Briefing).where(Briefing.briefing_date == today)).all()
     Q = SupplierQuote
     quotes = session.scalar(select(func.count()).select_from(Q).where(

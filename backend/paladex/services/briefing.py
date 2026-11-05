@@ -32,8 +32,8 @@ from sqlalchemy.orm import Session
 
 from ..api import overview as ov
 from ..api.common import iso
-from ..models import Briefing, NewsArticle, Report, utcnow
-from . import llm
+from ..models import Briefing, NewsArticle, Report
+from . import assistant, llm
 from .assistant import (
     COMPANY_BASIS,
     Fact,
@@ -233,7 +233,7 @@ def generate_daily(session: Session, langs: tuple[str, ...] | list[str] = LANGS,
     Returns {"enabled", "date", "generator", "results": {lang: {"status": generated | exists |
     no_facts | rejected | error, ...}}}. Without an AI provider: {"enabled": False, ...} and nothing
     is written. `force` replaces a briefing already stored for the day."""
-    today = today or date.today()
+    today = today or assistant.clock_today()
     out: dict[str, Any] = {"enabled": llm.is_enabled(), "date": today.isoformat(), "generator": None, "results": {}}
     if not out["enabled"]:
         out["skipped"] = "llm_disabled"
@@ -269,7 +269,7 @@ def _generate_one(session: Session, lang: str, today: date, info: llm.ProviderIn
     if res["rejected"]:
         log.warning("AI briefing (%s) rejected by the post-check: %s", lang, checks)
         return {"status": "rejected", "checks": checks}
-    now = utcnow()
+    now = assistant.clock_now()
     content = {
         "version": 1, "is_ai": True, "lang": lang, "generator": info.label, "generated_at": iso(now),
         "sections": res["sections"], "bullets": res["bullets"],
@@ -286,7 +286,7 @@ def _generate_one(session: Session, lang: str, today: date, info: llm.ProviderIn
 
 def stored(session: Session, lang: str, today: date | None = None) -> dict | None:
     """Today's stored briefing (as written by `generate_daily`), or None."""
-    b = _existing(session, today or date.today(), lang)
+    b = _existing(session, today or assistant.clock_today(), lang)
     if b is None:
         return None
     content = b.content if isinstance(b.content, dict) else {}

@@ -8,12 +8,13 @@ post-check (formatting tolerant, invented figures rejected), citation validation
 a mocked Anthropic call (respx) with sentence dropping and whole-answer rejection, privacy of
 supplier offers, and the briefing generation in the format the overview reads.
 
-Fixture values are illustrative (dates relative to today); they imitate the shape of real rows.
+Fixture values are illustrative; they imitate the shape of real rows. The tests never depend on the
+real date: the assistant's clock is fixed at TODAY / NOW and every fixture date is built from it.
 """
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import httpx
 import pytest
@@ -22,6 +23,7 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import func, select
 
 from paladex import config
+from paladex.api import overview as ov
 from paladex.collectors.base import month_bounds, year_bounds
 from paladex.models import (
     Briefing,
@@ -35,13 +37,19 @@ from paladex.models import (
     SupplierQuote,
     TariffMeasure,
     TradeFlowObservation,
-    utcnow,
 )
 from paladex.services import assistant as A
 from paladex.services import briefing as B
 from paladex.services import ingest, llm
 
-TODAY = date.today()
+TODAY = date(2026, 11, 4)                 # the assistant's fixed "today" in these tests
+NOW = datetime(2026, 11, 4, 9, 30)        # and "now" (naive UTC)
+
+
+@pytest.fixture(autouse=True)
+def fixed_clock(monkeypatch):
+    monkeypatch.setattr(A, "clock_today", lambda: TODAY)
+    monkeypatch.setattr(A, "clock_now", lambda: NOW)
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +82,7 @@ def add_prices(db, key: str, origin: str, values: list[float], *, price_type: st
             color_grade=color, terms=terms, price_value=v, currency=currency, unit="kg", price_per_kg=v,
             usd_per_kg=v if currency == "USD" else None, eur_per_kg=round(v / 1.12, 4) if currency != "EUR" else v,
             period_start=start, period_end=end, period_label=f"{start:%Y-%m}", frequency="M",
-            published_at=end + timedelta(days=12) if published else None, source_url=url,
+            published_at=end + timedelta(days=3) if published else None, source_url=url,
             data_status=status, reliability=s.reliability,
         )
 
@@ -111,7 +119,7 @@ def add_news(db, title: str, *, countries: list[str] | None = None, days_ago: fl
     s = src(db, key)
     url = f"https://news.example.org/{abs(hash(title))}"
     a = NewsArticle(source_id=s.id, url=url, canonical_url=url, title=title, title_norm=title.lower(),
-                    publisher="Honey Times", language="en", published_at=utcnow() - timedelta(days=days_ago),
+                    publisher="Honey Times", language="en", published_at=NOW - timedelta(days=days_ago),
                     countries=countries or [], relevance_score=relevance, snippet=snippet)
     db.add(a)
     db.flush()
@@ -381,6 +389,8 @@ def test_events_of_the_week_only_what_was_published_in_it(market):
     assert ans["understood"]["mode"] == "events"
     assert [r["title"] for r in facts_of(ans, "report")] == ["National Honey Report – this week"]
     assert all(f["country"] != "ITA" for f in facts_of(ans, "price"))
+    chn = [f for f in facts_of(ans, "price") if f["country"] == "CHN"]
+    assert chn and chn[0]["published_at"] == "2026-11-03", "the October figure published this week is news"
     assert [n["title"] for n in facts_of(ans, "news")] == ["China honey exports rise as packers seek new buyers",
                                                            "Argentina: beekeepers expect a smaller harvest"]
 
@@ -411,7 +421,7 @@ def test_landed_cost_of_an_offer_comes_from_the_calculator(market):
     market.commit()
     from paladex.services import landed_cost as lc
 
-    expected = lc.calculate(market, lc.input_from_model(q))["headline"]
+    expected = lc.calculate(market, lc.input_from_model(q), today=TODAY)["headline"]
     text = A.landed_cost_text(market, q, "it")
     if expected["eur_per_kg_min"] is None:
         assert text is None
@@ -450,6 +460,39 @@ def test_post_check_accepts_numbers_of_the_context(sentence):
 ])
 def test_post_check_rejects_invented_numbers(sentence, bad):
     assert A.unsupported_numbers(sentence, BASIS) == bad
+
+
+@pytest.mark.parametrize("day", [date(2026, 11, 5), date(2026, 11, 4), date(2027, 1, 31), date(2026, 9, 12)])
+def test_post_check_never_takes_a_date_or_an_identifier_for_a_quantity(day):
+    """Regression: on 5 Nov 2026 an invented "5,00 USD/kg" passed because "5" was the day of the
+    briefing date in the context. Numbers are compared by kind: quantities with quantities only."""
+    basis = (f"Argentina — prezzo all'ingrosso: 4,10 USD/kg (come pubblicato: 1,86 USD/lb), set 2026. "
+             f"Pubblicato il {day.day} {['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'][day.month - 1]} "
+             f"{day.year}; report «National Honey Report – October {day.day}, {day.year}»; periodo 2026-09; settimana 45 "
+             f"del 2026; FR 2026-18701; CELEX 32026R2228; base giuridica R1988/20; contingente 090881; voce 0409.00.00; "
+             f"RASFF 2026.8785; listino n. 44 del 04.11.2026; Lista EAR 2026 N°09\n{day.isoformat()}\n{A.COMPANY_BASIS}")
+    invented = [f"{day.day},00", str(day.day), f"{day.month},0", str(day.year), "45", "18701", "2228", "1988", "90881",
+                "409", "8785", "44", "9"]
+    for tok in invented:
+        assert A.unsupported_numbers(f"Il prezzo arriverà a {tok} USD/kg.", basis) == [tok], tok
+    # the same tokens written as what they are (dates, periods, identifiers) are fine, in any format
+    for ok in (f"Pubblicato il {day.day} {['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'][day.month - 1]} {day.year}.",
+               f"Report of October {day.day}, {day.year}.", "Prezzo 4,10 USD/kg a settembre 2026 (2026-09).",
+               "Documento 2026-18701, regolamento 32026R2228 (R1988/20).", "Contingente 090881, voce 0409.00.00.",
+               "Settimana 45 del 2026, cioè 2026-W45.", f"Dati del {day.year}.", "Container da 20 t, fusti da 300 kg."):
+        assert A.unsupported_numbers(ok, basis) == [], ok
+    # an invented date is rejected as well
+    other = day + timedelta(days=7)
+    assert A.unsupported_numbers(f"Pubblicato il {other.isoformat()}.", basis) == [other.isoformat()]
+    # the briefing's own path: today's date is part of the basis, the invented price is still dropped
+    fs = A.FactSet()
+    fs.add(A.Fact(kind="price", title="ARG", text=basis.split("\n")[0], status="verified_official",
+                  published_at=day.isoformat(), period_label="2026-09"))
+    kept, dropped = A.check_sentences([{"text": f"It will reach {day.day},00 USD/kg next month.", "refs": [1]},
+                                       {"text": "The Argentine wholesale price was 4,10 USD/kg in Sep 2026.", "refs": [1]}],
+                                      fs, require_refs=True, extra_basis=f"{day.isoformat()}\n{A.COMPANY_BASIS}")
+    assert [d["numbers"] for d in dropped] == [[f"{day.day},00"]]
+    assert [k["text"] for k in kept] == ["The Argentine wholesale price was 4,10 USD/kg in Sep 2026."]
 
 
 def test_extract_citations():
@@ -703,11 +746,15 @@ def test_briefing_generated_by_ai_in_the_overview_format(api, db, llm_on):
     impl = bullets[-1]
     assert impl["text"].startswith("Analisi IA — ") and impl["source"] is None and impl["publisher"] == "Analisi IA sui dati citati"
     assert not any("5,00" in b["text"] for b in bullets)
-    # the overview shows it instead of the rule-based summary, every point labelled AI
-    ov = api.get("/api/overview", params={"lang": "it"}).json()["briefing"]
-    assert ov["is_ai"] is True and ov["stored"] is True and ov["generator"] == "anthropic:claude-test-model"
-    assert [b["text"] for b in ov["bullets"]] == [b["text"] for b in bullets] and all(b["is_ai"] for b in ov["bullets"])
-    assert ov["bullets"][2]["publisher"] == price["publisher"] and ov["rules"] == []
+    # the overview's own briefing block (as GET /api/overview builds it, on the same day) shows it
+    # instead of the rule-based summary, every point labelled AI
+    ctx = ov.Ctx(db, "it")
+    ctx.today = TODAY
+    shown = ov.block_briefing(ctx)
+    assert shown["is_ai"] is True and shown["stored"] is True and shown["generator"] == "anthropic:claude-test-model"
+    assert [b["text"] for b in shown["bullets"]] == [b["text"] for b in bullets]
+    assert all(b["is_ai"] for b in shown["bullets"])
+    assert shown["bullets"][2]["publisher"] == price["publisher"] and shown["rules"] == []
     st = api.get("/api/assistant/briefing", params={"lang": "en"}).json()
     assert st["enabled"] and st["briefing"]["generator"] == "anthropic:claude-test-model"
     assert st["briefing"]["bullets"][-1]["text"].startswith("AI analysis — ")
