@@ -42,9 +42,9 @@ if not exist "frontend\dist\index.html" (
 
 if not exist ".env" copy ".env.example" ".env" >nul
 
-cd backend
-.venv\Scripts\python.exe -m paladex serve
-goto :eof
+REM Update (git pull), libraries if they changed, then start. Run as one block: an update may
+REM rewrite this file while it runs, and cmd must not read any line of it afterwards.
+(backend\.venv\Scripts\python.exe scripts\launch.py & exit /b)
 
 :error
 echo.

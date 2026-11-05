@@ -1,9 +1,58 @@
 // Friendly, step-by-step instructions to add a free API key to the .env file.
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
-import { ChevronDown, ExternalLink, KeyRound, ShieldCheck } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Check, ChevronDown, ExternalLink, KeyRound, ShieldCheck } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { pickLang, useI18n } from '@/i18n'
+import { api, ApiError } from '@/lib/api'
 import type { ApiKeyInfo } from './types'
+
+/** Paste the key received by e-mail: saved in .env on this computer, then the source is updated. */
+function KeyPaste({ settingAttr, sourceKeys }: { settingAttr: string; sourceKeys: string[] }) {
+  const { t } = useI18n()
+  const qc = useQueryClient()
+  const [value, setValue] = useState('')
+  const save = useMutation({
+    mutationFn: async (v: string) => {
+      const res = await api.put<{ configured: boolean }>(`/quality/keys/${encodeURIComponent(settingAttr)}`, { value: v })
+      if (res.configured && sourceKeys.length) await api.post('/collect', { keys: sourceKeys })
+      return res
+    },
+    onSuccess: () => {
+      setValue('')
+      qc.invalidateQueries({ queryKey: ['quality-keys'] })
+      qc.invalidateQueries({ queryKey: ['collect-status'] })
+      setTimeout(() => qc.invalidateQueries({ queryKey: ['sources'] }), 1500)
+    },
+  })
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (value.trim()) save.mutate(value.trim())
+  }
+  return (
+    <form onSubmit={submit} className="mt-2.5 flex flex-wrap items-center gap-2">
+      <input
+        type="password" autoComplete="off" spellCheck={false} value={value}
+        onChange={(e) => { setValue(e.target.value); save.reset() }}
+        placeholder={t('sources.key.paste')} aria-label={t('sources.key.paste')}
+        className="field !py-2 bg-white flex-1 min-w-[12rem] max-w-md"
+      />
+      <button type="submit" className="btn-primary !py-2" disabled={!value.trim() || save.isPending}>
+        {save.isPending ? t('sources.key.saving') : t('sources.key.save')}
+      </button>
+      {save.isSuccess && (
+        <span className="basis-full flex items-center gap-1.5 text-[0.88rem] text-forest-700">
+          <Check size={15} /> {t('sources.key.saved')}
+        </span>
+      )}
+      {save.isError && (
+        <span className="basis-full text-[0.88rem] text-down">
+          {save.error instanceof ApiError && save.error.status === 422 ? t('sources.key.invalid') : t('sources.key.error')}
+        </span>
+      )}
+    </form>
+  )
+}
 
 export function KeyHelp({ info, settingAttr, optional, defaultOpen = false }: {
   info: ApiKeyInfo | undefined; settingAttr: string; optional: boolean; defaultOpen?: boolean
@@ -28,6 +77,7 @@ export function KeyHelp({ info, settingAttr, optional, defaultOpen = false }: {
         </button>
       </div>
       <p className="mt-1 text-[0.92rem] text-charcoal-soft">{optional ? t('sources.key.optional') : t('sources.key.required')}{help ? ` ${help}` : ''}</p>
+      <KeyPaste settingAttr={settingAttr} sourceKeys={(info?.sources ?? []).map((s) => s.key)} />
       {open && <>
       <ol className="mt-3 space-y-2 text-[0.95rem] text-charcoal-soft list-decimal pl-5 marker:text-gold-dark marker:font-medium">
         <li>

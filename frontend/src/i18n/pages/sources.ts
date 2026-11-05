@@ -99,6 +99,12 @@ export default {
     'key.step5': 'Salva il file, chiudi l’applicazione e riaprila.',
     'key.placeholder': 'la-tua-chiave',
     'key.privacy': 'La chiave resta solo su questo computer e non viene mai mostrata nel browser.',
+    'key.paste': 'Hai già la chiave? Incollala qui',
+    'key.save': 'Salva la chiave',
+    'key.saving': 'Salvataggio…',
+    'key.saved': 'Chiave salvata su questo computer: sto scaricando i dati di questa fonte.',
+    'key.invalid': 'La chiave contiene spazi o caratteri non validi: incolla solo la chiave.',
+    'key.error': 'Salvataggio non riuscito. Riprova, oppure segui i passaggi qui sotto.',
 
     // runs
     'runs.title': 'Storico degli aggiornamenti',
@@ -298,6 +304,12 @@ export default {
     'key.step5': 'Save the file, close the application and open it again.',
     'key.placeholder': 'your-key',
     'key.privacy': 'The key stays on this computer only and is never shown in the browser.',
+    'key.paste': 'Already have the key? Paste it here',
+    'key.save': 'Save the key',
+    'key.saving': 'Saving…',
+    'key.saved': 'Key saved on this computer: downloading this source now.',
+    'key.invalid': 'The key contains spaces or invalid characters: paste the key only.',
+    'key.error': 'Could not save it. Try again, or follow the steps below.',
 
     'runs.title': 'Update history',
     'runs.empty': 'No updates recorded for this source.',

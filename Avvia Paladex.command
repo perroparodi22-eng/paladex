@@ -21,4 +21,6 @@ if [ ! -f frontend/dist/index.html ]; then
   fi
 fi
 [ -f .env ] || cp .env.example .env
-cd backend && exec .venv/bin/python -m paladex serve
+# Update (git pull), libraries if they changed, then start. `exec`: this shell is gone before an
+# update can rewrite this file.
+exec backend/.venv/bin/python scripts/launch.py

@@ -6,6 +6,7 @@ non-secret booleans exposed by `public_flags()`.
 """
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -93,9 +94,15 @@ class Settings(BaseSettings):
         }
 
 
+def env_file_path() -> Path:
+    """The local `.env` file with the owner's settings and keys (PALADEX_ENV_FILE overrides it,
+    e.g. in tests, so they never read or write the real file)."""
+    return Path(os.environ.get("PALADEX_ENV_FILE") or PROJECT_ROOT / ".env")
+
+
 @lru_cache
 def get_settings() -> Settings:
-    s = Settings()
+    s = Settings(_env_file=str(env_file_path()))
     s.data_dir.mkdir(parents=True, exist_ok=True)
     s.raw_dir.mkdir(parents=True, exist_ok=True)
     return s

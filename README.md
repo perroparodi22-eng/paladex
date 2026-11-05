@@ -44,13 +44,15 @@ Facoltativo: per leggere il prezzo minimo all'export del miele indiano (avvisi D
 
 Senza chiavi l'applicazione funziona comunque: le fonti che le richiedono vengono saltate (o usate in versione ridotta) e la pagina Fonti lo segnala.
 
+**Il modo più semplice per inserire una chiave:** pagina **Fonti e qualità dati** → la fonte che chiede la chiave → incollarla nel riquadro «Hai già la chiave? Incollala qui» → **Salva la chiave**. Paladex la salva nel file `.env` di questo computer e scarica subito i dati di quella fonte.
+
 ### Dati dimostrativi
 
 Per provare l'interfaccia prima che arrivino i dati reali, nella pagina **Fonti e qualità dati** si possono caricare **dati dimostrativi**. Sono contrassegnati ovunque con un'etichetta rossa **DEMO** e da una fascia rossa in alto, e si possono eliminare con un clic. **Non sono dati reali.**
 
 ### Aggiornare Paladex
 
-Quando arriva una nuova versione: aprire il terminale nella cartella `paladex` ed eseguire `git pull`, poi riavviare con **Avvia Paladex**. I dati già salvati non vengono mai cancellati; i nuovi dati iniziali inclusi nella versione si aggiungono solo dove mancano.
+Paladex si aggiorna da solo: a ogni avvio con **Avvia Paladex** scarica l'ultima versione (serve che la cartella sia stata scaricata con `git`) e, se servono, le librerie nuove. Se non c'è connessione o qualcosa non va, parte semplicemente la versione attuale. I dati (`data/`) e le chiavi (`.env`) non vengono mai toccati; i nuovi dati iniziali inclusi in una versione si aggiungono solo dove mancano. Per disattivare l'aggiornamento automatico: creare nella cartella un file vuoto chiamato `.no-auto-update`. Aggiornamento manuale: `git pull` nella cartella `paladex`.
 
 ### Backup
 
@@ -72,7 +74,7 @@ Tutti i dati si trovano nella cartella `data/`. Per fare una copia di sicurezza,
 * **macOS:** double-click `Avvia Paladex.command`.
 * **Linux:** run `./start.sh`.
 
-The browser opens at <http://127.0.0.1:8765> and shows real data straight away: the app ships with data already collected from the official sources (`starter/`, merged once per version at start-up, never overwriting local data, collection date shown at the top). Collection then runs automatically on a schedule, on start-up when the last run is older than 6 hours, and on demand with the **"Aggiorna dati"** button. To update the app: `git pull` in the `paladex` folder, then restart.
+The browser opens at <http://127.0.0.1:8765> and shows real data straight away: the app ships with data already collected from the official sources (`starter/`, merged once per version at start-up, never overwriting local data, collection date shown at the top). Collection then runs automatically on a schedule, on start-up when the last run is older than 6 hours, and on demand with the **"Aggiorna dati"** button. The app updates itself: at every start the launcher runs `git pull --ff-only` (never merges, never asks for a password, gives up after 90 s and starts the current version on any problem), reinstalls the Python libraries when `backend/requirements.txt` changed, then starts (`scripts/launch.py`). Opt out with an empty `.no-auto-update` file or `PALADEX_AUTO_UPDATE=false`. Free source keys can be pasted on the Sources page (saved to the local `.env`, never sent back to the browser).
 
 ### Command line (advanced)
 

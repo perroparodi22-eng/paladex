@@ -6,10 +6,12 @@ from collections import Counter
 from datetime import timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
+from .. import envfile
 from ..config import get_settings
 from ..db import get_db
 from ..enums import RunStatus, Severity
@@ -195,3 +197,29 @@ def api_keys(db: Session = Depends(get_db)):
             "sources": srcs,
         })
     return {"keys": out, "env_file": ".env"}
+
+
+class KeyValue(BaseModel):
+    value: str = Field(default="", max_length=400)
+
+
+@router.put("/quality/keys/{setting}")
+def save_api_key(setting: str, body: KeyValue):
+    """Save a pasted key in the local `.env` file (this computer only) and use it right away.
+
+    Only the known optional keys (and the AI provider) can be written. The value is never
+    returned. The JSON body means a web page elsewhere cannot submit it from the owner's browser
+    (a cross-site JSON request needs a CORS permission this app never grants)."""
+    allowed = set(quality_service.KEY_HELP) | {"llm_provider"}
+    if setting not in allowed:
+        raise HTTPException(404, "unknown key")
+    value = body.value.strip()
+    if setting == "llm_provider":
+        if value not in envfile.LLM_PROVIDERS:
+            raise HTTPException(422, "provider must be anthropic, openai or none")
+    elif value and not envfile.VALUE_RE.match(value):
+        raise HTTPException(422, "La chiave contiene spazi o caratteri non validi: incollare solo la chiave. / "
+                                 "The key contains spaces or invalid characters: paste the key only.")
+    envfile.set_env_value(quality_service.env_var_for(setting), value or None)
+    get_settings.cache_clear()
+    return {"setting": setting, "configured": bool(getattr(get_settings(), setting, None))}
