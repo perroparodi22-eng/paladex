@@ -48,7 +48,7 @@ SUMMARY_MAX_CHARS = 700
 # scheduler's thread pool, so passes can overlap and would send the same articles twice.
 _run_lock = threading.Lock()
 
-SYSTEM_PROMPT = """You assist the owner of Parodi Group, an Italian/US importer of bulk honey, who skims honey-market news every morning.
+SYSTEM_PROMPT = """You assist the owner of an Italian/US bulk-honey importing company, who skims honey-market news every morning.
 For each article you receive ONLY its headline and, when available, the publisher's own short excerpt. You do not see the article.
 
 Strict rules:

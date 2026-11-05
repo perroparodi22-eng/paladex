@@ -205,7 +205,7 @@ function FlowsTable({ d, partner, onPartner, flow }: { d: FlowsResponse; partner
           {d.others && (
             <tr className="border-b border-line-soft text-charcoal-soft">
               <td />
-              <td className="py-2 px-2 italic">{t('trade.flows.others', { n: d.others.count })}</td>
+              <td className="py-2 px-2 italic">{d.others.count === 1 ? t('trade.flows.othersOne') : t('trade.flows.others', { n: d.others.count })}</td>
               <td className="py-2 px-2 num text-right">{fmtT(d.others.net_weight_kg, lang)}</td>
               <td className="py-2 px-2"><div className="flex items-center gap-2"><ShareBar pct={d.others.share_volume_pct} tone="forest" className="flex-1" /><span className="num text-[0.85rem] w-[3.4rem] text-right">{fmtPct(d.others.share_volume_pct, lang, 1, false)}</span></div></td>
               <td colSpan={2} />

@@ -53,8 +53,14 @@ export function PriorityList({ data, metric }: { data: CountriesResponse; metric
                   {v === null ? <span className="font-sans text-[0.8rem]">{t('countries.noData')}</span> : (
                     <>
                       <span className="text-[0.95rem]">{fmtMetric(v, metric, lang, newsUnit)}</span>
-                      {h && <BasisMarks summedPartners={h.summed_from_partners} partners={h.partners_count} summedMonths={h.summed_from_months} />}
-                      {yr && <span className="block text-[0.7rem] leading-none text-muted">{yr}</span>}
+                      {/* The basis mark ("12 m", "Σ") sits on the year line: next to the figure it
+                          overflowed the fixed-width column and stuck out of the card. */}
+                      {(yr || h) && (
+                        <span className="flex items-center justify-end text-[0.7rem] leading-none text-muted">
+                          {yr}
+                          {h && <BasisMarks summedPartners={h.summed_from_partners} partners={h.partners_count} summedMonths={h.summed_from_months} />}
+                        </span>
+                      )}
                     </>
                   )}
                 </span>

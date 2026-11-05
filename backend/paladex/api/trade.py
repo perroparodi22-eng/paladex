@@ -11,7 +11,9 @@ Data rules enforced here (docs/DEVELOPING.md):
 * Current revisions only (`is_current`), demo rows only when demo display is on (`demo_clause`).
 * **One source per figure.** Two sources reporting the same reporter / flow / period are never
   summed or averaged. A ranking may show different sources on different rows; every row names
-  its own. A time series is returned per source, so disagreement stays visible.
+  its own. A time series is returned per source, so disagreement stays visible. For a complete
+  year, the reporter's own official statistics come first (`Ctx.is_national`); the others stay
+  listed as alternatives.
 * **Declared flows only.** A country's declared exports and what its customers declare as
   imports from it ("mirror data") differ (FOB vs CIF, timing, re-exports, confidential trade).
   They are never merged. The mirror view (`basis=mirror`) is a separate, labelled basis.
@@ -104,6 +106,10 @@ class Agg:
     source_url: str | None = None
     currencies: set[str] = field(default_factory=set)
     value_basis: str | None = None
+    # Part of a published total that the source keeps under statistical secrecy (INDEC's "Confidencial"
+    # destinations, `extra.confidential_bucket` of its World row): a global dataset that allocates
+    # only the visible destinations comes out lower by about this much.
+    confidential_kg: float | None = None
 
     @classmethod
     def from_row(cls, r) -> Agg:
@@ -115,7 +121,7 @@ class Agg:
             partners=getattr(r, "partners", 0) or 0, start=r.start, end=r.end, label=r.label,
             published_at=r.pub, collected_at=r.col, is_demo=bool(r.demo),
             statuses={s for s in (r.statuses or "").split(",") if s}, source_url=r.url,
-            currencies=currencies, value_basis=r.vb,
+            currencies=currencies, value_basis=r.vb, confidential_kg=getattr(r, "conf_kg", None),
         )
 
     def merge(self, other: Agg) -> Agg:
@@ -138,6 +144,7 @@ class Agg:
             is_demo=self.is_demo or other.is_demo, statuses=self.statuses | other.statuses,
             source_url=self.source_url or other.source_url, currencies=self.currencies | other.currencies,
             value_basis=self.value_basis or other.value_basis,
+            confidential_kg=add(self.confidential_kg, other.confidential_kg),
         )
 
     @property
@@ -181,7 +188,7 @@ def _usd_expr():
     return func.coalesce(T.usd_value, case((T.currency == "USD", T.value), else_=None))
 
 
-def _agg_columns() -> list:
+def _agg_columns(with_confidential: bool = False) -> list:
     usd = _usd_expr()
     both = and_(T.net_weight_kg.is_not(None), usd.is_not(None))
     return [
@@ -199,7 +206,11 @@ def _agg_columns() -> list:
         func.group_concat(distinct(T.data_status)).label("statuses"),
         func.min(T.currency).label("ccy_min"), func.max(T.currency).label("ccy_max"),
         func.max(T.value_basis).label("vb"),
-    ]
+    ] + ([
+        # JSON is read only for one reporter's series (a few hundred rows), never for the global totals
+        func.sum(case((T.partner_iso3 == "WLD", func.json_extract(T.extra, "$.confidential_bucket.kg")),
+                      else_=None)).label("conf_kg"),
+    ] if with_confidential else [])
 
 
 def base_where(db: Session) -> list:
@@ -308,11 +319,21 @@ class Ctx:
             return {"name_it": AGGREGATES[iso3]["name_it"], "name_en": AGGREGATES[iso3]["name_en"]}
         return {"name_it": None, "name_en": None}
 
+    def is_national(self, c: Candidate) -> bool:
+        """The reporter's own official statistics (INDEC for Argentina, Comex Stat for Brazil, the US
+        Census for the USA), as opposed to a global dataset that republishes them."""
+        src = self.source(c.source_id)
+        return bool(src and src.country_iso3 == c.reporter and src.reliability == "official")
+
     def rank_key(self, c: Candidate) -> tuple:
         src = self.source(c.source_id)
         rel = RELIABILITY_ORDER.index(src.reliability) if src and src.reliability in RELIABILITY_ORDER else len(RELIABILITY_ORDER)
         pref = SOURCE_PREFERENCE.index(src.key) if src and src.key in SOURCE_PREFERENCE else len(SOURCE_PREFERENCE)
-        return (c.complete, c.freq == "A", c.uses_world, -rel, -pref, c.partners_count, c.periods)
+        # Official national sources first: a complete year (12 months) of the reporter's own statistics
+        # beats a global dataset's annual figure, which can leave out what the country publishes (INDEC's
+        # confidential destinations: Argentina 2024 85,736 t against UN Comtrade's 78,375 t).
+        return (c.complete, c.complete and self.is_national(c), c.freq == "A", c.uses_world, -rel, -pref,
+                c.partners_count, c.periods)
 
     def providers(self, category: str | Iterable[str] = "trade", *, country: str | None = None,
                   prefer: Iterable[str] = (), country_first: bool = True) -> list[dict]:
@@ -489,6 +510,7 @@ def figures(agg: Agg) -> dict:
         "value_basis": agg.value_basis,
         "unit_value_usd_per_kg": agg.unit_value,
         "fx_missing": agg.fx_missing,
+        "confidential_kg": _r(agg.confidential_kg, 1),
     }
 
 
@@ -965,7 +987,7 @@ def build_series(ctx: Ctx, reporter: str, flow: str, partner: str = "WLD", freq:
     if years_back:
         where.append(T.period_start >= date(ctx.today.year - years_back, 1, 1))
     q = (select(T.source_id.label("sid"), T.frequency.label("freq"), T.period_start.label("ps"), _is_world().label("w"),
-                func.count(distinct(T.partner_iso3)).label("partners"), *_agg_columns())
+                func.count(distinct(T.partner_iso3)).label("partners"), *_agg_columns(with_confidential=True))
          .where(*where).group_by(T.source_id, T.frequency, T.period_start, _is_world()))
     # (sid, freq, period_start) -> {"w": Agg, "p": Agg}
     cells: dict[tuple, dict[str, Agg]] = defaultdict(dict)
@@ -1031,13 +1053,16 @@ def build_series(ctx: Ctx, reporter: str, flow: str, partner: str = "WLD", freq:
         for p in s["points"]:
             by_period[p["period_label"]].append((s["source"], p))
     for label, items in sorted(by_period.items()):
-        vals = [(src, p["net_weight_kg"]) for src, p in items if p["net_weight_kg"]]
+        vals = [(src, p["net_weight_kg"], p.get("confidential_kg")) for src, p in items if p["net_weight_kg"]]
         if len(vals) < 2:
             continue
-        lo, hi = min(v for _, v in vals), max(v for _, v in vals)
+        lo, hi = min(v for _, v, _ in vals), max(v for _, v, _ in vals)
         if lo > 0 and (hi - lo) / lo > DISCREPANCY_THRESHOLD:
+            # `confidential_kg`: the part of a total under statistical secrecy, the usual reason why a
+            # national total exceeds a dataset that allocates only the visible destinations
             discrepancies.append({"period_label": label, "diff_pct": round((hi - lo) / lo * 100, 1),
-                                  "values": [{"source": src, "net_weight_kg": v} for src, v in vals]})
+                                  "values": [{"source": src, "net_weight_kg": v, "confidential_kg": c}
+                                             for src, v, c in vals]})
     return {
         "reporter": reporter, "partner": partner, "flow": flow, "freq": freq,
         # partner 'WLD' means the reporter's total, which for the EU aggregates is extra-EU trade

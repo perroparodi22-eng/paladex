@@ -203,7 +203,9 @@ def production_table(ctx: Ctx, scope: str = "monitored") -> dict:
             "forecast": _prod_point(fc[-1]) if fc else None,
             "latest_t": _tonnes(latest.value, unit) if latest else None,
             "years": len(actual),
-            "_rank": (-len(coverage[sid]), rel, -(latest.period_start.year if latest else 0)),
+            # official sources first, then the newest year (IBGE's 2025 figure before FAOSTAT's 2024
+            # one), then the source covering most countries
+            "_rank": (rel, -(latest.period_start.year if latest else 0), -len(coverage[sid])),
         })
     out = []
     for iso3, series in by_country.items():
@@ -214,7 +216,7 @@ def production_table(ctx: Ctx, scope: str = "monitored") -> dict:
         out.append({
             "iso3": iso3, **names, "monitored": iso3 in monitored, "regions": regions_by_country.get(iso3, []),
             "series": series,
-            # the first series (source covering most countries, then most reliable) orders the table
+            # the first series (most reliable, newest year, widest coverage) labels and orders the row
             "primary_t": series[0]["latest_t"], "primary_year": (series[0]["latest"] or {}).get("year"),
             "is_demo": any((s["latest"] or {}).get("is_demo") for s in series),
         })

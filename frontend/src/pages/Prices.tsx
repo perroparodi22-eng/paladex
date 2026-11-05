@@ -13,7 +13,7 @@ import { RecordsTable } from '@/components/prices/RecordsTable'
 import type { FacetsResponse, LatestResponse, SeriesResponse } from '@/components/prices/types'
 import { usePriceFilters } from '@/components/prices/useFilters'
 import { useSeriesSlots } from '@/components/prices/useSeriesSlots'
-import { fmtPeriodLabel, PRICE_TYPE_ORDER, seriesLabel, varyingDims } from '@/components/prices/utils'
+import { disambiguateLabels, fmtPeriodLabel, PRICE_TYPE_ORDER, seriesLabel, varyingDims } from '@/components/prices/utils'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { useLabels } from '@/lib/meta'
@@ -71,7 +71,7 @@ export default function Prices() {
     const dims = varyingDims(items)
     const out: Record<string, string> = {}
     for (const s of seriesData?.series ?? []) out[s.id] = seriesLabel(s, dims, { country, variety, t })
-    return out
+    return disambiguateLabels(seriesData?.series ?? [], out)
   }, [seriesData, latestData, country, variety, t])
 
   const latestPeriod = useMemo(() => {

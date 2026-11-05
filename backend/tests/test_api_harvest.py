@@ -338,3 +338,48 @@ def test_reports_are_limited_per_source_and_news_are_production_or_weather(api, 
     assert titles == ["Drought cuts Argentina honey crop", "Frost hits acacia flowering in Hungary"]
     assert r["news"][0]["harvest_topics"] == ["production", "weather"]
     assert r["news_link"].startswith("/notizie?topic=") and r["news_min_relevance"] == H.NEWS_MIN_RELEVANCE
+
+
+def test_regional_production_never_becomes_a_national_series(api, db):
+    """Lead request 2026-11-05: IBGE stores Brazil's 27 states as `production_by_region` (state in extra.region).
+    Grouped by metric they made ONE series of 297 points whose 'latest' was an arbitrary state and whose
+    year-on-year change compared two states. Per-country and archive series leave `*_by_region` metrics out;
+    the national IBGE figures stay, and the newest official figure (IBGE 2025) heads Brazil's row."""
+    from paladex.models import Source
+
+    fao = source(db, "faostat")
+    ibge = Source(key="t_ibge", name="IBGE PPM", publisher="IBGE", homepage="https://example.org", kind="api",
+                  reliability="official", category="production", country_iso3="BRA", expected_max_age_days=400)
+    db.add(ibge)
+    db.flush()
+    production(db, fao, "BRA", 2023, 64200.0)
+    production(db, fao, "BRA", 2024, 65900.0)
+    production(db, ibge, "BRA", 2024, 66100.0)
+    production(db, ibge, "BRA", 2025, 71300.0)
+    production(db, ibge, "BRA", 2025, 1_450_000.0, metric="production_value", unit="1000 BRL")
+    for state, value in (("Paraná", 9800.0), ("Rio Grande do Sul", 9100.0), ("Piauí", 6200.0)):
+        for y in (2024, 2025):
+            start, end = year_bounds(y)
+            ingest.record(
+                db, ProductionStat, source_id=ibge.id, series_key=f"ibge|BRA|{state}|{y}", country_iso3="BRA",
+                metric="production_by_region", value=value, unit="t", period_start=start, period_end=end,
+                period_label=str(y), frequency="A", published_at=date(y + 1, 9, 20), data_status="published",
+                reliability="official", extra={"region": state})
+    db.commit()
+
+    d = api.get("/api/harvest/production/BRA").json()
+    assert {m["metric"] for m in d["metrics"]} == {"production", "production_value"}
+    prod = next(m for m in d["metrics"] if m["metric"] == "production")
+    ibge_s = next(s for s in prod["series"] if s["source"]["key"] == "t_ibge")
+    assert [p["value"] for p in ibge_s["points"]] == [66100.0, 71300.0] and ibge_s["latest"]["period_label"] == "2025"
+    profile = api.get("/api/countries/BRA").json()
+    assert {m["metric"] for m in profile["production"]["metrics"]} == {"production", "production_value"}
+    arch = api.get("/api/archive/production", params={"country": "BRA", "metric": "production"}).json()
+    assert {m["key"] for m in arch["metrics"]} == {"production", "production_value"}
+    assert sorted(len(s["points"]) for s in arch["series"]) == [2, 2]
+    assert api.get("/api/archive/production",
+                   params={"country": "BRA", "metric": "production_by_region"}).json()["available"] is False
+    row = next(c for c in api.get("/api/harvest/production", params={"scope": "all"}).json()["countries"]
+               if c["iso3"] == "BRA")
+    assert row["series"][0]["source"]["key"] == "t_ibge" and row["primary_year"] == 2025 and row["primary_t"] == 71300.0
+    assert row["series"][1]["source"]["key"] == "faostat"

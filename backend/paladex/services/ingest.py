@@ -54,18 +54,20 @@ def value_hash(model: type, fields: dict) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
 
+def _current_rows(session: Session, model: type, source_id: int, series_key: str, is_demo: bool) -> list:
+    """The current row(s) of a series. Only `series_key` is filtered in SQL, the rest in Python: given
+    all four terms, SQLite (no table statistics) used the `is_demo` index, which matches every real row,
+    so each write scanned the whole table (30 ms per row on a 53k-row trade table, growing with it: a
+    Comext pull of all member states took two minutes per reporter). By series_key: 0.02 ms."""
+    rows = session.scalars(select(model).where(model.series_key == series_key)).all()
+    return [r for r in rows if r.source_id == source_id and r.is_current and bool(r.is_demo) == bool(is_demo)]
+
+
 def record(session: Session, model: type, *, source_id: int, series_key: str, is_demo: bool = False, **fields) -> tuple[Outcome, object]:
     if model not in VALUE_FIELDS:
         raise TypeError(f"Unsupported observation model {model!r}")
     vh = value_hash(model, fields)
-    current = session.scalars(
-        select(model).where(
-            model.source_id == source_id,
-            model.series_key == series_key,
-            model.is_current.is_(True),
-            model.is_demo.is_(is_demo),
-        )
-    ).first()
+    current = next(iter(_current_rows(session, model, source_id, series_key, is_demo)), None)
     now = utcnow()
     if current is not None and current.value_hash == vh:
         current.last_seen_at = now
@@ -105,14 +107,7 @@ def retire(session: Session, model: type, *, source_id: int, series_key: str, is
     the series has no current row)."""
     if model not in VALUE_FIELDS:
         raise TypeError(f"Unsupported observation model {model!r}")
-    rows = session.scalars(
-        select(model).where(
-            model.source_id == source_id,
-            model.series_key == series_key,
-            model.is_current.is_(True),
-            model.is_demo.is_(is_demo),
-        )
-    ).all()
+    rows = _current_rows(session, model, source_id, series_key, is_demo)
     for row in rows:
         row.is_current = False
     if rows:

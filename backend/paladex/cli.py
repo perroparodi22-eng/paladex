@@ -55,6 +55,20 @@ def main(argv: list[str] | None = None) -> int:
 
         port = args.port or settings.port
         url = f"http://{settings.host}:{port}"
+        running = port_owner(settings.host, port)
+        if running == "paladex":
+            # Started twice (e.g. a second double-click): show the one already open.
+            print(f"\n  Paladex è già aperto: lo mostro nel browser ({url}).\n"
+                  f"  Paladex is already running: showing it in the browser ({url}).\n", flush=True)
+            if not args.no_browser:
+                webbrowser.open(url)
+            return 0
+        if running == "other":
+            print(f"\n  La porta {port} è già usata da un altro programma. Chiuderlo, oppure scegliere un'altra porta "
+                  f"nel file .env (per esempio PALADEX_PORT={port + 1}), e riaprire Paladex.\n"
+                  f"  Port {port} is already used by another program. Close it, or choose another port in the .env "
+                  f"file (for example PALADEX_PORT={port + 1}), and start Paladex again.\n", flush=True)
+            return 1
         print(f"\n  Parodi Group — Honey Intelligence\n  Apri il browser su / Open: {url}\n  (Chiudi questa finestra per fermare l'applicazione)\n")
         # Real starter data first (once per version, before the server and the scheduler start):
         # a new installation opens with data instead of empty pages.
@@ -109,6 +123,30 @@ def main(argv: list[str] | None = None) -> int:
             set_setting(sess, "show_demo", False)
         print(f"Deleted {n} demo rows")
     return 0
+
+
+def port_owner(host: str, port: int) -> str:
+    """Who listens on host:port already: 'paladex' (a running Paladex), 'other' (another
+    program) or '' (free)."""
+    import socket
+    import urllib.request
+
+    if host in ("", "0.0.0.0", "::"):
+        host = "127.0.0.1"
+    try:
+        with socket.create_connection((host, port), timeout=1):
+            pass
+    except OSError:
+        return ""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # never through a proxy
+    name = f"[{host}]" if ":" in host else host
+    try:
+        with opener.open(f"http://{name}:{port}/api/health", timeout=3) as res:
+            if json.loads(res.read(1000) or b"{}") == {"ok": True}:
+                return "paladex"
+    except Exception:  # noqa: BLE001 - anything else listening there is "another program"
+        pass
+    return "other"
 
 
 def _import_starter_data(verbose: bool = False) -> dict | None:

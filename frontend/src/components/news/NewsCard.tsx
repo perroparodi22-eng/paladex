@@ -111,7 +111,8 @@ export function NewsCard({ item, actions }: { item: NewsItem; actions: CardActio
         {excerpt}
       </p>
       {longExcerpt && (
-        <button type="button" className="mt-0.5 text-[0.85rem] text-forest-700 hover:underline" onClick={() => setExcerptOpen((v) => !v)}>
+        <button type="button" className="mt-0.5 text-[0.85rem] text-forest-700 hover:underline" onClick={() => setExcerptOpen((v) => !v)}
+          aria-expanded={excerptOpen}>
           {excerptOpen ? t('news.card.readLess') : t('news.card.readMore')}
         </button>
       )}

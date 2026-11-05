@@ -6,7 +6,7 @@
 //   node scripts/mirror/serve.mjs <copy-dir> [port]        (default port 8790)
 import { createServer } from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
-import { extname, join, normalize, resolve } from 'node:path'
+import { extname, join, normalize, resolve, sep } from 'node:path'
 
 const root = resolve(process.argv[2] ?? '.')
 const port = Number(process.argv[3] ?? 8790)
@@ -34,8 +34,9 @@ const headers = rules('_headers', (s) => {
 const matches = (pattern, path) => (pattern.endsWith('*') ? path.startsWith(pattern.slice(0, -1)) : path === pattern)
 
 function fileFor(path) {
-  const p = normalize(join(root, decodeURIComponent(path)))
-  if (!p.startsWith(root)) return null
+  let p
+  try { p = normalize(join(root, decodeURIComponent(path))) } catch { return null }   // malformed %-escape
+  if (p !== root && !p.startsWith(root + sep)) return null                            // outside the copy
   if (existsSync(p) && statSync(p).isFile()) return p
   if (existsSync(join(p, 'index.html'))) return join(p, 'index.html')
   return null

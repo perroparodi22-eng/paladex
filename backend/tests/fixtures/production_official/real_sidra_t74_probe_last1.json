@@ -1,0 +1,47 @@
+[
+  {
+    "NC": "Nível Territorial (Código)",
+    "NN": "Nível Territorial",
+    "MC": "Unidade de Medida (Código)",
+    "MN": "Unidade de Medida",
+    "V": "Valor",
+    "D1C": "Brasil (Código)",
+    "D1N": "Brasil",
+    "D2C": "Variável (Código)",
+    "D2N": "Variável",
+    "D3C": "Ano (Código)",
+    "D3N": "Ano",
+    "D4C": "Tipo de produto de origem animal (Código)",
+    "D4N": "Tipo de produto de origem animal"
+  },
+  {
+    "NC": "1",
+    "NN": "Brasil",
+    "MC": "1007",
+    "MN": "Quilogramas",
+    "V": "71329020",
+    "D1C": "1",
+    "D1N": "Brasil",
+    "D2C": "106",
+    "D2N": "Produção de origem animal",
+    "D3C": "2025",
+    "D3N": "2025",
+    "D4C": "2687",
+    "D4N": "Mel de abelha"
+  },
+  {
+    "NC": "1",
+    "NN": "Brasil",
+    "MC": "40",
+    "MN": "Mil Reais",
+    "V": "1216769",
+    "D1C": "1",
+    "D1N": "Brasil",
+    "D2C": "215",
+    "D2N": "Valor da produção",
+    "D3C": "2025",
+    "D3N": "2025",
+    "D4C": "2687",
+    "D4N": "Mel de abelha"
+  }
+]

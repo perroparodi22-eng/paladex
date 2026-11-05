@@ -116,6 +116,30 @@ def test_stale_thresholds_and_auto_resolve(db):
     assert db.scalar(select(DataQualityIssue).where(DataQualityIssue.dedup_key == "stale:late_src")) is not None
 
 
+def test_old_data_without_publication_date_never_looks_current(db):
+    """Review 2026-11-05: ISMEA gives no publication date; its newest prices are for June 2026 (week 4) but were
+    first collected on 4 Nov, and the source showed as 'current'. A source without publication dates is dated
+    by its newest period when that data was already older than one cycle on arrival."""
+    from paladex.api.common import freshness, source_reference_date
+
+    ismea = make_source(db, "t_ismea", expected_max_age_days=45, latest_period_label="2026-06-S4",
+                        latest_period_start=date(2026, 6, 22), last_new_data_at=datetime(2026, 11, 1, 20, 50))
+    census = make_source(db, "t_census", expected_max_age_days=50, latest_period_label="2026-09",
+                         latest_period_start=date(2026, 9, 1), last_new_data_at=datetime(2026, 11, 1, 13, 52))
+    weekly = make_source(db, "t_taxud", expected_max_age_days=21, latest_period_label="2026-W40",
+                         latest_period_start=date(2026, 9, 28), last_new_data_at=datetime(2026, 11, 1, 9, 0))
+    f = freshness(ismea, TODAY)
+    assert f["status"] == "stale" and f["reference_date"] == "2026-06-22" and f["age_days"] == 133
+    # data that arrived within its cycle (Census: September released early November) keeps its arrival date
+    assert freshness(census, TODAY)["status"] == "current" and source_reference_date(census) == date(2026, 11, 1)
+    # an ISO week ends on its Sunday: 4 Oct + 21 days < 1 Nov -> dated by the week, not by the collection
+    assert source_reference_date(weekly) == date(2026, 10, 4) and freshness(weekly, TODAY)["status"] == "aging"
+    run(db)
+    found = issues(db, "stale:")
+    assert set(found) == {"stale:t_ismea"}
+    assert "28 giu 2026" not in found["stale:t_ismea"].message_it and "22 giu 2026" in found["stale:t_ismea"].message_it
+
+
 # --------------------------------------------------------------- (b) collection failed
 def test_collection_failures_ignore_offline(db):
     one = make_source(db, "one_fail")
@@ -238,6 +262,46 @@ def test_discrepancy_between_sources(db):
     assert "Listino A 2,80 USD/kg" in d.message_it and "Listino B 3,40 USD/kg" in d.message_it
     assert "Listino B 3.40 USD/kg" in d.message_en
     assert d.details["period"] == "2026-09"
+
+
+def _unit_value(db, src: Source, value: float, volume_kg: float, terms: str, ym=(2025, 5), origin="ARG"):
+    start, end = month_bounds(*ym)
+    label = f"{ym[0]}-{ym[1]:02d}"
+    return ingest.record(
+        db, PriceObservation, source_id=src.id, series_key=f"import_unit_value|{origin}|{terms}|{label}",
+        price_type=PriceType.IMPORT_UNIT_VALUE.value, origin_iso3=origin, market_iso3="USA", variety="unspecified",
+        price_value=value, currency="USD", unit="kg", price_per_kg=value, usd_per_kg=value, volume_kg=volume_kg,
+        terms=terms, period_start=start, period_end=end, period_label=label, frequency="M", published_at=end,
+        data_status=DataStatus.PUBLISHED.value, reliability=Reliability.OFFICIAL.value)[1]
+
+
+def test_discrepancy_like_for_like_customs_lines_and_bulk_only(db):
+    """Review 2026-11-05: 267 of 344 open 'sources disagree' warnings compared things that are not the same:
+    the USDA report's retail-packed line (HTS 0409000010, 1,364 kg at 8.38 USD/kg in May 2025) against the
+    Census HS 0409 total (2.45 USD/kg), or lots under 10 t. A tariff line is compared only with the same
+    line of another source, and customs unit values only from bulk-size (>= 10 t) consignments."""
+    ams = make_source(db, "ace_src", name="USDA AMS")
+    census = make_source(db, "census_src", name="US Census")
+    gats = make_source(db, "gats_src", name="USDA FAS GATS")
+    total = "US customs value / net kg (imports for consumption), HS 0409 total"
+    _unit_value(db, census, 2.445, 5_457_986, total)
+    _unit_value(db, ams, 8.3842, 1_364, "US customs value / net kg (CBP ACE), HTS 0409000010")     # 1.4 t lot
+    _unit_value(db, ams, 6.10, 25_000, "US customs value / net kg (CBP ACE), HTS 0409000010", ym=(2025, 6))
+    _unit_value(db, census, 2.41, 5_462_060, total, ym=(2025, 6))
+    run(db)
+    assert issues(db, "discrepancy:") == {}       # a retail-packed line is not the HS 0409 total
+    # the same line from two sources is compared (bulk-size lots only)
+    _unit_value(db, gats, 4.00, 30_000, "US customs value / net kg (imports for consumption), HTS 0409000010",
+                ym=(2025, 6))
+    _unit_value(db, gats, 3.00, 20_000, total, ym=(2025, 7))
+    _unit_value(db, census, 2.00, 9_000, total, ym=(2025, 7))     # 9 t: not a bulk price, never compared
+    run(db)
+    found = issues(db, "discrepancy:")
+    assert len(found) == 1, list(found)
+    key, d = next(iter(found.items()))
+    assert key.endswith(":0409000010") and d.details["period"] == "2025-06"
+    assert [v["source_key"] for v in d.details["values"]] == ["gats_src", "ace_src"]
+    assert "HTS 0409000010" in d.message_en
 
 
 def test_discrepancy_mixed_currency_without_fx_is_skipped(db):
@@ -444,9 +508,13 @@ def test_report_file_serving_is_path_safe(api, report_setup):
     h = api.get(f"/api/reports/{reps['html'].id}/file")
     assert h.status_code == 200 and h.headers["content-security-policy"] == "sandbox"
     assert h.headers["x-content-type-options"] == "nosniff"
+    # no usable archived copy (unsafe path, missing file, none archived): the publisher's original, never a
+    # bare JSON error and never a file outside the archive (review 2026-11-05)
     for name in ("trav", "abs", "gone"):
-        assert api.get(f"/api/reports/{reps[name].id}/file").status_code == 404, name
-    assert api.get(f"/api/reports/{report_setup['plain'].id}/file").status_code == 404
+        r = api.get(f"/api/reports/{reps[name].id}/file", follow_redirects=False)
+        assert r.status_code == 307 and r.headers["location"] == reps[name].url, name
+    r = api.get(f"/api/reports/{report_setup['plain'].id}/file", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "https://example.org/old"
     assert api.get(f"/api/reports/{report_setup['demo'].id}/file").status_code == 404
     assert api.get("/api/reports/999999/file").status_code == 404
 

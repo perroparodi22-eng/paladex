@@ -135,8 +135,26 @@ FREQ_WORDS = {
 
 
 def _term_parts(terms: str | None) -> list[str]:
-    """'fusto da 3 q.li; media mensile' -> ['fusto da 3 q.li', 'media mensile']."""
-    return [p.strip() for p in re.split(r"[;,]", terms or "") if p.strip()]
+    """'fusto da 3 q.li; media mensile' -> ['fusto da 3 q.li', 'media mensile']. Separators inside
+    brackets do not split: 'US customs value / net kg (imports for consumption; excludes freight,
+    insurance & duty), HS 0409 total' has two parts, not four half-sentences."""
+    parts, depth, cur = [], 0, []
+    for ch in terms or "":
+        depth += (ch == "(") - (ch == ")")
+        if ch in ";," and depth <= 0:
+            parts.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    parts.append("".join(cur))
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _short(text: str, limit: int = 48) -> str:
+    """`text` cut at a word boundary with an ellipsis, never in the middle of a word."""
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0].rstrip(" ,;(") + "…"
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +191,27 @@ def fmt_period(label: str | None, lang: str) -> str:
             return f"{_MONTHS[lang][m - 1]} {label[:4]}"
     if len(label) == 7 and label[4:6] == "-Q":
         return f"{'T' if lang == 'it' else 'Q'}{label[6]} {label[:4]}"
+    if m := re.fullmatch(r"(\d{4})-W(\d{1,2})", label):
+        return f"settimana {int(m[2])} del {m[1]}" if lang == "it" else f"week {int(m[2])} of {m[1]}"
     return label
+
+
+def _of_pct(pct_text: str, lang: str) -> str:
+    """Italian 'del 18,5%' but 'dell'84,5%', 'dell'11%', 'dell'1,2%' (numbers read with a vowel first)."""
+    if lang != "it":
+        return ""
+    whole = re.split(r"[,.]", pct_text.lstrip("+−-"))[0]
+    return "dell'" if whole.startswith("8") or whole in ("1", "11") else "del "
+
+
+def _vs_period(label: str | None, lang: str) -> str:
+    """Italian 'rispetto al 2023' / 'rispetto a set 2025' / 'rispetto ad ago 2025'; English 'vs 2023'."""
+    txt = fmt_period(label, lang)
+    if lang != "it":
+        return f"vs {txt}"
+    if label and re.fullmatch(r"\d{4}", label):
+        return f"rispetto al {txt}"
+    return f"rispetto {'ad' if txt[:1].lower() in 'aeiou' else 'a'} {txt}"
 
 
 def fmt_tonnes(kg: float | None, lang: str) -> str:
@@ -396,7 +434,8 @@ class Ctx:
                 freqs = {x.frequency for x in sibs}
                 for x in sibs:
                     own = [p for p in _term_parts(x.terms) if p not in shared]
-                    hint = own[0][:48] if own else (FREQ_WORDS[self.lang].get(x.frequency, x.frequency)
+                    # the shortest distinguishing part ('HS 0409 total', 'secchio 25 kg'), whole words only
+                    hint = _short(min(own, key=len)) if own else (FREQ_WORDS[self.lang].get(x.frequency, x.frequency)
                                                     if len(freqs) > 1 else None)
                     if hint:
                         self._hints[x.key] = hint
@@ -421,15 +460,32 @@ def _tolerance(freq: str) -> int:
     return {"D": 4, "W": 4, "M": 16, "Q": 46, "A": 120}.get(freq, 16)
 
 
+def _raw_key(raw: str | None) -> str | None:
+    return " ".join(raw.casefold().split()) if raw else None
+
+
+def same_product(points: list, last) -> list:
+    """The points of a series that quote the same product as `last`. One series (source, type, origin,
+    variety bucket, market, grade, terms) can hold several products of one variety bucket: CCIAA Cuneo
+    lists 'Millefiori di Alta Montagna' (6.75 EUR/kg) and 'Rododendro' (8.00) both as 'other' every
+    month, and a change from one to the other is not a price move. Matched on the source's own
+    variety text (case and spacing ignored); a series without that text is one product."""
+    key = _raw_key(last.variety_raw)
+    if key is None:
+        return points
+    return [p for p in points if _raw_key(p.variety_raw) == key]
+
+
 def series_changes(s: PriceSeries) -> dict:
-    """m/m and y/y on the native per-kg price (same currency, same series — never mixed)."""
+    """m/m and y/y on the native per-kg price (same currency, same series, same product — never mixed)."""
     last = s.latest
     freq = last.frequency
     prev_m = prev_y = None
+    earlier = same_product(s.points[:-1], last)
     if freq in ("D", "W", "M"):
-        prev_m = _find_point(s.points[:-1], last.period_start - relativedelta(months=1), _tolerance(freq))
+        prev_m = _find_point(earlier, last.period_start - relativedelta(months=1), _tolerance(freq))
     if freq in ("D", "W", "M", "Q", "A"):
-        prev_y = _find_point(s.points[:-1], last.period_start - relativedelta(years=1), _tolerance(freq))
+        prev_y = _find_point(earlier, last.period_start - relativedelta(years=1), _tolerance(freq))
     return {
         "mom_pct": pct_change(last.price_per_kg, prev_m.price_per_kg) if prev_m else None,
         "mom_period_label": prev_m.period_label if prev_m else None,
@@ -491,7 +547,8 @@ def series_label(ctx: Ctx, s: PriceSeries) -> str:
 def _tile(ctx: Ctx, s: PriceSeries) -> dict:
     last = s.latest
     ch = series_changes(s)
-    spark = [{"period_label": p.period_label, "value": round(p.price_per_kg, 4)} for p in s.points[-SPARK_POINTS:]]
+    spark = [{"period_label": p.period_label, "value": round(p.price_per_kg, 4)}
+             for p in same_product(s.points, last)[-SPARK_POINTS:]]
     return {
         "id": "|".join("" if k is None else str(k) for k in s.key),
         "label": series_label(ctx, s),
@@ -838,14 +895,14 @@ def block_reports(ctx: Ctx) -> dict:
 
 _T = {
     "it": {
-        "up": "in rialzo del", "down": "in calo del",
-        "price": "{label} — {ptype}: {dir} {pct} in un mese, a {value} {cur}/kg ({period}).",
+        "up": "in rialzo", "down": "in calo",
+        "price": "{label} — {ptype}: {dir} {of}{pct} in un mese, a {value} {cur}/kg ({period}).",
         "report": "Nuovo report ufficiale: «{title}».",
         # "{rep} — ..." avoids Italian article/preposition agreement ("degli Stati Uniti", "dall'Argentina").
-        "trade_imp": "{rep} — importazioni di miele con origine {par}, {period}: {t} ({pct} rispetto a {prev}).",
-        "trade_exp": "{rep} — esportazioni di miele con destinazione {par}, {period}: {t} ({pct} rispetto a {prev}).",
-        "trade_imp_wld": "{rep} — importazioni totali di miele, {period}: {t} ({pct} rispetto a {prev}).",
-        "trade_exp_wld": "{rep} — esportazioni totali di miele, {period}: {t} ({pct} rispetto a {prev}).",
+        "trade_imp": "{rep} — importazioni di miele con origine {par}, {period}: {t} ({pct} {prev}).",
+        "trade_exp": "{rep} — esportazioni di miele con destinazione {par}, {period}: {t} ({pct} {prev}).",
+        "trade_imp_wld": "{rep} — importazioni totali di miele, {period}: {t} ({pct} {prev}).",
+        "trade_exp_wld": "{rep} — esportazioni totali di miele, {period}: {t} ({pct} {prev}).",
         "rule_reports": "Report ufficiali pubblicati negli ultimi {n} giorni",
         "rule_prices": "Variazioni di prezzo mensili di almeno il {n}% (ultimo dato pubblicato)",
         "rule_trade": "Variazioni annue del commercio di almeno il {n}% tra i flussi principali (dati arrivati negli ultimi {d} giorni)",
@@ -856,12 +913,12 @@ _T = {
     },
     "en": {
         "up": "up", "down": "down",
-        "price": "{label} — {ptype}: {dir} {pct} month on month, at {value} {cur}/kg ({period}).",
+        "price": "{label} — {ptype}: {dir} {of}{pct} month on month, at {value} {cur}/kg ({period}).",
         "report": "New official report: “{title}”.",
-        "trade_imp": "{rep} honey imports from {par} in {period}: {t} ({pct} vs {prev}).",
-        "trade_exp": "{rep} honey exports to {par} in {period}: {t} ({pct} vs {prev}).",
-        "trade_imp_wld": "{rep} total honey imports in {period}: {t} ({pct} vs {prev}).",
-        "trade_exp_wld": "{rep} total honey exports in {period}: {t} ({pct} vs {prev}).",
+        "trade_imp": "{rep} honey imports from {par} in {period}: {t} ({pct} {prev}).",
+        "trade_exp": "{rep} honey exports to {par} in {period}: {t} ({pct} {prev}).",
+        "trade_imp_wld": "{rep} total honey imports in {period}: {t} ({pct} {prev}).",
+        "trade_exp_wld": "{rep} total honey exports in {period}: {t} ({pct} {prev}).",
         "rule_reports": "Official reports published in the last {n} days",
         "rule_prices": "Monthly price changes of at least {n}% (latest published data)",
         "rule_trade": "Year-on-year trade changes of at least {n}% among the main flows (data received in the last {d} days)",
@@ -900,6 +957,7 @@ def _briefing_prices(ctx: Ctx) -> list[dict]:
         text = tr["price"].format(
             label=series_label(ctx, s), ptype=ctx.price_type(s.price_type).lower(),
             dir=tr["up"] if ch["mom_pct"] > 0 else tr["down"], pct=fmt_pct(abs(ch["mom_pct"]), ctx.lang, signed=False),
+            of=_of_pct(fmt_pct(abs(ch["mom_pct"]), ctx.lang, signed=False), ctx.lang),
             value=fmt_num(last.price_per_kg, ctx.lang, 2), cur=last.currency, period=fmt_period(last.period_label, ctx.lang),
         )
         out.append(_bullet(
@@ -959,7 +1017,7 @@ def _briefing_trade(ctx: Ctx) -> list[dict]:
         tmpl = tr[("trade_imp" if r.flow == "import" else "trade_exp") + ("_wld" if wld else "")]
         text = tmpl.format(rep=ctx.country(r.reporter_iso3), par=ctx.country(r.partner_iso3),
                            period=fmt_period(r.period_label, ctx.lang), t=fmt_tonnes(r.net_weight_kg, ctx.lang),
-                           pct=fmt_pct(ch, ctx.lang), prev=fmt_period(p.period_label, ctx.lang))
+                           pct=fmt_pct(ch, ctx.lang), prev=_vs_period(p.period_label, ctx.lang))
         out.append(_bullet("trade", text, source=ctx.brief(r.source_id), date_=r.published_at,
                            period_label=r.period_label, url=r.source_url, link="/commercio", is_demo=r.is_demo,
                            data_status=r.data_status, change_pct=ch))
@@ -1099,14 +1157,17 @@ def block_countries(ctx: Ctx) -> dict:
     T = TradeFlowObservation
     trade_new: dict[str, str] = {}
     tsince = ctx.now - timedelta(days=TRADE_NEW_DATA_DAYS)
-    for rep, par, label, start in ctx.db.execute(
-        select(T.reporter_iso3, T.partner_iso3, T.period_label, T.period_start)
-        .where(T.is_current.is_(True), demo_clause(T, ctx.db), T.collected_at >= tsince)
-        .order_by(T.period_start)
-    ):
-        for iso3 in (rep, par):
-            if iso3 in pset:
-                trade_new[iso3] = label   # ascending order -> newest period wins
+    newest: dict[str, tuple[date, str]] = {}
+    # Grouped in SQL: after a back-fill every row is "collected this week" (119k rows to read otherwise).
+    for col in (T.reporter_iso3, T.partner_iso3):
+        for iso3, label, start in ctx.db.execute(
+            select(col, T.period_label, T.period_start)
+            .where(T.is_current.is_(True), demo_clause(T, ctx.db), T.collected_at >= tsince, col.in_(sorted(pset)))
+            .group_by(col, T.period_label, T.period_start)
+        ):
+            if iso3 not in newest or start > newest[iso3][0]:
+                newest[iso3] = (start, label)        # the newest period wins
+    trade_new = {iso3: label for iso3, (_, label) in newest.items()}
 
     items = []
     for iso3 in priority:

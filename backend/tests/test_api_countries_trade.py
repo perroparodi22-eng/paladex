@@ -521,3 +521,57 @@ def test_eu_aggregate_total_is_extra_eu_never_the_world_row(api, db):
     assert ita["total"]["net_weight_kg"] == 60_000_000 and ita["share_basis"] == "world_total"
     assert ita["total_scope"] == "world" and by_iso(ita["rows"])["USA"]["share_volume_pct"] == 2.0
     assert get(api, "/api/trade/series", reporter="ITA", flow="export")["series"][0]["points"][0]["net_weight_kg"] == 60_000_000
+
+
+def test_reporters_own_official_statistics_come_first_for_a_complete_year(api, db):
+    """Lead request 2026-11-05: Argentina's 2024 exports were ranked on UN Comtrade (78,375 t) although INDEC's
+    own complete monthly series gives 85,736 t (Comtrade leaves out INDEC's confidential destinations). For a
+    complete year the reporter's own official source wins; the global figure stays listed as an alternative.
+    An incomplete national year never replaces a complete global one."""
+    comtrade = make_source(db, "un_comtrade_t")
+    indec = make_source(db, "ar_indec_t", country="ARG")
+    comex = make_source(db, "br_comex_t", country="BRA")
+    trade(db, comtrade, "ARG", "WLD", Y, 78_375_280, flow="export")
+    for m in range(1, 13):
+        w = trade(db, indec, "ARG", "WLD", Y, 7_144_667, flow="export", month=m)        # 85,736 t over 12 months
+        w.extra = {"confidential_bucket": {"kg": 613_392.0, "fob_usd": 1_290_000.0}}      # 7,360.7 t in the year
+        trade(db, indec, "ARG", "DEU", Y, 2_000_000, flow="export", month=m)
+    trade(db, comtrade, "BRA", "WLD", Y, 37_930_750, flow="export")
+    for m in range(1, 10):                                                              # 9 months only
+        trade(db, comex, "BRA", "WLD", Y, 4_000_000, flow="export", month=m)
+    db.commit()
+
+    rows = by_iso(get(api, "/api/trade/leaders", flow="export", year=Y)["rows"])
+    assert rows["ARG"]["source"]["key"] == "ar_indec_t" and rows["ARG"]["net_weight_kg"] == 85_736_004
+    assert rows["ARG"]["summed_from_months"] is True and rows["ARG"]["months_count"] == 12
+    assert rows["BRA"]["source"]["key"] == "un_comtrade_t"            # the national year is incomplete
+    flows = get(api, "/api/trade/flows", reporter="ARG", flow="export", year=Y)
+    assert flows["source_key"] == "ar_indec_t" and flows["total"]["net_weight_kg"] == 85_736_004
+    assert {a["source"]["key"] for a in flows["alternatives"]} == {"ar_indec_t", "un_comtrade_t"}
+    profile = get(api, "/api/countries/ARG")
+    assert profile["trade"]["export"]["latest"]["source"]["key"] == "ar_indec_t"
+    # the reason for the gap with UN Comtrade (destinations under statistical secrecy) stays visible
+    series = get(api, "/api/trade/series", reporter="ARG", flow="export", freq="A")
+    pts = {x["source"]["key"]: x["points"][-1] for x in series["series"]}
+    assert pts["ar_indec_t"]["confidential_kg"] == 7_360_704.0 and pts["un_comtrade_t"]["confidential_kg"] is None
+    assert series["discrepancies"] == []          # 9.4 %: under the 10 % flag, the reason is on the point itself
+
+
+def test_providers_are_only_sources_that_can_fill_the_block(api, db):
+    """Review 2026-11-05: Uruguay's export-only collector was listed as a provider of Uruguay's IMPORTS and of its
+    prices (it stores neither). A source whose stored data shows it never produces that kind is left out;
+    sources with that kind of data, or with nothing stored yet, stay."""
+    uy = make_source(db, "uy_exports_t", country="URY")
+    comtrade = make_source(db, "un_comtrade_t2")
+    make_source(db, "never_run_t", country="URY")
+    for m in range(1, 13):
+        trade(db, uy, "URY", "USA", Y, 500_000, flow="export", month=m)
+    trade(db, comtrade, "ITA", "WLD", Y, 20_000_000)                     # data, but not about Uruguay
+    db.commit()
+    t = get(api, "/api/countries/URY")["trade"]
+    exp_keys = {p["key"] for p in t["providers"]}
+    imp_keys = {p["key"] for p in t["providers_import"]}
+    assert "uy_exports_t" in exp_keys and "uy_exports_t" not in imp_keys
+    assert "un_comtrade_t2" in imp_keys and "never_run_t" in imp_keys       # imports elsewhere; nothing yet
+    price_keys = {p["key"] for p in get(api, "/api/countries/URY")["prices"]["providers"]}
+    assert "uy_exports_t" not in price_keys and "never_run_t" in price_keys

@@ -4,7 +4,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import { DemoBadge, FreshnessBadge, Panel, Segmented, SourceLine, StatusBadge } from '@/components/ui'
 import { AXIS_TICK, AXIS_TICK_MONO, DataMissing, GRID_STROKE, SERIES_COLORS } from '@/components/trade/bits'
 import { useI18n } from '@/i18n'
-import { fmtDate, fmtNumber } from '@/lib/format'
+import { fmtDate, fmtNumber, fmtProdUnit } from '@/lib/format'
 import type { CountryProfile, ProductionMetric, ProductionPoint } from './types'
 
 const TABLE_ROWS = 8
@@ -64,7 +64,8 @@ function MetricView({ m, title }: { m: ProductionMetric; title: string }) {
   return (
     <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
       <div className="min-w-0">
-        <div className="eyebrow mb-1">{title} · {units[0]}</div>
+        {/* "Alveari" needs no unit after it; the others read "· t", "· kg per alveare", "· migliaia di BRL" */}
+        <div className="eyebrow mb-1">{units[0] === 'number' ? title : `${title} · ${fmtProdUnit(units[0], lang)}`}</div>
         <div className="h-[250px]" role="img" aria-label={title}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 4 }} barGap={2}>
@@ -89,7 +90,7 @@ function MetricView({ m, title }: { m: ProductionMetric; title: string }) {
                           <div key={keys[i]} className="mb-1 last:mb-0">
                             <div className="flex items-baseline justify-between gap-3">
                               <span className="text-charcoal-soft truncate">{s.source?.publisher || s.source?.name}</span>
-                              <span className="num text-charcoal">{fmtNumber(pt.value, lang, digits(pt.value))} {pt.unit}</span>
+                              <span className="num text-charcoal">{fmtNumber(pt.value, lang, digits(pt.value))} {fmtProdUnit(pt.unit, lang)}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-[0.74rem] text-muted mt-0.5">
                               <StatusBadge status={pt.data_status ?? 'published'} />
@@ -123,7 +124,8 @@ function MetricView({ m, title }: { m: ProductionMetric; title: string }) {
           {m.series.length > 1 && <div className="text-[0.8rem] text-muted">{t('countries.prod.oneSource')}</div>}
         </div>
       </div>
-      <div className="min-w-0">
+      {/* Phones: with a "Fonte" column the table is wider than the panel; it scrolls inside its box. */}
+      <div className="min-w-0 overflow-x-auto">
         <table className="w-full text-[0.92rem]">
           <thead>
             <tr className="border-b border-line bg-paper text-left text-[0.7rem] uppercase tracking-wider text-muted">
@@ -137,11 +139,16 @@ function MetricView({ m, title }: { m: ProductionMetric; title: string }) {
             {tableRows.map(({ p, s, i }) => (
               <tr key={`${keys[i]}-${p.period_label}`} className="border-b border-line-soft last:border-0">
                 <td className="py-1.5 px-2 num">{p.period_label}</td>
-                <td className="py-1.5 px-2 num text-right" title={p.flag_raw ? t('countries.prod.flag', { f: p.flag_raw }) : undefined}>
-                  {fmtNumber(p.value, lang, digits(p.value))} <span className="text-muted text-[0.8em]">{p.unit}</span>
+                <td className="py-1.5 px-2 num text-right whitespace-nowrap" title={p.flag_raw ? t('countries.prod.flag', { f: p.flag_raw }) : undefined}>
+                  {fmtNumber(p.value, lang, digits(p.value))} <span className="text-muted text-[0.8em]">{fmtProdUnit(p.unit, lang)}</span>
                 </td>
                 <td className="py-1.5 px-2"><StatusBadge status={p.data_status ?? 'published'} /></td>
-                {m.series.length > 1 && <td className="py-1.5 px-2 text-[0.82rem] text-muted truncate max-w-[140px]">{s.source?.publisher || s.source?.name}</td>}
+                {m.series.length > 1 && (
+                  <td className="py-1.5 px-2 text-[0.82rem] text-muted" title={s.source?.publisher || s.source?.name}>
+                    {/* max-width does not apply to a table cell itself, only to a block inside it */}
+                    <div className="max-w-[140px] truncate">{s.source?.publisher || s.source?.name}</div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

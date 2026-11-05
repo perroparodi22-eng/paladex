@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
+from ..collectors.regulation import decode_fr_entities
 from ..db import get_db
 from ..enums import DataStatus
 from ..models import Country, RegulationItem, Source, TariffMeasure
@@ -80,14 +81,14 @@ def serialize_regulation(r: RegulationItem, src: Source | None) -> dict:
         "reference": r.reference,
         "jurisdiction": r.jurisdiction,
         "doc_type": r.doc_type,
-        "title": r.title,
+        "title": decode_fr_entities(r.title),             # rows stored before the decoding
         "status": r.status,
         "published_at": iso(r.published_at),
         "effective_date": iso(r.effective_date),
         "url": r.url,
         "source_url": r.url,
         "countries": r.countries or [],
-        "summary_en": r.summary_en,
+        "summary_en": decode_fr_entities(r.summary_en),
         "summary_it": r.summary_it,
         "summary_is_ai": r.summary_is_ai,
         "collected_at": iso(r.collected_at),

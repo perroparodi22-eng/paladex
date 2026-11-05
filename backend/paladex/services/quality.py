@@ -14,8 +14,10 @@ Checks (each issue has a stable `dedup_key`, so re-running updates instead of du
                      with plain-language instructions for the .env file)
 * OUTLIER            a price point deviating > 35 % from the median of the previous 6 points
                      of the same series, or with robust z-score > 4 (and > 10 % deviation)
-* DISCREPANCY        same origin + variety + price type + market + period reported by >= 2
-                     sources that differ by > 15 % (both values are listed, neither discarded)
+* DISCREPANCY        same origin + variety + price type + market + period (and the same tariff
+                     line: an HTS-10 line is never compared with the heading total) reported by
+                     >= 2 sources that differ by > 15 % (both values are listed, neither
+                     discarded); customs unit values only from bulk-size (>= 10 t) consignments
 * MISSING (gaps)     monthly price series with missing months in the last 12 months, between
                      the first and last point of that window (info)
 * PARSE_WARNING      suspicious HS 0409 trade rows: unit value outside 0.3-30 USD/kg (upper
@@ -295,11 +297,13 @@ def _is_manual(s: Source) -> bool:
 
 # --------------------------------------------------------------------- sources
 def check_stale(sources: list[Source], today: date) -> list[Finding]:
+    from ..api.common import source_reference_date   # the same reference date as the freshness badges
+
     out: list[Finding] = []
     for s in sources:
         if not s.enabled or _is_demo_source(s) or _is_manual(s) or not s.expected_max_age_days:
             continue
-        ref = s.latest_published_at or (s.last_new_data_at.date() if s.last_new_data_at else None)
+        ref = source_reference_date(s)
         if ref is None:
             continue  # never collected: covered by collection / key checks, not "stale"
         exp = s.expected_max_age_days
@@ -567,12 +571,19 @@ def _group_label(origin: str | None, variety: str, color: str | None, organic: b
 
 
 def check_discrepancies(rows: list[Any], src_by_id: dict[int, Source]) -> list[Finding]:
+    from ..api.prices import customs_line
+
     groups: dict[tuple, dict[int, list]] = defaultdict(lambda: defaultdict(list))
     for r in rows:
         if not r.origin_iso3 or r.price_per_kg is None or r.price_per_kg <= 0:
             continue
-        # colour grade and organic are part of "the same thing": white vs amber honey are different products
-        key = (r.origin_iso3, r.variety, r.color_grade, r.price_type, r.market_iso3, bool(r.organic), r.period_start, r.period_end)
+        # Small consignments are not bulk prices (as for outliers and on the price pages).
+        if r.price_type in UNIT_VALUE_TYPES and r.volume_kg is not None and r.volume_kg < BULK_MIN_KG:
+            continue
+        # colour grade and organic are part of "the same thing": white vs amber honey are different products;
+        # so is the tariff line: an HTS-10 line (retail-packed honey) is never compared with the HS 0409 total
+        key = (r.origin_iso3, r.variety, r.color_grade, r.price_type, r.market_iso3, bool(r.organic), r.period_start,
+               r.period_end, customs_line(r.terms))
         groups[key][r.source_id].append(r)
     out: list[Finding] = []
     for key, per_source in groups.items():
@@ -602,15 +613,17 @@ def check_discrepancies(rows: list[Any], src_by_id: dict[int, Source]) -> list[F
         diff = (hi - lo) / lo
         if diff <= DISCREPANCY_REL_DIFF:
             continue
-        origin, variety, color, pt, market, organic, p_start, p_end = key
+        origin, variety, color, pt, market, organic, p_start, p_end, line = key
         sample = per_source[lo_sid][0]
         ordered = sorted(values.items(), key=lambda kv: kv[1])
         listing = {lang: "; ".join(f"{src_by_id[sid].name if sid in src_by_id else sid} {_num(v, lang)} {unit}"
                                    for sid, v in ordered) for lang in ("it", "en")}
-        what = {lang: _group_label(origin, variety, color, organic, pt, market, lang) for lang in ("it", "en")}
+        what = {lang: _group_label(origin, variety, color, organic, pt, market, lang) + (f", HTS {line}" if line else "")
+                for lang in ("it", "en")}
         period = _period(sample.period_label, "it"), _period(sample.period_label, "en")
         out.append(Finding(
-            dedup_key=f"discrepancy:{pt}:{origin}:{variety}:{color or '-'}:{market or '-'}:{int(organic)}:{p_start}:{p_end}",
+            dedup_key=(f"discrepancy:{pt}:{origin}:{variety}:{color or '-'}:{market or '-'}:{int(organic)}:{p_start}:{p_end}"
+                       + (f":{line}" if line else "")),
             issue_type=QualityIssueType.DISCREPANCY.value,
             severity=Severity.WARNING.value,
             source_id=None,

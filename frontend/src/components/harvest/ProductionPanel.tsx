@@ -10,7 +10,7 @@ import { AXIS_TICK, AXIS_TICK_MONO, DataMissing, GRID_STROKE, SourcesFooter, YoY
 import { Badge, DemoBadge, ErrorBlock, FreshnessBadge, Loading, Panel, Segmented, SourceLine } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
-import { fmtDate, fmtNumber } from '@/lib/format'
+import { fmtDate, fmtNumber, fmtProdUnit } from '@/lib/format'
 import type { ProductionCountry, ProductionCountryResponse, ProductionResponse, ProductionValue } from './types'
 import type { ProdScope, YearsRange } from './useHarvestParams'
 
@@ -143,7 +143,10 @@ export function ProductionChart({ iso3, metric, years, onMetric, onYears }: {
     <div className="min-w-0">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="font-serif text-[1.05rem] font-semibold text-charcoal">
-          {m.metric === 'colonies' ? t('harvest.prod.chartColonies', { country: name }) : t('harvest.prod.chartTitle', { country: name })}
+          {/* the title names the figure on screen: production, hives, yield, value (IBGE, R$)… */}
+          {m.metric === 'production' ? t('harvest.prod.chartTitle', { country: name })
+            : m.metric === 'colonies' ? t('harvest.prod.chartColonies', { country: name })
+              : t('harvest.prod.chartMetric', { country: name, metric: metricLabel(m.metric).toLocaleLowerCase(lang === 'it' ? 'it-IT' : 'en-GB') })}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {d.metrics.length > 1 && (
@@ -170,8 +173,8 @@ function SeriesChart({ s, years }: { s: ProductionMetric['series'][number]; year
   const digits = (v: number) => (Math.abs(v) < 100 ? 1 : 0)
   return (
     <div className="mb-3 min-w-0">
-      <div className="eyebrow mb-1">{s.source?.publisher || s.source?.name} · {s.unit}</div>
-      <div className="h-[230px]" role="img" aria-label={`${s.source?.name ?? ''} ${s.unit}`}>
+      <div className="eyebrow mb-1">{s.source?.publisher || s.source?.name} · {fmtProdUnit(s.unit, lang)}</div>
+      <div className="h-[230px]" role="img" aria-label={`${s.source?.name ?? ''} · ${fmtProdUnit(s.unit, lang)}`}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 6, right: 6, bottom: 0, left: 0 }}>
             <CartesianGrid stroke={GRID_STROKE} vertical={false} />
@@ -186,7 +189,7 @@ function SeriesChart({ s, years }: { s: ProductionMetric['series'][number]; year
                 return (
                   <div className="min-w-[200px] rounded-sm border border-line bg-white px-3 py-2 text-[0.82rem] shadow-[0_4px_16px_rgba(31,33,32,0.10)]">
                     <div className="font-serif font-semibold text-charcoal">{r.label}</div>
-                    <div className="num text-charcoal">{fmtNumber(r.value, lang, digits(r.value))} {s.unit}</div>
+                    <div className="num text-charcoal">{fmtNumber(r.value, lang, digits(r.value))} {fmtProdUnit(s.unit, lang)}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <ProdStatus status={r.p.data_status ?? 'published'} flag={r.p.flag_raw} />
                       {r.p.published_at && <span className="text-muted">{t('prov.published')} {fmtDate(r.p.published_at, lang)}</span>}

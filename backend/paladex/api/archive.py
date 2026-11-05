@@ -415,8 +415,11 @@ def production_history(
     metric: str = Query("production", pattern="^[a-z_]{2,40}$"),
     db: Session = Depends(get_db),
 ):
+    from .countries import national_metric_clause
+
     iso3 = _code(country, "country")
-    base = [P.is_current.is_(True), demo_clause(P, db)]
+    # per-region metrics (one figure per state) are not a national series: never mixed into one line
+    base = [P.is_current.is_(True), demo_clause(P, db), national_metric_clause(P)]
     metrics = dict(db.execute(select(P.metric, func.count()).where(*base, P.country_iso3 == iso3)
                               .group_by(P.metric)).all())
     countries = [{"iso3": c, "rows": n, "last_period": last}

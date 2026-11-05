@@ -241,6 +241,9 @@ def test_parse_records_rows():
     assert ct.unit_value(by_partner["NZL"]) is None       # 400 kg < MIN_UNIT_VALUE_KG
     assert ct.unit_value(by_partner["WLD"]) is None
     assert ct.unit_value(by_partner["M899"]) is None
+    # an estimated weight is imputed from the value: value / weight would only return the estimation factor
+    assert ct.unit_value(by_partner["SRB"]) is None
+    assert ct.no_unit_value_reason(by_partner["SRB"]) == "net weight estimated by UN Comtrade"
     # reporter mapped from the code when reporterISO is null
     monthly = ct.parse_records(F("preview_M_M_380_202607.json"), ref)
     assert {r.reporter_iso3 for r in monthly.records} == {"ITA"}
@@ -265,7 +268,7 @@ def test_keyless_end_to_end(run_with_routes, session_factory, small_panel, sent)
     assert res["status"] == "partial", res          # partial = warnings (bad row, sub-total)
     assert len(res["warnings"]) == 2, res["warnings"]
     assert not any("M899" in w for w in res["warnings"])   # "Areas, nes" is stored and logged at INFO only
-    assert res["new"] == 25 + 18                     # 25 trade rows + 18 unit values
+    assert res["new"] == 25 + 17                     # 25 trade rows + 17 unit values (none from an estimated weight)
 
     calls = data_calls(sent)
     assert all(r.url.host == "comtradeapi.un.org" and "/public/v1/preview/" in r.url.path for r in calls)
@@ -292,12 +295,11 @@ def test_keyless_end_to_end(run_with_routes, session_factory, small_panel, sent)
 
         # unit values: import -> market = reporter, origin = partner; never wholesale
         uv = {p.origin_iso3: p for p in prices(s, price_type=PriceType.IMPORT_UNIT_VALUE.value, frequency="A")}
-        assert set(uv) == {"HUN", "UKR", "ARG", "FRA", "CHN", "TWN", "FLK", "SRB", "DEU"}
+        assert set(uv) == {"HUN", "UKR", "ARG", "FRA", "CHN", "TWN", "FLK", "DEU"}   # SRB: weight estimated
         arg = uv["ARG"]
         assert (arg.market_iso3, arg.price_value, arg.currency, arg.unit) == ("ITA", 3.1, "USD", "kg")
         assert arg.variety == "unspecified" and arg.volume_kg == 2_400_000.0 and arg.terms.startswith("CIF")
         assert arg.published_at == date(2026, 9, 14) and arg.source_url == ita["ARG"].source_url
-        assert uv["SRB"].data_status == "estimate"
         assert not prices(s, price_type=PriceType.WHOLESALE_BULK.value)
 
         # exports: origin = reporter, market = partner, FOB
@@ -322,10 +324,10 @@ def test_keyless_second_run_is_idempotent(run_with_routes, session_factory, smal
     assert len(data_calls(sent)) == first
     # Forced re-pull: every row is seen again, nothing new, nothing revised.
     res3 = run_with_routes("un_comtrade", keyless_routes(), force=True)
-    assert res3["new"] == 0 and res3["revised"] == 0 and res3["seen"] == 43
+    assert res3["new"] == 0 and res3["revised"] == 0 and res3["seen"] == 42
     with session_factory() as s:
         assert len(s.scalars(select(TradeFlowObservation)).all()) == 25
-        assert len(s.scalars(select(PriceObservation)).all()) == 18
+        assert len(s.scalars(select(PriceObservation)).all()) == 17
 
 
 def test_revised_value_creates_revision(run_with_routes, session_factory, small_panel):
@@ -504,7 +506,7 @@ def test_getda_failure_falls_back(run_with_routes, session_factory, small_panel,
         getda("A") + r"reporterCode=32,380&period=2025$": (500, b"Internal Server Error"),
         getda("M") + r"reporterCode=380&period=202607,202608,202609,202610$": F("empty.json"),
     }))
-    assert res["status"] == "partial" and res["new"] == 43, res
+    assert res["status"] == "partial" and res["new"] == 42, res
     # without availability every missing period is fetched (incl. Sept/Oct, still empty)
     assert len(data_calls(sent)) == 6
     with session_factory() as s:
@@ -631,3 +633,37 @@ def test_rejected_key_falls_back_to_keyless(run_with_routes, session_factory, sm
     assert all(ct.KEY_HEADER not in r.headers for r in preview_calls)
     with session_factory() as s:
         assert len(trade(s)) == 25
+
+
+def test_unit_values_from_estimated_weights_are_withdrawn(run_with_routes, session_factory, small_panel, sent):
+    """Review 2026-11-05: UN Comtrade's monthly US imports carry weights that UNSD estimated from the value
+    (isNetWgtEstimated), so every partner showed the same 'unit value' (2.9459 USD/kg in Aug 2026, India as
+    well as Argentina). Such a figure is the estimation factor, not a price: none is derived any more, and
+    one stored by an earlier version is withdrawn on the next run (kept in the history), even when the
+    period itself is not fetched again."""
+    from paladex.models import Source
+
+    with session_factory() as s:
+        src = s.scalars(select(Source).where(Source.key == "un_comtrade")).one()
+        old = PriceObservation(
+            source_id=src.id, series_key="import_unit_value|0409|M|USA|IND|202608", value_hash="x",
+            price_type=PriceType.IMPORT_UNIT_VALUE.value, variety="unspecified", origin_iso3="IND",
+            market_iso3="USA", price_value=2.9459, currency="USD", unit="kg", price_per_kg=2.9459,
+            usd_per_kg=2.9459, volume_kg=3_832_817.0, period_start=date(2026, 8, 1),
+            period_end=date(2026, 8, 31), period_label="2026-08", frequency="M", data_status="estimate",
+            reliability="official")
+        s.add(old)
+        s.flush()
+        old_id = old.id
+    res = run_with_routes("un_comtrade", keyless_routes())
+    assert any("estimated" in w and "withdrawn" in w for w in res["warnings"]), res["warnings"]
+    with session_factory() as s:
+        row = s.get(PriceObservation, old_id)
+        assert row is not None and row.is_current is False and row.price_value == 2.9459   # history kept
+        assert not prices(s, data_status="estimate")
+        srb = trade(s, reporter_iso3="ITA", partner_iso3="SRB", frequency="A")[0]
+        assert srb.data_status == "estimate" and srb.net_weight_kg == 700_000.0              # the trade row stays
+        assert not prices(s, origin_iso3="SRB")
+    # nothing left to withdraw: the next run does not warn again
+    res2 = run_with_routes("un_comtrade", keyless_routes())
+    assert not any("estimated" in w for w in res2["warnings"]), res2["warnings"]

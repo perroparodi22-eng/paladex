@@ -196,8 +196,8 @@ def run_all(*, trigger: str = "manual", force: bool = False, keys: list[str] | N
                 if keys and c.key not in keys:
                     continue
                 src = session.scalars(select(Source).where(Source.key == c.key)).first()
-                if src is None:
-                    continue
+                if src is None or not src.enabled:
+                    continue        # a source switched off is not run, online or not (as in `_open_run`)
                 session.add(CollectionRun(source_id=src.id, status=RunStatus.OFFLINE.value, trigger=trigger,
                                           started_at=utcnow(), finished_at=utcnow(), error="No internet connection"))
                 src.last_run_at = utcnow()

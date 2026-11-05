@@ -61,6 +61,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import html.entities
 import json
 import logging
 import re
@@ -130,12 +131,24 @@ def _load_json(content: bytes, what: str) -> Any:
 _TAG_RE = re.compile(r"<[^>]+>")
 
 
+# The Federal Register writes accented letters as bracketed entity names: "Asociaci[oacute]n".
+_FR_ENTITY_RE = re.compile(r"\[([A-Za-z]{2,8})\]")
+
+
+def decode_fr_entities(text: str | None) -> str | None:
+    """'Asociaci[oacute]n' -> 'Asociación'. Only names of real HTML entities are replaced, so a bracketed
+    word ('[Reserved]') stays as written."""
+    if not text:
+        return text
+    return _FR_ENTITY_RE.sub(lambda m: html.entities.html5.get(m[1] + ";", m[0]), text)
+
+
 def clean_text(value: Any) -> str | None:
     """Plain text as published: HTML tags and entities removed, whitespace collapsed. None if empty."""
     if not isinstance(value, str):
         return None
     text = re.sub(r"\s+", " ", html.unescape(_TAG_RE.sub(" ", value))).strip()
-    return text or None
+    return decode_fr_entities(text) or None
 
 
 def parse_iso_date(value: Any) -> date | None:

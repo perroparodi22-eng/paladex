@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Star } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
-import { Badge, DemoBadge, EmptyState, ErrorBlock, Loading, PageHeader, Panel, StatTile } from '@/components/ui'
+import { Badge, DemoBadge, EmptyState, ErrorBlock, Loading, PageHeader, Panel, StatTile, StatusBadge } from '@/components/ui'
 import { AvailabilityChips, countryName, useRegion } from '@/components/countries/parts'
 import { ProfileProduction } from '@/components/countries/ProfileProduction'
 import { ProfileContext, ProfileMissing, ProfileNews, ProfilePrices, ProfileRegulations } from '@/components/countries/ProfileSections'
@@ -84,12 +84,26 @@ function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
   )
 }
 
-function KpiRow({ p }: { p: CountryProfile }) {
+/** "anno 2024" plus a "Stima" / "Provvisorio" badge when the headline figure is not a published one. */
+function YearSub({ year, status }: { year: string | number; status: string | null | undefined }) {
+  const { t } = useI18n()
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+      {t('countries.kpi.year', { y: year })}
+      {status && !['published', 'live', 'demo'].includes(status) && <StatusBadge status={status} />}
+    </span>
+  )
+}
+
+export function KpiRow({ p }: { p: CountryProfile }) {
   const { t, lang } = useI18n()
   const providerText = useProviderText()
   const prodMetric = p.production.metrics.find((m) => m.metric === 'production')
-  const prod = prodMetric?.series[0]?.latest
-  const prodSeries = prodMetric?.series[0]
+  // One series per source (never merged): the headline shows the most recent year any source has
+  // published (USA: NASS 2025 rather than FAOSTAT 2024); on a tie the backend's first source wins.
+  const prodSeries = prodMetric?.series.reduce<(typeof prodMetric.series)[number] | undefined>(
+    (best, s) => (!best || (s.latest.period_label ?? '') > (best.latest.period_label ?? '') ? s : best), undefined)
+  const prod = prodSeries?.latest
 
   const tradeTile = (s: TradeFlowSection, label: string, mirrorKey: string) => {
     const l = s.latest
@@ -98,7 +112,7 @@ function KpiRow({ p }: { p: CountryProfile }) {
         <StatTile
           label={label}
           value={<>{fmtT(l.net_weight_kg, lang)}<span className="text-muted text-[0.6em] ml-1">t</span></>}
-          sub={`${t('countries.kpi.year', { y: l.year })}${l.summed_from_partners ? ' · Σ' : ''}`}
+          sub={<YearSub year={`${l.year}${l.summed_from_partners ? ' · Σ' : ''}`} status={l.data_status} />}
           delta={l.yoy_volume_pct}
           deltaLabel={l.prev ? `vs ${l.prev.year}` : undefined}
           demo={l.is_demo}
@@ -122,7 +136,7 @@ function KpiRow({ p }: { p: CountryProfile }) {
         <StatTile
           label={t('countries.kpi.production')}
           value={<>{fmtNumber(prod.value, lang, 0)}<span className="text-muted text-[0.6em] ml-1">{prod.unit}</span></>}
-          sub={t('countries.kpi.year', { y: prod.period_label })}
+          sub={<YearSub year={prod.period_label ?? '—'} status={prod.data_status} />}
           demo={prod.is_demo}
           footer={<span className="text-[0.78rem] text-muted">{t('prov.source')}: {prodSeries.source?.publisher || prodSeries.source?.name}</span>}
         />
@@ -135,7 +149,7 @@ function KpiRow({ p }: { p: CountryProfile }) {
       <StatTile
         label={t('countries.kpi.news')}
         value={p.news.available || p.news.count_30d ? fmtNumber(p.news.count_30d, lang) : <span className="text-muted">—</span>}
-        sub={p.news.available || p.news.count_30d ? t('countries.kpi.newsSub') : t('ui.noData')}
+        sub={p.news.available || p.news.count_30d ? t(p.news.count_30d === 1 ? 'countries.kpi.newsSubOne' : 'countries.kpi.newsSub') : t('ui.noData')}
         demo={p.news.items.some((n) => n.is_demo)}
         footer={<Link to={p.news.link} className="text-[0.78rem] link">{t('countries.news.all')}</Link>}
       />

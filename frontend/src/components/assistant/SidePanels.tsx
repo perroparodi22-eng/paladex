@@ -55,7 +55,7 @@ export function HistoryPanel({ items, onOpen, onClear, busy }: {
                 <span className="line-clamp-2 break-words text-[0.92rem] text-charcoal">{h.question}</span>
                 <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[0.75rem] text-muted">
                   <span>{fmtDateTime(h.asked_at, lang)}</span>
-                  <span>· {h.facts ? t('assistant.history.facts', { n: h.facts }) : t('assistant.history.noFacts')}</span>
+                  <span>· {h.facts ? (h.facts === 1 ? t('assistant.history.factsOne') : t('assistant.history.facts', { n: h.facts })) : t('assistant.history.noFacts')}</span>
                   {h.ai_used && <AiBadge label={t('assistant.history.ai')} />}
                 </span>
               </button>

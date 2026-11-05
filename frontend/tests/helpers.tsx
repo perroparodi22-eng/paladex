@@ -27,7 +27,7 @@ export function render(node: ReactNode, { url = '/', lang = 'it', qc = newQueryC
     return renderToStaticMarkup(
       <QueryClientProvider client={qc}>
         <I18nProvider>
-          <MemoryRouter initialEntries={[url]}>{node}</MemoryRouter>
+          <MemoryRouter initialEntries={[url]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>{node}</MemoryRouter>
         </I18nProvider>
       </QueryClientProvider>,
     )

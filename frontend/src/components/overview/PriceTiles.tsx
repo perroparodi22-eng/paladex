@@ -6,6 +6,7 @@ import { DemoBadge, FreshnessBadge, StatusBadge } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { fmtAgo, fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
+import { colorLabel } from '@/components/prices/utils'
 import { BlockEmpty, BlockHead, BlockStamp, Delta, SectionLink } from './parts'
 import type { PriceTile, PricesBlock } from './types'
 
@@ -44,7 +45,7 @@ function Sparkline({ tile }: { tile: PriceTile }) {
   )
 }
 
-function Tile({ tile, showType }: { tile: PriceTile; showType: boolean }) {
+function Tile({ tile, showType, twoLineDetail }: { tile: PriceTile; showType: boolean; twoLineDetail: boolean }) {
   const { t, lang } = useI18n()
   const { country, variety, priceType } = useLabels()
   const origin = tile.origin_iso3 ? country(tile.origin_iso3) : tile.origin_label || country(tile.market_iso3)
@@ -60,7 +61,8 @@ function Tile({ tile, showType }: { tile: PriceTile; showType: boolean }) {
     collected: tile.collected_at ? fmtAgo(tile.collected_at, lang) : '—',
     native: `${fmtNumber(tile.price_value, lang, 2)} ${tile.currency}/${tile.unit}${tile.terms ? ` · ${tile.terms}` : ''}`,
   })
-  const detail = [variety(tile.variety), tile.color_grade].filter(Boolean).join(' · ')
+  // USDA colour grades arrive as raw English keys ("light amber"): name them like the Prices page.
+  const detail = [variety(tile.variety), tile.color_grade ? colorLabel(tile.color_grade, t) : null].filter(Boolean).join(' · ')
 
   return (
     <Link to={tile.link} title={tip} className="group flex min-w-0 flex-col bg-white px-3.5 pb-3 pt-3 transition-colors hover:bg-paper">
@@ -69,7 +71,9 @@ function Tile({ tile, showType }: { tile: PriceTile; showType: boolean }) {
           <span className="truncate text-[0.98rem] font-semibold leading-tight text-charcoal group-hover:text-forest-800">{origin}</span>
           {tile.is_demo && <span className="shrink-0"><DemoBadge /></span>}
         </div>
-        <div className="truncate text-[0.8rem] text-muted">{detail}</div>
+        {/* Colour grades ("Ambra extra chiaro") tell the series apart: two lines rather than an
+            ellipsis, reserved in every tile of the block so the prices stay aligned. */}
+        <div className={clsx('text-[0.8rem] text-muted', twoLineDetail ? 'line-clamp-2 min-h-[2.5em] leading-[1.25]' : 'truncate')} title={detail}>{detail}</div>
         {showType && <div className="truncate text-[0.72rem] uppercase tracking-wide text-gold-dark">{priceType(tile.price_type)}</div>}
       </div>
       <div className="mt-2 flex items-baseline gap-1">
@@ -118,7 +122,7 @@ export function PriceTiles({ block }: { block: PricesBlock }) {
         </div>
       ) : (
         <div className={clsx('grid gap-px border-b border-line-soft bg-line-soft', tiles.length > 2 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2')}>
-          {tiles.map((tile) => <Tile key={tile.id} tile={tile} showType={block.mixed_price_types} />)}
+          {tiles.map((tile) => <Tile key={tile.id} tile={tile} showType={block.mixed_price_types} twoLineDetail={tiles.some((x) => x.color_grade)} />)}
           {/* keep the grid rectangular when fewer than a full row */}
           {Array.from({ length: (4 - (tiles.length % 4)) % 4 }).map((_, i) => <div key={`f${i}`} className="hidden bg-white sm:block" />)}
         </div>

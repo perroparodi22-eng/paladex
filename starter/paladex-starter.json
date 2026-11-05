@@ -1,17 +1,17 @@
 {
   "format": 1,
-  "sha256": "dce163d38baa1695ccd1bd52f8f941eabe448bc53e367e876f41928baf659388",
-  "built_at": "2026-11-04T23:07:42",
-  "data_collected_until": "2026-11-04T22:54:06",
+  "sha256": "045d8e5c558a1cfe0a95d48aa2e85273544881aecd70a5f40dd69bad5ad54e46",
+  "built_at": "2026-11-05T18:50:23",
+  "data_collected_until": "2026-11-05T18:48:48",
   "counts": {
     "fx_rates": 221789,
     "news_articles": 29,
-    "price_observations": 22185,
-    "production_stats": 8151,
+    "price_observations": 37238,
+    "production_stats": 8879,
     "regulations": 114,
     "reports": 27,
     "tariff_measures": 50,
-    "trade_flows": 45815,
-    "weather_observations": 0
+    "trade_flows": 119884,
+    "weather_observations": 3120
   }
 }

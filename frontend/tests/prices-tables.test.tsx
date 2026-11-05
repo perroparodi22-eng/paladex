@@ -8,7 +8,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { LatestTable } from '@/components/prices/LatestTable'
 import { RecordsTable } from '@/components/prices/RecordsTable'
-import type { LatestRow, ObservationsResponse } from '@/components/prices/types'
+import type { LatestRow, ObservationsResponse, SeriesIdentity } from '@/components/prices/types'
+import { disambiguateLabels } from '@/components/prices/utils'
 import { newQueryClient, render, text } from './helpers'
 
 const SOURCE = { key: 'usda_honey', name: 'USDA National Honey Report', publisher: 'USDA AMS', reliability: 'official' }
@@ -74,4 +75,25 @@ test('history of observations: status, source, date and document pinned in view 
   const html = render(<RecordsTable filters={filters} from={null} ccy="USD" unit="kg" />, { qc })
   // period, origin, variety (+colour), as published, converted, provenance
   assertProvenancePinned(bodyRows(html), 6, [/USDA AMS/, /28 ott 2026/, /provisional/, /revisione 2/])
+})
+
+// Review of 5 Nov 2026: Cuneo publishes acacia monthly and as an annual average; both series read
+// "Italia · Acacia · Camera di Commercio di Cuneo" in the chart legend.
+test('two series that would share a legend name get the terms that tell them apart', () => {
+  const id = (sid: string, terms: string) => ({
+    id: sid, source: { key: 'cciaa_cuneo_miele', name: 'CCIAA Cuneo', publisher: 'Camera di Commercio di Cuneo', reliability: 'industry' },
+    price_type: 'wholesale_bulk', origin_iso3: 'ITA', origin_label: null, market_iso3: 'ITA', market_location: 'Cuneo', variety: 'acacia',
+    variety_raw: ['Acacia'], color_grade: null, terms, organic: false,
+  }) as unknown as SeriesIdentity & { id: string }
+  const series = [
+    id('a', 'fusto da 3 q.li; media annua; franco partenza dal magazzino; IVA compresa'),
+    id('b', 'fusto da 3 q.li; franco partenza dal magazzino; IVA compresa'),
+    id('c', 'secchio da 25 kg; IVA compresa'),
+  ]
+  const same = 'Italia · Acacia · Camera di Commercio di Cuneo'
+  const out = disambiguateLabels(series, { a: same, b: same, c: 'Italia · Castagno' })
+  assert.equal(out.a, `${same} · media annua`)
+  assert.equal(out.b, same)
+  assert.equal(out.c, 'Italia · Castagno')
+  assert.equal(new Set([out.a, out.b]).size, 2)
 })

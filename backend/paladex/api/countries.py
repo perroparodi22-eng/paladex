@@ -101,13 +101,20 @@ def _json_contains(column, code: str):
 # ---------------------------------------------------------------------------
 
 
+def national_metric_clause(P=ProductionStat):
+    """Country-level metrics only. A `*_by_region` metric (IBGE: Brazil's 27 states, the state in
+    `extra.region`) holds one figure per region and year under the same country: grouped by metric it
+    would make one series jumping from state to state, with a 'latest' and a year-on-year change taken
+    across different states. Only a view that groups by region may read it."""
+    return ~P.metric.like("%\\_by\\_region", escape="\\")
+
+
 def _production_rows(ctx: Ctx, iso3: str | None = None, metric: str | None = None) -> list[ProductionStat]:
     P = ProductionStat
     q = select(P).where(P.is_current.is_(True), demo_clause(P, ctx.db))
     if iso3:
         q = q.where(P.country_iso3 == iso3)
-    if metric:
-        q = q.where(P.metric == metric)
+    q = q.where(P.metric == metric) if metric else q.where(national_metric_clause(P))
     return list(ctx.db.scalars(q.order_by(P.period_start)))
 
 
@@ -214,10 +221,15 @@ def trade_section(ctx: Ctx, iso3: str, totals: Totals) -> dict:
 
 
 def prices_section(ctx: Ctx, iso3: str) -> dict:
-    """Latest observation of each price series whose ORIGIN is the country, grouped by price type."""
+    """Latest observation of each price series whose ORIGIN is the country, grouped by price type.
+    Customs unit values of lots under 10 t are left out, as on the price pages (a 1.16 t lot from
+    Chile at 8.48 USD/kg is not a bulk price)."""
+    from .prices import bulk_unit_value_clause
+
     P = PriceObservation
     rows = ctx.db.scalars(
-        select(P).where(P.is_current.is_(True), demo_clause(P, ctx.db), P.origin_iso3 == iso3)
+        select(P).where(P.is_current.is_(True), demo_clause(P, ctx.db), P.origin_iso3 == iso3,
+                        bulk_unit_value_clause(P))
         .order_by(P.period_start.desc(), P.id.desc())
     )
     latest: dict[tuple, PriceObservation] = {}
@@ -250,6 +262,25 @@ def prices_section(ctx: Ctx, iso3: str) -> dict:
 DECLARED_TRADE_SOURCES = ("un_comtrade", "eurostat_comext")
 
 
+def _able(ctx: Ctx, providers: list[dict], iso3: str, kind: str) -> list[dict]:
+    """Leave out a provider whose stored data shows it never produces this kind: an export-only
+    collector (Uruguay's, Chile's) never fills an IMPORT block, a trade collector storing no prices never
+    fills a price block. Kept: sources holding this kind of data (for this country or others) and
+    sources that have stored nothing yet."""
+    db = ctx.db
+    T, P = TradeFlowObservation, PriceObservation
+    if kind == "prices":
+        have_ids = set(db.scalars(select(P.source_id).distinct()))
+    else:
+        have_ids = set(db.scalars(select(T.source_id).where(T.flow == kind).distinct()))
+    if not hasattr(ctx, "_sources_with_rows"):
+        ctx._sources_with_rows = {sid for model in (T, P, ProductionStat)
+                                  for sid in db.scalars(select(model.source_id).distinct())}
+    have = {s.key for sid in have_ids if (s := ctx.source(sid))}
+    ran = {s.key for sid in ctx._sources_with_rows if (s := ctx.source(sid))}
+    return [p for p in providers if p["key"] in have or p["key"] not in ran]
+
+
 def section_providers(ctx: Ctx, key: str, iso3: str) -> list[dict]:
     """Sources that would fill one profile section for this country."""
     if key == "prices":
@@ -257,14 +288,15 @@ def section_providers(ctx: Ctx, key: str, iso3: str) -> list[dict]:
     if key in ("exports", "imports"):
         # Customs data declared by the country itself: the global datasets come first (a national
         # import series such as USDA GATS only answers for that country's imports).
-        return ctx.providers("trade", country=iso3, prefer=DECLARED_TRADE_SOURCES, country_first=key == "imports")
+        return _able(ctx, ctx.providers("trade", country=iso3, prefer=DECLARED_TRADE_SOURCES,
+                                        country_first=key == "imports"), iso3, key[:-1])
     return ctx.providers(SECTION_CATEGORIES[key], country=iso3)
 
 
 def price_providers(ctx: Ctx, iso3: str) -> list[dict]:
     """Price lists about the country, then sources publishing prices by origin (customs unit
     values are stored as prices by the trade collectors), then the other price lists."""
-    return ctx.providers(("prices", "trade"), country=iso3, prefer=ORIGIN_PRICE_SOURCES)
+    return _able(ctx, ctx.providers(("prices", "trade"), country=iso3, prefer=ORIGIN_PRICE_SOURCES), iso3, "prices")
 
 
 # ---------------------------------------------------------------------------

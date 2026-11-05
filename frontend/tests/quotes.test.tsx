@@ -139,7 +139,7 @@ test('Q1 first visit: a friendly empty state explains the page and invites the f
   assert.match(it, /Nessuna offerta registrata/)
   assert.match(it, /Aggiungi la prima offerta/)
   assert.match(it, /costo sbarcato/i)
-  assert.match(it, /restano su questo computer\. Unica eccezione: se attivate l'assistente IA/)
+  assert.match(it, /restano su questo computer\. Unica eccezione: se attivi l'assistente IA/)
   assert.match(it, /Ultimo cambio BCE disponibile: 04 nov 2026/)
   assert.doesNotMatch(it, /Esporta CSV/, 'nothing to export yet')
   const en = text(page(list([]), 'en'))

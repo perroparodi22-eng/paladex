@@ -133,6 +133,7 @@ export default {
     'compare.subtitle': "Ultimo prezzo di ogni serie negli ultimi {n} mesi, fino a {p}. Ogni barra indica il proprio periodo.",
     'compare.avgOf': 'media di {n} serie',
     'compare.mixed': 'periodi diversi',
+    'compare.partial': 'periodo in corso, dati parziali',
     'compare.excluded': 'Senza dati negli ultimi {n} mesi',
     'compare.lastPeriod': 'ultimo dato {p}',
     'compare.details': 'Clicca una barra per vedere le singole serie e le loro fonti.',
@@ -162,6 +163,7 @@ export default {
     'rec.next': 'Successivi',
     'rec.pageOf': 'Pagina {p} di {n}',
     'rec.total': '{n} rilevazioni',
+    'rec.totalOne': '1 rilevazione',
     'rec.revision': 'revisione {n}',
 
     'empty.title': 'Dato non disponibile',
@@ -315,6 +317,7 @@ export default {
     'compare.subtitle': 'Latest price of each series within the last {n} months, up to {p}. Each bar states its own period.',
     'compare.avgOf': 'average of {n} series',
     'compare.mixed': 'different periods',
+    'compare.partial': 'period still open, partial data',
     'compare.excluded': 'No data in the last {n} months',
     'compare.lastPeriod': 'latest {p}',
     'compare.details': 'Click a bar to see the individual series and their sources.',
@@ -344,6 +347,7 @@ export default {
     'rec.next': 'Next',
     'rec.pageOf': 'Page {p} of {n}',
     'rec.total': '{n} observations',
+    'rec.totalOne': '1 observation',
     'rec.revision': 'revision {n}',
 
     'empty.title': 'Data not available',

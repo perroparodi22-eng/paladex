@@ -553,6 +553,34 @@ def test_two_packagings_of_one_variety_are_two_series_not_a_price_move(api, db):
     assert all(c["components"]["price_mom_pct"] in (None, 0.0) for c in d["countries"]["items"])
 
 
+def test_two_honeys_of_one_variety_bucket_are_never_a_price_move(api, db):
+    """Review 2026-11-05: CCIAA Cuneo lists 'Millefiori di Alta Montagna' (6.75) and 'Rododendro' (8.00) both as
+    variety 'other', flat for months. The briefing said 'Italy · Other — up 18.5% month on month' (8.00 against
+    6.75: two different honeys). Changes and the sparkline follow the source's own variety text."""
+    cuneo = make_source(db, "t_cuneo", "prices", publisher="CCIAA Cuneo")
+    terms = "secchio da 25 kg; franco partenza dal magazzino; IVA compresa"
+    for months_back in (3, 2, 1):
+        start = month_start(months_back)
+        _, end = month_bounds(start.year, start.month)
+        for raw, v in (("Millefiori di Alta Montagna", 6.75), ("Rododendro", 8.0)):
+            ingest.record(
+                db, PriceObservation, source_id=cuneo.id, series_key=f"wholesale_bulk|{raw}|{start:%Y-%m}",
+                price_type="wholesale_bulk", origin_iso3="ITA", origin_label="Italia", market_iso3="ITA",
+                market_location="Cuneo", variety="other", variety_raw=raw, terms=terms, price_value=v,
+                currency="EUR", unit="kg", price_per_kg=v, eur_per_kg=v, usd_per_kg=round(v * 1.1, 4),
+                period_start=start, period_end=end, period_label=f"{start:%Y-%m}", frequency="M",
+                published_at=end + timedelta(days=10), source_url="https://example.org/listino.pdf",
+                data_status="published", reliability=cuneo.reliability)
+    db.commit()
+    d = get(api, "en")
+    tile = next(t for t in d["prices"]["items"] if t["origin_iso3"] == "ITA")
+    assert tile["variety_raw"] == "Rododendro" and tile["price_per_kg"] == 8.0
+    assert tile["mom_pct"] == 0.0
+    assert [p["value"] for p in tile["spark"]] == [8.0, 8.0, 8.0]          # no zig-zag between the two honeys
+    assert all(b["kind"] != "price" for b in d["briefing"]["bullets"])
+    assert all(c["components"]["price_mom_pct"] in (None, 0.0) for c in d["countries"]["items"])
+
+
 def test_annual_row_is_not_a_point_of_the_monthly_series(api, db):
     src = make_source(db, "t_comtrade", "prices")
     jan = TODAY.replace(month=1, day=1)
@@ -653,3 +681,19 @@ def test_weekly_customs_values_are_not_reported_as_monthly_moves(api):
     body = api.get("/api/overview").json()
     text = str(body["briefing"]) + str(body["countries"])
     assert "200" not in text or "TUR" not in text
+
+
+def test_briefing_wording_and_labels():
+    """Review 2026-11-05: 'in rialzo del 84,5%', 'rispetto a 2023', a raw '2026-W44' and a terms hint cut in the
+    middle of a word ('(imports for consumpti')."""
+    from paladex.api import overview as ov
+
+    assert ov._of_pct("84,5%", "it") == "dell'" and ov._of_pct("11,0%", "it") == "dell'"
+    assert ov._of_pct("1,2%", "it") == "dell'" and ov._of_pct("18,5%", "it") == "del " and ov._of_pct("8%", "en") == ""
+    assert ov._vs_period("2023", "it") == "rispetto al 2023" and ov._vs_period("2025-08", "it") == "rispetto ad ago 2025"
+    assert ov._vs_period("2025-09", "it") == "rispetto a set 2025" and ov._vs_period("2023", "en") == "vs 2023"
+    assert ov.fmt_period("2026-W44", "it") == "settimana 44 del 2026" and ov.fmt_period("2026-W44", "en") == "week 44 of 2026"
+    census = "US customs value / net kg (imports for consumption; excludes freight, insurance & duty), HS 0409 total"
+    assert ov._term_parts(census) == [
+        "US customs value / net kg (imports for consumption; excludes freight, insurance & duty)", "HS 0409 total"]
+    assert ov._short("a" * 10 + " " + "b" * 50) == "a" * 10 + "…"

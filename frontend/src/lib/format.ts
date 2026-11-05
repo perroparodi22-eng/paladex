@@ -79,7 +79,30 @@ export function fmtPeriod(label: string | null | undefined, lang: Lang): string 
   if (q) return lang === 'it' ? `${q[2]}° trim. ${q[1]}` : `Q${q[2]} ${q[1]}`
   const w = /^(\d{4})-W(\d{1,2})$/.exec(label)
   if (w) return lang === 'it' ? `sett. ${Number(w[2])} ${w[1]}` : `week ${Number(w[2])} ${w[1]}`
+  // Week of a month (ISMEA): "2026-06-S4" = 4th week of June 2026 (S = settimana).
+  const s = /^(\d{4})-(\d{2})-S([1-5])$/.exec(label)
+  if (s) {
+    const month = fmtDate(`${s[1]}-${s[2]}-15`, lang, { month: 'short', year: 'numeric' })
+    return lang === 'it' ? `${s[3]}ª sett. ${month}` : `week ${s[3]} of ${month}`
+  }
   return label
+}
+
+/** Units of production statistics as stored by the backend ("t", "number", "kg/colony",
+ * "1000 BRL") in words a reader understands: "alveari", "kg per alveare", "migliaia di BRL". */
+const PROD_UNITS: Record<string, Record<Lang, string>> = {
+  t: { it: 't', en: 't' },
+  number: { it: 'alveari', en: 'hives' },
+  'kg/colony': { it: 'kg per alveare', en: 'kg per hive' },
+}
+
+export function fmtProdUnit(unit: string | null | undefined, lang: Lang): string {
+  if (!unit) return ''
+  const known = PROD_UNITS[unit]
+  if (known) return known[lang]
+  const thousands = /^1000 ([A-Z]{3})$/.exec(unit)   // IBGE production value: thousand reais
+  if (thousands) return lang === 'it' ? `migliaia di ${thousands[1]}` : `thousand ${thousands[1]}`
+  return unit
 }
 
 export function pctChange(curr: number | null | undefined, prev: number | null | undefined): number | null {

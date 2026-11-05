@@ -7,7 +7,7 @@ export default {
     new: 'Nuova offerta',
     export: 'Esporta CSV',
     exportHint: 'Scarica le offerte filtrate in un file per Excel (separatore «;», decimali con la virgola)',
-    privacy: 'Le offerte sono dati riservati di Parodi Group e restano su questo computer. Unica eccezione: se attivate l\'assistente IA e gli fate una domanda sulle offerte, prezzo, origine, Incoterm e quantità gli vengono inviati come «Offerta A/B/C», senza nomi dei fornitori né note. Non vengono mai cancellate: si archiviano.',
+    privacy: 'Le offerte sono dati riservati di Parodi Group e restano su questo computer. Unica eccezione: se attivi l\'assistente IA e gli fai una domanda sulle offerte, prezzo, origine, Incoterm e quantità gli vengono inviati come «Offerta A/B/C», senza nomi dei fornitori né note. Non vengono mai cancellate: si archiviano.',
     privacyShort: 'Dati riservati: restano su questo computer',
     notGiven: 'non indicato',
     notGivenF: 'non indicata',
@@ -28,7 +28,7 @@ export default {
 
     'noMatch.title': 'Nessuna offerta con questi filtri',
     'noMatch.hint': 'Cambia o azzera i filtri per vedere le altre offerte.',
-    'noMatch.archivedHint': 'Le offerte non archiviate sono finite: quelle archiviate sono nella scheda «Archiviate».',
+    'noMatch.archivedHint': 'Non ci sono offerte fuori dall’archivio: quelle archiviate sono nella scheda «Archiviate».',
 
     'tab.open': 'Tutte',
     'tab.active': 'Attive',

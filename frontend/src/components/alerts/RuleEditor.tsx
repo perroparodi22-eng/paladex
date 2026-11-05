@@ -159,7 +159,9 @@ function ReportFields({ p, set, o }: { p: RuleParams; set: SetParams; o: Options
   if (!o.report_sources.length) return <Note tone="warn">{t('alerts.f.noReports')}</Note>
   const items = o.report_sources.map((s) => ({
     key: s.key, label: lang === 'it' ? s.name : s.publisher || s.name,
-    hint: s.latest_published_at ? t('alerts.f.reports', { n: s.reports, d: fmtDate(s.latest_published_at, lang) }) : t('alerts.f.reportsNoDate', { n: s.reports }),
+    hint: s.reports === 1
+      ? (s.latest_published_at ? t('alerts.f.reportOne', { d: fmtDate(s.latest_published_at, lang) }) : t('alerts.f.reportOneNoDate'))
+      : s.latest_published_at ? t('alerts.f.reports', { n: s.reports, d: fmtDate(s.latest_published_at, lang) }) : t('alerts.f.reportsNoDate', { n: s.reports }),
   }))
   return (
     <div>

@@ -57,7 +57,8 @@ def api(db):
 
     from paladex.main import create_app
 
-    return TestClient(create_app(start_scheduler=False))
+    # The address the owner's browser uses (the app answers loopback host names only).
+    return TestClient(create_app(start_scheduler=False), base_url="http://127.0.0.1:8765")
 
 
 @pytest.fixture()

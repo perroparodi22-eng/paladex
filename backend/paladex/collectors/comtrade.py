@@ -30,7 +30,8 @@ Source research: docs/research/comtrade.json. How this collector works:
     country nor such an area is still a warning;
   - a derived customs **unit value** (``PriceType.IMPORT_UNIT_VALUE`` /
     ``EXPORT_UNIT_VALUE``, USD/kg) per country pair. It is a customs value divided by a weight,
-    never a market quotation, so it is never stored as ``WHOLESALE_BULK``.
+    never a market quotation, so it is never stored as ``WHOLESALE_BULK``. None is derived from a
+    weight UN Comtrade estimated (the trade row keeps it, as an estimate): see `unit_value`.
   Revisions published by UN Comtrade become new revisions through ``services.ingest``. A series a
   fresh answer no longer supports is withdrawn (``ctx.retire``: no longer current, kept in the
   history): a unit value whose re-released trade row lost its weight, a partner the re-release no
@@ -662,9 +663,13 @@ def parse_records(content: bytes, partner_ref: dict[int, PartnerInfo] | None = N
 
 def unit_value(rec: TradeRecord) -> float | None:
     """Customs unit value in USD/kg for one country pair, or None when it must not be derived:
-    the World total, an unmapped partner, a re-import from itself, a missing value or weight, or
-    a flow under MIN_UNIT_VALUE_KG."""
+    the World total, an unmapped partner, a re-import from itself, a missing value or weight, a
+    flow under MIN_UNIT_VALUE_KG, or a net weight that UN Comtrade estimated (``isNetWgtEstimated``).
+    An estimated weight is imputed from the value with a standard unit value, so value / weight only
+    gives back that factor (2.9459 USD/kg for every partner of the US in Aug 2026): never a price."""
     if rec.partner_iso3 == "WLD" or not rec.partner_known or rec.partner_iso3 == rec.reporter_iso3:
+        return None
+    if rec.weight_estimated:
         return None
     if not rec.value or not rec.net_weight_kg or rec.net_weight_kg < MIN_UNIT_VALUE_KG:
         return None
@@ -675,6 +680,8 @@ def no_unit_value_reason(rec: TradeRecord) -> str:
     """Why `unit_value(rec)` is None, in words (for the warning when an earlier unit value is withdrawn)."""
     if not rec.partner_known:
         return "partner not mapped to a country"
+    if rec.weight_estimated:
+        return "net weight estimated by UN Comtrade"
     if not rec.value:
         return "value not reported"
     if not rec.net_weight_kg:
@@ -1169,6 +1176,23 @@ class _ComtradeRun:
                      f"{', '.join(dropped[:8])}{more}")
 
 
+def retire_estimated_unit_values(ctx: CollectContext) -> int:
+    """Unit values stored before `unit_value` refused estimated weights (their only `estimate` price
+    rows: `TradeRecord.data_status`) are withdrawn once: no longer current, kept in the history. A
+    period the source does not re-release would otherwise keep them current indefinitely."""
+    po = PriceObservation
+    keys = ctx.session.scalars(select(po.series_key).where(
+        po.source_id == ctx.source.id, po.is_current.is_(True), po.is_demo.is_(False),
+        po.data_status == DataStatus.ESTIMATE.value)).all()
+    n = sum(1 for key in keys if ctx.retire(po, key))
+    if n:
+        ctx.warn(f"UN Comtrade: {n} earlier unit value(s) derived from net weights that UN Comtrade estimated were "
+                 "withdrawn (kept in the history): an estimated weight gives back Comtrade's estimation factor, "
+                 "not a price")
+        ctx.checkpoint()
+    return n
+
+
 class ComtradeCollector(Collector):
     key = "un_comtrade"
     name = "UN Comtrade — commercio internazionale di miele (HS 0409)"
@@ -1191,6 +1215,7 @@ class ComtradeCollector(Collector):
     order = 60
 
     def collect(self, ctx: CollectContext) -> None:
+        retire_estimated_unit_values(ctx)
         api_key = (self.key_value(ctx.settings) or "").strip() or None
         run = _ComtradeRun(ctx, api_key)
         try:

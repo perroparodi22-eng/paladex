@@ -14,11 +14,15 @@ const queryClient = new QueryClient({
   },
 })
 
+// Opt in to the v7 behaviour now: without these flags React Router prints two deprecation
+// warnings in every browser console, production build included.
+const ROUTER_FUTURE = { v7_startTransition: true, v7_relativeSplatPath: true } as const
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
-        <BrowserRouter>
+        <BrowserRouter future={ROUTER_FUTURE}>
           <App />
         </BrowserRouter>
       </I18nProvider>

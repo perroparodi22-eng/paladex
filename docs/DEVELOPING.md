@@ -20,7 +20,10 @@ frontend/                    React 18 + Vite + TypeScript + Tailwind + Recharts 
   src/components/<area>/     area-specific components
   src/pages/<Page>.tsx       one file per route (routes are in App.tsx)
   src/i18n/pages/<ns>.ts     per-page dictionaries {it:{}, en:{}} -> keys "<ns>.<key>"
+scripts/launch.py            start step run by the launchers: git update, requirements, serve
+scripts/mirror/              read-only online copy for the phone (docs/PHONE_ACCESS.md)
 scripts/dev/                 preview.sh (isolated backend+vite pair), screenshot.cjs
+starter/                     real starter data merged at start-up (services/starter.py; rebuild with starter-build)
 ```
 
 ## Non-negotiable data rules
@@ -49,7 +52,8 @@ scripts/dev/                 preview.sh (isolated backend+vite pair), screenshot
 * Create `backend/paladex/api/<section>.py` with `router = APIRouter(tags=[...])`. Paths are relative to `/api`. Register the module in `api/__init__.py` (most sections are already listed).
 * Use `Depends(get_db)`, filter demo rows with `demo_clause(Model, db)` and current revisions with `Model.is_current.is_(True)`.
 * Return provenance: `source` (via `source_brief`), `source_url`, `published_at`, `collected_at`, `period_label`, `period_start`, `period_end`, `data_status`, `reliability`, `is_demo`.
-* Tests use the `api` fixture (FastAPI TestClient on a fresh database).
+* Anything that changes data or calls a paid service (AI) is a POST, PUT or DELETE, never a GET: the server refuses those methods from other websites (`main.LocalOnlyGuard`), which a GET cannot be protected against in every browser.
+* Tests use the `api` fixture (FastAPI TestClient on a fresh database, addressed as `http://127.0.0.1:8765`: the server answers loopback host names only).
 
 ## Frontend conventions
 
@@ -58,12 +62,12 @@ scripts/dev/                 preview.sh (isolated backend+vite pair), screenshot
 * Use `useI18n()` for strings and keep a dictionary in `src/i18n/pages/<ns>.ts`. Use `useLabels()` for country, variety and price-type names, and `lib/format.ts` for numbers and dates (`it-IT` locale by default).
 * Use `@tanstack/react-query` for data, `api.get()` from `lib/api.ts`, and `<QueryState>` / `<EmptyState>` / `<ErrorBlock>`.
 * Every number on screen should be one click (or one hover) away from its source.
-* Desktop first; the layout must also work on a tablet (≥ 1024 px wide).
+* Desktop first; every page must also work on a tablet and on a phone (the online copy is read on the phone): check with `screenshot.cjs ... 390 844 mobile`.
 
 ## Running
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest
+cd backend && source .venv/bin/activate && pip install pytest respx && python -m pytest
 cd frontend && npx tsc -b --noEmit && npx vite build
 scripts/dev/preview.sh 9200 --demo        # isolated preview; prints the URL
 node scripts/dev/screenshot.cjs http://127.0.0.1:9201/prezzi /tmp/claude-0/shots/x.png
