@@ -11,6 +11,7 @@ import { api } from '@/lib/api'
 import { fmtAgo } from '@/lib/format'
 import type { CollectState, SourceInfo } from '@/lib/types'
 import { FirstRunBanner } from './FirstRunBanner'
+import { AlertBell } from '@/components/alerts/AlertBell'
 
 interface NavItem { to: string; key: string; icon: ReactNode; end?: boolean }
 
@@ -181,6 +182,7 @@ function TopBar() {
           <span className="text-sm text-muted hidden md:inline">
             {t('top.lastUpdate')}: <span className="text-charcoal-soft">{lastCheck ? fmtAgo(lastCheck, lang) : t('top.never')}</span>
           </span>
+          <AlertBell />
           <button className="btn-primary" onClick={() => refresh.mutate()} disabled={running || refresh.isPending || !online}>
             <RefreshCw size={16} className={clsx(running && 'animate-spin')} />
             {running ? t('top.refreshing') : t('top.refresh')}
