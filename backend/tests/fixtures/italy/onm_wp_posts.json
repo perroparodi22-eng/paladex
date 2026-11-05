@@ -1,0 +1,14 @@
+[
+  {"id": 12401, "date": "2026-09-21T11:00:00",
+   "link": "https://www.informamiele.it/agosto-2026-rilevazione-mensile/",
+   "title": {"rendered": "Agosto 2026 &#8211; Rilevazione mensile"},
+   "content": {"rendered": "<p><strong>Mercato</strong></p><p>Rimane stazionario il mercato del miele all&#8217;ingrosso in fusti.</p>", "protected": false}},
+  {"id": 12345, "date": "2026-08-20T11:00:00",
+   "link": "https://www.informamiele.it/luglio-2026-rilevazione-mensile/",
+   "title": {"rendered": "Luglio 2026 &#8211; Rilevazione mensile"},
+   "content": {"rendered": "<h3>Mercato</h3><p>Nel mese di luglio il mercato all&#8217;ingrosso del miele in fusti ha registrato scambi contenuti.</p>", "protected": false}},
+  {"id": 9001, "date": "2025-11-18T11:00:00",
+   "link": "https://www.informamiele.it/come-funziona-la-rilevazione-dei-prezzi/",
+   "title": {"rendered": "Come funziona la rilevazione dei prezzi"},
+   "content": {"rendered": "<p>Metodologia.</p>", "protected": false}}
+]

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- RECONSTRUCTED fixture (see README.md): standard WordPress RSS 2.0 layout; the /feed/ path
+     of informamiele.it is unverified. Titles/dates follow the documented posting pattern. -->
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<channel>
+  <title>Informamiele</title>
+  <link>https://www.informamiele.it</link>
+  <description>Osservatorio Nazionale Miele</description>
+  <language>it-IT</language>
+  <item>
+    <title>Agosto 2026 - Rilevazione mensile</title>
+    <link>https://www.informamiele.it/agosto-2026-rilevazione-mensile/</link>
+    <pubDate>Mon, 21 Sep 2026 09:00:00 +0000</pubDate>
+    <dc:creator>Osservatorio</dc:creator>
+    <category>Comunicati</category>
+    <description><![CDATA[Rimane stazionario il mercato del miele all'ingrosso in fusti [&#8230;]]]></description>
+  </item>
+  <item>
+    <title>APIMELL 2026: l&#8217;Osservatorio a Piacenza</title>
+    <link>https://www.informamiele.it/apimell-2026-osservatorio/</link>
+    <pubDate>Wed, 02 Sep 2026 10:00:00 +0000</pubDate>
+    <description><![CDATA[Appuntamento in fiera.]]></description>
+  </item>
+  <item>
+    <title>Luglio 2026 - Rilevazione mensile</title>
+    <link>https://www.informamiele.it/luglio-2026-rilevazione-mensile/</link>
+    <pubDate>Thu, 20 Aug 2026 09:00:00 +0000</pubDate>
+    <category>Comunicati</category>
+    <description><![CDATA[Nel mese di luglio il mercato all'ingrosso [&#8230;]]]></description>
+    <content:encoded><![CDATA[<h3>Mercato</h3><p>Nel mese di luglio il mercato all'ingrosso del miele in fusti ha registrato scambi contenuti. Le quotazioni del miele in fusti si sono mantenute su questi livelli: millefiori convenzionale 5,00-6,50 €/kg, mieli monoflora 6,00-7,50 €/kg, acacia 8,00-10,00 €/kg.</p><h3>Sciami e api regine</h3><p>Prezzi stabili.</p>]]></content:encoded>
+  </item>
+  <item>
+    <title>Report annuale andamento produttivo e di mercato stagione 2025</title>
+    <link>https://www.informamiele.it/report-annuale-andamento-produttivo-e-di-mercato-stagione-2025/</link>
+    <pubDate>Tue, 03 Mar 2026 09:00:00 +0000</pubDate>
+    <description><![CDATA[Il report completo è disponibile su Mieleinforma.]]></description>
+    <content:encoded><![CDATA[<p>Il report completo è disponibile su <a href="https://mieleinforma.it/">MIELEINFORMA</a>.</p>]]></content:encoded>
+  </item>
+</channel>
+</rss>

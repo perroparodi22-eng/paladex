@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+# Node
+node_modules/
+# frontend/dist is committed so the app runs with Python only (rebuild with: cd frontend && npm run build)
+# Local data (never commit the father's database or API keys)
+data/
+*.sqlite3
+*.db
+.env
+*.tsbuildinfo
+# Read-only online copy (scripts/mirror): Netlify CLI state and local build output
+.netlify/
+mirror-out/

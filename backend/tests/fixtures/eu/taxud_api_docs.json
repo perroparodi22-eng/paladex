@@ -1,0 +1,21 @@
+{
+ "openapi": "3.0.1",
+ "info": {"title": "Agri-food Data Portal API", "version": "v3"},
+ "servers": [{"url": "https://api.tech.ec.europa.eu/agrifood", "description": "Generated server url"}],
+ "paths": {
+  "/api/taxud/weeklyData/sectors": {"get": {"tags": ["taxud"], "operationId": "getSectors", "parameters": []}},
+  "/api/taxud/weeklyData/import": {"get": {"tags": ["taxud"], "operationId": "getImportData", "parameters": [
+   {"name": "sectors", "in": "query", "required": false, "schema": {"type": "array", "items": {"type": "string"}}},
+   {"name": "marketingYears", "in": "query", "required": false, "schema": {"type": "array", "items": {"type": "string"}}},
+   {"name": "memberStateCodes", "in": "query", "required": false, "schema": {"type": "array", "items": {"type": "string"}}},
+   {"name": "partnerCodes", "in": "query", "required": false, "schema": {"type": "array", "items": {"type": "string"}}},
+   {"name": "products", "in": "query", "required": false, "schema": {"type": "array", "items": {"type": "string"}}},
+   {"name": "importCategories", "in": "query", "required": false, "schema": {"type": "array", "items": {"type": "string"}}},
+   {"name": "weeks", "in": "query", "required": false, "schema": {"type": "array", "items": {"type": "integer"}}}
+  ]}},
+  "/api/taxud/weeklyData/export": {"get": {"tags": ["taxud"], "operationId": "getExportData", "parameters": [
+   {"name": "sectors", "in": "query", "required": false, "schema": {"type": "array", "items": {"type": "string"}}},
+   {"name": "marketingYears", "in": "query", "required": false, "schema": {"type": "array", "items": {"type": "string"}}}
+  ]}}
+ }
+}

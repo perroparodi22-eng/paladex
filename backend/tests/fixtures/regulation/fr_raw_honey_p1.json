@@ -1,0 +1,54 @@
+{
+  "count": 4,
+  "description": "Documents matching '\"raw honey\"' and published on or after 11/03/2023",
+  "total_pages": 2,
+  "next_page_url": "https://www.federalregister.gov/api/v1/documents.json?conditions%5Bpublication_date%5D%5Bgte%5D=2023-11-03&conditions%5Bterm%5D=%22raw+honey%22&fields%5B%5D=document_number&fields%5B%5D=title&fields%5B%5D=type&fields%5B%5D=abstract&fields%5B%5D=publication_date&fields%5B%5D=effective_on&fields%5B%5D=html_url&fields%5B%5D=pdf_url&fields%5B%5D=agencies&fields%5B%5D=action&fields%5B%5D=citation&order=newest&page=2&per_page=100",
+  "results": [
+    {
+      "document_number": "2026-90101",
+      "title": "Raw Honey From Brazil: Final Results of Antidumping Duty Administrative Review; 2023-2024",
+      "type": "Notice",
+      "abstract": "The U.S. Department of Commerce (Commerce) determines that producers and exporters of raw honey from Brazil sold subject merchandise in the United States at less than normal value during the period of review (POR), June 1, 2023, through May 31, 2024.",
+      "publication_date": "2026-06-12",
+      "effective_on": "2026-06-12",
+      "html_url": "https://www.federalregister.gov/documents/2026/06/12/2026-90101/raw-honey-from-brazil-final-results-of-antidumping-duty-administrative-review-2023-2024",
+      "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2026-06-12/pdf/2026-90101.pdf",
+      "agencies": [
+        {"raw_name": "DEPARTMENT OF COMMERCE", "name": "Commerce Department", "id": 54, "url": "https://www.federalregister.gov/agencies/commerce-department", "json_url": "https://www.federalregister.gov/api/v1/agencies/54", "parent_id": null, "slug": "commerce-department"},
+        {"raw_name": "International Trade Administration", "name": "International Trade Administration", "id": 261, "url": "https://www.federalregister.gov/agencies/international-trade-administration", "json_url": "https://www.federalregister.gov/api/v1/agencies/261", "parent_id": 54, "slug": "international-trade-administration"}
+      ],
+      "action": "Notice.",
+      "citation": "91 FR 39001"
+    },
+    {
+      "document_number": "2026-90102",
+      "title": "Initiation of Antidumping and Countervailing Duty Administrative Reviews",
+      "type": "Notice",
+      "abstract": "The U.S. Department of Commerce (Commerce) has received requests to conduct administrative reviews of various antidumping duty (AD) and countervailing duty (CVD) orders with June anniversary dates. In accordance with Commerce&#8217;s regulations, we are initiating those administrative reviews.",
+      "publication_date": "2026-08-05",
+      "effective_on": null,
+      "html_url": "https://www.federalregister.gov/documents/2026/08/05/2026-90102/initiation-of-antidumping-and-countervailing-duty-administrative-reviews",
+      "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2026-08-05/pdf/2026-90102.pdf",
+      "agencies": [
+        {"raw_name": "DEPARTMENT OF COMMERCE", "name": "Commerce Department", "id": 54, "url": "https://www.federalregister.gov/agencies/commerce-department", "json_url": "https://www.federalregister.gov/api/v1/agencies/54", "parent_id": null, "slug": "commerce-department"},
+        {"raw_name": "International Trade Administration", "name": "International Trade Administration", "id": 261, "url": "https://www.federalregister.gov/agencies/international-trade-administration", "json_url": "https://www.federalregister.gov/api/v1/agencies/261", "parent_id": 54, "slug": "international-trade-administration"}
+      ],
+      "action": "Notice.",
+      "citation": "91 FR 51234",
+      "excerpts": " Period to be reviewed \n AD Proceedings \n ARGENTINA: <span class=\"match\">Raw Honey</span>, A-357-823 \n 6/1/25-5/31/26 \n Asociaci&#243;n de Cooperativas Argentinas (illustrative test excerpt)"
+    },
+    {
+      "document_number": "2026-90103",
+      "title": "Raw Honey From India: Preliminary Results of Antidumping Duty Administrative Review; 2024-2025",
+      "type": "Notice",
+      "abstract": "Deliberately malformed test row: the publication date is not ISO formatted.",
+      "publication_date": "June 2026",
+      "effective_on": null,
+      "html_url": "https://www.federalregister.gov/documents/2026/06/03/2026-90103/raw-honey-from-india-preliminary-results",
+      "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2026-06-03/pdf/2026-90103.pdf",
+      "agencies": [],
+      "action": "Notice.",
+      "citation": "91 FR 37777"
+    }
+  ]
+}

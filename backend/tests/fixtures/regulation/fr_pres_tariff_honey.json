@@ -1,0 +1,24 @@
+{
+  "count": 1,
+  "description": "Documents matching 'tariff honey' of type Presidential Document and published on or after 11/03/2023",
+  "total_pages": 1,
+  "next_page_url": null,
+  "results": [
+    {
+      "document_number": "2025-90501",
+      "title": "Implementing Tariff Adjustments for Certain Agricultural Products",
+      "type": "Presidential Document",
+      "abstract": null,
+      "publication_date": "2025-11-19",
+      "effective_on": null,
+      "html_url": "https://www.federalregister.gov/documents/2025/11/19/2025-90501/implementing-tariff-adjustments-for-certain-agricultural-products",
+      "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2025-11-19/pdf/2025-90501.pdf",
+      "agencies": [
+        {"raw_name": "Executive Office of the President", "name": "Executive Office of the President", "id": 538, "url": "https://www.federalregister.gov/agencies/executive-office-of-the-president", "json_url": "https://www.federalregister.gov/api/v1/agencies/538", "parent_id": null, "slug": "executive-office-of-the-president"}
+      ],
+      "action": null,
+      "citation": "90 FR 52001",
+      "excerpts": " Annex I ... heading 0409.00.00 (Natural <span class=\"match\">honey</span>) is added to the list of products not subject to the additional ad valorem duties (illustrative test excerpt)"
+    }
+  ]
+}

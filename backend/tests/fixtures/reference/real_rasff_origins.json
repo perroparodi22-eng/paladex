@@ -1,0 +1,274 @@
+{
+ "notifications": [
+  {
+   "notifId": 877578,
+   "ecValidationDate": "05-10-2026 14:46:01",
+   "reference": "2026.8785",
+   "notifyingCountry": {
+    "organizationName": "Czechia",
+    "isoCode": "CZ"
+   },
+   "subject": "Grayanotoxin in honey from Nepal, via the Netherlands",
+   "productCategory": {
+    "id": 18451,
+    "description": "honey and royal jelly"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 306,
+    "description": "alert notification"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Nepal",
+     "isoCode": "NP"
+    }
+   ]
+  },
+  {
+   "notifId": 848832,
+   "ecValidationDate": "03-06-2026 16:28:58",
+   "reference": "2026.4893",
+   "notifyingCountry": {
+    "organizationName": "Germany",
+    "isoCode": "DE"
+   },
+   "subject": "Sildenafil and tadalafil in honey product from the Syrian Arab Republic",
+   "productCategory": {
+    "id": 18451,
+    "description": "honey and royal jelly"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 304,
+    "description": "information notification for attention"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Syria",
+     "isoCode": "SY"
+    }
+   ]
+  },
+  {
+   "notifId": 772140,
+   "ecValidationDate": "25-06-2025 09:58:36",
+   "reference": "2025.4738",
+   "notifyingCountry": {
+    "organizationName": "Germany",
+    "isoCode": "DE"
+   },
+   "subject": "Grayantoxins in honey from Nepal, via the Netherlands",
+   "productCategory": {
+    "id": 18451,
+    "description": "honey and royal jelly"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 306,
+    "description": "alert notification"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Nepal",
+     "isoCode": "NP"
+    }
+   ]
+  },
+  {
+   "notifId": 749341,
+   "ecValidationDate": "06-03-2025 15:24:43",
+   "reference": "2025.1625",
+   "notifyingCountry": {
+    "organizationName": "Austria",
+    "isoCode": "AT"
+   },
+   "subject": "Grayanotoxins in honey from Nepal",
+   "productCategory": {
+    "id": 18451,
+    "description": "honey and royal jelly"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 304,
+    "description": "information notification for attention"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Nepal",
+     "isoCode": "NP"
+    }
+   ]
+  },
+  {
+   "notifId": 749117,
+   "ecValidationDate": "06-03-2025 12:14:44",
+   "reference": "2025.1605",
+   "notifyingCountry": {
+    "organizationName": "Austria",
+    "isoCode": "AT"
+   },
+   "subject": "Grayanotoxins in honey from Nepal",
+   "productCategory": {
+    "id": 18451,
+    "description": "honey and royal jelly"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 304,
+    "description": "information notification for attention"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Nepal",
+     "isoCode": "NP"
+    }
+   ]
+  },
+  {
+   "notifId": 680222,
+   "ecValidationDate": "22-04-2024 18:00:22",
+   "reference": "2024.3224",
+   "notifyingCountry": {
+    "organizationName": "Germany",
+    "isoCode": "DE"
+   },
+   "subject": "Grayanotoxin in honey from Singapore",
+   "productCategory": {
+    "id": 18451,
+    "description": "honey and royal jelly"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 305,
+    "description": "border rejection notification"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Singapore",
+     "isoCode": "SG"
+    }
+   ]
+  },
+  {
+   "notifId": 793340,
+   "ecValidationDate": "15-10-2025 14:40:01",
+   "reference": "2025.7911",
+   "notifyingCountry": {
+    "organizationName": "Germany",
+    "isoCode": "DE"
+   },
+   "subject": "Pharmacologically active substances in comb honey from Turkey",
+   "productCategory": {
+    "id": 18451,
+    "description": "honey and royal jelly"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 303,
+    "description": "information notification for follow-up"
+   },
+   "riskDecision": {
+    "id": 18762,
+    "description": "not serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Germany",
+     "isoCode": "DE"
+    },
+    {
+     "organizationName": "Türkiye",
+     "isoCode": "TR"
+    }
+   ]
+  },
+  {
+   "notifId": 749052,
+   "ecValidationDate": "05-03-2025 16:05:16",
+   "reference": "2025.1587",
+   "notifyingCountry": {
+    "organizationName": "Portugal",
+    "isoCode": "PT"
+   },
+   "subject": "Royal jelly and honey (apiculture product) from non-approved establishment",
+   "productCategory": {
+    "id": 18451,
+    "description": "honey and royal jelly"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 305,
+    "description": "border rejection notification"
+   },
+   "riskDecision": {
+    "id": 20042,
+    "description": "potential risk"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "China",
+     "isoCode": "CN"
+    }
+   ]
+  }
+ ],
+ "totalPages": 2,
+ "totalElements": 56
+}

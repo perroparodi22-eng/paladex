@@ -1,0 +1,20 @@
+{
+ "data": {
+  "list": [
+   {
+    "year": "2024",
+    "monthNumber": "2",
+    "country": "United States",
+    "state": "Piauí",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": "2030000",
+    "metricKG": "700000"
+   }
+  ]
+ },
+ "success": true,
+ "message": null,
+ "processo_info": null,
+ "language": "en"
+}

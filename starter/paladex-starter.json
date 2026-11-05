@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "sha256": "dce163d38baa1695ccd1bd52f8f941eabe448bc53e367e876f41928baf659388",
+  "built_at": "2026-11-04T23:07:42",
+  "data_collected_until": "2026-11-04T22:54:06",
+  "counts": {
+    "fx_rates": 221789,
+    "news_articles": 29,
+    "price_observations": 22185,
+    "production_stats": 8151,
+    "regulations": 114,
+    "reports": 27,
+    "tariff_measures": 50,
+    "trade_flows": 45815,
+    "weather_observations": 0
+  }
+}

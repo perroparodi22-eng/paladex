@@ -1,0 +1,313 @@
+{
+ "cluster": "Regulations, tariffs and trade measures affecting bulk honey imports into the EU/Italy and the USA. That covers EU TARIC duties, preferences and TRQs for CN 0409 00 00; Access2Markets; EUR-Lex and CELLAR for honey legislation; the Honey Directive 2001/110/EC as amended by (EU) 2024/1438; the third-country and residue lists under (EU) 2021/405; the US AD orders on honey (China 2001; Argentina, Brazil, India and Vietnam 2022); the Federal Register API; the USITC HTS API; FDA import alerts, recalls and refusals; and the 2025-2026 US tariff actions.\n\nACCESS CAVEAT, PLEASE READ: nothing in this cluster could be checked live in this session. (1) The shared WebSearch budget for this workflow turn (200 searches across all agents) was already used up before my first query, so I ran no web searches. (2) WebFetch to www.federalregister.gov, eur-lex.europa.eu and ec.europa.eu failed with DNS/allow-list errors ('outside the session's allowed network domains'). Those hosts, plus hts.usitc.gov, publications.europa.eu, www.trade-tariff.service.gov.uk, www.accessdata.fda.gov and api.fda.gov, must be allowed in the session's network settings before anyone can verify. Alternatively, the user can send a follow-up to continue searching once the budget resets.\n\nAs a result, every item below is from my own knowledge (horizon about mid-2026) and is marked from_memory_unverified. URL templates and parameter names that are long-standing and widely used are marked as higher-confidence memory. The one exception: the 35,000 t Ukraine DCFTA honey TRQ is corroborated by another agent's search snippets in /home/user/paladex/docs/research/eu.json. Anything dated after early 2026 (US tariffs after the Section 122 surcharge, EU-Mercosur provisional application, Italy's transposition of 2024/1438) is explicitly UNKNOWN and must be checked on the desktop PC.",
+ "sources": [
+  {
+   "name": "US Federal Register API v1 (documents search, single document, agencies, public inspection). Main machine feed for US AD/CVD honey notices, USITC notices, FDA/CBP notices and presidential tariff actions",
+   "access_method": "REST API (JSON; CSV variant of search) plus RSS for website search results",
+   "endpoints": [
+    "GET https://www.federalregister.gov/api/v1/documents.json?per_page=100&order=newest&conditions[term]=%22raw+honey%22&conditions[publication_date][gte]=2026-01-01",
+    "GET https://www.federalregister.gov/api/v1/documents.json?per_page=100&order=newest&conditions[agencies][]=international-trade-administration&conditions[term]=honey&conditions[type][]=NOTICE",
+    "GET https://www.federalregister.gov/api/v1/documents.json?per_page=100&order=newest&conditions[term]=%22honey+from+the+people%27s+republic+of+china%22",
+    "GET https://www.federalregister.gov/api/v1/documents.json?per_page=100&order=newest&conditions[agencies][]=international-trade-commission&conditions[term]=honey",
+    "GET https://www.federalregister.gov/api/v1/documents.json?per_page=100&order=newest&conditions[agencies][]=food-and-drug-administration&conditions[term]=honey",
+    "GET https://www.federalregister.gov/api/v1/documents.json?per_page=100&order=newest&conditions[type][]=PRESDOCU&conditions[term]=tariff&conditions[publication_date][gte]=2026-01-01   (presidential tariff EOs/proclamations; optional conditions[presidential_document_type][]=executive_order|proclamation, param name from memory)",
+    "Field selection (append to any search): &fields[]=document_number&fields[]=title&fields[]=type&fields[]=action&fields[]=abstract&fields[]=publication_date&fields[]=effective_on&fields[]=agencies&fields[]=docket_ids&fields[]=citation&fields[]=html_url&fields[]=pdf_url&fields[]=full_text_xml_url&fields[]=raw_text_url",
+    "GET https://www.federalregister.gov/api/v1/documents/{document_number}.json   (e.g. 2026-12345)",
+    "GET https://www.federalregister.gov/api/v1/documents.csv?...same conditions...   (CSV export of a search)",
+    "GET https://www.federalregister.gov/api/v1/agencies   (agency list with slug, id, parent_id; use it to confirm slugs)",
+    "GET https://www.federalregister.gov/api/v1/public-inspection-documents/current.json   (documents filed for publication the next business day; early warning)",
+    "RSS: https://www.federalregister.gov/documents/search.rss?conditions[term]=%22raw+honey%22   (website-search RSS; same conditions syntax)",
+    "Docs: https://www.federalregister.gov/developers/documentation/api/v1"
+   ],
+   "auth": "none (no API key)",
+   "cost_licensing": "Free. Federal Register content is a US Government work (public domain), so storing and redistributing it is allowed. The FR.gov rendition (HTML/JSON) is not the official legal edition; the official edition is the govinfo PDF (pdf_url). No published ban on automated access; use a descriptive User-Agent and modest request rates.",
+   "update_frequency": "Every federal business day. The daily issue is believed to be online about 06:00 ET. Public-inspection documents usually appear the business day before publication (regular filing around 08:45 ET, special filings in the afternoon). Times are from memory.",
+   "data_available": "Every FR document (1994 onward) with metadata and full text. Honey-relevant content: (a) Commerce/ITA AD notices: orders; preliminary and final results of administrative reviews (exporter-specific weighted-average margins and cash-deposit instructions; China honey sometimes per-unit USD/kg); sunset-review initiation and results; changed-circumstances and scope rulings; the monthly omnibus notices 'Opportunity To Request Administrative Review' and 'Initiation of Antidumping and Countervailing Duty Administrative Reviews', which list honey exporters by name. (b) USITC notices (sunset institution, determinations). (c) FDA and CBP notices and rules. (d) USTR Section 301 notices. (e) Presidential documents (tariff EOs and proclamations: IEEPA 2025, Section 122 in 2026, etc.). Full text as GPO XML, HTML and plain text, so AD rate tables can be parsed.",
+   "parsing_notes": "1) Array parameters are bracketed and repeated, e.g. conditions[agencies][]=international-trade-administration. In httpx, pass params as a list of tuples so the brackets are kept (httpx percent-encodes them, which the server accepts).\n2) conditions[type][] takes RULE, PRORULE, NOTICE or PRESDOCU, but the response 'type' field holds labels: 'Rule', 'Proposed Rule', 'Notice', 'Presidential Document'.\n3) Default result fields when fields[] is omitted (from memory): title, type, abstract, document_number, html_url, pdf_url, public_inspection_pdf_url, publication_date, agencies, excerpts. Others must be requested through fields[]. These names are from memory, so validate them on the first live run: action, effective_on, docket_ids, citation, full_text_xml_url, raw_text_url, body_html_url, json_url, start_page, signing_date, executive_order_number, dates, topics.\n4) Pagination: follow next_page_url until it is null. per_page is believed to max out at 1000, and deep paging is capped (about 10,000 results), so always constrain with conditions[publication_date][gte]=YYYY-MM-DD.\n5) conditions[term] is a full-text search. Quoted phrases work. A bare 'honey' also returns honeybee/pollinator grants and similar noise. Filter titles with a regex such as (?i)\\b(raw )?honey from and restrict to the ITA/ITC agencies.\n6) Titles follow a stable pattern you can regex: 'Raw Honey From {Argentina|Brazil|India|the Socialist Republic of Vietnam}: {Preliminary|Final} Results of Antidumping Duty Administrative Review; {YYYY-YYYY}' and 'Honey From the People's Republic of China: ...'.\n7) Rate extraction: fetch full_text_xml_url (GPO XML) and parse the <GPOTABLE> blocks: <BOXHD><CHED>Exporter/producer</CHED><CHED>Weighted-average dumping margin (percent)</CHED></BOXHD> then <ROW><ENT I=\"01\">Company</ENT><ENT>9.17</ENT></ROW>. This element layout is from memory; the raw_text_url table is whitespace-aligned and fragile.\n8) The unique key is document_number (e.g. '2026-12345'). Corrections get their own numbers. Dates are ISO YYYY-MM-DD.\n9) Agency objects carry raw_name, name, id, url, json_url, parent_id, slug. Commerce is the parent of ITA. Map to RegulationItem: jurisdiction='US', doc_type='antidumping' (ITA/ITC honey), 'tariff' (PRESDOCU), 'notice' (other); reference=document_number.",
+   "honey_specific_codes": "Commerce case numbers (VERIFY):\n- A-570-863: Honey from the PRC, order 10 Dec 2001 (66 FR 63670, recalled).\n- 2022 raw honey orders: A-357-823 Argentina; A-351-857 Brazil; India A-533-??? (number not recalled); A-552-831 Vietnam. The Ukraine case ended without an order.\n\nUSITC investigation numbers:\n- 731-TA-893: China honey (2001, opened together with Argentina 731-TA-892 / 701-TA-402, both since revoked).\n- 731-TA-1560 to 1564: raw honey from AR, BR, IN, UA, VN (2021-22).\n\nAgency slugs to confirm via /api/v1/agencies: international-trade-administration, international-trade-commission, food-and-drug-administration, u-s-customs-and-border-protection (?), trade-representative-office-of-united-states (?), executive-office-of-the-president (?).\n\nHTSUS: 0409.00.00. Statistical suffixes recalled from the raw-honey scope: .05, .10, .35, .45, .56, .65.\n\nCalendar: raw honey AR anniversary month is June; China honey is December.",
+   "publication_lag": "AD/CVD notices usually publish a few days to about 2 weeks after Commerce signs them. Final AR results come about 120 days after the preliminary results (extendable). Presidential documents publish about 2 to 5 days after signing.",
+   "rate_limits": "No documented hard limit (from memory). Stay at or below 1 request/s and a few dozen calls per daily run.",
+   "sample_response": "RECONSTRUCTED (structure from memory; values illustrative):\n{\n \"count\": 42,\n \"description\": \"Documents matching '\\\"raw honey\\\"' ...\",\n \"total_pages\": 1,\n \"next_page_url\": null,\n \"results\": [\n  {\n   \"title\": \"Raw Honey From Brazil: Final Results of Antidumping Duty Administrative Review; 2023-2024\",\n   \"type\": \"Notice\",\n   \"abstract\": \"The U.S. Department of Commerce (Commerce) determines that ...\",\n   \"document_number\": \"2026-0XXXX\",\n   \"html_url\": \"https://www.federalregister.gov/documents/2026/MM/DD/2026-0XXXX/raw-honey-from-brazil-...\",\n   \"pdf_url\": \"https://www.govinfo.gov/content/pkg/FR-2026-MM-DD/pdf/2026-0XXXX.pdf\",\n   \"public_inspection_pdf_url\": \"https://public-inspection.federalregister.gov/2026-0XXXX.pdf\",\n   \"publication_date\": \"2026-MM-DD\",\n   \"agencies\": [\n     {\"raw_name\": \"DEPARTMENT OF COMMERCE\", \"name\": \"Commerce Department\", \"id\": 54, \"url\": \"...\", \"json_url\": \"...\", \"parent_id\": null, \"slug\": \"commerce-department\"},\n     {\"raw_name\": \"International Trade Administration\", \"name\": \"International Trade Administration\", \"id\": 261, \"url\": \"...\", \"json_url\": \"...\", \"parent_id\": 54, \"slug\": \"international-trade-administration\"}\n   ],\n   \"excerpts\": \"... <span class=\\\"match\\\">honey</span> ...\"\n  }\n ]\n}\nThe agency ids 54 and 261 are guesses.",
+   "evidence_urls": [
+    "https://www.federalregister.gov/developers/documentation/api/v1",
+    "https://www.federalregister.gov/reader-aids/developer-resources"
+   ],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "US antidumping duty orders on honey: Commerce/ITA case records (ACCESS), USITC orders list and investigation pages, CBP ADCVD messages, CBP EAPA transshipment cases. Status and rates reference",
+   "access_method": "HTML and XLS download; no API (use the Federal Register API above to detect changes)",
+   "endpoints": [
+    "https://www.usitc.gov/trade_remedy/documents/orders.xls   (USITC list of AD/CVD orders in place; exact path from memory)",
+    "https://ids.usitc.gov/   (USITC Investigations Database System; search 'honey')",
+    "https://www.usitc.gov/investigations   (731-TA-1560-1564 raw honey; 731-TA-893 China honey)",
+    "https://access.trade.gov/   (Commerce ACCESS: public search of case documents by case number, e.g. A-357-823; no login needed to search public documents, from memory)",
+    "https://aceservices.cbp.dhs.gov/adcvdweb/   (CBP ADCVD Search: liquidation and cash-deposit instruction messages by case number; path from memory)",
+    "https://www.cbp.gov/trade/trade-enforcement/tftea/eapa   (EAPA evasion cases, several on honey transshipped from China via India/Vietnam/Thailand/Malaysia/Türkiye; notices of action as PDF)",
+    "https://www.trade.gov/us-antidumping-and-countervailing-duties   (ITA AD/CVD overview; path from memory)"
+   ],
+   "auth": "none for public pages (ACCESS needs registration only for filing)",
+   "cost_licensing": "US Government works (public domain), free. No published scraping ban; CBP and USITC pages sit behind Akamai and may block aggressive clients.",
+   "update_frequency": "Event-driven: AR results yearly per order, sunset reviews every 5 years. The USITC orders list is updated irregularly (roughly monthly).",
+   "data_available": "STATUS FROM MEMORY (horizon about mid-2026, NOT verified):\n\nCHINA: AD order A-570-863 'Honey from the People's Republic of China'.\n- In force since 10 Dec 2001; continued after each 5-year sunset review (latest believed 2024-25).\n- Scope (recalled): natural honey; artificial honey with more than 50% natural honey; preparations with more than 50% natural honey; flavoured honey.\n- PRC-wide entity rate: 183.80% at the original order, later reported as 221.03% (UNVERIFIED). Effectively prohibitive, which is why CBP runs the EAPA transshipment cases.\n\nARGENTINA, BRAZIL, INDIA, VIETNAM: AD orders on 'raw honey'.\n- Published about 10 June 2022 after the April 2021 petition by the American Honey Producers Association and Sioux Honey Association.\n- Original LTFV final margins (approximate recollection, DO NOT hard-code):\n  - Argentina: about 9.2-10.7%\n  - Brazil: about 7.9% for cooperating respondents, up to 83.72% (AFA)\n  - India: about 5.7-6.5%\n  - Vietnam (non-market economy): about 58.7-61.3%, with a higher Vietnam-wide rate\n- Administrative reviews in 2023-2026 have since changed exporter-specific rates. Always use the latest 'Final Results' notice per exporter, or the CBP cash-deposit message.\n- The first 5-year sunset review of these four orders should be initiated around May 2027 (computed, not verified).\n\nUKRAINE: named in the 2021 petition (731-TA-1563), but no order was issued (believed: negative final determination in 2022; verify which agency). No AD duty on Ukrainian honey.\n\nARGENTINA, earlier orders: the 2001 AD (A-357-812) and CVD (C-357-813) orders were revoked years ago (date not recalled).",
+   "parsing_notes": "1) Rates are per exporter/producer combination. Store (case_no, exporter, producer, rate_pct or rate_usd_per_kg, rate_type=cash_deposit|assessment, period_of_review, fr_document_number, effective_date). Rates not covered by a review default to the 'all-others' rate, or for China/Vietnam to the country-wide entity rate.\n2) AD is ad valorem on the US entered value. Some China honey results were per-unit (USD/kg).\n3) Scope matters: the 2022 orders cover 'raw honey', defined in the scope by a filtration/pollen threshold (exact micron wording not recalled), so finely filtered honey from these countries may fall outside. Store the scope text from the order notice.\n4) For the duty_pct field on SupplierQuote, suggest the AD rate for the supplier's exporter name when it matches, else the all-others rate, and always show the 'as of' FR notice.",
+   "honey_specific_codes": "A-570-863 (PRC honey); A-357-823 (AR raw honey); A-351-857 (BR); A-552-831 (VN); India number unverified. USITC 731-TA-893; 731-TA-1560/1561/1562/1564 (orders issued) and 1563 (Ukraine, no order). HTSUS 0409.00.00.05/.10/.35/.45/.56/.65; the scope possibly also cites 1702.90.90 and 2106.90.99 (unverified).",
+   "publication_lag": "CBP cash-deposit messages follow the FR final results within days to weeks.",
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "US tariff actions 2025-2026 affecting honey origins (IEEPA 'reciprocal' and other IEEPA tariffs, the Supreme Court ruling, the Section 122 surcharge) plus CBP CSMS messages",
+   "access_method": "Federal Register API (PRESDOCU) + HTSUS Chapter 99 via the USITC HTS API + CBP CSMS (GovDelivery HTML/e-mail)",
+   "endpoints": [
+    "Federal Register: GET https://www.federalregister.gov/api/v1/documents.json?conditions[type][]=PRESDOCU&conditions[term]=tariff&order=newest&per_page=100",
+    "CBP CSMS overview: https://www.cbp.gov/trade/automated/cargo-systems-messaging-service",
+    "CSMS archive (GovDelivery): https://content.govdelivery.com/accounts/USDHSCBP/bulletins   (an RSS feed may exist; URL unverified)",
+    "HTS Chapter 99: https://hts.usitc.gov/reststop/search?keyword=9903.01   (see USITC HTS entry)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Public domain, free.",
+   "update_frequency": "Event-driven; changes were very frequent in 2025-2026.",
+   "data_available": "CHRONOLOGY FROM MEMORY (verify every line).\n\n2025:\n- 5 Apr 2025: EO 14257 (signed 2 Apr 2025, IEEPA) imposed a 10% baseline tariff. The country-specific rates were paused on 9 Apr 2025, except for China.\n- China: tariffs climbed to 125% reciprocal plus a 20% IEEPA 'fentanyl' tariff. The 12 May 2025 Geneva deal cut the reciprocal rate to 10% (24 points suspended). The suspension was extended to 10 Nov 2025, and after the 30 Oct 2025 Trump-Xi meeting to 10 Nov 2026. The fentanyl tariff dropped from 20% to 10% on 10 Nov 2025. That one-year suspension ends 10 Nov 2026, eight days after today: CHECK. Section 301 China tariffs also apply; honey's list status was not recalled.\n- 7 Aug 2025: EO 14326 set country rates:\n  - Argentina 10%\n  - Brazil 10%, plus 40% under the separate Brazil IEEPA EO from 6 Aug 2025 (50% total)\n  - India 25%, plus 25% under the Russian-oil EO from 27 Aug 2025 (50% total)\n  - Vietnam 20% (40% for transshipped goods)\n  - Ukraine 10%\n  - Serbia 35%\n  - Türkiye 15%\n  - Thailand 19%\n  - Uruguay 10%\n  - Moldova 25%\n  - Mexico and Canada: IEEPA fentanyl tariffs, with USMCA-qualifying goods exempt\n- 14 Nov 2025: an EO exempted some agricultural products (coffee, tea, tropical fruit, juices, cocoa, spices, bananas, oranges, tomatoes, beef, fertilisers) from the reciprocal tariffs. I do NOT believe honey was in the annex (verify).\n\n2026:\n- About Feb 2026: a reported US-India interim deal set India at 18% and dropped the oil penalty (verify).\n- 20 Feb 2026: the US Supreme Court (Learning Resources v. Trump, consolidated with V.O.S. Selections) held that IEEPA does not authorise tariffs. That voids the IEEPA reciprocal, fentanyl, Brazil and India tariffs; refunds are being handled through CBP and the CIT.\n- The administration then imposed a temporary Section 122 (Trade Act of 1974) surcharge of 10% (an increase to 15% was announced) from about 24 Feb 2026, for at most 150 days (to about late July 2026) unless Congress extends it. New Section 301 and 232 investigations were also opened.\n- STATUS ON 2 NOV 2026: UNKNOWN to me. The base MFN duty on honey (HTS 0409.00.00) is 1.9 cents/kg (recalled), and AD duties stack on top of any surcharge.",
+   "parsing_notes": "1) Model the tariffs as layers: MFN (HTS column 1), plus Chapter 99 surcharges (9903.xx headings, each with country scope and an effective-date window), plus AD/CVD per exporter. Store each layer with legal_basis, effective_from and effective_to.\n2) Treat any EO or proclamation as 'pending verification' until it shows up in an HTS release or a CSMS message.\n3) CSMS messages are HTML bulletins with a number, e.g. 'CSMS # 6xxxxxxx'. Extract the title and the date.\n4) Do not ship hard-coded 2025 IEEPA rates as current: they were invalidated in Feb 2026 (recalled).",
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "USITC Harmonized Tariff Schedule (HTS) REST API: US MFN, special and column-2 rates for 0409.00.00 and the Chapter 99 surcharge headings",
+   "access_method": "REST API (JSON; also CSV/XLSX export)",
+   "endpoints": [
+    "GET https://hts.usitc.gov/reststop/search?keyword=0409",
+    "GET https://hts.usitc.gov/reststop/search?keyword=honey",
+    "GET https://hts.usitc.gov/reststop/exportList?from=0409&to=0410&format=JSON&styles=false",
+    "GET https://hts.usitc.gov/reststop/exportList?from=9903.01&to=9903.04&format=JSON&styles=false   (Chapter 99 surcharge headings; range values illustrative)",
+    "Web view: https://hts.usitc.gov/search?query=0409"
+   ],
+   "auth": "none",
+   "cost_licensing": "Public domain (USITC), free.",
+   "update_frequency": "Each time a new HTS revision is released (many per year in 2025-2026; each tariff action triggers a revision).",
+   "data_available": "Per HTS line: number, indent, description, unit of quantity, general (MFN) rate (honey 0409.00.00: 1.9 cents/kg, recalled), special-program rates (FTA partner codes), column-2 rate, and footnotes pointing to Chapter 99 headings (additional duties). Chapter 99 lines describe the surcharges and their country scope.",
+   "parsing_notes": "1) Response is a JSON array of objects. Field names (from memory, validate): htsno, indent, description, superior, units (array), general, special, other, footnotes (array of objects such as {columns:[...], value:'See 9903.xx.xx', type:'endnote'}), quotaQuantity, additionalDuties.\n2) Rates are strings such as '1.9¢/kg' or 'Free (A+,AU,BH,CL,CO,D,E,IL,JO,KR,MA,OM,P,PA,PE,S,SG)'. Parse the unit (¢/kg vs %) and the special-program codes with a regex. The partner-code list shown here is illustrative only.\n3) Statistical-suffix rows (10-digit) have an empty 'general' and inherit from the 8-digit parent.\n4) Keep the HTS revision label (e.g. '2026 Revision N') for audit.",
+   "honey_specific_codes": "0409.00.00 (statistical suffixes .05/.10/.35/.45/.56/.65, recalled; colour-grade/organic splits). Possible other entry routes: 1702.90 (syrup blends), 2106.90.99 (preparations).",
+   "rate_limits": "None documented (from memory); keep it to a few calls per week.",
+   "sample_response": "RECONSTRUCTED:\n[\n {\"htsno\": \"0409.00.00\", \"indent\": \"0\", \"description\": \"Natural honey\", \"superior\": null, \"units\": [], \"general\": \"1.9¢/kg\", \"special\": \"Free (A+,AU,...)\", \"other\": \"6.6¢/kg (?)\", \"footnotes\": [], \"quotaQuantity\": \"\", \"additionalDuties\": \"\"},\n {\"htsno\": \"0409.00.00.05\", \"indent\": \"1\", \"description\": \"(?) Certified organic\", \"units\": [\"kg\"], \"general\": \"\", ...}\n]\nThe column-2 value and the suffix descriptions are unverified.",
+   "evidence_urls": [
+    "https://hts.usitc.gov/"
+   ],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "FDA Import Alerts (industry 36: food sweeteners/honey). Detention Without Physical Examination (DWPE) lists, e.g. Import Alert 36-04",
+   "access_method": "HTML (no API)",
+   "endpoints": [
+    "https://www.accessdata.fda.gov/cms_ia/ialist.html   (all import alerts, with last-updated dates)",
+    "https://www.accessdata.fda.gov/cms_ia/industry_36.html   (alerts for industry code 36)",
+    "https://www.accessdata.fda.gov/cms_ia/importalert_{internal_id}.html   (the internal_id is NOT the alert number; take it from the list page)",
+    "FDA honey labeling guidance (context): https://www.fda.gov/regulatory-information/search-fda-guidance-documents/guidance-industry-proper-labeling-honey-and-honey-products   (Feb 2018, path from memory)"
+   ],
+   "auth": "none",
+   "cost_licensing": "US Government work, public domain. No API and no published scraping ban; poll weekly at most.",
+   "update_frequency": "Alert pages are revised irregularly (firms added to or removed from Red/Green lists); each page carries a 'Published Date'.",
+   "data_available": "For each alert: number and title; type (DWPE or surveillance); published date; reason for alert; guidance to FDA field staff; product description; charge code; and a Red List of firms (grouped by country: firm name, address, product code and description, date added), sometimes with a Green List. Honey-related alerts I recall:\n- Import Alert 36-04: honey and blended syrup, residues of chloramphenicol / unapproved animal drugs. Number and exact title are from memory; VERIFY.\n- Possibly others in industry 36 covering residues such as fluoroquinolones.\n- 'Honey' sexual-enhancement products spiked with sildenafil or tadalafil appear under the unapproved-drug alert 66-41. That is not a bulk-honey issue.\nFDA's economically-motivated-adulteration sampling of imported honey (FY2021-2022 assignment, found added sugars in about 10% of samples) is published as a results page, not as an import alert. The figure is recalled and unverified.",
+   "parsing_notes": "1) Change detection: GET ialist.html, parse rows (alert number, title, date), hash each alert page, and re-parse only the pages whose hash changed.\n2) Red List rows follow headings per country. Store (alert_no, country, firm, product_desc, date_added).\n3) Flag a supplier when its name fuzzy-matches a Red List firm.\n4) Pages are old-style HTML tables; use a tolerant parser (selectolax/BeautifulSoup).\n5) Map to RegulationItem with doc_type='import_alert', reference='IA 36-04'.",
+   "honey_specific_codes": "FDA industry code 36 (Food Sweeteners, nutritive); Import Alert 36-04 (unverified title); FDA product codes beginning '36' with 'HONEY' in the description.",
+   "rate_limits": "None published; keep requests at or below 1/s.",
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "FDA enforcement data APIs: openFDA food enforcement (recalls) and the FDA Data Dashboard API (import refusals)",
+   "access_method": "REST API (JSON)",
+   "endpoints": [
+    "GET https://api.fda.gov/food/enforcement.json?search=product_description:%22honey%22+AND+report_date:[20250101+TO+20261231]&limit=100&skip=0",
+    "GET https://api.fda.gov/food/enforcement.json?search=product_description:%22honey%22&count=country.exact",
+    "FDA Data Dashboard API (low confidence): POST https://api-datadashboard.fda.gov/v1/import_refusals with headers Authorization-User: <email>, Authorization-Key: <key>, Content-Type: application/json; body {\"start\":1,\"rows\":1000,\"sort\":\"RefusalDate\",\"sortorder\":\"DESC\",\"filters\":{\"CountryName\":[\"China\"]},\"columns\":[...]}  (endpoint and field names UNVERIFIED)",
+    "Import refusal report (HTML fallback): https://www.accessdata.fda.gov/scripts/importrefusals/   (path from memory)"
+   ],
+   "auth": "openFDA: none needed (a free key from https://open.fda.gov/apis/authentication/ raises the daily quota). Data Dashboard: free registration for a user/key pair (from memory).",
+   "cost_licensing": "openFDA data is public domain (CC0-like, per open.fda.gov/license); FDA disclaims accuracy. Data Dashboard data is public domain.",
+   "update_frequency": "openFDA enforcement: weekly. Import refusals: monthly.",
+   "data_available": "openFDA recalls: recall_number, reason_for_recall, status, classification (Class I/II/III), product_description, code_info, product_quantity, recalling_firm, city/state/country, distribution_pattern, voluntary_mandated, report_date, recall_initiation_date, center_classification_date, termination_date, event_id, product_type. Recalls are US-domestic, so useful mainly for adulteration and contamination signals. Import refusals: firm, country, product code and description, refusal date, refusal charges (e.g. 'UNSAFE ADD', 'NUTRIT LBL', 'FILTHY'). These field names are unverified.",
+   "parsing_notes": "1) openFDA: in search syntax '+' stands for a space; dates are YYYYMMDD strings; limit is at most 1000 and skip at most 25000. No match returns HTTP 404 with {\"error\":{\"code\":\"NOT_FOUND\"}}; treat it as empty. 'meta.results.total' gives the count.\n2) The Data Dashboard API is the least certain item here: probe it and fall back to the HTML import-refusal report.",
+   "rate_limits": "openFDA (from memory): 240 requests/min; 1,000/day per IP without a key; 120,000/day with a key.",
+   "sample_response": "openFDA (structure from memory, values illustrative): {\"meta\":{\"disclaimer\":\"...\",\"terms\":\"https://open.fda.gov/terms/\",\"license\":\"https://open.fda.gov/license/\",\"last_updated\":\"2026-10-28\",\"results\":{\"skip\":0,\"limit\":100,\"total\":12}},\"results\":[{\"recall_number\":\"F-0123-2026\",\"reason_for_recall\":\"...\",\"status\":\"Ongoing\",\"classification\":\"Class II\",\"product_description\":\"Raw honey, 12 oz ...\",\"recalling_firm\":\"...\",\"country\":\"United States\",\"report_date\":\"20260115\",\"recall_initiation_date\":\"20251220\",\"voluntary_mandated\":\"Voluntary: Firm initiated\",\"product_type\":\"Food\",\"event_id\":\"9xxxx\"}]}",
+   "evidence_urls": [
+    "https://open.fda.gov/apis/food/enforcement/",
+    "https://open.fda.gov/apis/authentication/",
+    "https://datadashboard.fda.gov/ora/api/index.htm"
+   ],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "UK Trade Tariff API, Northern Ireland (XI) service. Machine-readable mirror of EU TARIC duties and EU tariff-quota balances for CN 0409 00 00",
+   "access_method": "REST API (JSON:API)",
+   "endpoints": [
+    "GET https://www.trade-tariff.service.gov.uk/xi/api/v2/commodities/0409000000   (EU measures for honey: third-country duty, preferences, TRQs, by origin)",
+    "GET https://www.trade-tariff.service.gov.uk/xi/api/v2/commodities/0409000000?as_of=2026-11-02   (historic date; param name unverified)",
+    "GET https://www.trade-tariff.service.gov.uk/xi/api/v2/quotas/search?goods_nomenclature_item_id=0409000000&geographical_area_id=UA&years[]=2026   (quota definitions and balances; params from memory)",
+    "GET https://www.trade-tariff.service.gov.uk/xi/api/v2/quotas/search?order_number=09XXXX",
+    "GET https://www.trade-tariff.service.gov.uk/xi/api/v2/geographical_areas   (resolve group ids such as 1011 ERGA OMNES and the GSP groups)",
+    "Docs: https://api.trade-tariff.service.gov.uk/   (reference for v2)",
+    "UK-only tariff (for comparison, not EU): https://www.trade-tariff.service.gov.uk/api/v2/commodities/0409000000"
+   ],
+   "auth": "none",
+   "cost_licensing": "Open Government Licence v3.0 (free reuse with attribution: 'Contains public sector information licensed under the Open Government Licence v3.0'). The XI tariff applies EU duties to goods at risk of entering the EU via Northern Ireland, so its measures for 0409 are the EU TARIC measures. The legally authoritative source is still EU TARIC; say so in the UI.",
+   "update_frequency": "Daily (ingests the EU TARIC daily updates; quota balances move as the EU allocates).",
+   "data_available": "For 0409000000: every import measure with origin (country or group), measure type (third-country duty, tariff preference, preferential tariff quota), duty expression ('17.30 %', '0.00 %'), validity dates, legal act (EU regulation/decision id), excluded countries, footnotes, and for TRQs the order number plus definition (initial volume, balance, unit kg, period start and end, status such as Open/Critical/Exhausted). This gives an EU duty-by-origin matrix and Ukraine/Mexico/(Mercosur, if applied) TRQ fill-rates without scraping TARIC.",
+   "parsing_notes": "1) JSON:API: the 'data' object has relationships pointing into the 'included' array; resolve them by (type, id).\n2) Included types (from memory): measure, duty_expression, measure_type, geographical_area, legal_act, order_number, definition, footnote, measure_condition, excluded_country.\n3) TARIC measure type ids: 103 = third country duty, 142 = tariff preference, 143 = preferential tariff quota, 122 = non-preferential tariff quota.\n4) Geographical ids: ISO alpha-2 for countries, BUT TARIC uses XS for Serbia (and XK for Kosovo). Groups are 4-digit numbers (1011 = ERGA OMNES; GSP group ids such as 2020 general and 2027 GSP+ are unverified, so resolve them via /geographical_areas).\n5) duty_expression.base is a display string; parse the number with a regex. formatted_base contains HTML spans.\n6) Quota volumes and balances are strings in kg. A definition period is usually the calendar year, but some agreements use split periods.\n7) VAT and excise measures in XI responses are UK-specific: ignore them.\n8) Check measure.attributes.origin ('eu' vs 'uk') if present.",
+   "honey_specific_codes": "goods_nomenclature_item_id=0409000000 (single 10-digit line; producline_suffix 80). Origins: UA, AR, BR, UY, PY, CN, XS (Serbia), VN, IN, MX, TR, MD, CL. Quota order numbers: take them from the response. An earlier Ukraine honey order number was reported as 09.6730 in another agent's snippets (unverified), and the post-29-Oct-2025 number is unknown.",
+   "rate_limits": "Not recalled; the service is public and cached. Daily calls for 1 commodity plus a few quota searches are trivial.",
+   "sample_response": "RECONSTRUCTED (types and attributes from memory; ids illustrative):\n{\"data\":{\"id\":\"27623\",\"type\":\"commodity\",\"attributes\":{\"goods_nomenclature_item_id\":\"0409000000\",\"producline_suffix\":\"80\",\"description\":\"Natural honey\",\"number_indents\":1,\"declarable\":true,\"basic_duty_rate\":\"17.30 %\"},\"relationships\":{\"import_measures\":{\"data\":[{\"id\":\"3000001\",\"type\":\"measure\"},{\"id\":\"3000002\",\"type\":\"measure\"}]}}},\n \"included\":[\n  {\"id\":\"3000001\",\"type\":\"measure\",\"attributes\":{\"effective_start_date\":\"...\",\"effective_end_date\":null,\"import\":true},\"relationships\":{\"measure_type\":{\"data\":{\"id\":\"103\",\"type\":\"measure_type\"}},\"geographical_area\":{\"data\":{\"id\":\"1011\",\"type\":\"geographical_area\"}},\"duty_expression\":{\"data\":{\"id\":\"3000001-duty_expression\",\"type\":\"duty_expression\"}},\"order_number\":{\"data\":null}}},\n  {\"id\":\"3000001-duty_expression\",\"type\":\"duty_expression\",\"attributes\":{\"base\":\"17.30 %\",\"formatted_base\":\"<span>17.30</span> %\"}},\n  {\"id\":\"103\",\"type\":\"measure_type\",\"attributes\":{\"description\":\"Third country duty\",\"measure_type_series_id\":\"C\"}},\n  {\"id\":\"1011\",\"type\":\"geographical_area\",\"attributes\":{\"geographical_area_id\":\"1011\",\"description\":\"ERGA OMNES\"}},\n  {\"id\":\"3000002\",\"type\":\"measure\",\"relationships\":{\"measure_type\":{\"data\":{\"id\":\"143\",\"type\":\"measure_type\"}},\"geographical_area\":{\"data\":{\"id\":\"UA\",\"type\":\"geographical_area\"}},\"order_number\":{\"data\":{\"id\":\"09XXXX\",\"type\":\"order_number\"}}}},\n  {\"id\":\"09XXXX\",\"type\":\"order_number\",\"attributes\":{\"number\":\"09XXXX\"},\"relationships\":{\"definition\":{\"data\":{\"id\":\"...\",\"type\":\"definition\"}}}},\n  {\"id\":\"...\",\"type\":\"definition\",\"attributes\":{\"initial_volume\":\"35000000.0\",\"balance\":\"12345678.0\",\"measurement_unit\":\"Kilogram (kg)\",\"validity_start_date\":\"2026-01-01T00:00:00.000Z\",\"validity_end_date\":\"2026-12-31T00:00:00.000Z\",\"status\":\"Open\"}}\n ]}",
+   "evidence_urls": [
+    "https://api.trade-tariff.service.gov.uk/",
+    "https://www.trade-tariff.service.gov.uk/xi/commodities/0409000000"
+   ],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "EU TARIC online consultation (DG TAXUD) for measures and tariff quotas on 0409 00 00 00, plus TARIC quota consultation",
+   "access_method": "HTML (JSP pages; no official public API)",
+   "endpoints": [
+    "https://ec.europa.eu/taxation_customs/dds2/taric/measures.jsp?Lang=en&Taric=0409000000&SimDate=20261102&Area=&MeasType=&StartPub=&EndPub=&MeasText=&GoodsText=&op=&search_text=goods&textSearch=&LangDescr=en&OrderNum=&Regulation=&measStartDat=&measEndDat=",
+    "Same URL with &Area=UA (or AR, BR, CN, XS, VN, IN, MX, TR) to filter by origin",
+    "https://ec.europa.eu/taxation_customs/dds2/taric/quota_consultation.jsp?Lang=en&Code=09XXXX&Year=2026&Critical=&Status=&Expand=true   (quota order number without the dot; param names from memory)",
+    "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en   (entry page)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free. Europa legal notice: reuse authorised with acknowledgement of the source (Commission Decision 2011/833/EU), but no guarantee and no API. TARIC is informative; the legal basis is the OJ act cited in each measure. The site is behind EC anti-bot protection, so keep scraping light (weekly).",
+   "update_frequency": "Daily (TARIC is updated daily; quota balances after each allocation, usually several times a week).",
+   "data_available": "For each measure: origin (country or group), measure type, duty (e.g. '17.3 %', '0 %'), conditions, footnotes, legal base regulation, order number (for TRQs), validity dates. Quota consultation gives the order number, period, initial volume, balance, critical status and exhaustion date.",
+   "parsing_notes": "1) SimDate is YYYYMMDD. Area takes TARIC geo codes (XS = Serbia).\n2) The HTML groups measures under headings ('Third country duty', 'Tariff preference', 'Preferential tariff quota') with nested tables. The layout has changed over time, so anchor on the headings and on the order-number links.\n3) Some origin rows apply to groups (GSP, EBA). Expand group membership via the geographical-area pages or via the UK XI API.\n4) Recommended use is verification only. Prefer the UK XI API (above) for the machine feed and link users here.",
+   "honey_specific_codes": "TARIC 0409000000 (CN 0409 00 00 'Natural honey'). Order numbers have the 09.xxxx format (TRQ-specific; read them from the page).",
+   "sample_response": "RECONSTRUCTED HTML table layout: [Origin: 'ERGA OMNES (1011)'] [Measure type: 'Third country duty'] [Duty: '17.3 %'] [Legal base: 'R2658/87' or the current CN regulation] [Start date] | [Origin: 'Ukraine (UA)'] [Measure type: 'Preferential tariff quota'] [Duty: '0 %'] [Order No: '09.xxxx'] [Legal base: decision implementing the revised DCFTA, from 29-10-2025 (?)]",
+   "evidence_urls": [
+    "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en"
+   ],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "EU import duty matrix for natural honey (CN 0409 00 00) by origin: MFN, GSP, FTAs and TRQs. Reference table to seed and then verify",
+   "access_method": "none (curated reference; verify via TARIC or the UK XI API and the OJ acts)",
+   "endpoints": [
+    "Verify via https://www.trade-tariff.service.gov.uk/xi/api/v2/commodities/0409000000",
+    "Verify via https://ec.europa.eu/taxation_customs/dds2/taric/measures.jsp?Lang=en&Taric=0409000000&SimDate=YYYYMMDD&Area={ISO2}"
+   ],
+   "auth": "n/a",
+   "cost_licensing": "n/a (facts; cite OJ acts)",
+   "update_frequency": "Changes when agreements enter into force or quotas reset (usually on 1 January).",
+   "data_available": "FROM MEMORY. Confidence per line in brackets.\n\nThird-country (erga omnes, MFN) duty: 17.3% ad valorem on CIF customs value [high].\n\nBy origin:\n- China: 17.3%, no preference [high].\n- Argentina, Brazil, Uruguay, Paraguay: 17.3% (no GSP since 2014) [high].\n  - EU-Mercosur: honey TRQ of 45,000 t at 0% in-quota, volume phased in over about 5 years, out-of-quota 17.3% [medium].\n  - Agreement status [LOW]: split into EMPA + interim Trade Agreement in Sep 2025. Council authorised signature in Jan 2026, signed about 17 Jan 2026, and the European Parliament voted about 21 Jan 2026 to request a CJEU opinion, which delays consent. Provisional application after Mercosur ratifications was reported as planned for 2026, but the date is UNVERIFIED. A bilateral-safeguard regulation for sensitive agricultural products was adopted around early 2026 (unverified).\n  - On 2 Nov 2026, check TARIC for a 143-type measure with origin AR/BR/UY/PY.\n- Ukraine: DCFTA honey TRQ at 0%.\n  - History: originally 5,000 t, rising to 6,000 t. All duties and quotas were suspended under the autonomous trade measures (June 2022 to 5 Jun 2025); the 2024 renewal (Reg (EU) 2024/1392) added an emergency brake covering honey [medium].\n  - Revised DCFTA (Art. 29), applied from 29 Oct 2025: honey TRQ 35,000 t/yr [medium; corroborated by another agent's search snippets]. Out-of-quota 17.3%.\n- Serbia (TARIC code XS): 0% under the SAA plus the Western Balkans autonomous trade measures (Reg (EC) 1215/2009) [medium].\n- Vietnam: 0% under EVFTA (in force 1 Aug 2020), believed to be immediate liberalisation [low-medium].\n- India: standard GSP 13.8% (17.3 minus 3.5 points for 'sensitive' products), provided India is not graduated for that section [low-medium]. The EU-India FTA was concluded about 27 Jan 2026 but is not believed to be in force; its honey treatment is unknown [low].\n- Mexico: 2000 Global Agreement honey TRQ of about 30,000 t at a reduced duty (possibly 50% of MFN) [low]. The modernised EU-Mexico agreement's status and honey terms are unknown.\n- Türkiye: no honey concession recalled, so probably 17.3% [low].\n- GSP+ (e.g. Uzbekistan, Kyrgyzstan) and EBA (LDCs): 0% [medium].\n- Chile, Moldova, New Zealand: preferential, but the honey terms were not recalled [low].\n\nItaly: import VAT on honey is believed to be 10% [low-medium]; it is not a customs duty.",
+   "parsing_notes": "Seed a duty_reference table with columns (origin_iso2, regime, rate_pct, quota_order_no, quota_volume_t, valid_from, valid_to, legal_ref, verified_on, confidence). Auto-refresh from the UK XI API and raise an alert when a seeded row disagrees. Pre-fill SupplierQuote.duty_pct from it (EU destination: in-quota vs out-of-quota choice for UA/MX). Remember that Serbia is XS in TARIC and Eurostat.",
+   "honey_specific_codes": "CN/TARIC 0409 00 00 / 0409000000; measure types 103/142/143; TARIC geo XS = Serbia.",
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "Access2Markets (DG TRADE) 'My Trade Assistant'",
+   "access_method": "HTML single-page app; no public API known",
+   "endpoints": [
+    "https://trade.ec.europa.eu/access-to-markets/en/results?product=0409000000&origin=AR&destination=IT   (deep-link format from memory)",
+    "https://trade.ec.europa.eu/access-to-markets/en/content/   (guides; path from memory)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free to consult. Europa reuse policy applies to Commission content, but Access2Markets also shows third-party data (e.g. partner-country tariffs sourced from ITC/MacMap) whose redistribution may be restricted. The SPA's internal JSON endpoints are undocumented, so do not build on them.",
+   "update_frequency": "Mirrors TARIC for EU import duties (daily).",
+   "data_available": "Per product, origin and destination: EU import duty and preferences (from TARIC), rules of origin, SPS and labelling requirements, statistics. No new data beyond TARIC for honey import duties.",
+   "parsing_notes": "Use it only as a link-out in the UI ('Open in Access2Markets'). For machine data use the UK XI API or TARIC.",
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "EU Publications Office CELLAR SPARQL endpoint (EUR-Lex metadata): new honey legislation, amendments to key CELEX numbers, consolidated versions",
+   "access_method": "SPARQL endpoint (GET/POST, JSON results) plus CELLAR content negotiation (REST)",
+   "endpoints": [
+    "GET/POST https://publications.europa.eu/webapi/rdf/sparql?query={urlencoded}&format=application%2Fsparql-results%2Bjson",
+    "Example query, new acts with 'honey' in the English title:\nPREFIX cdm: <http://publications.europa.eu/ontology/cdm#>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\nSELECT DISTINCT ?celex ?date ?title WHERE {\n ?work cdm:resource_legal_id_celex ?celex ; cdm:work_date_document ?date .\n FILTER(?date >= \"2025-01-01\"^^xsd:date)\n ?expr cdm:expression_belongs_to_work ?work ; cdm:expression_title ?title ;\n       cdm:expression_uses_language <http://publications.europa.eu/resource/authority/language/ENG> .\n FILTER(CONTAINS(LCASE(STR(?title)), \"honey\"))\n} ORDER BY DESC(?date) LIMIT 500",
+    "Example query, acts amending Implementing Reg 2021/405:\nSELECT ?celex ?date WHERE { ?act cdm:resource_legal_amends_resource_legal ?t . ?t cdm:resource_legal_id_celex ?tc . FILTER(STR(?tc)=\"32021R0405\") ?act cdm:resource_legal_id_celex ?celex ; cdm:work_date_document ?date . } ORDER BY DESC(?date)",
+    "Content negotiation: GET http://publications.europa.eu/resource/celex/32024L1438 with headers Accept: application/xhtml+xml (or application/xml;notice=branch for the metadata notice) and Accept-Language: eng",
+    "EUR-Lex human links: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:{celex} ; ELI: http://data.europa.eu/eli/dir/2024/1438/oj"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free. EU legal texts and metadata may be reused with source acknowledgement (Commission Decision 2011/833/EU; EUR-Lex legal notice). CELLAR/SPARQL is the sanctioned machine channel, unlike crawling eur-lex.europa.eu HTML, which has bot protection.",
+   "update_frequency": "Continuous (OJ published daily; metadata usually available the same day or within days).",
+   "data_available": "Every EU act: CELEX, ELI, dates (document, entry into force, end of validity), titles in all languages, amendment, repeal and corrigendum links, EuroVoc subjects, consolidated versions (CELEX 0yyyyXnnnn-YYYYMMDD), plus manifestations (HTML/PDF/XML) via content negotiation.",
+   "parsing_notes": "1) CDM property names are from memory. They are widely used in public examples, but validate them with a small test query.\n2) CELEX literals may be typed as xsd:string, so compare with FILTER(STR(?c)=...) rather than plain literal matching.\n3) Title CONTAINS scans are slow and can time out (the endpoint has a query timeout of about 60 s, recalled). Always pre-filter by date and use LIMIT.\n4) Better filter: EuroVoc concept 'honey'. Its URI is unverified, so look it up once with SELECT ?c WHERE {?c skos:prefLabel \"honey\"@en} (the EuroVoc graph may need SKOS-XL), then use cdm:work_is_about_concept_eurovoc ?c.\n5) Results JSON: head.vars plus results.bindings[{var:{type,value,datatype?}}].\n6) Corrigenda show up with their own CELEX (suffix R(01)).\n7) Store results as RegulationItem with jurisdiction='EU', reference=CELEX, url = the EUR-Lex link.",
+   "honey_specific_codes": "CELEX numbers:\n- 32001L0110: Honey Directive 2001/110/EC\n- 32014L0063: Directive 2014/63/EU (pollen)\n- 32024L1438: Breakfast Directive (EU) 2024/1438\n- 32021R0405: third-country lists\n- 32022R2292: residue requirements\n- 32022R2293: amends 2021/405 (residue Annex -I) [number recalled]\n- 32020R2235: model certificates incl. HON\n- 32019R1871: reference points for action\n- 32010R0037: MRLs\n- 32024R1392: Ukraine ATM 2024 [recalled]\nConsolidated versions use the pattern 02001L0110-YYYYMMDD.",
+   "rate_limits": "Not published; query timeout and result caps apply. Run 1-2 queries daily.",
+   "sample_response": "SPARQL JSON (standard W3C format; values illustrative): {\"head\":{\"vars\":[\"celex\",\"date\",\"title\"]},\"results\":{\"bindings\":[{\"celex\":{\"type\":\"literal\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#string\",\"value\":\"32024L1438\"},\"date\":{\"type\":\"literal\",\"datatype\":\"http://www.w3.org/2001/XMLSchema#date\",\"value\":\"2024-05-14\"},\"title\":{\"type\":\"literal\",\"xml:lang\":\"en\",\"value\":\"Directive (EU) 2024/1438 ... amending Council Directives 2001/110/EC relating to honey, ...\"}}]}}",
+   "evidence_urls": [
+    "https://op.europa.eu/en/web/cellar/cellar-data/metadata/knowledge-graph",
+    "https://publications.europa.eu/webapi/rdf/sparql",
+    "https://eur-lex.europa.eu/content/help/data-reuse/reuse-contents-eurlex-details.html"
+   ],
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "EUR-Lex web service (SOAP expert search) and EUR-Lex RSS feeds",
+   "access_method": "SOAP web service (XML), RSS (XML)",
+   "endpoints": [
+    "WSDL: https://eur-lex.europa.eu/EURLexWebService?wsdl ; endpoint https://eur-lex.europa.eu/EURLexWebService   (operation believed to be 'doQuery' with expertQuery, page, pageSize, searchLanguage; WS-Security UsernameToken)",
+    "Example expertQuery (syntax UNVERIFIED): TI~honey AND DTS_SUBDOM = LEGISLATION AND DD >= 01/01/2025",
+    "RSS: create it from a saved expert search in 'My EUR-Lex' (needs a free account); the resulting public feed URL looks like https://eur-lex.europa.eu/EN/display-feed.rss?myRssId={token}   (pattern unverified)",
+    "Help: https://eur-lex.europa.eu/content/help/data-reuse/webservice.html   (path from memory)"
+   ],
+   "auth": "Free EUR-Lex account. Web-service access must be requested in My EUR-Lex and is granted by e-mail (from memory). RSS creation needs the account; reading the feed does not (unverified).",
+   "cost_licensing": "Free; reuse with acknowledgement. Bulk crawling of the EUR-Lex website is discouraged; use the web service, CELLAR or the data dumps.",
+   "update_frequency": "Daily.",
+   "data_available": "Search hits with CELEX, title, dates, document type, and links to HTML/PDF. RSS items give title, link, pubDate and description for new documents matching a saved search.",
+   "parsing_notes": "RSS is the easiest 'new honey legislation' alert for feedparser: one saved search (title or text contains honey, legislation and preparatory acts, last 30 days) feeds RegulationItem rows. The SOAP service is heavier (zeep library) and needs an approved account, so prefer CELLAR SPARQL for machine use and RSS as a backup.",
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "EU Honey Directive 2001/110/EC as amended by Directive (EU) 2024/1438 ('Breakfast Directive'): country-of-origin labelling for blends",
+   "access_method": "HTML/PDF on EUR-Lex (via CELLAR); national transposition via the Gazzetta Ufficiale/Normattiva (Italy)",
+   "endpoints": [
+    "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024L1438",
+    "https://eur-lex.europa.eu/eli/dir/2024/1438/oj",
+    "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32001L0110   (base act; consolidated versions are listed on the same page)",
+    "National transposition measures (NIM): https://eur-lex.europa.eu/legal-content/EN/NIM/?uri=CELEX:32024L1438   (pattern from memory)",
+    "Italy (existing honey decree): D.Lgs. 21 maggio 2004, n. 179 on https://www.normattiva.it/"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free; reuse with acknowledgement.",
+   "update_frequency": "Static act. Watch the NIM page and Italy's Gazzetta Ufficiale for transposition, and EUR-Lex for the Commission's implementing and delegated acts.",
+   "data_available": "FROM MEMORY (verify against the text):\n\nThe act: Directive (EU) 2024/1438 of 14 May 2024, published OJ L 2024/1438 on about 20 May 2024. CELEX 32024L1438. It amends Directives 2001/110 (honey), 2001/112 (juices), 2001/113 (jams) and 2001/114 (milk).\n\nHoney changes:\n(a) Art. 2(4) of 2001/110 is replaced: the country or countries where the honey was harvested must appear on the label. For blends, the countries are listed in descending order of weight, each with its percentage share. This ends the old 'blend of EU and non-EU honeys' wording.\n(b) Derogations as recalled: very small packs may use ISO two-letter country codes (the threshold, about 25-30 g, is unverified). Member States may limit the percentages to the four largest shares when those exceed 50% (exact wording unverified).\n(c) The Commission adopts implementing acts on percentage indication, tolerances and controls, and is empowered on harmonised analysis methods for adulteration (e.g. sugar syrups) and on traceability. An expert 'EU Honey Platform' was set up (around 2024-25) to advise on detection methods, traceability and criteria.\n(d) Base directive: Council Directive 2001/110/EC of 20 Dec 2001 (OJ L 10, 12.1.2002); Directive 2014/63/EU declared pollen a natural constituent; 'baker's honey' labelling rules.\n\nTIMELINE: the transposition deadline is 14 June 2026 (good confidence). The APPLICATION date is UNRESOLVED: most summaries I recall say it applies from 14 June 2026, but the brief mentions December 2027, and some provisions or implementing acts may apply later. Read the transposition article in the OJ text. A transitional rule lets products labelled or placed on the market before the application date be sold until stocks run out.\n\nItaly: Italy has required all countries of origin on the label since 2004 (D.Lgs. 179/2004, art. 3). It must add percentages through its transposition measure, expected via the European delegation law and a legislative decree in 2026; status UNKNOWN.\n\nFor bulk importers: the origin and percentage data must flow through B2B documents to packers. Store per-lot origin shares on SupplierQuote/lot records.",
+   "parsing_notes": "Seed this as RegulationItem rows (doc_type='directive', status='in_force', effective_date = verified application date), with Italian and English summaries. Track the CELLAR SPARQL amendments query for 32001L0110 and the NIM page for Italy's transposition reference.",
+   "honey_specific_codes": "CELEX 32024L1438, 32001L0110, 32014L0063; ELI dir/2024/1438.",
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "EU third-country authorisation for honey imports: Implementing Regulation (EU) 2021/405 lists, residue-monitoring approval (Delegated Reg 2022/2292 / Implementing Reg 2022/2293, Annex -I), certificate model HON (Reg 2020/2235), reference points for action (Reg 2019/1871)",
+   "access_method": "HTML/PDF/XML on EUR-Lex (consolidated versions); monitor amendments via CELLAR SPARQL",
+   "endpoints": [
+    "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32021R0405   (choose the latest consolidated version 02021R0405-YYYYMMDD)",
+    "https://eur-lex.europa.eu/eli/reg_impl/2021/405/oj",
+    "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022R2292",
+    "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022R2293   (number recalled)",
+    "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32020R2235   (model certificate HON)",
+    "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32019R1871   (RPAs, e.g. chloramphenicol 0.15 µg/kg; nitrofuran metabolites 0.5 µg/kg from 28 Nov 2022)",
+    "https://food.ec.europa.eu/animals/animal-health/... (DG SANTE pages on residue plans; exact path unverified)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free; reuse with acknowledgement.",
+   "update_frequency": "Amended several times a year; honey listings change rarely (de-listings or re-listings after audits).",
+   "data_available": "Which third countries may export honey to the EU (honey/apiculture-product list in an annex of 2021/405; annex number unverified) and which have an approved residue monitoring plan for honey (Annex -I, 'honey' column, recalled). Believed listed for honey (UNVERIFIED; check the current consolidated version): Argentina, Brazil, Chile, China, Cuba, India, Mexico, Moldova, New Zealand, Serbia, Thailand, Türkiye, Ukraine, Uruguay, Vietnam, USA, Canada, Australia. Entry needs certificate model HON issued in TRACES NT and border-control-post checks. The MRL framework (Reg 37/2010) and the RPAs (Reg 2019/1871) drive RASFF residue notifications.",
+   "parsing_notes": "1) Parsing consolidated-annex HTML is brittle: country tables use ISO codes, and the honey annex row includes footnotes and conditions.\n2) Better: weekly SPARQL query for new acts amending 32021R0405 (or 32022R2293). Raise an alert with a link; a human confirms whether honey or a sourcing country is affected.\n3) Keep a seeded table (origin, listed_for_honey, residue_plan_approved, verified_on).",
+   "honey_specific_codes": "CN 0409; certificate model 'HON'; CELEX 32021R0405, 32022R2292, 32022R2293 (recalled), 32020R2235, 32019R1871, 32010R0037.",
+   "confidence": "from_memory_unverified"
+  },
+  {
+   "name": "EU Honey Platform, EU Agri-Food Fraud Network honey reports, and 'Have your say' (draft implementing and delegated acts under 2024/1438)",
+   "access_method": "HTML/PDF; 'Have your say' has an undocumented JSON backend",
+   "endpoints": [
+    "https://agriculture.ec.europa.eu/farming/animal-products/honey_en   (DG AGRI honey page; also covered in docs/research/eu.json)",
+    "https://food.ec.europa.eu/safety/eu-agri-food-fraud-network/eu-coordinated-actions/honey-2021-2022_en   ('From the hives' coordinated action, path from memory)",
+    "https://knowledge4policy.ec.europa.eu/food-fraud-quality/monthly-food-fraud-summary-reports_en   (monthly fraud summaries PDF, path from memory)",
+    "https://ec.europa.eu/info/law/better-regulation/have-your-say/initiatives_en?text=honey",
+    "Undocumented: https://ec.europa.eu/info/law/better-regulation/brpapi/searchInitiatives?text=honey&language=EN&page=0&size=10   (UNVERIFIED)",
+    "https://ec.europa.eu/transparency/expert-groups-register/   (search 'honey' for the EU Honey Platform expert group; group id unknown)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free; Europa reuse policy with acknowledgement. Undocumented endpoints may change without notice.",
+   "update_frequency": "Irregular. Fraud summaries are monthly; 'Have your say' items appear when the Commission publishes draft acts (4-week feedback windows).",
+   "data_available": "Early signals of upcoming honey rules: draft implementing and delegated acts on origin percentages, analysis methods and traceability; EU Honey Platform meeting minutes. Fraud context: the 2021-22 'From the hives' action found about 46% of 320 imported samples suspicious of adulteration, with high shares for China and Türkiye (figures recalled).",
+   "parsing_notes": "Monthly hash-check of the pages, with link extraction for new PDFs. Treat 'Have your say' JSON as best-effort behind a contract test; fall back to HTML.",
+   "confidence": "from_memory_unverified"
+  }
+ ],
+ "recommendation": "BEFORE ANYTHING ELSE: none of this could be checked live. The shared WebSearch budget was already used up, and the sandbox allow-list blocks federalregister.gov, eur-lex.europa.eu and ec.europa.eu. To verify, either allow those hosts (plus hts.usitc.gov, publications.europa.eu, www.trade-tariff.service.gov.uk, www.accessdata.fda.gov and api.fda.gov) or send a follow-up so the search can continue. Until then, build every collector with a startup probe that checks the expected keys, and treat the reconstructed samples as test fixtures.\n\nIntegration order:\n\n1) FIRST, the US Federal Register API. It is keyless, documented, public domain and very stable, and it covers most of the US side of this cluster: AD orders and review results for honey (China A-570-863; raw honey from AR/BR/IN/VN), USITC sunset notices, FDA/CBP notices, and presidential tariff EOs and proclamations.\n- Run a daily job (about 07:00 ET on weekdays) with 5 saved queries: '\"raw honey\"'; '\"honey from the people's republic of china\"'; ITC + honey; FDA + honey; PRESDOCU + tariff. Always pass publication_date[gte]=last_run-7d and fields[].\n- Upsert into RegulationItem (jurisdiction US, reference=document_number, doc_type antidumping/tariff/notice).\n- For ITA 'Final Results' titles, download full_text_xml_url, parse the GPOTABLE rows into an ad_rates table (case, exporter, rate, POR, FR doc), and fill in SupplierQuote.duty_pct suggestions for US destinations.\n- Also poll public-inspection/current.json for a next-day heads-up.\n\n2) SECOND, EU duties and quotas through the UK Trade Tariff XI API (commodities/0409000000 plus quotas/search). It is JSON, keyless, licensed under the OGL, and mirrors EU TARIC daily.\n- Build the EU duty-by-origin matrix (17.3% MFN; Ukraine 0% within the 35,000 t TRQ; Serbia 0%, coded XS; Vietnam EVFTA; India GSP; Mexico TRQ; Mercosur TRQ if or when applied) and the TRQ fill rates (Ukraine above all).\n- Run daily. Raise an alert when a measure appears or disappears, or when a quota turns Critical or Exhausted.\n- Show 'Source: UK Trade Tariff (XI), mirrors EU TARIC; legally binding source is EU TARIC' with a TARIC measures.jsp deep link (Taric=0409000000&SimDate=today&Area=XX). Use Access2Markets only as a link-out; it has no API.\n\n3) THIRD, CELLAR SPARQL (publications.europa.eu/webapi/rdf/sparql) for EU legislation watch. Run weekly:\n- (a) new acts whose English title contains 'honey' (date-filtered);\n- (b) acts amending 32001L0110, 32024L1438, 32021R0405 or 32022R2293;\n- (c) the NIM page for Italy's transposition of 2024/1438.\nAs a backup, set up one EUR-Lex RSS feed from a saved search, read with feedparser. Seed RegulationItem with the curated rows from this report:\n- 2001/110 as amended by 2024/1438 (transposition 14 Jun 2026; the application date must be verified);\n- the 2021/405 honey list and residue Annex -I;\n- certificate model HON;\n- RPAs 2019/1871;\n- the EU-Ukraine DCFTA Art. 29 revision (35,000 t from 29 Oct 2025);\n- EU-Mercosur (45,000 t honey TRQ, status unverified).\nGive each row verified_on and confidence fields so the UI can mark unverified rows.\n\n4) FOURTH, the USITC HTS REST API (weekly): the 0409 lines plus a Chapter 99 search. This catches US surcharge changes; the tariff layer after the Supreme Court ruling and the Section 122 surcharge is UNKNOWN for November 2026 and must be confirmed on the first live run. Note that the US-China 24-point reciprocal suspension was due to lapse on 10 Nov 2026 (recalled).\n\n5) FIFTH, FDA:\n- Hash-check ialist.html and industry_36.html weekly, parse the Red Lists of the honey alerts (36-04, number unverified), and fuzzy-match supplier names.\n- Pull openFDA food/enforcement for 'honey' weekly (keyless; a free key raises the quota).\n- The FDA Data Dashboard import-refusals API is optional and low-confidence; probe it before relying on it.\n\n6) LATER and low-value: CBP CSMS bulletins, CBP EAPA honey transshipment notices, USITC orders.xls, EU 'Have your say' and fraud-network PDFs (monthly hash-and-link checks).\n\nDesign notes:\n- Model duties as stacked layers with validity windows (MFN, preference/TRQ, AD per exporter, surcharges) rather than one number.\n- Never hard-code the 2025 IEEPA rates as current.\n- Store every source URL and FR document number or CELEX for auditability.\n- Mark rows 'provisional' until a human confirms them, since most rates here are recalled rather than verified."
+}

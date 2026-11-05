@@ -1,0 +1,5 @@
+{"metadata":{"processing_time":102,"datasource":"PRODUCTION","output_type":"OBJECTS","dsd":[]},
+ "data":[
+ {"Domain Code":"TCL","Domain":"Crops and livestock products","Area Code":"9","Area":"Argentina","Element Code":"5910","Element":"Export quantity","Item Code":"1182","Item":"Natural honey","Year Code":"2023","Year":"2023","Unit":"t","Value":"70000","Flag":"A","Flag Description":"Official figure","Note":""},
+ {"Domain Code":"TCL","Domain":"Crops and livestock products","Area Code":"9","Area":"Argentina","Element Code":"5922","Element":"Export value","Item Code":"1182","Item":"Natural honey","Year Code":"2023","Year":"2023","Unit":"1000 USD","Value":"165000","Flag":"A","Flag Description":"Official figure","Note":""},
+ {"Domain Code":"TCL","Domain":"Crops and livestock products","Area Code":"106","Area":"Italy","Element Code":"5610","Element":"Import quantity","Item Code":"1182","Item":"Natural honey","Year Code":"2023","Year":"2023","Unit":"t","Value":"25000","Flag":"A","Flag Description":"Official figure","Note":""}]}

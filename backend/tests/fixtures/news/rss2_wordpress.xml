@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	xmlns:media="http://search.yahoo.com/mrss/"
+	>
+<channel>
+	<title>Test Bee Magazine</title>
+	<atom:link href="https://www.testbeemag.example/feed/" rel="self" type="application/rss+xml" />
+	<link>https://www.testbeemag.example</link>
+	<description>The Magazine of Test Beekeeping</description>
+	<lastBuildDate>Mon, 02 Nov 2026 06:00:00 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>hourly</sy:updatePeriod>
+	<sy:updateFrequency>1</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.8</generator>
+	<item>
+		<title>National honey crop down 15% as packers bid up bulk white honey</title>
+		<link>https://www.testbeemag.example/2026/11/honey-crop-down/?utm_source=rss&amp;utm_medium=rss&amp;utm_campaign=honey-crop-down</link>
+		<dc:creator><![CDATA[Test Author]]></dc:creator>
+		<pubDate>Sun, 01 Nov 2026 12:00:00 +0000</pubDate>
+		<category><![CDATA[Catch The Buzz]]></category>
+		<guid isPermaLink="false">https://www.testbeemag.example/?p=50001</guid>
+		<description><![CDATA[<p><img width="300" height="200" src="https://www.testbeemag.example/wp-content/uploads/2026/11/drums-300x200.jpg" class="attachment-medium" alt="" /></p><p>Packers say bulk white honey in drums now trades well above last year&#8217;s level, with imports from Argentina and Brazil filling the gap. [&#8230;]</p>
+<p>The post <a href="https://www.testbeemag.example/2026/11/honey-crop-down/">National honey crop down 15% as packers bid up bulk white honey</a> appeared first on <a href="https://www.testbeemag.example">Test Bee Magazine</a>.</p>]]></description>
+		<content:encoded><![CDATA[<p>Full article body that we do not store.</p>]]></content:encoded>
+		<media:content url="https://www.testbeemag.example/wp-content/uploads/2026/11/drums.jpg" medium="image" />
+	</item>
+	<item>
+		<title>Varroa treatment window: what the new research says</title>
+		<link>https://www.testbeemag.example/2026/10/varroa-treatment-window/</link>
+		<pubDate>Thu, 29 Oct 2026 09:30:00 +0000</pubDate>
+		<guid isPermaLink="false">https://www.testbeemag.example/?p=50002</guid>
+		<description><![CDATA[<p>Researchers compared autumn oxalic acid treatments across 400 colonies and found winter losses fell when mite loads were checked in August.</p>]]></description>
+		<enclosure url="https://www.testbeemag.example/wp-content/uploads/2026/10/varroa.jpg" length="12345" type="image/jpeg" />
+	</item>
+	<item>
+		<title>Subscribe to the print edition</title>
+		<link>https://www.testbeemag.example/2026/10/subscribe/</link>
+		<pubDate>Wed, 28 Oct 2026 09:30:00 +0000</pubDate>
+		<guid isPermaLink="false">https://www.testbeemag.example/?p=50003</guid>
+		<description><![CDATA[<p>Our November issue is out now. Subscribe today and get twelve issues delivered to your door.</p>]]></description>
+	</item>
+	<item>
+		<title>Backyard beekeeping club opens its garden to school children</title>
+		<link>https://www.testbeemag.example/2026/10/club-open-day/#comments</link>
+		<pubDate>Tue, 27 Oct 2026 09:30:00 +0000</pubDate>
+		<guid isPermaLink="false">https://www.testbeemag.example/?p=50004</guid>
+		<description><![CDATA[<img src="https://stats.wordpress.com/b.gif?host=x" width="1" height="1" /><p>A local hobby club welcomed students from three schools for an open day in the community garden, with honey tasting for the kids.</p>]]></description>
+	</item>
+</channel>
+</rss>

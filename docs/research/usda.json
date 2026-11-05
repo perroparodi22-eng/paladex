@@ -1,0 +1,231 @@
+{
+ "cluster": "USDA honey data (AMS National Honey Report, AMS MyMarketNews/MARS API, ESMIS API, NASS Quick Stats and Honey report, FAS GATS, plus ERS honey yearbook CSV)",
+ "sources": [
+  {
+   "name": "USDA AMS National Honey Report (FVMHONEY), latest-issue PDF",
+   "access_method": "PDF (HTTP GET of a fixed URL that is overwritten each month)",
+   "endpoints": [
+    "https://www.ams.usda.gov/mnreports/fvmhoney.pdf  (canonical 'latest issue' URL; AMS keeps only the newest issue here)",
+    "https://ams-prod.azureedge.us/mnreports/fvmhoney.pdf  (Azure CDN mirror of the same mnreports path; indexed by search engines and carried the June 30, 2026 issue)",
+    "https://mymarketnews.ams.usda.gov/viewReport/2901  (MyMarketNews landing page: Slug Id 2901, Slug Name FVMHONEY, 'Provided by: Phoenix, AZ', Market Type: Shipping Point)",
+    "Archive, legacy files on ESMIS: https://esmis.nal.usda.gov/sites/default/release-files/m613mx60p/{noid}/{noid}/FVMHONEY.PDF  (examples: .../m613mx60p/7p88fj37r/rr173w627/FVMHONEY.PDF = Sept 30, 2025 issue; .../m613mx60p/x920hv01s/fq979q41x/FVMHONEY.PDF = Jan 2025 issue). Find them through the ESMIS API entry below, not by guessing.",
+    "Archive HTML list: https://esmis.nal.usda.gov/publication/national-honey-report?page={0..N}",
+    "Do NOT use ams.stg.platform.usda.gov (staging) or ams.prod.usda.gov copies seen in search results"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free. AMS Market News reports are US Government works (public domain in the US, 17 USC 105). No ToS restricting automated download was found. Be polite: one conditional GET per day (If-None-Match / If-Modified-Since). Cite 'USDA AMS Market News, National Honey Report'.",
+   "update_frequency": "Monthly. Issues are dated near month end (examples: March 28, 2025; Sept 30, 2025; June 30, 2026 = Volume XLVI, Number 5). Do not derive the month from the issue number, because numbering does not track calendar months.",
+   "data_available": "Sections, pieced together from search snippets across 2023-2026 issues: (1) 'Prices paid to beekeepers for extracted, unprocessed honey in major producing states by packers, handlers & other large users'. Rows are STATE, floral source (Clover, Alfalfa, Orange, Tallow, Wildflower/Mixed flower, Buckwheat, Sage, Tupelo...), color (White, Extra Light Amber, Light Amber, Amber; occasionally Water White/Extra White/Dark) and price or price range. Snippet examples: 'IDAHO Clover Extra Light Amber $1.90', 'FLORIDA Tallow Light Amber $1.65' (June 2026), 'DAKOTA Clover Extra Light Amber $1.90' (Sept 2025), 'OREGON Clover White $2.80' (Oct 2023). Placeholders include 'No report issued' and 'too few prices to establish a market'. (2) Prices paid to Canadian beekeepers (bulk, unprocessed); seen in the June 2026 issue. (3) 'Prices paid to importers for bulk honey, duty paid, containers included', per lb 'ex-dock or point of entry'. Rows are COUNTRY (Argentina, Brazil, Uruguay, India, Vietnam, Mexico, Canada...), descriptor (Honeydew, Mixed flower, Organic...), color and price range. Examples: Argentina Light Amber 1.44-1.73, Brazil Mixed Light Amber 1.98-2.15 (June 2026), Vietnam Light Amber 0.97, Uruguay ELA 1.25-1.47 (Sept 2025), Argentina honeydew white 1.42 (Jan 2025). (4) Honey imports by country of origin, sourced from CBP's Automated Commercial Environment (ACE). There is one table per HTS-10 category, e.g. 'Natural Honey, Not For Retail Sale, Extra Light ...' and 'Natural Honey, Certified for Organic (HTS Code 0409000005)'. Columns are Kilograms, Value, CIF Value and Total Value (report definitions: CIF = cost, insurance and freight; Total value = Value + CIF value), given for the month and year-to-date, with a GRAND TOTAL row. Example from the March 28, 2025 issue: February 2025 ELA grand total 4,565,860 kg, YTD 8,774,969 kg. (5) Honey exports by destination (Census data, via FAS GATS), with charts. (6) From January 2025 the state-by-state 'Colony, Honey Plant and Market Condition' narratives were dropped and replaced by data visualizations (temperature and precipitation maps of honey areas). Currency is USD. Prices are per POUND, not per kg (x 2.20462 gives per kg). Import quantities are in KG.",
+   "parsing_notes": "(a) The table heading still says 'cents', but recent issues print dollar values such as '$1.90'. Older issues printed cents (e.g. 190.00, or ranges like 210-225). Normalise both forms: if a value is above 20 and has no '$', treat it as cents. (b) Use pdfplumber page.extract_words() or extract_table() with explicit vertical_strategy='text'. Columns are space-aligned, not ruled. State and country names are UPPERCASE in the first column and are often printed only on the first row of a group, so carry them forward. (c) Price ranges appear as '1.44-1.73', '1.44 - 1.73' or a single value. Some cells are text ('No report issued'). (d) The page header reads like 'Volume XLVI - Number 5   Page 4   June 30, 2026'. Parse the issue date from it. (e) The latest URL is overwritten, so archive every downloaded PDF keyed by issue date and SHA-256, and detect a new issue by hash or Last-Modified. (f) The import tables' HTS category names change wording, so match on the HTS code when present. (g) Export tables can be stale. The June 30, 2026 issue says a federal funding lapse stopped GATS updates, so May 2026 exports were not available. Expect 'not available' notes. (h) The layout changed in Jan 2025 and may change again: version the parser and fail loudly on unknown headings. (i) Legacy ESMIS copies use an uppercase .PDF extension. (j) Whether a TXT twin (fvmhoney.txt) still exists is UNVERIFIED. Assume PDF only.",
+   "confidence": "from_search_snippets",
+   "publication_lag": "Beekeeper and importer prices reflect the issue month. Import (ACE) tables lag about 1 month (Feb data in the late-March issue). Export tables lag 1-2 months or more, and longer during federal funding lapses.",
+   "rate_limits": "None documented. Static file on AMS CDN.",
+   "honey_specific_codes": "Report code FVMHONEY. MyMarketNews slug_id 2901. ESMIS publication id 1570, identifier 'FVMHONEY'. Legacy Cornell/ESMIS noid m613mx60p. HTS 0409000005 (certified organic natural honey) appears in the import tables.",
+   "sample_response": "RECONSTRUCTED text layout from search snippets (the exact column positions are unverified):\nVolume XLVI - Number 5          Page 4          June 30, 2026\nPrices paid to beekeepers for extracted, unprocessed honey in major producing states by packers, handlers & other large users, cents [values now printed as $/lb]\nIDAHO        Clover          Extra Light Amber    $1.90\nFLORIDA      Tallow          Light Amber          $1.65\nCALIFORNIA   No report issued\nPrices paid to importers for bulk honey, duty paid, containers included, ... ex-dock or point of entry\nARGENTINA    ...             Light Amber          1.44 - 1.73\nBRAZIL       Mixed           Light Amber          1.98 - 2.15\nNatural Honey, Not For Retail Sale, Extra Light ...   (source: CBP ACE)\nCountry of Origin | Kilograms | Value | CIF Value | Total Value || YTD Kilograms | Value | CIF Value | Total Value\nGRAND TOTAL       | 4,565,860 | ...                              || 8,774,969 | ...",
+   "evidence_urls": [
+    "https://www.ams.usda.gov/mnreports/fvmhoney.pdf",
+    "https://ams-prod.azureedge.us/mnreports/fvmhoney.pdf",
+    "https://mymarketnews.ams.usda.gov/viewReport/2901",
+    "https://esmis.nal.usda.gov/publication/national-honey-report",
+    "https://esmis.nal.usda.gov/sites/default/release-files/m613mx60p/7p88fj37r/rr173w627/FVMHONEY.PDF",
+    "https://esmis.nal.usda.gov/sites/default/release-files/m613mx60p/x920hv01s/fq979q41x/FVMHONEY.PDF"
+   ]
+  },
+  {
+   "name": "USDA AMS MyMarketNews API (MARS), report slug 2901 = National Honey Report",
+   "access_method": "REST API (JSON)",
+   "endpoints": [
+    "GET https://marsapi.ams.usda.gov/services/v1.2/reports  (catalog of all reports; items carry slug_id, slug_name, report_title, published_date ...)",
+    "GET https://marsapi.ams.usda.gov/services/v1.2/reports/2901  (with no filter, returns only the default section, normally 'Report Header', plus a 'reportSections' list of section names available for this slug)",
+    "GET https://marsapi.ams.usda.gov/services/v1.2/reports/2901?lastReports=1",
+    "GET https://marsapi.ams.usda.gov/services/v1.2/reports/2901?allSections=true&q=report_begin_date=01/01/2026:10/31/2026",
+    "GET https://marsapi.ams.usda.gov/services/v1.2/reports/2901/{Section%20Name}?q=report_begin_date=MM/DD/YYYY:MM/DD/YYYY  (section names come from reportSections; URL-encode spaces)",
+    "GET https://marsapi.ams.usda.gov/services/v1.2/reports/2901/{Section}?lastDays=60  (official example: /reports/1089/Details?lastDays=50)",
+    "GET https://marsapi.ams.usda.gov/services/v1.1/public/listPublishedReports/all  and  .../listPublishedReports/{days}  (from the official examples page, which shows them under v1.1; current-day published reports)",
+    "Docs: https://mymarketnews.ams.usda.gov/mymarketnews-api , https://mymarketnews.ams.usda.gov/mymarketnews-api/authentication , https://mymarketnews.ams.usda.gov/mymarketnews-api/examples"
+   ],
+   "auth": "Free API key. Create a My Market News account at https://mymarketnews.ams.usda.gov, log in, and copy the API key from your profile. Send it as HTTP Basic auth with the key as the USERNAME and an EMPTY password (curl -u KEY: ...; httpx.get(url, auth=(KEY, ''))). Requests must use HTTPS. Unauthenticated calls fail, and the docs say open browser calls are not supported.",
+   "cost_licensing": "Free. AMS Market News data are US Government public-domain data. No redistribution restriction found. Do not commit the key (public GitHub repos leak MARS keys).",
+   "update_frequency": "Follows the report: monthly for 2901.",
+   "data_available": "UNVERIFIED whether slug 2901 carries structured price sections or only header/narrative rows. The MyMarketNews landing page for 2901 says 'Reports Available Between: February 04, 2026 To current' (another snapshot says December 31, 2025). So MARS history for honey probably starts only around Dec 2025 to Feb 2026, and older issues must come from the PDF archives. Header rows common to MARS reports (field names seen in third-party code for other slugs): report_date, report_begin_date, report_end_date, published_date, office_name, office_code, office_city, office_state, market_location_name, market_location_city, market_location_state, market_type, market_type_category, slug_id, slug_name, report_title, group, category, report_narrative, final_ind. Price fields for honey sections are UNKNOWN. Inspect reportSections on the first live call.",
+   "parsing_notes": "(1) Response wrapper: {'reportSection': <name>, 'reportSections': [...], 'stats': {...}, 'results': [ ... ]}. results rows are flat dicts. (2) A bare /reports/{slug} call returns only 'Report Header' rows that 'carry narrative and dates and nothing numeric', a known trap reported by third-party code. Request each name in reportSections, or use allSections=true. (3) The q filter syntax is q=field=value;field2=value2. Date ranges use ':' and dates are MM/DD/YYYY. lastDays and lastReports are separate query params, not q filters. (4) Some slugs answer HTTP 200 with a plain JSON string or text body 'No Results Found. ' instead of an object, so check type(resp.json()) before indexing. (5) Numbers and slug_id come back as strings. (6) v1.1 paths still answer, per third-party code from 2026, but prefer v1.2. (7) One third-party project reports that marsapi rejected requests from a cloud host's IP range. A desktop PC should be fine. (8) Check that 2901 really carries price rows before you build on it; if it does not, use the PDF.",
+   "confidence": "from_search_snippets",
+   "publication_lag": "Same as the PDF (published on release day).",
+   "rate_limits": "No published limit found.",
+   "honey_specific_codes": "slug_id 2901; slug_name FVMHONEY; report_title 'National Honey Report'; office Phoenix, AZ (Specialty Crops Market News, tel 602-557-0410); market listed as 'Fresno (FR)', market type 'Shipping Point'.",
+   "sample_response": "RECONSTRUCTED (wrapper keys are confirmed by several third-party clients; the honey section names and values are unverified):\n{\n  \"reportSection\": \"Report Header\",\n  \"reportSections\": [\"Report Header\", \"<honey section names - unverified>\"],\n  \"stats\": { ... },\n  \"results\": [ { \"report_begin_date\": \"06/01/2026\", \"report_end_date\": \"06/30/2026\", \"published_date\": \"06/30/2026 ...\", \"office_name\": \"Phoenix\", \"office_state\": \"AZ\", \"market_type\": \"Shipping Point\", \"slug_id\": \"2901\", \"slug_name\": \"FVMHONEY\", \"report_title\": \"National Honey Report\", \"report_narrative\": \"...\", \"final_ind\": \"Final\" } ]\n}",
+   "evidence_urls": [
+    "https://mymarketnews.ams.usda.gov/mymarketnews-api/authentication",
+    "https://mymarketnews.ams.usda.gov/mymarketnews-api/examples",
+    "https://mymarketnews.ams.usda.gov/mars-api/getting-started/basic-instructions",
+    "https://mymarketnews.ams.usda.gov/viewReport/2901",
+    "https://mymarketnews.ams.usda.gov/faqs/what-my-market-news-account-and-what-are-benefits/how-do-i-find-slug-id"
+   ]
+  },
+  {
+   "name": "MyMarketNews file repository (archive of published report documents, incl. slug 2901)",
+   "access_method": "HTML listing + PDF/TXT documents",
+   "endpoints": [
+    "https://mymarketnews.ams.usda.gov/filerepo/reports?field_slug_id_value=2901  (HTML table. Other GET filters seen in third-party code: name=, field_slug_title_value=, field_published_date_value=, field_report_date_end_value=, field_api_market_types_target_id=All, order=, sort=, page=N)",
+    "Document URL pattern (seen for other slugs, e.g. 3351 and 3357; unverified for 2901): https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/{slug_id}/{YYYY-MM-DD}/{node_id}/ams_{slug_id}_{seq5}.pdf"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free, US Government public domain. Polite scraping only; no ToS clause about automation was found.",
+   "update_frequency": "Each time a report is published.",
+   "data_available": "A list of every published issue: Slug ID | Slug Name | Report Title | Published Date | Report Date | Report Status (Final/Corrected) | 'view report' link to the PDF. Use it for 2026-onward FVMHONEY back-issues that the AMS 'latest' URL no longer holds.",
+   "parsing_notes": "Server-rendered Drupal table. With no filter it shows the last 1000 published reports. Parse links with a regex or HTML parser. The file name does not contain 'FVMHONEY', so key issues by report date.",
+   "confidence": "from_search_snippets",
+   "publication_lag": "Same day as publication.",
+   "rate_limits": "None documented.",
+   "honey_specific_codes": "field_slug_id_value=2901",
+   "sample_response": "RECONSTRUCTED row (format taken from a snippet for slug 3650): | 3650 | AMS_3650 | Monthly National Turkey Report | 05-08-2026 12:12:46 pm | 2026-03-30 | Final | view report |",
+   "evidence_urls": [
+    "https://mymarketnews.ams.usda.gov/filerepo/reports?page=5"
+   ]
+  },
+  {
+   "name": "ESMIS public API (USDA National Agricultural Library; archive of AMS FVMHONEY and NASS Honey releases)",
+   "access_method": "REST API (JSON), with HTML pages as fallback",
+   "endpoints": [
+    "Docs (Swagger UI): https://esmis.nal.usda.gov/api-documentation ; OpenAPI file: https://esmis.nal.usda.gov/sites/default/files/swagger/esmis_public_api.yaml",
+    "GET https://esmis.nal.usda.gov/api/v1/release/findByIdentifier/FVMHONEY?page=0   (AMS National Honey Report releases, newest first)",
+    "GET https://esmis.nal.usda.gov/api/v1/release/findByPubId/1570?page=0   (same publication by numeric id)",
+    "GET https://esmis.nal.usda.gov/api/v1/release/findByIdentifier/Hone?page=0   (NASS 'Honey' annual report, publication id 1256)",
+    "GET https://esmis.nal.usda.gov/api/v1/release/findByIdentifier/BeeColonies?page=0   (NASS 'Honey Bee Colonies', id 1585)",
+    "GET https://esmis.nal.usda.gov/api/v1/release/findByIdentifier/honeyest?page=0   (NASS 'Honey - Final Estimates', id 858; identifiers SB956 / honeyest / 95912)",
+    "GET https://esmis.nal.usda.gov/api/v1/release/findById/{releaseId}",
+    "GET https://esmis.nal.usda.gov/api/v1/publication/findByIdentifier/FVMHONEY",
+    "GET https://esmis.nal.usda.gov/api/v1/publication/search?query=honey&page=0",
+    "GET https://esmis.nal.usda.gov/api/v1/release/findAll?page=0",
+    "Other paths: /api/v1/agency/findAll, /api/v1/agency/findByAcronym/{acr}, /api/v1/agency/findById/{id}, /api/v1/publication/findAll?page=, /api/v1/publication/findById/{id}, /api/v1/publication/findByAgency/{acr}?page=",
+    "HTML fallback: https://esmis.nal.usda.gov/publication/national-honey-report?page=N , https://esmis.nal.usda.gov/publication/honey , https://esmis.nal.usda.gov/publication/honey-final-estimates"
+   ],
+   "auth": "none (keyless). The old Cornell API (usda.library.cornell.edu/api) now redirects to esmis.nal.usda.gov/api, which returns 404. It is dead.",
+   "cost_licensing": "Free. The documentation and release files are US Government works (public domain in the US). The suggested credit line is 'Source: USDA National Agricultural Library, ESMIS'. No ToS or licence is stated on the pages or in the OpenAPI info.",
+   "update_frequency": "Catalogue updates as agencies release. ESMIS moved from Cornell to NAL on 2025-10-01; the first release created post-migration is dated 2025-09-12.",
+   "data_available": "Release metadata plus absolute URLs to every file of each release (pdf/txt/xls/xml/zip). Publication metadata: title, frequency ('Monthly', 'Annually' ...), status, identifiers, contact email, upcoming_releases (rarely filled).",
+   "parsing_notes": "Verified against the OpenAPI document and against fixtures a third-party SDK (xippios-usda-esmis 0.2.0) recorded live on 2026-10-27/28. (1) Every 'id' is a JSON STRING. Publication.identifier, agency and agency_acronym are ARRAYS. Release.agency_acronym is a single string. (2) Pagination is 0-based, fixed at 25 per page. A page past the end returns empty results with current_page clamped. (3) findByIdentifier returns newest release_datetime first. findAll is ordered by id, not date. (4) An unknown identifier returns HTTP 200 with empty results and zero pager counts. An unknown numeric id returns 404 {'message': ''}. (5) An identifier containing '/' cannot be looked up (encoded %2F gives an Apache HTML 404). (6) release_datetime is printed 'YYYY-MM-DDTHH:MM:SS+0000' (no colon in the offset). Upstream's own calendar and Last-Modified show the time is really US Eastern wall-clock, so treat it as naive Eastern. (7) files has two URL shapes. Post-migration: /sites/default/release-files/{releaseId}/{name}.{ext} (e.g. /release-files/795818/hony0326.pdf). Legacy: /sites/default/release-files/{noid}/{noid}/{noid}/{name}. (8) The list wrapper also carries undocumented keys filters, sorters and system ({'page_key': 'page'}). (9) /publication/search with no query returns 'pager': [] (an empty array, not an object). (10) Send a real User-Agent. A third-party project reports ESMIS returns an EMPTY release list to requests with no User-Agent, and that some ESMIS servers intermittently return empty lists. Retry about 4 times, 5 s apart, and never accept a list shorter than one already stored. (11) UNVERIFIED: whether new FVMHONEY issues after the Oct-2025 migration are still deposited on ESMIS. Every FVMHONEY file found in search uses the legacy path (latest seen: Sept 2025). Check the newest release_datetime on first run.",
+   "confidence": "verified_from_docs",
+   "publication_lag": "Files appear at release time (NASS Honey 2026: 2026-03-13; NASS honey reports go out at 15:00 ET per the USDA release schedule).",
+   "rate_limits": "None documented and no rate-limit headers. Self-limit to about 30 requests/min.",
+   "honey_specific_codes": "FVMHONEY (pub id 1570, AMS-SC, Monthly, Active); Hone (pub id 1256, NASS 'Honey', Annually); BeeColonies (pub id 1585, NASS 'Honey Bee Colonies'); honeyest / SB956 / 95912 (pub id 858, 'Honey - Final Estimates'); HoneProd (pub id 401, 'Honey Production', Inactive); CostPoll (pub id 1214, Cost of Pollination); legacy noid of FVMHONEY = m613mx60p, of NASS Honey = hd76s004z",
+   "sample_response": "Shape from the OpenAPI document plus recorded fixtures (values illustrative):\n{\n  \"filters\": [], \"sorters\": [], \"system\": {\"page_key\": \"page\"},\n  \"pager\": {\"current_page\": 0, \"items_per_page\": 25, \"total_pages\": 29, \"total_results\": 703},\n  \"results\": [ {\n    \"id\": \"795818\",\n    \"files\": [\"https://esmis.nal.usda.gov/sites/default/release-files/795818/hony0326.pdf\", \"https://esmis.nal.usda.gov/sites/default/release-files/795818/hony0326.txt\"],\n    \"title\": \"Honey\",\n    \"release_datetime\": \"2026-03-13T15:00:00+0000\",\n    \"identifier\": [\"Hone\"],\n    \"agency_acronym\": \"NASS\",\n    \"bibliographic_citation\": \"\", \"description\": \"\", \"equipment_software\": \"\", \"temporal_coverage\": \"\"\n  } ]\n}\n(Release 795818 and its two files are real. The exact release_datetime string and the full files list are reconstructed.)",
+   "evidence_urls": [
+    "https://esmis.nal.usda.gov/api-documentation",
+    "https://esmis.nal.usda.gov/sites/default/files/swagger/esmis_public_api.yaml",
+    "https://pypi.org/project/xippios-usda-esmis/",
+    "https://www.infodocket.com/2025/10/01/report-usda-migrates-data-archive-to-new-website-dropping-cornells-mann-library/",
+    "https://esmis.nal.usda.gov/sites/default/release-files/795818/hony0326.pdf"
+   ]
+  },
+  {
+   "name": "USDA NASS Quick Stats API (honey production, price, stocks, colonies)",
+   "access_method": "REST API (JSON, CSV or XML)",
+   "endpoints": [
+    "GET https://quickstats.nass.usda.gov/api/api_GET/?key={KEY}&commodity_desc=HONEY&source_desc=SURVEY&year__GE=2000&format=JSON",
+    "GET https://quickstats.nass.usda.gov/api/api_GET/?key={KEY}&commodity_desc=HONEY&statisticcat_desc=PRICE%20RECEIVED&agg_level_desc=NATIONAL&format=JSON",
+    "GET https://quickstats.nass.usda.gov/api/api_GET/?key={KEY}&commodity_desc=HONEY&agg_level_desc=STATE&year=2025&format=CSV",
+    "GET https://quickstats.nass.usda.gov/api/get_counts/?key={KEY}&commodity_desc=HONEY&year__GE=2000   -> {\"count\":\"NNN\"}",
+    "GET https://quickstats.nass.usda.gov/api/get_param_values/?key={KEY}&param=statisticcat_desc   -> {\"statisticcat_desc\":[...]} (not filterable by commodity)",
+    "Operators appended to any column: __LE, __LT, __GT, __GE, __LIKE, __NOT_LIKE, __NE (e.g. year__GE=2010)",
+    "Docs and key form: https://quickstats.nass.usda.gov/api ; bulk files: https://www.nass.usda.gov/datasets/"
+   ],
+   "auth": "Free key. Submit the form at https://quickstats.nass.usda.gov/api with a valid email; the key arrives by email immediately. Pass it as the query parameter key=.",
+   "cost_licensing": "Free. NASS API Terms of Service: every service using the API must 'display the following notice prominently within the application: This product uses the NASS API but is not endorsed or certified by NASS.' You may not modify or falsely represent content while still claiming NASS as the source. NASS may limit or block use and may monitor it. Data are public domain.",
+   "update_frequency": "Annual for the honey survey. The Honey report is released mid-March (2026-03-13) and covers the prior calendar year plus revisions to the year before. Honey Bee Colonies (quarterly colony counts and losses) is released annually around August. Census of Agriculture honey rows come every 5 years (source_desc=CENSUS).",
+   "data_available": "Verified from real Quick Stats exports: sector_desc='ANIMALS & PRODUCTS', group_desc='SPECIALTY', commodity_desc='HONEY', short_desc 'HONEY - PRODUCTION, MEASURED IN LB' and 'HONEY - PRODUCTION, MEASURED IN $', and 'HONEY, BEE COLONIES - LOSS, COLONY COLLAPSE DISORDER, MEASURED IN COLONIES'. Colonies use commodity_desc=HONEY with class_desc='BEE COLONIES'; commodity_desc='HONEY, BEE COLONIES' as seen in one third-party repo is probably wrong. statisticcat_desc values that exist in Quick Stats and fit honey: PRODUCTION, PRICE RECEIVED, YIELD, STOCKS, INVENTORY, LOSS, 'LOSS, DEADOUT', 'LOSS, COLONY COLLAPSE DISORDER', 'ADDED & REPLACED'. Matching unit_desc values exist: '$ / LB', 'CENTS / LB', 'LB', 'LB / COLONY', 'COLONIES', '$', '$ / COLONY'. The exact honey short_desc strings for price, yield, stocks and colony inventory are UNVERIFIED. Pull every HONEY row once and list the distinct short_desc locally. Geography: agg_level_desc NATIONAL (state_alpha 'US', state_fips_code 99) or STATE; 'OTHER STATES' has state_alpha 'OT', fips 98. Whether the March report's price by color class and marketing channel tables are in Quick Stats is unverified. Use the report ZIP (next entry) for those.",
+   "parsing_notes": "(1) The JSON is {\"data\":[{...}]}. The value key is capitalised 'Value', and there is a 'CV (%)' key. (2) Value is a STRING with thousands separators ('510,000') or a suppression code such as '(D)', '(NA)', '(Z)' or '(X)'. Strip commas and map codes to null. (3) year comes back as a string in JSON. load_time is 'YYYY-MM-DD HH:MM:SS' with no timezone. (4) The maximum is 50,000 records per call. Over the limit returns HTTP 413 {\"error\":[\"exceeds limit=50000\"]}. Filters matching nothing return HTTP 400 {\"error\":[\"bad request - invalid query\"]}, which is not an empty list. A bad key gives 'unauthorized'. An unknown param in get_param_values returns 400 {\"<param>\":[\"no value\"]}. (5) Quick Stats silently IGNORES unknown column names, so a typo widens the query instead of failing. Validate column names client-side. (6) Call get_counts first. (7) Filter source_desc=SURVEY to avoid mixing in Census of Ag rows, and keep domain_desc=TOTAL. (8) reference_period_desc distinguishes YEAR vs 'MARKETING YEAR' vs point-in-time values (stocks as of Dec 15). (9) Prices were in cents/lb before the 2019-crop report (issued March 2020) and in $/lb after; check unit_desc per row.",
+   "confidence": "verified_from_docs",
+   "publication_lag": "About 2.5 months after year-end for the annual Honey series (2025 data released 2026-03-13). Rows appear in Quick Stats on release day; check load_time.",
+   "rate_limits": "50,000 records per request. No per-minute limit is published, but NASS reserves the right to throttle or block. Self-limit to about 30 requests/min.",
+   "honey_specific_codes": "commodity_desc=HONEY; group_desc=SPECIALTY; sector_desc=ANIMALS & PRODUCTS; class_desc=BEE COLONIES for colony data; unit_desc '$ / LB', 'LB / COLONY', 'COLONIES', 'LB', '$'",
+   "sample_response": "Verbatim example from the official API page (for corn; the honey rows have identical keys):\n{data:[{\"week_ending\":\"\",\"state_name\":\"VIRGINIA\",\"country_code\":\"9000\",\"begin_code\":\"00\",\"sector_desc\":\"CROPS\",\"zip_5\":\"\",\"county_ansi\":\"\",\"state_alpha\":\"VA\",\"util_practice_desc\":\"ALL UTILIZATION PRACTICES\",\"domain_desc\":\"TOTAL\",\"asd_desc\":\"\",\"freq_desc\":\"ANNUAL\",\"prodn_practice_desc\":\"ALL PRODUCTION PRACTICES\",\"end_code\":\"00\",\"short_desc\":\"CORN - ACRES PLANTED\",\"country_name\":\"UNITED STATES\",\"Value\":\"510,000\",\"reference_period_desc\":\"YEAR\",\"source_desc\":\"SURVEY\",\"group_desc\":\"FIELD CROPS\",\"asd_code\":\"\",\"agg_level_desc\":\"STATE\",\"Class_desc\":\"ALL CLASSES\",\"county_name\":\"\",\"region_desc\":\"\",\"watershed_desc\":\"\",\"state_ansi\":\"51\",\"congr_district_code\":\"\",\"domaincat_desc\":\"NOT SPECIFIED\",\"watershed_code\":\"00000000\",\"commodity_desc\":\"CORN\",\"unit_desc\":\"ACRES\",\"load_time\":\"2012-10-11 11:26:13\",\"statisticcat_desc\":\"AREA PLANTED\",\"year\":\"2012\"}]}\nReal honey CSV row prefix: CENSUS,ANIMALS & PRODUCTS,SPECIALTY,HONEY,ALL CLASSES,ALL PRODUCTION PRACTICES,ALL UTILIZATION PRACTICES,PRODUCTION,LB,\"HONEY - PRODUCTION, MEASURED IN LB\",TOTAL,NOT SPECIFIED,STATE,01,01,AL,ALABAMA,...",
+   "evidence_urls": [
+    "https://quickstats.nass.usda.gov/api",
+    "https://pypi.org/project/xippios-usda-nass/",
+    "https://rdrr.io/cran/rnassqs/man/nassqs_GET.html",
+    "https://www.nass.usda.gov/surveys/Guide_to_NASS_Surveys/Bee_and_Honey/index.php"
+   ]
+  },
+  {
+   "name": "USDA NASS annual 'Honey' report files (PDF/TXT/ZIP-of-CSV) via ESMIS",
+   "access_method": "PDF / TXT / bulk CSV in ZIP (file URLs listed by the ESMIS API)",
+   "endpoints": [
+    "https://esmis.nal.usda.gov/sites/default/release-files/795818/hony0326.pdf  (2026 report, 2025 crop; released 2026-03-13)",
+    "https://esmis.nal.usda.gov/sites/default/release-files/795818/hony0326.txt",
+    "ZIP twin: take it from the release's 'files' list via GET https://esmis.nal.usda.gov/api/v1/release/findByIdentifier/Hone?page=0 (a third-party project reports every Honey report since 2002 has a zip, and that the ESMIS list has 6 pages and 25 zip files)",
+    "Legacy examples: https://esmis.nal.usda.gov/sites/default/release-files/hd76s004z/05743n82j/7h14cm201/hony0325.txt ; https://esmis.nal.usda.gov/sites/default/release-files/hd76s004z/hm50wd54j/fq979h127/hony0324.pdf",
+    "NASS mirror of the current-day report: https://www.nass.usda.gov/Publications/Todays_Reports/reports/hony0325.pdf (name pattern hony{MM}{YY})"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free; US Government public domain.",
+   "update_frequency": "Annual (mid-March). 'Honey - Final Estimates' (5-year revision, e.g. 2013-2017) is irregular.",
+   "data_available": "By state, US and 'other states': honey-producing colonies (1,000), yield per colony (lb), production (1,000 lb), stocks Dec 15 (1,000 lb), average price per lb, value of production (1,000 USD), for the reference year and the revised prior year. There is also a 'Honey Price by Color Class - United States' table (current and prior year, split co-op & private vs retail vs all) and a small-operations (<5 colonies) table. Headline from the 2026 report snippet: US average price $3.05/lb in 2025 vs $2.41 in 2024 (+27%).",
+   "parsing_notes": "Prefer the ZIP. It holds NASS-format CSVs, one per table. Column 1 is a row-type flag: 't' title, 'h' header, 'u' units, 'd' data (plus footnote rows). For the state table a data row is [table_no, 'd', state_name, colonies, yield, production, stocks, price, value]. Read the 'u' row for units: prices are cents in old reports and dollars since the March 2020 report. Values are in thousands except yield and price. Find the state table by its title words 'Colonies, Yield, Production, Stocks, Price,' and skip the 'less than 5 colonies' table. These details come from a third-party parser and are UNVERIFIED against the 2026 ZIP. The TXT twin is fixed-width text, usable as a fallback.",
+   "confidence": "from_search_snippets",
+   "publication_lag": "About 2.5 months after the crop year.",
+   "rate_limits": "none documented",
+   "honey_specific_codes": "ESMIS identifier 'Hone' (id 1256); file stem hony{MM}{YY}; legacy noid hd76s004z; 'honeyest' (id 858) for final estimates",
+   "sample_response": "RECONSTRUCTED CSV rows inside the ZIP (layout taken from third-party code):\n\"1\",\"t\",\"Honey: Number of Colonies, Yield, Production, Stocks, Price, and Value by State and United States: 2025\"\n\"1\",\"h\",\"\",\"Honey producing colonies\",\"Yield per colony\",\"Production\",\"Stocks December 15\",\"Average price per pound\",\"Value of production\"\n\"1\",\"u\",\"\",\"(1,000 colonies)\",\"(pounds)\",\"(1,000 pounds)\",\"(1,000 pounds)\",\"(dollars)\",\"(1,000 dollars)\"\n\"1\",\"d\",\"Alabama\",\"...\",\"...\",\"...\",\"...\",\"...\",\"...\"",
+   "evidence_urls": [
+    "https://esmis.nal.usda.gov/sites/default/release-files/795818/hony0326.pdf",
+    "https://esmis.nal.usda.gov/sites/default/release-files/795818/hony0326.txt",
+    "https://esmis.nal.usda.gov/sites/default/release-files/hd76s004z/05743n82j/7h14cm201/hony0325.txt",
+    "https://www.beeculture.com/usda-honey-report/"
+   ]
+  },
+  {
+   "name": "USDA FAS GATS API (US Census monthly imports by partner country and HS-10, incl. HS 0409 honey)",
+   "access_method": "REST API (JSON or XML)",
+   "endpoints": [
+    "GET https://api.fas.usda.gov/api/gats/censusImports/partnerCode/{partnerCode}/year/{year}/month/{month}   (e.g. /partnerCode/AR/year/2026/month/8 = all HS-10 US imports from Argentina in Aug 2026; filter hS10Code startswith '0409' client-side)",
+    "GET https://api.fas.usda.gov/api/gats/census/data/imports/dataReleaseDates   (one record per statistical month, newest first; use it to detect new or revised months)",
+    "GET https://api.fas.usda.gov/api/gats/customsDistrictImports/partnerCode/{partnerCode}/year/{year}/month/{month}   (same data split by US customs district: port of entry)",
+    "GET https://api.fas.usda.gov/api/gats/censusExports/partnerCode/{p}/year/{y}/month/{m} ; .../censusReExports/... ; .../customsDistrictExports/... ; .../census/data/exports/dataReleaseDates",
+    "Reference lists: GET https://api.fas.usda.gov/api/gats/countries ; /api/gats/regions ; /api/gats/commodities (HS-10 list, about 7.6 MB) ; /api/gats/HS6Commodities ; /api/gats/unitsOfMeasure ; /api/gats/customsDistricts",
+    "UN Comtrade mirror (FROZEN at statistical year 2019, last release 2021-01-18; do not use): /api/gats/UNTradeImports/reporterCode/{r}/year/{y}",
+    "Docs: portal https://apps.fas.usda.gov/opendatawebV2/ (Swagger: https://apps.fas.usda.gov/opendatawebV2/assets/swagger/swagger.json); backend Swagger https://apps.fas.usda.gov/OpenData/swagger/docs/v1 (host apps.fas.usda.gov, basePath /OpenData, header API_KEY; an alternative route, not tested)"
+   ],
+   "auth": "Free api.data.gov key (sign up at https://api.data.gov/signup/). Send it in the HTTP header X-Api-Key: <key> when calling https://api.fas.usda.gov (portal Swagger securityDefinitions: apiKeyHeader, name X-Api-Key, in header). Store it as DATA_GOV_API_KEY.",
+   "cost_licensing": "Free. The Swagger documents name no licence or terms. Underlying Census trade statistics are US Government public data. api.data.gov terms apply to the key (no key sharing, respect the rate limit).",
+   "update_frequency": "Monthly, following the Census FT-900 release. Example: statistical month 2026-08 was released 2026-10-06 08:00 and 2026-07 on 2026-09-03. An annual revision re-releases about 3 years of months (2023-01 to 2025-12 were re-released 2026-06-24). Updates can stall during federal funding lapses (the June 2026 honey report noted GATS was not updated).",
+   "data_available": "Per partner-month: one record per HS-10 line. Fields (from a recorded live fixture): consumptionQuantity1, consumptionQuantity2, consumptionValue, consumptionCIFValue, cifValue, date ('YYYYMM'), countryCode, hS10Code, censusUOMId1, censusUOMId2, fasConvertedUOMId, fasNonConvertedUOMId, quantity1, quantity2, value. For honey the HS6 list says censusUOMId1 = 47 (KG), so quantity1 is kilograms and value is US dollars (the API does not name the currency). value / quantity1 gives the import unit value in USD/kg by origin. Quantity is in kg, not drums or containers. The meaning of 'consumption*' (imports for consumption) vs plain 'value' (presumably general imports), and cifValue as CIF charges (insurance + freight) rather than a CIF total, is INFERRED from Census conventions and is unverified.",
+   "parsing_notes": "(1) partnerCode is GATS's own 2-letter code, NOT ISO. Verified from the countries list: Argentina AR, Brazil BR, CHINA = CH, India IN, VIETNAM = VM, UKRAINE = UP, SERBIA = R1, Uruguay UY, Mexico MX, Canada CA, Thailand TH, TURKEY = TU, Taiwan TW, Moldova MD, Romania RO, BULGARIA = BU, Hungary HU, ITALY = I1 (IT is discontinued 198712), NEW ZEALAND = N1, SPAIN = SP, GERMANY = GM. (2) An unknown partner code, or a partner with no trade, returns an EMPTY LIST, not an error. Validate codes against /countries, and check dataReleaseDates before treating empty as zero. (3) One call returns ALL HS-10 lines for the partner-month (about 1.1 MB, 3,294 records for China in Aug 2026). There is no server-side HS filter; filter locally on hS10Code.startswith('0409'). (4) Note the key casing 'hS10Code'. (5) Numbers are JSON numbers with a .0 suffix; parse them as Decimal. (6) releaseTimeStamp is naive ('2026-10-06T08:00:00'). (7) Send Accept: application/json, because the API can also serve XML. (8) Do not hard-code the honey HS-10 lines. Fetch /api/gats/commodities once a day and select codes starting '0409'. Candidate lines from secondary sources (UNVERIFIED): 0409000005 natural honey certified organic; 0409000010; 0409000035 comb/retail-packaged; 0409000045 white or lighter; 0409000056 extra light amber; 0409000065 light amber; plus a line for amber/darker. These match AMS colour grades and let you split imports by colour.",
+   "confidence": "verified_from_docs",
+   "publication_lag": "About 5-6 weeks after month end (Aug data on Oct 6).",
+   "rate_limits": "api.data.gov quota: 1,000 requests per hour per key. Every response carries x-ratelimit-limit: 1000 and x-ratelimit-remaining headers, with no reset header. The quota is shared across all FAS/api.data.gov services using the same key. About 15 origins x 1 call per month is trivial.",
+   "honey_specific_codes": "HS6 040900 'Honey, Natural' (censusUOMId1=47 KG, fasConvertedUOMId=70 MT). HS-10 lines start 0409. Partner codes as listed in parsing_notes.",
+   "sample_response": "Recorded fixture shape (the record shown is from China Aug 2026, a non-honey line, quoted from the SDK docs):\n[ {\"consumptionQuantity1\": 9640.0, \"consumptionQuantity2\": 0.0, \"consumptionValue\": 1111254.0, \"consumptionCIFValue\": 1166564.0, \"cifValue\": 55310.0, \"date\": \"202608\", \"countryCode\": \"CH\", \"hS10Code\": \"0106199195\", \"censusUOMId1\": 78, \"censusUOMId2\": 78, \"fasConvertedUOMId\": 78, \"fasNonConvertedUOMId\": 78, \"quantity1\": 9640.0, \"quantity2\": 0.0, \"value\": 1111254.0 } , ... ]\nRelease dates: [ {\"statisticalYearMonth\": \"202608\", \"productType\": \"M\", \"reporterCode\": \"US\", \"releaseTimeStamp\": \"2026-10-06T08:00:00\"}, ... ]\nHS6 reference row: {\"hS6Code\": \"040900\", \"commodityName\": \"Honey, Natural\", \"commodityDescription\": \"Honey, Natural\", \"censusUOMId1\": 47, \"censusUOMId2\": 47, \"fasConvertedUOMId\": 70, \"fasNonConvertedUOMId\": 47}",
+   "evidence_urls": [
+    "https://apps.fas.usda.gov/opendatawebV2/",
+    "https://apps.fas.usda.gov/opendatawebV2/assets/swagger/swagger.json",
+    "https://apps.fas.usda.gov/OpenData/swagger/docs/v1",
+    "https://pypi.org/project/xippios-usda-gats/",
+    "https://api.data.gov/signup/"
+   ]
+  },
+  {
+   "name": "USDA ERS Sugar and Sweeteners Yearbook, Tables 46-47 (US honey production, trade, stocks, price)",
+   "access_method": "bulk CSV",
+   "endpoints": [
+    "https://www.ers.usda.gov/media/5151/us-honey-production-and-trade.csv",
+    "Product page: https://www.ers.usda.gov/data-products/sugar-and-sweeteners-yearbook-tables"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free; US Government public domain (ERS).",
+   "update_frequency": "Irregular, about annual (yearbook refresh). The server sends no Last-Modified header.",
+   "data_available": "Table 46: U.S. honey production, imports, exports, stocks and average price by calendar year since 1986. Table 47: number of colonies, yield, production, stocks, price and value by top producing states and the US since 1986. Long format, about 5,768 values.",
+   "parsing_notes": "Long/tidy CSV. Dimension columns seen in third-party code: Commodity_desc, Commodity_desc2, Geographic_extent, Geographic_extent2, Source_or_destination, Fiscal_year_entered, Fiscal_year_quota, Forecast_yearmonth. The value, unit, year and attribute column names are UNVERIFIED, so read the header row. Detect changes by SHA-256 because there is no Last-Modified. Useful as a one-off historical backfill rather than a live feed.",
+   "confidence": "from_search_snippets",
+   "publication_lag": "Months to a year.",
+   "rate_limits": "none documented",
+   "honey_specific_codes": "ERS media id 5151; yearbook tables 46 and 47",
+   "sample_response": "RECONSTRUCTED header (only the first 8 columns are confirmed): Commodity_desc,Commodity_desc2,Geographic_extent,Geographic_extent2,Source_or_destination,Fiscal_year_entered,Fiscal_year_quota,Forecast_yearmonth,<attribute/unit/year/value columns - unverified>",
+   "evidence_urls": [
+    "https://www.ers.usda.gov/data-products/sugar-and-sweeteners-yearbook-tables",
+    "https://www.ers.usda.gov/data-products/charts-of-note/98689"
+   ]
+  }
+ ],
+ "recommendation": "Integrate in this order:\n\n1) FAS GATS censusImports (needs a free api.data.gov key, sent as the X-Api-Key header on https://api.fas.usda.gov). This is the best-structured and best-verified feed.\n- Once a month, poll /api/gats/census/data/imports/dataReleaseDates.\n- For each new or revised YYYYMM, call /api/gats/censusImports/partnerCode/{code}/year/{y}/month/{m} for the origins Parodi cares about: AR, BR, CH (China), IN, VM (Vietnam), UP (Ukraine), R1 (Serbia), UY, MX, CA, TH, TU, MD, RO, BU, HU. That is about 16 calls per month against a 1,000 per hour quota.\n- Keep rows where hS10Code starts with '0409' and store kg, value and cifValue.\n- Compute USD/kg unit values by origin and by HS-10 colour line. That gives a monthly landed-price benchmark per origin and colour.\n- Build the HS-10 list from /api/gats/commodities; do not hard-code it.\n- Treat an empty list as 'no trade' only when the month appears in dataReleaseDates.\n\n2) AMS National Honey Report PDF. It is the only USDA source with actual bulk quotes: prices paid to importers by origin and colour, and prices paid to US beekeepers by state, floral source and colour.\n- Each day in the last and first week of the month, do a conditional GET of https://www.ams.usda.gov/mnreports/fvmhoney.pdf (fall back to the ams-prod.azureedge.us mirror).\n- Hash the file, archive it locally (the URL is overwritten), and parse it with pdfplumber word coordinates.\n- Normalise cents vs dollars per lb and convert to per kg.\n- Version the parser, because the layout changed in Jan 2025.\n\n3) ESMIS API (keyless) as the release detector and back-issue archive.\n- Call /api/v1/release/findByIdentifier/FVMHONEY?page=N to backfill historical FVMHONEY PDFs.\n- Call /api/v1/release/findByIdentifier/Hone for the NASS Honey report files (prefer the ZIP of CSVs).\n- Send a User-Agent, retry on empty lists, and treat release_datetime as Eastern wall-clock time.\n- If FVMHONEY stopped being deposited after the Oct-2025 migration (check the newest release_datetime on first run), use https://mymarketnews.ams.usda.gov/filerepo/reports?field_slug_id_value=2901 for 2026 back-issues instead.\n\n4) NASS Quick Stats (free key, query parameter key=). Use it for annual US supply context: production, yield, stocks, average price, colonies.\n- Run commodity_desc=HONEY, source_desc=SURVEY once to discover the exact short_desc strings, then pull incrementally each March. Run get_counts first.\n- Display the required notice 'This product uses the NASS API but is not endorsed or certified by NASS.'\n- Get the colour-class price table from the March report ZIP rather than Quick Stats.\n\n5) MARS API slug 2901 (free MyMarketNews key, Basic auth with the key as username and an empty password).\n- Make one exploratory call to /services/v1.2/reports/2901 and read reportSections.\n- If it exposes structured importer and beekeeper price sections, switch step 2 to the API and keep the PDF parser as a fallback.\n- Otherwise use MARS only for publication metadata, since its 2901 history appears to start only around Dec 2025 to Feb 2026.\n\n6) ERS honey CSV: a one-time historical backfill (1986 onward).\n\nCaveats:\n- The developer's sandbox could not reach www.ams.usda.gov or esmis.nal.usda.gov; in this research session both hosts also failed to resolve.\n- So the field names above come from three places: official doc snapshots (NASS API page, ESMIS OpenAPI, FAS Swagger) as captured in Oct 2026 by the xippios SDKs, which also recorded the response fixtures; official MyMarketNews doc snippets; and third-party code.\n- Items marked UNVERIFIED are: the honey HS-10 suffixes, the MARS 2901 section and field names, the exact Quick Stats honey short_desc strings for price, yield and stocks, the NASS ZIP CSV layout, and whether post-2025 FVMHONEY issues are on ESMIS. Confirm them on the first live run.\n- Build the collectors to tolerate federal-shutdown gaps: GATS, ESMIS and AMS all stalled during funding lapses."
+}

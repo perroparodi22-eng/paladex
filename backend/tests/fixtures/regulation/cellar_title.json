@@ -1,0 +1,45 @@
+{
+  "head": {"link": [], "vars": ["celex", "date", "title", "inforce", "eif"]},
+  "results": {"distinct": false, "ordered": true, "bindings": [
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "52026PC9903"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2026-09-15"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Proposal for a COUNCIL DECISION on the position to be taken on behalf of the European Union within the EU-Ukraine Association Committee in Trade configuration as regards the tariff-rate quota for natural honey (illustrative test act)"}
+    },
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "92025E009906"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2026-04-30"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Question for written answer E-009906/2025: adulterated honey imports (illustrative test question)"}
+    },
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "32026R9901"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2026-03-10"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Commission Implementing Regulation (EU) 2026/9901 of 10 March 2026 amending Annexes XIII and XIX to Implementing Regulation (EU) 2021/405 as regards the entries for Moldova and Ukraine in the lists of third countries authorised for the entry into the Union of honey (illustrative test act)"},
+      "inforce": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#boolean", "value": "true"},
+      "eif": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2026-03-31"}
+    },
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "22025D9907"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2025-10-29"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Decision No 9/2025 of the EU-Ukraine Association Committee in Trade configuration amending Annex I-A to the Association Agreement as regards the tariff-rate quota for natural honey (illustrative test act)"},
+      "inforce": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#boolean", "value": "true"},
+      "eif": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2025-10-29"}
+    },
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "32025R9905"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2025-06-11"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Commission Implementing Regulation (EU) 2025/9905 restricting the use of certain plant protection products in order to protect honeybees (illustrative test act)"}
+    },
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "32025R9904"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2025-04-03"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Commission Regulation (EU) 2025/9904 amending Annex II to Regulation (EC) No 396/2005 as regards maximum residue levels for certain substances in or on honey (illustrative test act)"}
+    },
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "32024L1438"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2024-05-14"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Directive (EU) 2024/1438 of the European Parliament and of the Council of 14 May 2024 amending Council Directives 2001/110/EC relating to honey, 2001/112/EC relating to fruit juices and certain similar products intended for human consumption, 2001/113/EC relating to fruit jams, jellies and marmalades and sweetened chestnut purée intended for human consumption, and 2001/114/EC relating to certain partly or wholly dehydrated preserved milk for human consumption"},
+      "inforce": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#boolean", "value": "true"}
+    }
+  ]}
+}

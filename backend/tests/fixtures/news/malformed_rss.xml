@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+<title>Broken Test Feed & Friends</title>
+<link>https://broken.example/</link>
+<description>A feed with errors</description>
+<item>
+<title>Ukrainian honey exports to the EU hit record & prices ease</title>
+<link>https://broken.example/news/ukraine-honey-record</link>
+<pubDate>Sat, 31 Oct 2026 07:00:00 GMT</pubDate>
+<description>Exporters shipped record volumes of sunflower honey in bulk, while prices per tonne eased <b>slightly.</description>
+</item>
+<item>
+<title>Second item after the broken tag</title>
+<link>https://broken.example/news/second</link>
+<pubDate>Sat, 31 Oct 2026 08:00:00 GMT</pubDate>
+<description>Beekeepers report a late honey flow.</description>
+</item>
+</channel>
+</rss>

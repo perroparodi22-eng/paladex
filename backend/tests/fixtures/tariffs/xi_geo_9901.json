@@ -1,0 +1,58 @@
+{
+ "data": {
+  "id": "9901",
+  "type": "geographical_area",
+  "attributes": {
+   "id": "9901",
+   "description": "Illustrative test group (not a real TARIC group)",
+   "geographical_area_id": "9901"
+  },
+  "relationships": {
+   "children_geographical_areas": {
+    "data": [
+     {
+      "id": "AR",
+      "type": "geographical_area"
+     },
+     {
+      "id": "CL",
+      "type": "geographical_area"
+     },
+     {
+      "id": "PY",
+      "type": "geographical_area"
+     }
+    ]
+   }
+  }
+ },
+ "included": [
+  {
+   "id": "AR",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "AR",
+    "description": "Argentina",
+    "geographical_area_id": "AR"
+   }
+  },
+  {
+   "id": "CL",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "CL",
+    "description": "Chile",
+    "geographical_area_id": "CL"
+   }
+  },
+  {
+   "id": "PY",
+   "type": "geographical_area",
+   "attributes": {
+    "id": "PY",
+    "description": "Paraguay",
+    "geographical_area_id": "PY"
+   }
+  }
+ ]
+}

@@ -1,0 +1,150 @@
+{
+ "data": {
+  "list": [
+   {
+    "year": "2026",
+    "monthNumber": "9",
+    "country": "United States",
+    "state": "Piauí",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": "4260000",
+    "metricKG": "1200000"
+   },
+   {
+    "year": "2026",
+    "monthNumber": "9",
+    "country": "United States",
+    "state": "Ceará",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": 2100000,
+    "metricKG": 600000
+   },
+   {
+    "year": "2026",
+    "monthNumber": "9",
+    "country": "United States",
+    "state": "Rio Grande do Sul",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": "1110000",
+    "metricKG": "300000"
+   },
+   {
+    "year": "2026",
+    "monthNumber": "9",
+    "country": "Canada",
+    "state": "Paraná",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": 432000,
+    "metricKG": 120000
+   },
+   {
+    "year": "2026",
+    "monthNumber": "9",
+    "country": "Netherlands",
+    "state": "Santa Catarina",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": "222000",
+    "metricKG": "60000"
+   },
+   {
+    "year": "2026",
+    "monthNumber": "9",
+    "country": "Singapore",
+    "state": "São Paulo",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": 9000,
+    "metricKG": 2000
+   },
+   {
+    "year": "2026",
+    "monthNumber": "9",
+    "country": "Australia",
+    "state": "São Paulo",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": "2100",
+    "metricKG": "300"
+   },
+   {
+    "year": "2026",
+    "monthNumber": "8",
+    "country": "United States",
+    "state": "Piauí",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": 3850000,
+    "metricKG": 1100000
+   },
+   {
+    "year": "2026",
+    "monthNumber": "8",
+    "country": "United States",
+    "state": "Ceará",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": "1725000",
+    "metricKG": "500000"
+   },
+   {
+    "year": "2026",
+    "monthNumber": "8",
+    "country": "Canada",
+    "state": "Paraná",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": 355000,
+    "metricKG": 100000
+   },
+   {
+    "year": "2026",
+    "monthNumber": "8",
+    "country": "Germany",
+    "state": "Santa Catarina",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": "72960",
+    "metricKG": "19200"
+   },
+   {
+    "year": "2026",
+    "monthNumber": "7",
+    "country": "United States",
+    "state": "Piauí",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": 3150000,
+    "metricKG": 900000
+   },
+   {
+    "year": "2026",
+    "monthNumber": "1",
+    "country": "United States",
+    "state": "Piauí",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": "3560700",
+    "metricKG": "1000000"
+   },
+   {
+    "year": "2025",
+    "monthNumber": "10",
+    "country": "United States",
+    "state": "Rio Grande do Sul",
+    "coNcm": "04090000",
+    "ncm": "Natural honey",
+    "metricFOB": 850000,
+    "metricKG": 250000
+   }
+  ]
+ },
+ "success": true,
+ "message": null,
+ "processo_info": null,
+ "language": "en"
+}

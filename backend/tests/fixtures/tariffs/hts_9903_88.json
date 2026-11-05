@@ -1,0 +1,28 @@
+[
+ {
+  "htsno": "9903.88.03",
+  "indent": "1",
+  "description": "Articles the product of China, as provided for in U.S. note 20(e) to this subchapter (illustrative)",
+  "superior": null,
+  "units": [],
+  "general": "The duty provided in the applicable subheading + 25%",
+  "special": "",
+  "other": "",
+  "footnotes": [],
+  "quotaQuantity": null,
+  "additionalDuties": null
+ },
+ {
+  "htsno": "9903.88.15",
+  "indent": "1",
+  "description": "Articles the product of China, as provided for in U.S. note 20(r) to this subchapter (illustrative)",
+  "superior": null,
+  "units": [],
+  "general": "The duty provided in the applicable subheading + 7.5%",
+  "special": "",
+  "other": "",
+  "footnotes": [],
+  "quotaQuantity": null,
+  "additionalDuties": null
+ }
+]

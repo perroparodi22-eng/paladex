@@ -1,0 +1,5 @@
+{"metadata":{"processing_time":75,"datasource":"PRODUCTION","output_type":"OBJECTS","dsd":[]},
+ "data":[
+ {"Domain Code":"PP","Domain":"Producer Prices","Area Code":"9","Area":"Argentina","Element Code":"5532","Element":"Producer Price (USD/tonne)","Item Code":"1182","Item":"Natural honey","Year Code":"2023","Year":"2023","Months Code":"7021","Months":"Annual value","Unit":"USD","Value":"2450","Flag":"A","Flag Description":"Official figure"},
+ {"Domain Code":"PP","Domain":"Producer Prices","Area Code":"9","Area":"Argentina","Element Code":"5530","Element":"Producer Price (LCU/tonne)","Item Code":"1182","Item":"Natural honey","Year Code":"2023","Year":"2023","Months Code":"7021","Months":"Annual value","Unit":"LCU","Value":"860000","Flag":"A","Flag Description":"Official figure"},
+ {"Domain Code":"PP","Domain":"Producer Prices","Area Code":"230","Area":"Ukraine","Element Code":"5530","Element":"Producer Price (LCU/tonne)","Item Code":"1182","Item":"Natural honey","Year Code":"2022","Year":"2022","Months Code":"7021","Months":"Annual value","Unit":"LCU","Value":"52000","Flag":"I","Flag Description":"Imputed value"}]}

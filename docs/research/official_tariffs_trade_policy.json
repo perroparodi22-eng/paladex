@@ -1,0 +1,426 @@
+{
+ "key": "tariffs_trade_policy",
+ "region": "Official tariff and trade-policy data for natural honey (HS 0409 / CN-TARIC 0409000000 / HTSUS 0409.00.00): EU import duties, preferences and tariff-rate quotas (TARIC, via the UK XI mirror API), US duty rates and Chapter 99 surcharges (USITC HTS API), US anti-dumping orders and cash-deposit rates (ITA ACCESS, CBP ADCVD messages, CBP CSMS), the official US calculated-duty statistics (Census API, USITC DataWeb), and the international tariff databases (World Bank WITS, WTO Timeseries API, WTO Tariff & Trade Data, WTO ePing, I-TIP), plus Access2Markets. NOTHING IN THIS REPORT COULD BE CHECKED LIVE. When this agent started, the workflow's shared WebSearch budget (200 searches per turn across all agents) was already used up, so no searches ran. WebFetch failed with DNS/allow-list errors on www.trade-tariff.service.gov.uk and hts.usitc.gov. Direct curl through the agent proxy was also refused (CONNECT 403). The Claude-in-Chrome tools were not available in this session, so the user's Chrome could not be used either. Every item is therefore from memory (knowledge horizon about mid-2026) and is marked from_memory_unverified. It builds on, and does not repeat, /home/user/paladex/docs/research/regulation.json (an earlier agent hit the same blocks); where the two overlap, this report adds the per-origin duty automation design, the WITS/WTO/Census/ePing/CBP-ADCVD details and a combined EU+US seed matrix.",
+ "sources": [
+  {
+   "country": "EU (EU TARIC measures mirrored by the UK for Northern Ireland)",
+   "name": "UK Online Trade Tariff API v2, XI (Northern Ireland) service: a machine-readable mirror of EU TARIC duties, preferences and EU tariff-quota balances for 0409000000",
+   "official_body": "UK Department for Business and Trade / HM Revenue & Customs (Online Trade Tariff). The data is the European Commission DG TAXUD TARIC, applied in Northern Ireland under the Windsor Framework.",
+   "access_method": "REST API, JSON:API format, keyless, GET only",
+   "endpoints": [
+    "GET https://www.trade-tariff.service.gov.uk/xi/api/v2/commodities/0409000000   (every EU import measure on honey: erga-omnes duty, tariff preferences, preferential TRQs, by origin)",
+    "GET https://www.trade-tariff.service.gov.uk/xi/api/v2/commodities/0409000000?as_of=2026-11-04   (point-in-time view; the parameter name 'as_of' is unverified, and the web UI uses day/month/year instead)",
+    "GET https://www.trade-tariff.service.gov.uk/xi/api/v2/quotas/search?goods_nomenclature_item_id=0409000000&geographical_area_id=UA&years[]=2026   (quota definitions and balances; also accepts order_number=096730 (6 digits, no dot), critical=Y|N, status=exhausted|not_exhausted|blocked|not_blocked, month, day, page; parameter names from memory)",
+    "GET https://www.trade-tariff.service.gov.uk/xi/api/v2/quota_order_numbers   (all order numbers with their current definition; unverified)",
+    "GET https://www.trade-tariff.service.gov.uk/xi/api/v2/geographical_areas/{id}   (expand group membership, e.g. 1011 ERGA OMNES and the GSP groups, through relationships.children_geographical_areas)",
+    "GET https://www.trade-tariff.service.gov.uk/xi/api/v2/geographical_areas/countries",
+    "GET https://www.trade-tariff.service.gov.uk/xi/api/v2/measure_types   (lookup of TARIC measure-type ids)",
+    "Optional header: Accept: application/vnd.uktt.v2   (the /api/v2 path already selects v2)",
+    "Human link per origin: https://www.trade-tariff.service.gov.uk/xi/commodities/0409000000?country={ISO2}#import",
+    "UK-only tariff, for comparison: https://www.trade-tariff.service.gov.uk/api/v2/commodities/0409000000   (newer path variant: /uk/api/...)",
+    "Docs: https://api.trade-tariff.service.gov.uk/reference.html"
+   ],
+   "auth": "None as far as I recall. On the first run, check whether DBT/HMRC have introduced developer keys for the v2 public API; keyed products already exist for classification and 'green lanes'.",
+   "cost_licensing": "Open Government Licence v3.0: free commercial reuse with the attribution 'Contains public sector information licensed under the Open Government Licence v3.0'. The legally binding EU source remains TARIC and the OJ acts, so the UI should say: 'Source: UK Trade Tariff (XI) mirror of EU TARIC; authoritative: EU TARIC'.",
+   "update_frequency": "Daily. It ingests the EU TARIC daily files, and quota balances change after each Commission allocation (several times a week while a quota is in use).",
+   "data_available": "For commodity 0409000000 ('Natural honey', the only 10-digit line under 0409):\n- Every import measure with: origin (country ISO2, or a group such as 1011 ERGA OMNES or a GSP group; TARIC uses XS for Serbia and XK for Kosovo); measure type (103 third-country duty, 142 tariff preference, 143 preferential tariff quota, 122 non-preferential TRQ; 551-555 AD/CVD and 695/696 additional duties if any ever appear); the duty expression (e.g. '17.30 %', '0.00 %'); validity dates; excluded countries (e.g. GSP-graduated countries); footnotes; conditions; and the legal act, including a regulation_url link to EUR-Lex.\n- For TRQs: order number; definition (initial_volume and balance in kg, period start/end, status Open/Critical/Exhausted/Blocked, last_allocation_date); and the quota_balance_events history (occurrence_timestamp, old_balance, new_balance, imported_amount, last_import_date_in_allocation).\n- Newer API versions also expose (unverified) meta.duty_calculator.trade_defence (a boolean that turns true if an EU AD/CVD measure exists) and an import_trade_summary relationship (basic_third_country_duty / preferential_tariff_duty / preferential_quota_duty).\n- Measures with origin 'uk' (VAT, excise) must be ignored.",
+   "value_for_parodi": "This is the only free, keyless, machine-readable source for the current EU import duty on honey by origin and for live EU TRQ fill. It feeds the EU column of the per-origin duty matrix automatically:\n- MFN 17.3%;\n- Ukraine 0% in-quota under the revised DCFTA TRQ (35,000 t), 17.3% out-of-quota;\n- Serbia (XS) 0%;\n- Vietnam EVFTA;\n- the India GSP rate, or India appearing in excluded_countries if graduated;\n- the Mexico TRQ;\n- the Mercosur TRQ for AR/BR/UY/PY if and when the interim agreement is applied. A new 143 measure appearing is the automatic signal.\nThe Ukraine quota balance and the speed it is drawn down are a market signal for Ukrainian honey pressure on EU bulk prices. That signal is fresher than Comext and complements the TAXUD weekly imports already integrated. Each measure's regulation_url gives an official EUR-Lex link for the UI.",
+   "parsing_notes": "1) JSON:API: data.relationships.import_measures.data[] holds (id, type) pairs; resolve them against included[] by (type, id). Types (from memory): measure, duty_expression, measure_type, geographical_area, legal_act, order_number, definition, footnote, measure_condition, measure_component, excluded_country (or geographical_area under relationships.excluded_countries).\n2) Keep measures where attributes.origin == 'eu' and attributes.import == true.\n3) duty_expression.attributes.base is a plain string ('17.30 %'); formatted_base contains HTML spans. Parse it with the regex ([0-9.]+)\\s*%.\n4) Expand groups through geographical_areas/{id} children, then subtract excluded_countries. The result is one row per (origin ISO2, measure type, rate, order_number).\n5) For each TRQ order number, call quotas/search?order_number=NNNNNN&years[]=YYYY. initial_volume and balance are strings in kg. Compute fill % = 1 - balance/initial_volume. Status values are 'Open', 'Critical', 'Exhausted' (and possibly 'Blocked').\n6) Store the validity windows. Quota periods are usually calendar years, but the first period after a new agreement can be pro-rata.\n7) Order numbers: never hard-code them. An older Ukraine honey order number was reported as 09.6730 in another agent's search snippets; the post-29-Oct-2025 number must be read from the response.\n8) Daily snapshot: diff the measure set and raise an alert on any added or removed (origin, type, rate) row and on any quota status change.",
+   "publication_lag": "Usually same day or next day after the EU TARIC daily update (unverified)",
+   "rate_limits": "Not documented as far as I recall. The service sits behind a CDN. Plan for at most 1 request/s and handle HTTP 429 with backoff. Daily need: 1 commodity call plus 3-6 quota calls.",
+   "sample_response": "RECONSTRUCTED (shape from memory; ids, values and some attribute names are illustrative):\n{\"data\":{\"id\":\"27623\",\"type\":\"commodity\",\"attributes\":{\"goods_nomenclature_item_id\":\"0409000000\",\"producline_suffix\":\"80\",\"description\":\"Natural honey\",\"number_indents\":1,\"declarable\":true,\"basic_duty_rate\":\"<span>17.30</span> %\"},\"relationships\":{\"import_measures\":{\"data\":[{\"id\":\"20001234\",\"type\":\"measure\"},{\"id\":\"20005678\",\"type\":\"measure\"}]}}},\"meta\":{\"duty_calculator\":{\"source\":\"xi\",\"trade_defence\":false,\"zero_mfn_duty\":false}},\"included\":[{\"id\":\"20001234\",\"type\":\"measure\",\"attributes\":{\"origin\":\"eu\",\"import\":true,\"effective_start_date\":\"2026-01-01T00:00:00.000Z\",\"effective_end_date\":null},\"relationships\":{\"measure_type\":{\"data\":{\"id\":\"103\",\"type\":\"measure_type\"}},\"geographical_area\":{\"data\":{\"id\":\"1011\",\"type\":\"geographical_area\"}},\"duty_expression\":{\"data\":{\"id\":\"20001234-duty_expression\",\"type\":\"duty_expression\"}},\"legal_acts\":{\"data\":[{\"id\":\"R2658/87\",\"type\":\"legal_act\"}]},\"order_number\":{\"data\":null}}},{\"id\":\"20001234-duty_expression\",\"type\":\"duty_expression\",\"attributes\":{\"base\":\"17.30 %\",\"formatted_base\":\"<span>17.30</span> %\"}},{\"id\":\"20005678\",\"type\":\"measure\",\"attributes\":{\"origin\":\"eu\",\"import\":true},\"relationships\":{\"measure_type\":{\"data\":{\"id\":\"143\",\"type\":\"measure_type\"}},\"geographical_area\":{\"data\":{\"id\":\"UA\",\"type\":\"geographical_area\"}},\"order_number\":{\"data\":{\"id\":\"09XXXX\",\"type\":\"order_number\"}}}},{\"id\":\"R2658/87\",\"type\":\"legal_act\",\"attributes\":{\"regulation_code\":\"R2658/87\",\"regulation_url\":\"https://eur-lex.europa.eu/...\",\"published_date\":\"1987-09-07\",\"officialjournal_number\":\"L 256\"}}]}\nQuota search (RECONSTRUCTED): {\"data\":[{\"id\":\"2xxxx\",\"type\":\"definition\",\"attributes\":{\"quota_order_number_id\":\"09XXXX\",\"initial_volume\":\"35000000.0\",\"balance\":\"12345678.0\",\"measurement_unit\":\"Kilogram (kg)\",\"validity_start_date\":\"2026-01-01T00:00:00.000Z\",\"validity_end_date\":\"2026-12-31T23:59:59.000Z\",\"status\":\"Open\",\"last_allocation_date\":\"2026-10-30\"},\"relationships\":{\"order_number\":{\"data\":{\"id\":\"09XXXX\",\"type\":\"order_number\"}},\"quota_balance_events\":{\"data\":[...]}}}],\"meta\":{\"pagination\":{\"page\":1,\"per_page\":5,\"total_count\":1}}}",
+   "evidence_urls": [
+    "https://api.trade-tariff.service.gov.uk/reference.html",
+    "https://www.trade-tariff.service.gov.uk/xi/commodities/0409000000",
+    "https://www.trade-tariff.service.gov.uk/xi/quota_search"
+   ],
+   "confidence": "from_memory_unverified",
+   "priority": "high"
+  },
+  {
+   "country": "US",
+   "name": "USITC Harmonized Tariff Schedule (HTS) REST API: US general (MFN), special-program and column-2 rates for 0409.00.00, and the Chapter 99 headings for additional duties (Section 301, Section 122 and any successor surcharges)",
+   "official_body": "US International Trade Commission (USITC), Office of Tariff Affairs and Trade Agreements",
+   "access_method": "REST API (JSON; CSV and XLSX exports), keyless",
+   "endpoints": [
+    "GET https://hts.usitc.gov/reststop/search?keyword=0409.00.00",
+    "GET https://hts.usitc.gov/reststop/search?keyword=honey",
+    "GET https://hts.usitc.gov/reststop/exportList?from=0409&to=0410&format=JSON&styles=false",
+    "GET https://hts.usitc.gov/reststop/exportList?from=9903.88&to=9903.89&format=JSON&styles=false   (Section 301 China headings)",
+    "GET https://hts.usitc.gov/reststop/exportList?from=9903.01&to=9903.04&format=JSON&styles=false   (2025 IEEPA, 2026 Section 122 and successor surcharge headings; ranges illustrative, discover the active ones live)",
+    "GET https://hts.usitc.gov/reststop/file?release=currentRelease&filename=finalCopy   (full current HTS PDF incl. the Chapter 99 notes and annexes; path from memory)",
+    "Human/official link: https://hts.usitc.gov/search?query=0409.00.00",
+    "Release archive: https://www.usitc.gov/harmonized_tariff_information/hts/archive/list   (path from memory)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Public domain (US Government work), free. No published ban on automated access; keep request volume low.",
+   "update_frequency": "Each new HTS revision. There were dozens of revisions in 2025-2026, because every tariff action is written into Chapter 99 by a revision.",
+   "data_available": "Per HTS row: htsno, indent, description, units, general (column 1 MFN), special (FTA/preference program codes), other (column 2), footnotes (cross-references to Chapter 99 headings, e.g. 'See 9903.88.03'), quotaQuantity, additionalDuties.\nHoney, from memory: 0409.00.00 general 1.9¢/kg; special Free (A+, AU, BH, CL, CO, D, E, IL, JO, KR, MA, OM, P, PA, PE, S, SG), where S/S+ = USMCA (Mexico, Canada); column 2 6.6¢/kg.\nStatistical suffixes recalled: .05 (certified organic), .10, .35, .45, .56, .65 (colour-grade / container splits). Verify the descriptions.\nChapter 99 rows give the surcharge rate and legal text for 9903.xx headings.",
+   "value_for_parodi": "This is the official machine source for the US 'base' duty on every origin and for detecting new surcharge layers. At ~$2.5-3.5/kg, 1.9¢/kg is under 1% ad valorem, so in practice the US decision is driven by:\n(a) AD orders (see the CBP and ITA entries);\n(b) country-wide surcharges in Chapter 99.\nThose surcharges changed constantly in 2025-26 (IEEPA, then the Supreme Court ruling and the Section 122 surcharge recalled for Feb 2026, then unknown successors). A weekly diff of the 0409 rows and of the 9903 ranges is the only automatable way to keep the US column current, with an official link per row.",
+   "parsing_notes": "1) Response is a JSON array of row objects. Field names from memory, validate them on the first run: htsno, indent, description, superior, units[], general, special, other, footnotes[] ({columns:[...], value:'See 9903.88.03.', type:'endnote'}), quotaQuantity, additionalDuties.\n2) The 10-digit statistical rows have an empty 'general'; inherit it from the 8-digit parent.\n3) Parse rates with a regex: (\\d+(?:\\.\\d+)?)¢/kg (specific; convert to USD/kg) or (\\d+(?:\\.\\d+)?)% (ad valorem). Split the special program codes inside the parentheses.\n4) Country-wide surcharges (IEEPA-style, Section 122) were NOT footnoted on each 8-digit line. They live in Chapter 99 subchapter III headings plus U.S. notes and annexes. So also diff the 9903 export ranges and read heading descriptions for country names, then confirm with the CBP CSMS guidance.\n5) China Section 301: if 0409.00.00 carries a footnote to 9903.88.0x, store the List 3/4A layer (List 3 = 25%). I do not reliably recall whether honey is on a 301 list, so read the footnote.\n6) Keep the HTS revision label (e.g. '2026 Revision NN') and the retrieval date with every stored rate.",
+   "publication_lag": "Revisions are usually posted on or just before the effective date. Emergency actions can appear a few days after the effective date (CBP CSMS is then faster).",
+   "rate_limits": "None documented as far as I recall; at most a few calls per week.",
+   "sample_response": "RECONSTRUCTED:\n[{\"htsno\":\"0409.00.00\",\"indent\":\"0\",\"description\":\"Natural honey\",\"superior\":null,\"units\":[],\"general\":\"1.9¢/kg\",\"special\":\"Free (A+,AU,BH,CL,CO,D,E,IL,JO,KR,MA,OM,P,PA,PE,S,SG)\",\"other\":\"6.6¢/kg\",\"footnotes\":[],\"quotaQuantity\":null,\"additionalDuties\":null},\n {\"htsno\":\"0409.00.00.05\",\"indent\":\"1\",\"description\":\"Certified organic\",\"units\":[\"kg\"],\"general\":\"\",\"special\":\"\",\"other\":\"\",\"footnotes\":[]}]",
+   "evidence_urls": [
+    "https://hts.usitc.gov/",
+    "https://www.usitc.gov/harmonized_tariff_information"
+   ],
+   "confidence": "from_memory_unverified",
+   "priority": "high"
+  },
+  {
+   "country": "US",
+   "name": "CBP ADCVD Search: public AD/CVD messages (cash-deposit and liquidation instructions per case and exporter) for the honey orders",
+   "official_body": "US Customs and Border Protection (CBP), Office of Trade, AD/CVD Division",
+   "access_method": "HTML search application, no API; per-message HTML pages",
+   "endpoints": [
+    "https://adcvd.cbp.dhs.gov/adcvdweb/   (public ADCVD Search: search messages by case number such as A-570-863, A-357-823, A-351-857, India A-533-xxx, Vietnam A-552-xxx; by date range; by message number. Host recalled; an older variant is https://aceservices.cbp.dhs.gov/adcvdweb/)",
+    "https://adcvd.cbp.dhs.gov/adcvdweb/ad_cvd_msgs/{message_number}   (single message; path pattern unverified)",
+    "https://www.cbp.gov/trade/priority-issues/adcvd   (CBP AD/CVD programme page)",
+    "https://www.cbp.gov/trade/trade-enforcement/tftea/eapa   (EAPA evasion determinations: several honey transshipment cases, China via third countries)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Public domain US Government information, free. No API and no published scraping policy; the site is behind Akamai, so use a polite weekly crawl with a descriptive User-Agent.",
+   "update_frequency": "Event-driven: a message follows each Commerce final result, order, sunset revocation, court decision or liquidation instruction.",
+   "data_available": "Each message (recalled structure):\n- message number and date, category (AD/CVD), type (e.g. cash deposit, liquidation, 'lift suspension');\n- case numbers with company suffixes (e.g. A-351-857-001 for a specific exporter/producer, -000 for all-others);\n- country and product ('Raw honey from Brazil');\n- FR citation, effective date;\n- a table of exporter/producer combinations with the new cash-deposit rate (%) or, for some China honey segments, a per-unit USD/kg rate.",
+   "value_for_parodi": "This is the operational truth for the AD layer at US entry. It gives the cash-deposit rate CBP actually applies to a named Argentine, Brazilian, Indian or Vietnamese exporter, and the company-specific case number the customs broker must declare. It lets Paladex show the rate that applies to each supplier on a SupplierQuote with an official CBP link, and catch rate changes even when the user does not read the Federal Register. The Federal Register (already integrated) gives the legal notice; CBP gives the effective instruction.",
+   "parsing_notes": "1) Weekly: search each honey case number, list new message numbers, fetch each message page and parse the rate table (exporter, producer, case_no_with_suffix, rate_pct or rate_usd_per_kg, effective_date).\n2) Match exporters to suppliers with fuzzy matching on normalised names.\n3) Precedence: the latest cash-deposit message per company suffix wins. Unlisted exporters get the all-others (AR/BR/IN) or country-wide (CN/VN, NME) rate.\n4) Record the FR citation inside the message, so the row can be joined to the FR API document_number.\n5) If ADCVD Search turns out to need a login on the live check, fall back to the FR final results plus the ACCESS documents.",
+   "publication_lag": "Days to a few weeks after the FR final results (recalled)",
+   "rate_limits": "None published; at most 1 request per 2 s, weekly.",
+   "sample_response": "RECONSTRUCTED text structure: 'Message No: 6xxxxxx | Message Date: MM/DD/2026 | Category: Antidumping | Type: Cash deposit | Case(s): A-351-857-000, -001, -002 | Country: Brazil | Product: Raw honey | FR Cite: 91 FR xxxxx | Body: 1. On MM/DD/2026 Commerce published the final results of the administrative review ... 2. Effective MM/DD/2026, set the cash deposit rate as follows: [Exporter] / [Producer] / [Case no.] / [Rate %] ...'",
+   "evidence_urls": [
+    "https://adcvd.cbp.dhs.gov/adcvdweb/",
+    "https://www.cbp.gov/trade/priority-issues/adcvd"
+   ],
+   "confidence": "from_memory_unverified",
+   "priority": "high"
+  },
+  {
+   "country": "US",
+   "name": "CBP Cargo Systems Messaging Service (CSMS): implementation guidance for new tariffs and Chapter 99 headings, AD/CVD system notices and fee changes",
+   "official_body": "US Customs and Border Protection (CBP)",
+   "access_method": "E-mail bulletins via GovDelivery, plus HTML archive pages per bulletin; no API (an RSS feed per topic may exist)",
+   "endpoints": [
+    "https://www.cbp.gov/trade/automated/cargo-systems-messaging-service   (landing page, subscription links, archive pointers)",
+    "https://content.govdelivery.com/accounts/USDHSCBP/bulletins/{bulletin_id}   (individual CSMS message; IDs are hex strings)",
+    "https://public.govdelivery.com/accounts/USDHSCBP/subscriber/new   (subscribe a dedicated mailbox to the trade-policy/ACE topics)",
+    "https://public.govdelivery.com/topics/USDHSCBP_{n}/feed.rss   (GovDelivery topic RSS; pattern unverified)",
+    "https://www.cbp.gov/trade/programs-administration/trade-remedies   (CBP pages on IEEPA/Section 122/Section 301 duties and refunds; path from memory)"
+   ],
+   "auth": "none (a free e-mail subscription for push delivery)",
+   "cost_licensing": "Public domain, free.",
+   "update_frequency": "Several messages per business day; tariff guidance is usually issued before or on the effective date.",
+   "data_available": "Messages titled e.g. 'CSMS # 6xxxxxxx - GUIDANCE: ...'. They carry the new Chapter 99 heading numbers, rates, country scope, exclusions, effective date/time, ACE filing instructions, refund procedures (e.g. after the IEEPA ruling), and the annual MPF/HMF fee updates (MPF 0.3464% ad valorem with per-entry min/max, adjusted each 1 October; HMF 0.125% for ocean entries).",
+   "value_for_parodi": "This is the earliest official signal that a US surcharge on an origin is changing. That matters a great deal in 2026, when the IEEPA tariffs were (recalled) struck down in Feb 2026 and replaced by a temporary Section 122 surcharge whose 150-day limit fell around late July 2026; the November 2026 regime is unknown to me. CSMS usually lands before the HTS revision, and it supplies the official link for any surcharge layer in the US duty column.",
+   "parsing_notes": "1) The best automation is to subscribe a dedicated mailbox and ingest it through IMAP; GovDelivery pages are simple HTML. Parse the subject's 'CSMS # NNNNNNNN' plus the title and date, and the body for 9903.\\d{2}.\\d{2} headings, country names and 'effective'.\n2) Filter on keywords: 9903, tariff, Section 122, Section 301, IEEPA, reciprocal, refund, honey, AD/CVD, and the origin country names.\n3) Each hit becomes a RegulationItem (jurisdiction US, doc_type 'tariff_guidance') and triggers a re-pull of the HTS Chapter 99 ranges.\n4) Do not treat CSMS as legal authority; link the FR presidential document as well.",
+   "publication_lag": "Same day as or before the effective date",
+   "rate_limits": "n/a (push e-mail); if crawling the archive, at most 1 request/s",
+   "sample_response": "RECONSTRUCTED: subject 'CSMS # 66xxxxxx - GUIDANCE: Section 122 Temporary Import Surcharge' ; body: 'Effective 12:01 a.m. EST on ..., imports of products of all countries ... are subject to an additional ...% ad valorem duty under heading 9903.03.xx ... Exceptions ... Annex ...'",
+   "evidence_urls": [
+    "https://www.cbp.gov/trade/automated/cargo-systems-messaging-service"
+   ],
+   "confidence": "from_memory_unverified",
+   "priority": "high"
+  },
+  {
+   "country": "EU",
+   "name": "EU TARIC online consultation (measures and tariff-quota consultation): the legally authoritative display, used as the official link target and the verification source for each origin",
+   "official_body": "European Commission, DG Taxation and Customs Union (DG TAXUD)",
+   "access_method": "HTML (JSP pages); no documented public API",
+   "endpoints": [
+    "https://ec.europa.eu/taxation_customs/dds2/taric/measures.jsp?Lang=en&Taric=0409000000&SimDate=20261104&Area={GEO}&MeasType=&StartPub=&EndPub=&MeasText=&GoodsText=&op=&search_text=goods&textSearch=&LangDescr=en&OrderNum=&Regulation=&measStartDat=&measEndDat=   ({GEO} = ISO2, or XS for Serbia; empty = all origins)",
+    "https://ec.europa.eu/taxation_customs/dds2/taric/quota_consultation.jsp?Lang=en&Code={6-digit order no}&Year=2026&Critical=&Status=&Expand=true   (parameter names from memory)",
+    "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en   (entry page)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free. Europa reuse policy (Commission Decision 2011/833/EU): reuse with acknowledgement. Anti-bot protection, so link to it and verify sparingly; do not poll.",
+   "update_frequency": "Daily",
+   "data_available": "For CN/TARIC 0409000000: the same measures as the XI mirror (origin, measure type, duty, order number, legal base with OJ reference, validity), and for TRQs the order number, period, initial volume, balance, critical status and exhaustion date.",
+   "value_for_parodi": "This is the 'official link' every EU duty cell should open, filtered to the origin and today's date. It is also the fallback for a human to verify a value when the XI mirror and the seed disagree. The data itself is better taken from the XI API.",
+   "parsing_notes": "Generate the deep link per origin with SimDate = today (YYYYMMDD). For an automated cross-check, scrape at most weekly and anchor on the headings 'Third country duty', 'Tariff preference', 'Preferential tariff quota' and the order-number links. The HTML layout has changed over the years.",
+   "publication_lag": "none (source system)",
+   "rate_limits": "Not published; at most weekly scraping",
+   "evidence_urls": [
+    "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en"
+   ],
+   "confidence": "from_memory_unverified",
+   "priority": "medium"
+  },
+  {
+   "country": "US",
+   "name": "US Census Bureau International Trade API: monthly US imports of HS 0409 by country and HS-10, with dutiable value and CALCULATED DUTY (effective duty actually assessed, excluding AD/CVD)",
+   "official_body": "US Census Bureau (Economic Indicators Division), Department of Commerce",
+   "access_method": "REST API returning JSON arrays (header row + data rows); keyless up to a daily cap, free key recommended",
+   "endpoints": [
+    "GET https://api.census.gov/data/timeseries/intltrade/imports/hs?get=CTY_CODE,CTY_NAME,I_COMMODITY,I_COMMODITY_SDESC,GEN_VAL_MO,GEN_QY1_MO,UNIT_QY1,CON_VAL_MO,CON_QY1_MO,GEN_CIF_MO,DUT_VAL_MO,CAL_DUT_MO&COMM_LVL=HS10&I_COMMODITY=0409*&time=2026-08&key={KEY}",
+    "GET ...same get list...&COMM_LVL=HS6&I_COMMODITY=040900&time=from+2024-01+to+2026-09&CTY_CODE=3570   (time-range syntax 'from YYYY-MM to YYYY-MM')",
+    "Optional: add RP (rate provision code) to get= to split dutiable vs free-under-FTA entries (variable name unverified)",
+    "Variables list: https://api.census.gov/data/timeseries/intltrade/imports/hs/variables.json",
+    "Docs: https://www.census.gov/data/developers/data-sets/international-trade.html",
+    "Key signup: https://api.census.gov/data/key_signup.html"
+   ],
+   "auth": "Optional free API key (about 500 queries/day per IP without one, from memory)",
+   "cost_licensing": "Public domain, free; cite the US Census Bureau. Commercial internal use is allowed.",
+   "update_frequency": "Monthly, with the FT-900 release about 5 weeks after month end; annual revisions each June.",
+   "data_available": "Per country × HS-10 (0409000005/10/35/45/56/65) × month:\n- general imports value (USD, customs value) and quantity (kg);\n- imports for consumption value and quantity;\n- CIF value;\n- dutiable value (DUT_VAL_MO) and calculated duty (CAL_DUT_MO), both USD.\nCountry codes are Census Schedule C: Argentina 3570, Brazil 3510, Uruguay 3550, China 5700, India 5330, Vietnam 5520, Ukraine 4623, Mexico 2010, Canada 1220, Turkey 4890, Thailand 5490, Hungary 4370, Romania 4850; Serbia code unverified.",
+   "value_for_parodi": "This is the official, empirical 'effective US tariff paid' on honey by origin: CAL_DUT_MO / CON_VAL_MO (or / DUT_VAL_MO). It shows whether a surcharge layer is really being collected, e.g. which Section 122 rate and which exemptions applied in a given month, independent of legal interpretation. It also gives a CIF unit value per HS-10 colour grade. USDA FAS GATS (already integrated) carries the trade values but not the duty fields, so this is the only official duty-paid series per origin. Note that calculated duty excludes AD/CVD deposits.",
+   "parsing_notes": "1) The response is a JSON array of arrays; row 0 is the header. All values are strings, so cast them.\n2) Census suppresses or merges some low-value country rows; zero rows are omitted.\n3) Calculated duty is an estimate made by Census from the HTS rate provisions (believed to include Chapter 99 additional duties). It excludes AD/CVD, MPF and HMF.\n4) The implied ad valorem rate per origin is CAL_DUT_MO / CON_VAL_MO; label it 'effective duty collected (excl. AD/CVD)'.\n5) The 'I_COMMODITY=0409*' wildcard is unverified; if it fails, request each HS-10 code or use COMM_LVL=HS6 with I_COMMODITY=040900.",
+   "publication_lag": "~35-40 days after month end",
+   "rate_limits": "~500 queries/day without a key (recalled); with a key, effectively unlimited for this volume",
+   "sample_response": "RECONSTRUCTED: [[\"CTY_CODE\",\"CTY_NAME\",\"I_COMMODITY\",\"GEN_VAL_MO\",\"GEN_QY1_MO\",\"CON_VAL_MO\",\"DUT_VAL_MO\",\"CAL_DUT_MO\",\"COMM_LVL\",\"time\"],[\"3570\",\"ARGENTINA\",\"0409000035\",\"6123456\",\"2010000\",\"6123456\",\"6123456\",\"38190\",\"HS10\",\"2026-08\"],[\"5330\",\"INDIA\",\"0409000056\",\"...\",\"...\",\"...\",\"...\",\"...\",\"HS10\",\"2026-08\"]]",
+   "evidence_urls": [
+    "https://www.census.gov/data/developers/data-sets/international-trade.html",
+    "https://api.census.gov/data/timeseries/intltrade/imports/hs/variables.html"
+   ],
+   "confidence": "from_memory_unverified",
+   "priority": "medium"
+  },
+  {
+   "country": "US",
+   "name": "ITA Enforcement & Compliance: ACCESS case records, issues-and-decision memoranda and AD/CVD proceedings listings for the honey orders",
+   "official_body": "US Department of Commerce, International Trade Administration (ITA), Enforcement & Compliance",
+   "access_method": "HTML search plus PDF documents (ACCESS); HTML/Excel listings on trade.gov; no API for case data",
+   "endpoints": [
+    "https://access.trade.gov/   (ACCESS: public search of case documents by case number, e.g. A-570-863 (China honey), A-357-823 (Argentina raw honey), A-351-857 (Brazil); India A-533-xxx and Vietnam A-552-xxx: read the numbers from the 2022 order notice. No account needed to read public versions, from memory)",
+    "https://www.trade.gov/us-antidumping-and-countervailing-duties   (overview, orders in place)",
+    "https://www.trade.gov/enforcement-and-compliance",
+    "https://enforcement.trade.gov/frn/index.html   (legacy index of FR notices and decision memoranda by year; may be frozen)",
+    "ITA developer portal: https://developer.trade.gov/   (keyed APIs such as the Consolidated Screening List and the FTA 'Tariff Rates' for US exports; NOT US import duties, so useful only for screening suppliers against US sanctions lists)"
+   ],
+   "auth": "none to read (ACCESS registration is only for filing); developer.trade.gov needs a free subscription key",
+   "cost_licensing": "Public domain, free.",
+   "update_frequency": "Event-driven: final results of administrative reviews yearly per order (the raw-honey anniversary month is June; China honey is December), sunset reviews every 5 years, scope rulings and remands as they occur.",
+   "data_available": "Public versions of:\n- the preliminary and final results Issues & Decision Memoranda;\n- the calculation memoranda (public summaries);\n- the scope text, including the definition of 'raw honey' (a filtration threshold) that decides whether finely filtered honey is covered;\n- respondent selection and questionnaires;\n- review requests listing every exporter for which a review was requested.",
+   "value_for_parodi": "This is the official link for each AD case in the UI. It shows which Argentine, Brazilian, Indian and Vietnamese exporters are under review and could see their rate rise, so their US quotes carry duty risk. It is also the authoritative scope text that tells whether a given product falls under the order. Machine detection of new results should come from the Federal Register API (already integrated); ACCESS is the drill-down.",
+   "parsing_notes": "1) No API: store the case-level deep link (ACCESS search for the case number) next to each AD layer row and the FR document link.\n2) Keep a case registry: China A-570-863 (order 10 Dec 2001; China-wide rate prohibitive, recalled as 183.80% at the original order and later 221.03%, VERIFY); raw honey AR A-357-823, BR A-351-857, IN A-533-xxx, VN A-552-xxx (orders published about 10 Jun 2022, 87 FR, recalled; the earlier agent recalled VN as A-552-831).\n3) Ukraine: there is no AD order on Ukrainian honey (the 2021 case, ITC 731-TA-1563, ended without an order, recalled).\n4) Argentina's 2001 AD and CVD orders were revoked years ago.\n5) First sunset review of the 2022 orders: initiation is expected around May 2027 (computed).",
+   "publication_lag": "Documents are posted on ACCESS on the signature date; the FR notice follows days to 2 weeks later",
+   "rate_limits": "none published",
+   "evidence_urls": [
+    "https://access.trade.gov/",
+    "https://www.trade.gov/us-antidumping-and-countervailing-duties",
+    "https://developer.trade.gov/"
+   ],
+   "confidence": "from_memory_unverified",
+   "priority": "medium"
+  },
+  {
+   "country": "International (WTO members' notifications)",
+   "name": "WTO ePing SPS/TBT notification API: honey-related sanitary and technical regulations notified by importing and exporting countries",
+   "official_body": "World Trade Organization (with UN DESA and ITC as ePing partners)",
+   "access_method": "REST API on the WTO API portal (JSON), free subscription key; ePing web UI with e-mail alerts",
+   "endpoints": [
+    "Portal and key: https://apiportal.wto.org/   (subscribe to the ePing product)",
+    "GET https://api.wto.org/eping/notifications/search?language=1&freeText=honey&distributionDateFrom=2026-01-01&page=1&pageSize=100   (path and parameter names UNVERIFIED; HS filter possibly hs=0409)",
+    "Header: Ocp-Apim-Subscription-Key: {key}",
+    "Web: https://eping.wto.org/   (free account; product/HS-based alert subscriptions)"
+   ],
+   "auth": "Free WTO API portal subscription key",
+   "cost_licensing": "Free. WTO terms of use apply (attribution required; check commercial-use wording on the portal).",
+   "update_frequency": "Daily (notifications are circulated on WTO working days)",
+   "data_available": "SPS and TBT notifications, e.g. G/SPS/N/EU/xxx and G/TBT/N/CHN/xxx: notifying member, document symbol, title, description/objective, products and HS codes, proposed adoption and entry-into-force dates, comment deadline, links to the full text.",
+   "value_for_parodi": "This gives early, official warning of honey rules in both destination and origin markets: EU MRL or residue changes, the Honey Directive implementing acts on origin percentages, Chinese, Indian or Turkish honey standards, Saudi/GCC labelling, and US FDA notices. Notifications appear during the comment period, months before the rules apply. It complements EUR-Lex and the Federal Register, which publish only at adoption.",
+   "parsing_notes": "1) Probe the endpoint on first run and record the actual field names.\n2) Filter by free text 'honey' OR HS 0409, plus the notifying members of interest (EU, US, CN, AR, BR, UA, IN, VN, TR, MX, SA).\n3) Store as RegulationItem (jurisdiction = notifying member, doc_type 'sps_notification'/'tbt_notification', reference = document symbol).",
+   "publication_lag": "0-3 days after circulation",
+   "rate_limits": "Portal-dependent (unknown); one or two calls per day is enough",
+   "confidence": "from_memory_unverified",
+   "priority": "medium"
+  },
+  {
+   "country": "US",
+   "name": "USITC trade-remedy resources: AD/CVD orders-in-place list (XLS), Investigations Database (IDS), EDIS dockets for the honey cases",
+   "official_body": "US International Trade Commission (USITC)",
+   "access_method": "XLS download plus HTML; EDIS has a documented API that needs registration (unverified)",
+   "endpoints": [
+    "https://www.usitc.gov/trade_remedy/documents/orders.xls   (orders currently in place; path from memory)",
+    "https://ids.usitc.gov/   (case pages for 731-TA-893 (China honey) and 731-TA-1560 to 1564 (raw honey: AR 1560, BR 1561, IN 1562, UA 1563 (no order), VN 1564))",
+    "https://edis.usitc.gov/   (dockets; API access needs a login, unverified)"
+   ],
+   "auth": "none for the XLS and IDS",
+   "cost_licensing": "Public domain, free.",
+   "update_frequency": "orders.xls: irregular (roughly monthly); IDS: event-driven",
+   "data_available": "Order status (in place / revoked), order dates, sunset review dates and outcomes, ITC injury votes.",
+   "value_for_parodi": "A monthly sanity check that the AD orders on honey still exist, plus early notice of the 2027 sunset review of the AR/BR/IN/VN orders. Revocation would remove the AD layer for those origins.",
+   "parsing_notes": "Monthly download of orders.xls. Filter rows whose product contains 'honey'. Diff the case list and raise an alert on any change. IDS pages give official links for the UI.",
+   "rate_limits": "none published",
+   "confidence": "from_memory_unverified",
+   "priority": "low"
+  },
+  {
+   "country": "US",
+   "name": "USITC DataWeb API: US imports by HTS-10 and country with calculated duties, dutiable value and rate-provision / special-program breakdowns",
+   "official_body": "US International Trade Commission (USITC)",
+   "access_method": "REST API (JSON query body), Bearer token from a free DataWeb account (Login.gov)",
+   "endpoints": [
+    "UI: https://dataweb.usitc.gov/",
+    "POST https://datawebws.usitc.gov/dataweb/api/v2/report2/runReport   (JSON query definition exported from a saved DataWeb query; header Authorization: Bearer {token}; path UNVERIFIED)"
+   ],
+   "auth": "Free account plus API token",
+   "cost_licensing": "Public domain data, free.",
+   "update_frequency": "Monthly (same Census source)",
+   "data_available": "Measures: customs value, CIF value, first unit of quantity (kg), dutiable value, calculated duties, landed duty-paid value. Breakdowns by rate provision code and special program indicator (e.g. USMCA 'S').",
+   "value_for_parodi": "The same official numbers as the Census API, with easier program-level splits, e.g. how much Mexican honey enters duty-free under USMCA. Use it only if the Census API proves insufficient.",
+   "parsing_notes": "Build the query once in the UI, export its JSON definition and replay it through the API. Treat this as optional and behind a probe.",
+   "rate_limits": "unknown",
+   "confidence": "from_memory_unverified",
+   "priority": "low"
+  },
+  {
+   "country": "International (WTO Integrated Database / Consolidated Tariff Schedules)",
+   "name": "WTO Timeseries API: applied MFN and bound tariff indicators and import statistics at HS-6 level (040900) by WTO member",
+   "official_body": "World Trade Organization, Statistics and Market Access divisions",
+   "access_method": "REST API (JSON/CSV), free subscription key from the WTO API portal",
+   "endpoints": [
+    "Portal and key: https://apiportal.wto.org/",
+    "GET https://api.wto.org/timeseries/v1/indicators?i=all&t=all&pc=all&tp=all&frq=all&lang=1   (discover the tariff indicator codes; they are prefixed TP_ (tariff profiles) and HS_ (HS-level))",
+    "GET https://api.wto.org/timeseries/v1/data?i={indicator}&r=840,918,392,156,682&pc=040900&ps=2015-2025&spc=false&fmt=json&mode=full&dec=default&off=0&max=1000&head=H&lang=1&meta=false   (reporter codes: 840 USA, 918 European Union, 392 Japan, 156 China, 682 Saudi Arabia)",
+    "GET https://api.wto.org/timeseries/v1/reporters?ig=all&reg=all&gp=all&lang=1",
+    "GET https://api.wto.org/timeseries/v1/products?pc=HS&lang=1",
+    "GET https://api.wto.org/timeseries/v1/data_count?i=...&r=...   (pre-check result size)",
+    "Auth header: Ocp-Apim-Subscription-Key: {key}   (or the query parameter subscription-key)"
+   ],
+   "auth": "Free subscription key",
+   "cost_licensing": "Free. WTO terms of use: attribution 'Source: WTO'. Confirm the commercial-use wording before redistributing; internal analysis is fine.",
+   "update_frequency": "Annual per member (IDB notifications), irregular",
+   "data_available": "Per member × HS6 × year: MFN applied simple average, maximum and minimum ad valorem (and AVEs of specific duties where computed), number of lines, bound duties, and import value by HS (USD) from IDB. Indicator examples recalled as HS_A_0010 (MFN applied, simple average) and HS_M_0010 (imports by HS); confirm via /indicators.",
+   "value_for_parodi": "Low for the duty matrix: the data lags 1-3 years and gives MFN only, not current preferences or AD. It is useful for (a) a historical chart of honey MFN tariffs in third markets competing for the same supply (Japan, China, Saudi Arabia, the UK); (b) an AVE of the US 1.9¢/kg specific duty for comparison with the EU 17.3%.",
+   "parsing_notes": "1) JSON with mode=full has a 'Dataset' array. Each record has IndicatorCode, Indicator, ReportingEconomyCode, ReportingEconomy, PartnerEconomyCode, ProductOrSectorClassificationCode, ProductOrSectorCode, ProductOrSector, PeriodCode, FrequencyCode, UnitCode, Unit, Year, ValueFlagCode, TextValue, Value (names from memory).\n2) The 'ps' parameter accepts 'default', 'all' or a range such as '2015-2025'.\n3) Page with off/max.",
+   "publication_lag": "1-3 years",
+   "rate_limits": "Free-tier throttling applies (exact limits unknown); a few calls per month",
+   "sample_response": "RECONSTRUCTED: {\"Dataset\":[{\"IndicatorCode\":\"HS_A_0010\",\"Indicator\":\"MFN - Simple average ad valorem duty\",\"ReportingEconomyCode\":\"918\",\"ReportingEconomy\":\"European Union\",\"PartnerEconomyCode\":\"000\",\"ProductOrSectorClassificationCode\":\"HS\",\"ProductOrSectorCode\":\"040900\",\"ProductOrSector\":\"Natural honey\",\"PeriodCode\":\"A\",\"FrequencyCode\":\"A\",\"UnitCode\":\"PCT\",\"Year\":2024,\"ValueFlagCode\":null,\"Value\":17.3}]}",
+   "evidence_urls": [
+    "https://apiportal.wto.org/",
+    "https://api.wto.org/timeseries/v1"
+   ],
+   "confidence": "from_memory_unverified",
+   "priority": "low"
+  },
+  {
+   "country": "International (WTO members)",
+   "name": "WTO Tariff & Trade Data (TTD) portal: tariff-line MFN applied, bound and (where notified) preferential duties plus tariff-line imports by member; successor of the Tariff Download Facility and the Tariff Analysis Online",
+   "official_body": "World Trade Organization",
+   "access_method": "Web portal with CSV/Excel export; no documented direct API for tariff lines (aggregates via the Timeseries API)",
+   "endpoints": [
+    "https://ttd.wto.org/en   (search by member, year and HS code 0409; export the tariff lines)",
+    "Legacy (retired or redirecting): http://tariffdata.wto.org/ , https://tao.wto.org/"
+   ],
+   "auth": "none for browsing and export (some bulk functions may need a free account)",
+   "cost_licensing": "Free; WTO terms of use apply",
+   "update_frequency": "Annual per member",
+   "data_available": "National tariff lines under 0409 for each member (e.g. 0409.00.00 in the US, 0409 00 00 in the EU, plus national splits in other members), with duty expressions, AVEs and preferential regimes where notified to the IDB; imports by tariff line and partner.",
+   "value_for_parodi": "A low-frequency reference for national honey tariff-line codes and duties in secondary markets (e.g. if Parodi re-exports to the UK, Switzerland, Japan or the GCC). Not suited to daily automation.",
+   "parsing_notes": "Manual or semi-annual export; store it as a reference table with the year. Do not use it for the current EU/US duty.",
+   "rate_limits": "n/a",
+   "confidence": "from_memory_unverified",
+   "priority": "low"
+  },
+  {
+   "country": "International (World Bank / UNCTAD TRAINS)",
+   "name": "World Bank WITS API: TRAINS tariff data (MFN, preferential, effectively applied, AVE) at HS-6 040900 by importer and partner",
+   "official_body": "World Bank (World Integrated Trade Solution), with UNCTAD TRAINS and WTO IDB data",
+   "access_method": "REST API (SDMX 2.1 XML or SDMX-JSON via format=JSON), keyless",
+   "endpoints": [
+    "GET https://wits.worldbank.org/API/V1/SDMX/V21/datasource/TRN/reporter/918/partner/032/product/040900/year/2023/datatype/reported?format=JSON   (EU (918) tariff faced by Argentina (032) on honey)",
+    "GET https://wits.worldbank.org/API/V1/SDMX/V21/datasource/TRN/reporter/840/partner/000/product/040900/year/2023/datatype/aveestimated?format=JSON   (US MFN incl. the AVE of 1.9¢/kg; partner 000 = all/world)",
+    "GET https://wits.worldbank.org/API/V1/SDMX/V21/rest/data/DF_WITS_Tariff_TRAINS/A.918.804.040900.reported/?startperiod=2015&endperiod=2024&detail=DataOnly   (SDMX REST variant; dataflow id from memory)",
+    "GET https://wits.worldbank.org/API/V1/wits/datasource/trn/country/ALL   (reporter/partner code list)",
+    "GET https://wits.worldbank.org/API/V1/wits/datasource/trn/product/ALL",
+    "GET https://wits.worldbank.org/API/V1/wits/datasource/trn/dataavailability/country/918/year/ALL",
+    "User guide: https://wits.worldbank.org/data/public/WITSAPI_UserGuide.pdf ; intro: https://wits.worldbank.org/witsapiintro.aspx?lang=en"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free to query. TRAINS tariff data via WITS is generally free to reuse with attribution (World Bank/UNCTAD). WITS trade data derived from UN Comtrade carries Comtrade's redistribution limits. Check the WITS terms page before redistributing.",
+   "update_frequency": "Annual; tariff years lag 1-3 years",
+   "data_available": "Per reporter × partner × HS6 × year: simple and weighted average rates, min/max rate, number of lines, number of preferential lines, the tariff type (MFN / preferential / AHS effectively applied), and AVE estimates for specific duties. Codes are numeric ISO (EU = 918, Argentina 032, Brazil 076, China 156, Ukraine 804, Serbia 688, Vietnam 704, India 356, Mexico 484, Uruguay 858, Türkiye 792).",
+   "value_for_parodi": "Low: historical only (no current TRQs, AD or 2025-26 surcharges). Useful for a long-run chart of the EU's effectively applied tariff on honey by origin (e.g. Ukraine moving to 0% under the ATM from 2022; Vietnam EVFTA from 2020), and as an independent AVE of the US specific duty.",
+   "parsing_notes": "1) SDMX-JSON: dataSets[0].series keyed 'i:j:k:l:m' (indices into structure.dimensions.series: FREQ, REPORTER, PARTNER, PRODUCTCODE, DATATYPE); observations keyed by the TIME_PERIOD index, with observation attributes such as SUM_OF_RATES, MIN_RATE, MAX_RATE, SIMPLE_AVERAGE, TOTALNOOFLINES, NBR_PREF_LINES, TARIFFTYPE (names from memory).\n2) A missing year returns an error or empty body; check dataavailability first.\n3) The default output is XML; always add format=JSON.",
+   "publication_lag": "1-3 years",
+   "rate_limits": "Not documented; keep it to a few calls per month",
+   "sample_response": "RECONSTRUCTED: {\"header\":{...},\"dataSets\":[{\"series\":{\"0:0:0:0:0\":{\"attributes\":[0,0],\"observations\":{\"0\":[17.3,0,0,...]}}}}],\"structure\":{\"dimensions\":{\"series\":[{\"id\":\"FREQ\"},{\"id\":\"REPORTER\",\"values\":[{\"id\":\"918\"}]},{\"id\":\"PARTNER\",\"values\":[{\"id\":\"032\"}]},{\"id\":\"PRODUCTCODE\",\"values\":[{\"id\":\"040900\"}]},{\"id\":\"DATATYPE\",\"values\":[{\"id\":\"Reported\"}]}],\"observation\":[{\"id\":\"TIME_PERIOD\",\"values\":[{\"id\":\"2023\"}]}]},\"attributes\":{\"observation\":[{\"id\":\"SIMPLE_AVERAGE\"},{\"id\":\"MIN_RATE\"},{\"id\":\"MAX_RATE\"},{\"id\":\"TOTALNOOFLINES\"}]}}}",
+   "evidence_urls": [
+    "https://wits.worldbank.org/witsapiintro.aspx?lang=en",
+    "https://wits.worldbank.org/data/public/WITSAPI_UserGuide.pdf"
+   ],
+   "confidence": "from_memory_unverified",
+   "priority": "low"
+  },
+  {
+   "country": "EU",
+   "name": "Access2Markets (DG TRADE) 'My Trade Assistant': EU import duty, rules of origin (ROSA) and import requirements per product × origin × member state",
+   "official_body": "European Commission, DG Trade",
+   "access_method": "HTML single-page application; no documented public API",
+   "endpoints": [
+    "https://trade.ec.europa.eu/access-to-markets/en/results?product=0409000000&origin={ISO2}&destination=IT   (deep-link pattern from memory)",
+    "https://trade.ec.europa.eu/access-to-markets/en/home"
+   ],
+   "auth": "none",
+   "cost_licensing": "Free to consult; Europa reuse policy for Commission content. Some partner-market tariff data comes from third parties (ITC Market Access Map) and may not be redistributable. Do not build on the SPA's internal JSON calls.",
+   "update_frequency": "EU import duties mirror TARIC (daily)",
+   "data_available": "For honey from a given origin into Italy: the EU duty (from TARIC, including the preference and TRQ applicable), the rules of origin for the relevant FTA (honey is normally 'wholly obtained'), the origin-proof documents (REX statement, EUR.1, statement on origin), the SPS import requirements (third-country listing, health certificate) and Italian VAT.",
+   "value_for_parodi": "Best used as a second official link per origin ('Open in Access2Markets'). It is particularly good for the origin-proof requirement needed to claim 0% (e.g. a Ukrainian or Vietnamese statement on origin), something the TARIC duty number alone does not tell a buyer.",
+   "parsing_notes": "Link-out only. Generate the URL from (origin ISO2, destination IT, product 0409000000).",
+   "rate_limits": "n/a",
+   "confidence": "from_memory_unverified",
+   "priority": "low"
+  },
+  {
+   "country": "EU / International",
+   "name": "Trade-defence watch: EU TRON (anti-dumping/anti-subsidy/safeguard investigations) and WTO I-TIP Goods (notified trade-remedy measures by HS)",
+   "official_body": "European Commission DG Trade (TRON); World Trade Organization (I-TIP)",
+   "access_method": "HTML lists (TRON), web database with Excel export (I-TIP); no API used",
+   "endpoints": [
+    "https://tron.trade.ec.europa.eu/investigations/ongoing",
+    "https://i-tip.wto.org/goods/   (filter Measure = Anti-dumping, HS = 0409)"
+   ],
+   "auth": "none (filing in TRON needs an account; reading the public lists does not)",
+   "cost_licensing": "Free; Europa and WTO terms",
+   "update_frequency": "Event-driven",
+   "data_available": "TRON: the EU's open trade-defence cases with product, origin, initiation date, deadlines. There is no EU AD case on honey as of my knowledge; EU beekeeper organisations have called for action on Chinese honey. I-TIP: AD/CVD/safeguard measures notified by all WTO members on HS 0409 (the US orders, plus any third-country measures).",
+   "value_for_parodi": "Low-probability, high-impact: an EU AD case on Chinese (or other) honey would reshape EU sourcing. Initiations are also published in OJ C, so the integrated EUR-Lex/CELLAR feed can catch them with the query 'anti-dumping' AND 'honey'. This entry is the official human link.",
+   "parsing_notes": "Monthly hash check of the TRON ongoing list for the strings 'honey' / '0409'. Add the CELLAR query (title contains 'honey' AND ('anti-dumping' OR 'safeguard')).",
+   "rate_limits": "n/a",
+   "confidence": "from_memory_unverified",
+   "priority": "low"
+  },
+  {
+   "country": "US / EU",
+   "name": "Customs classification rulings for honey blends and preparations: CBP CROSS rulings and EU European Binding Tariff Information (EBTI)",
+   "official_body": "US Customs and Border Protection (CROSS); European Commission DG TAXUD (EBTI)",
+   "access_method": "Web search apps; CROSS has an undocumented JSON search endpoint",
+   "endpoints": [
+    "https://rulings.cbp.gov/search?term=honey",
+    "https://rulings.cbp.gov/api/search?term=0409&collection=ALL&pageSize=30&page=1&sortBy=DATE_DESC   (endpoint used by the web app; UNVERIFIED, may change)",
+    "https://ec.europa.eu/taxation_customs/dds2/ebti/ebti_consultation.jsp?Lang=en&nomenc=0409000000   (parameter names unverified)"
+   ],
+   "auth": "none",
+   "cost_licensing": "Public domain (CBP); Europa reuse policy (EBTI)",
+   "update_frequency": "Continuous / weekly",
+   "data_available": "Rulings classifying honey versus honey-syrup blends (1702/2106), creamed or infused honey and honey preparations, with the legal reasoning. US rulings cross-reference whether a product falls inside the AD 'honey' scope as a classification matter (scope itself is a Commerce decision).",
+   "value_for_parodi": "Niche: relevant when Parodi trades blends or processed honey, or when assessing AD-circumvention and adulteration risk where blends are declared under other headings.",
+   "parsing_notes": "Quarterly keyword scan; store the ruling number, date, HTS and a link.",
+   "rate_limits": "n/a",
+   "confidence": "from_memory_unverified",
+   "priority": "low"
+  },
+  {
+   "country": "EU + US (per sourcing origin)",
+   "name": "Curated seed: current EU and US import duty / AD layer per honey origin, with the official link to show (to be overwritten automatically by the XI, HTS, CBP and FR feeds)",
+   "official_body": "Derived from EU TARIC (DG TAXUD), USITC HTS, Commerce/ITA and CBP; this table is a seed, not a source",
+   "access_method": "none (seed table; every row must be verified on the first live run)",
+   "endpoints": [
+    "EU link template: https://ec.europa.eu/taxation_customs/dds2/taric/measures.jsp?Lang=en&Taric=0409000000&SimDate={YYYYMMDD}&Area={GEO}&LangDescr=en",
+    "EU machine source: https://www.trade-tariff.service.gov.uk/xi/api/v2/commodities/0409000000",
+    "US link templates: https://hts.usitc.gov/search?query=0409.00.00 ; FR html_url of the latest final results per case ; https://adcvd.cbp.dhs.gov/adcvdweb/ (message per case) ; https://access.trade.gov/ (case documents)"
+   ],
+   "auth": "n/a",
+   "cost_licensing": "n/a",
+   "update_frequency": "EU: on agreement entry into force and on 1 January quota resets. US: on HTS revisions, CSMS guidance and annual AD reviews.",
+   "data_available": "FROM MEMORY. Confidence per cell in brackets. EU duty is ad valorem on CIF value; US base duty is 1.9¢/kg [medium-high].\nCHINA: EU 17.3% MFN [high]. US 1.9¢/kg + AD A-570-863 (country-wide rate prohibitive, >100%) [high that the order exists, low on the rate] + possible Section 301 layer (read the HTS footnote) + whatever 2026 surcharge applies [unknown].\nARGENTINA: EU 17.3% [high]; EU-Mercosur interim agreement honey TRQ 45,000 t at 0%, phased in, only if applied by Nov 2026 [status unknown]. US 1.9¢/kg + AD A-357-823, exporter-specific (original 2022 margins roughly 7-11%; reviews since) [medium].\nBRAZIL: EU 17.3% (Mercosur TRQ as for Argentina). US 1.9¢/kg + AD A-351-857 (original margins roughly 8% for cooperating firms, up to ~84% adverse facts available (AFA); reviews since) [medium-low on the numbers].\nURUGUAY: EU 17.3% (Mercosur TRQ as above). US 1.9¢/kg, no AD [medium].\nUKRAINE: EU 0% within the revised-DCFTA honey TRQ of 35,000 t/yr applied from 29 Oct 2025, 17.3% out of quota; read the order number from the API [medium; corroborated by another agent's snippets]. US 1.9¢/kg, no AD order [medium].\nSERBIA (TARIC XS): EU 0% (SAA / Western Balkans autonomous trade measures (ATM)) [medium]. US 1.9¢/kg [medium].\nVIETNAM: EU 0% under EVFTA [low-medium]. US 1.9¢/kg + AD A-552-xxx (original roughly 58-61%, higher Vietnam-wide rate; reviews since) [medium-low].\nINDIA: EU 13.8% standard GSP (sensitive product, minus 3.5 points) unless India is graduated for that GSP section (then 17.3%); the EU-India FTA was concluded around Jan 2026 but is believed not yet in force [low-medium]. US 1.9¢/kg + AD A-533-xxx (original roughly 5-7%; reviews since) [low on the numbers].\nMEXICO: EU reduced duty within the 2000 EU-Mexico agreement honey TRQ (about 30,000 t, about 50% of MFN; read from TARIC), otherwise 17.3%; the modernised agreement's status and terms are unknown [low]. US Free under USMCA ('S') if originating [high].\nTÜRKIYE: EU 17.3% (no honey concession recalled) [low-medium]. US 1.9¢/kg [medium].\nMOLDOVA: EU DCFTA, believed duty-free [low]. US 1.9¢/kg.\nHUNGARY/ROMANIA: intra-EU, no duty. US 1.9¢/kg + any surcharge on EU-origin goods (the 2025 EU-US framework 15% all-in ceiling was an IEEPA construct; its Nov 2026 equivalent is unknown).\nTHAILAND/MALAYSIA: EU 17.3%. US 1.9¢/kg; watch CBP EAPA transshipment findings.\nUS surcharges in general: the IEEPA tariffs of 2025 (baseline 10%, country rates, China fentanyl/reciprocal, Brazil +40%, India +25% oil penalty) were, as recalled, invalidated by the Supreme Court on 20 Feb 2026. A Section 122 surcharge (10%, raised to 15%) then applied from about 24 Feb 2026 for up to 150 days. The Nov 2026 layer is UNKNOWN: never ship the 2025 rates as current.",
+   "value_for_parodi": "This gives the app a usable per-origin duty column on day one, plus an explicit 'verify' flag. The automated feeds then confirm or overwrite each cell and flag disagreements, which is the main deliverable the owner asked for (current EU and US duty or AD rate per origin, with an official link).",
+   "parsing_notes": "Store the seed as duty_layer rows (jurisdiction, origin_iso2, layer = mfn|preference|trq_in|trq_out|ad|cvd|surcharge|fee, rate_pct, rate_specific_usd_per_kg, quota_order_no, case_no, exporter, legal_ref, valid_from, valid_to, official_url, source, confidence='seed_unverified', verified_on=null). The UI should show seed rows greyed until a feed confirms them.",
+   "rate_limits": "n/a",
+   "confidence": "from_memory_unverified",
+   "priority": "high"
+  }
+ ],
+ "recommendation": "FIRST, THE ACCESS CAVEAT. Nothing here was checked live:\n- The workflow's shared WebSearch budget was already used up when this agent started.\n- WebFetch could not resolve www.trade-tariff.service.gov.uk or hts.usitc.gov.\n- curl through the proxy was refused (403).\n- The user asked us to use their Chrome, but no Claude-in-Chrome tools were available in this session.\n\nTo verify, allow these hosts in the session's network settings, or run the probes on the target PC:\n- www.trade-tariff.service.gov.uk, api.trade-tariff.service.gov.uk\n- hts.usitc.gov, www.usitc.gov, ids.usitc.gov, dataweb.usitc.gov\n- adcvd.cbp.dhs.gov (or aceservices.cbp.dhs.gov), www.cbp.gov, content.govdelivery.com, public.govdelivery.com\n- access.trade.gov, www.trade.gov\n- api.census.gov\n- api.wto.org, apiportal.wto.org, ttd.wto.org, eping.wto.org\n- wits.worldbank.org\n- ec.europa.eu, trade.ec.europa.eu, tron.trade.ec.europa.eu\n- rulings.cbp.gov\n\nThe user can also send a follow-up once the search budget resets. Treat every rate and code below as a seed to confirm.\n\nGOAL: for each origin (CN, AR, BR, UY, UA, XS/RS, VN, IN, MX, TR, MD, TH, plus EU-origin HU/RO), show the current EU and US duty stack, each layer with an official link, a validity window and an as-of date.\n\nIntegration order:\n\n1) EU column: UK Trade Tariff XI API (high; daily, about 07:30 CET).\n- Pull commodities/0409000000. Keep measures with origin 'eu' of types 103, 142 and 143 (and 122, 551-555, 695/696 should any ever appear).\n- Expand geographic groups minus excluded_countries.\n- For each TRQ order number, pull quotas/search for the balance, status and balance events.\n- Write duty_layer rows: (EU, origin, mfn | preference | trq_in plus quota fill | trq_out).\n- Link each row to the TARIC measures.jsp deep link (Area = origin, SimDate = today), to the legal act's EUR-Lex regulation_url, and to Access2Markets as a secondary link.\n- Raise alerts on: any new or removed measure (above all a 143 measure for AR/BR/UY/PY, which would mean the EU-Mercosur TRQ is live, or for MX under the modernised agreement); India appearing in or leaving the GSP exclusions; and the Ukraine quota turning Critical or Exhausted.\n- Show the Ukraine TRQ fill % as a market indicator next to the TAXUD weekly imports.\n\n2) US base rate and surcharges: USITC HTS API (high; weekly, plus on demand when a CSMS arrives).\n- Pull the 0409 rows and the 9903 ranges, and diff them by revision.\n- Parse the general rate (1.9¢/kg, to verify), the special codes (S = USMCA for MX/CA) and the footnotes.\n- Country-wide surcharges are in Chapter 99 headings, not footnotes, so map heading descriptions to countries. Before anything goes live, a human confirms each mapping once in an admin screen.\n\n3) US surcharge early warning: CBP CSMS (high).\n- Subscribe a dedicated mailbox to the CSMS trade topics and ingest it via IMAP.\n- Keyword-match 9903 headings, Section 122/301/232, refunds and origin names.\n- Create a RegulationItem and trigger an HTS re-pull.\n- Today's state of the US surcharge layer (after the recalled Feb-2026 IEEPA ruling and the 150-day Section 122 surcharge) is unknown. It must be established on the first live run; never ship the 2025 IEEPA rates as current.\n\n4) US AD layer: Federal Register API (already integrated) for detection, plus CBP ADCVD Search for the effective cash-deposit rates (high; weekly).\n- Keep a case registry: A-570-863 CN; A-357-823 AR; A-351-857 BR; IN and VN numbers to be read from the June 2022 order notice.\n- Parse the exporter/producer rate tables, with company-suffixed case numbers.\n- Fuzzy-match supplier names, so each SupplierQuote to a US destination shows the AD rate for that exporter, or else the all-others or country-wide rate.\n- Link each rate to the FR html_url, the CBP message and the ACCESS case search.\n\n5) Reality check: Census International Trade API (medium; monthly).\n- Compute effective duty collected excluding AD/CVD (CAL_DUT_MO / CON_VAL_MO) per origin and HS-10.\n- Flag months where the implied rate disagrees with the modelled stack by more than about 1 point. This catches surcharge exemptions and mapping errors.\n\n6) Regulatory early warning: WTO ePing API (medium; daily).\n- Query 'honey' / HS 0409 SPS-TBT notifications from the EU, US, CN, UA, AR, BR, IN, VN, TR, MX and the GCC.\n\n7) Low priority, monthly or ad hoc:\n- USITC orders.xls (order status, the 2027 sunset of the AR/BR/IN/VN orders);\n- WTO Timeseries and WITS (historical MFN, effectively applied rates and AVE charts; third-market tariffs);\n- WTO TTD (national tariff-line reference);\n- TRON / I-TIP (trade-defence watch);\n- CROSS / EBTI (classification of blends).\nDo not use them for the current-duty matrix.\n\nData model and UI:\n- Store layers, not single numbers: mfn, preference, trq_in/trq_out, ad (per exporter), cvd, surcharge (per Chapter 99 heading), fee (MPF 0.3464% with min/max, HMF 0.125%).\n- Each layer carries legal_ref, valid_from/valid_to, source, official_url, retrieved_at, confidence and verified_by.\n- Compute an indicative landed-duty estimate per quote:\n  - EU: rate × CIF, with an in-quota availability flag;\n  - US: 1.9¢/kg × kg + Σ(surcharge % + AD %) × entered value + MPF/HMF.\n- Mark seed rows 'unverified' until a feed confirms them.\n- Attribution: OGL v3 for the XI data, 'Source: WTO' and World Bank/UNCTAD credits for WTO and WITS, public domain for the US sources.\n\nFirst-run verification checklist:\n(a) XI: the 0409000000 measure list; the Ukraine order number, 35,000 t volume and balance; the GSP group id and whether India is excluded; any Mercosur or Mexico TRQ measures.\n(b) HTS: 0409.00.00 general/special/column-2 text and any 9903 footnote.\n(c) Active Chapter 99 surcharge headings in Nov 2026, from the HTS and the latest CSMS.\n(d) The latest final-results AD rates per honey case.\n(e) That the ADCVD Search host and the Census wildcard syntax work.\n(f) Whether the XI API now requires a key, and its rate limits."
+}

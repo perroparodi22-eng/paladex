@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>Bee Culture Magazine</title>
+	<atom:link href="https://beeculture.com/feed/" rel="self" type="application/rss+xml" />
+	<link>https://beeculture.com</link>
+	<description>The Magazine of American Beekeeping</description>
+	<lastBuildDate>Mon, 02 Nov 2026 13:38:16 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	
+
+<image>
+	<url>https://i0.wp.com/beeculture.com/wp-content/uploads/2025/09/cropped-bc-logo-small.jpg?fit=32%2C32&#038;ssl=1</url>
+	<title>Bee Culture Magazine</title>
+	<link>https://beeculture.com</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+<site xmlns="com-wordpress:feed-additions:1">248615728</site>	<item>
+		<title>Beekeeping is a Crime</title>
+		<link>https://beeculture.com/beekeeping-is-a-crime/</link>
+		
+		<dc:creator><![CDATA[beeculturemagazine]]></dc:creator>
+		<pubDate>Mon, 02 Nov 2026 13:00:00 +0000</pubDate>
+				<category><![CDATA[2026]]></category>
+		<category><![CDATA[Articles]]></category>
+		<category><![CDATA[Authors]]></category>
+		<category><![CDATA[November 2026]]></category>
+		<category><![CDATA[James Fischer]]></category>
+		<guid isPermaLink="false">https://beeculture.com/?p=65289</guid>
+
+					<description><![CDATA[A Cautionary Tale of Woe and Intrigue By: James Fischer Imagine buying a new home, zoned for mixed residential/agricultural use, and then having the town property board refuse approval for beehives on your land. Beekeeper association officers should heed this story because your local government might try the same dirty trick. This was Alex Urban’s [&#8230;]]]></description>
+		
+		
+		
+		<post-id xmlns="com-wordpress:feed-additions:1">65289</post-id>	</item>
+		<item>
+		<title>The Past One Hundred Years Of Beekeeping</title>
+		<link>https://beeculture.com/the-past-one-hundred-years-of-beekeeping/</link>
+		
+		<dc:creator><![CDATA[beeculturemagazine]]></dc:creator>
+		<pubDate>Sun, 01 Nov 2026 13:00:00 +0000</pubDate>
+				<category><![CDATA[2026]]></category>
+		<category><![CDATA[Articles]]></category>
+		<category><![CDATA[Audio]]></category>
+		<category><![CDATA[Authors]]></category>
+		<category><![CDATA[James Tew]]></category>
+		<category><![CDATA[November 2026]]></category>
+		<category><![CDATA[James E. Tew]]></category>
+		<guid isPermaLink="false">https://beeculture.com/?p=65218</guid>
+
+					<description><![CDATA[Are We Any Better Off? Click Here if you listened. We&#8217;d love to know what you think. There is even a spot for feedback! Read along below! By: James E. Tew Why 100 years?In recent years, I have entered a “reflective” period in my relationship with my bees. In my fifty-plus years of being involved [&#8230;]]]></description>
+		
+		
+		<enclosure url="https://beeculture.com/wp-content/uploads/2026/09/November2026-Jim-Tew-The-Past-10.mp3" length="7483821" type="audio/mpeg" />
+
+		<post-id xmlns="com-wordpress:feed-additions:1">65218</post-id>	</item>
+		<item>
+		<title>Microplastics and Honey Bee Health</title>
+		<link>https://beeculture.com/microplastics-and-honey-bee-health/</link>
+		
+		<dc:creator><![CDATA[beeculturemagazine]]></dc:creator>
+		<pubDate>Sun, 01 Nov 2026 13:00:00 +0000</pubDate>
+				<category><![CDATA[2026]]></category>
+		<category><![CDATA[Articles]]></category>
+		<category><![CDATA[Audio]]></category>
+		<category><![CDATA[Authors]]></category>
+		<category><![CDATA[November 2026]]></category>
+		<category><![CDATA[Ross Conrad]]></category>
+		<guid isPermaLink="false">https://beeculture.com/?p=65211</guid>
+
+					<description><![CDATA[An Emerging Area of Significant Scientific Investigation Click Here if you listened. We&#8217;d love to know what you think. There is even a spot for feedback! Read along below! By: Ross Conrad It is not a stretch to say that honey bees and other pollinators are critical to maintaining our global food production and preserving [&#8230;]]]></description>
+		
+		
+		<enclosure url="https://beeculture.com/wp-content/uploads/2026/09/November2026-Ross-Conrad-Microplastics.mp3" length="21491553" type="audio/mpeg" />
+
+		<post-id xmlns="com-wordpress:feed-additions:1">65211</post-id>	</item>
+		</channel>
+</rss>

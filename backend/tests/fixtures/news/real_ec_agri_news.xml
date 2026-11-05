@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+  <channel>
+    <title>Agriculture and rural development | News</title>
+    <link>https://agriculture.ec.europa.eu/media/news_en</link>
+    <atom:link href="https://agriculture.ec.europa.eu/node/2/rss_en" rel="self" type="application/rss+xml"/>
+    <description>Agriculture and rural development | News</description>
+    <language>en</language>
+    <copyright>© European Union, 1995-2026</copyright>
+          <image>
+        <url>https://agriculture.ec.europa.eu/themes/contrib/oe_theme/dist/ec/images/logo/positive/logo-ec--en.svg</url>
+        <title>European Commission logo</title>
+        <link>https://agriculture.ec.europa.eu/media/news_en</link>
+      </image>
+        
+    <item>
+  <title>EU agri-food exports stable as imports decline slightly</title>
+  <atom:id>https://agriculture.ec.europa.eu/node/1724</atom:id>
+  <link>https://agriculture.ec.europa.eu/media/news/eu-agri-food-exports-stable-imports-decline-slightly-2026-10-29_en</link>
+  <guid>https://agriculture.ec.europa.eu/media/news/eu-agri-food-exports-stable-imports-decline-slightly-2026-10-29_en</guid>
+  <description>&lt;p&gt;EU agri-food trade surplus rises as exports hold steady and imports fall&lt;/p&gt;
+</description>
+  <pubDate>Thu, 29 Oct 2026 11:54:43 +0100</pubDate>
+<enclosure url="https://agriculture.ec.europa.eu/sites/default/files/2026-03/agri-food-trade-report-image.jpg" length="520863" type="image/jpeg"/>
+<category domain="http://publications.europa.eu/resource/authority/corporate-body">Directorate-General for Agriculture and Rural Development</category>
+<category domain="http://publications.europa.eu/resource/authority/place">Brussels</category>
+<category domain="http://publications.europa.eu/resource/authority/resource-type">News article</category>
+<category domain="http://data.europa.eu/uxp/det">agricultural trade</category>
+
+</item>
+<item>
+  <title>Commission welcomes political agreement on the future organic rulebook</title>
+  <atom:id>https://agriculture.ec.europa.eu/node/1715</atom:id>
+  <link>https://ec.europa.eu/commission/presscorner/detail/en/ip_26_2210</link>
+  <guid>https://ec.europa.eu/commission/presscorner/detail/en/ip_26_2210</guid>
+  <description>&lt;p&gt;The European Commission welcomes today's agreement between the European Parliament and the Council to amend certain production, labelling and certification rules, as well as rules on trade with non-EU countries, in the organic sector.&lt;/p&gt;
+</description>
+  <pubDate>Tue, 20 Oct 2026 13:44:32 +0200</pubDate>
+<enclosure url="https://agriculture.ec.europa.eu/sites/default/files/2026-10/press-release-new-organic-rulebook.jpeg" length="6269128" type="image/jpeg"/>
+<category domain="http://publications.europa.eu/resource/authority/corporate-body">Directorate-General for Agriculture and Rural Development</category>
+<category domain="http://publications.europa.eu/resource/authority/place">Brussels</category>
+<category domain="http://publications.europa.eu/resource/authority/resource-type">Press release</category>
+<category domain="http://data.europa.eu/uxp/det">organic farming</category>
+
+</item>
+<item>
+  <title>Avian flu and African swine fever: EU provides €73 million to compensate Italian farmers</title>
+  <atom:id>https://agriculture.ec.europa.eu/node/1705</atom:id>
+  <link>https://agriculture.ec.europa.eu/media/news/avian-flu-and-african-swine-fever-eu-provides-eur73-million-compensate-italian-farmers-2026-09-25_en</link>
+  <guid>https://agriculture.ec.europa.eu/media/news/avian-flu-and-african-swine-fever-eu-provides-eur73-million-compensate-italian-farmers-2026-09-25_en</guid>
+  <description>&lt;p&gt;The Commission will provide €73 million to Italy to help compensate farmers in areas affected by outbreaks of avian flu and African swine fever.&lt;/p&gt;
+</description>
+  <pubDate>Fri, 25 Sep 2026 12:27:32 +0200</pubDate>
+<enclosure url="https://agriculture.ec.europa.eu/sites/default/files/2026-09/news-avian-flu-and-african-swine-fever-1200x800px.jpg" length="369706" type="image/jpeg"/>
+<category domain="http://publications.europa.eu/resource/authority/corporate-body">Directorate-General for Agriculture and Rural Development</category>
+<category domain="http://publications.europa.eu/resource/authority/country">Italy</category>
+<category domain="http://publications.europa.eu/resource/authority/resource-type">News article</category>
+<category domain="http://data.europa.eu/uxp/det">egg</category>
+<category domain="http://data.europa.eu/uxp/det">poultrymeat</category>
+<category domain="http://data.europa.eu/uxp/det">pigmeat</category>
+
+</item>
+<item>
+  <title>Short-term outlook of EU agricultural markets: EU Agriculture remains robust amidst uncertainties and rising input costs </title>
+  <atom:id>https://agriculture.ec.europa.eu/node/1661</atom:id>
+  <link>https://agriculture.ec.europa.eu/media/news/short-term-outlook-eu-agricultural-markets-eu-agriculture-remains-robust-amidst-uncertainties-and-2026-07-03_en</link>
+  <guid>https://agriculture.ec.europa.eu/media/news/short-term-outlook-eu-agricultural-markets-eu-agriculture-remains-robust-amidst-uncertainties-and-2026-07-03_en</guid>
+  <description>&lt;p&gt;Based on the latest short-term outlook report, EU agricultural markets remain resilient in 2026 despite conflicts, weather risks and rising input costs. Production is set to grow in key sectors, supported by new market outlook insights.&lt;/p&gt;
+</description>
+  <pubDate>Mon, 06 Jul 2026 12:07:52 +0200</pubDate>
+<enclosure url="https://agriculture.ec.europa.eu/sites/default/files/2026-07/news-sto-banner_1200x800px.jpg" length="300794" type="image/jpeg"/>
+<category domain="http://publications.europa.eu/resource/authority/corporate-body">Directorate-General for Agriculture and Rural Development</category>
+<category domain="http://publications.europa.eu/resource/authority/place">Brussels</category>
+<category domain="http://publications.europa.eu/resource/authority/resource-type">News article</category>
+<category domain="http://data.europa.eu/uxp/det">agricultural market</category>
+
+</item>
+</channel>
+</rss>

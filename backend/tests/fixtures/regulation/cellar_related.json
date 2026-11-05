@@ -1,0 +1,58 @@
+{
+  "head": {"link": [], "vars": ["celex", "date", "title", "target", "rel", "inforce", "eif"]},
+  "results": {"distinct": false, "ordered": true, "bindings": [
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "32026R9901"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2026-03-10"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Commission Implementing Regulation (EU) 2026/9901 of 10 March 2026 amending Annexes XIII and XIX to Implementing Regulation (EU) 2021/405 as regards the entries for Moldova and Ukraine in the lists of third countries authorised for the entry into the Union of honey (illustrative test act)"},
+      "target": {"type": "literal", "value": "32021R0405"},
+      "rel": {"type": "uri", "value": "http://publications.europa.eu/ontology/cdm#resource_legal_amends_resource_legal"},
+      "inforce": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#boolean", "value": "true"},
+      "eif": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2026-03-31"}
+    },
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "32026D9902"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2026-02-27"},
+      "target": {"type": "literal", "value": "32021R0405"},
+      "rel": {"type": "uri", "value": "http://publications.europa.eu/ontology/cdm#resource_legal_based_on_resource_legal"}
+    },
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "32021R0405R(05)"},
+      "date": {"type": "typed-literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2026-02-20"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Corrigendum to Commission Implementing Regulation (EU) 2021/405 of 24 March 2021 laying down the lists of third countries or regions thereof authorised for the entry into the Union of certain animals and goods intended for human consumption (illustrative test corrigendum)"},
+      "target": {"type": "literal", "value": "32021R0405"},
+      "rel": {"type": "uri", "value": "http://publications.europa.eu/ontology/cdm#resource_legal_corrects_resource_legal"}
+    },
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "32024L1438"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2024-05-14"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Directive (EU) 2024/1438 of the European Parliament and of the Council of 14 May 2024 amending Council Directives 2001/110/EC relating to honey, 2001/112/EC relating to fruit juices and certain similar products intended for human consumption, 2001/113/EC relating to fruit jams, jellies and marmalades and sweetened chestnut purée intended for human consumption, and 2001/114/EC relating to certain partly or wholly dehydrated preserved milk for human consumption"},
+      "target": {"type": "literal", "value": "32001L0110"},
+      "rel": {"type": "uri", "value": "http://publications.europa.eu/ontology/cdm#resource_legal_amends_resource_legal"},
+      "inforce": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#boolean", "value": "true"}
+    },
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "32024L1438"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2024-05-14"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Directive (EU) 2024/1438 amending Council Directives 2001/110/EC relating to honey"},
+      "target": {"type": "literal", "value": "32001L0110"},
+      "rel": {"type": "uri", "value": "http://publications.europa.eu/ontology/cdm#resource_legal_amends_resource_legal"},
+      "inforce": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#boolean", "value": "true"}
+    },
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "not-a-celex"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2025-01-01"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Deliberately malformed test row"},
+      "target": {"type": "literal", "value": "32001L0110"},
+      "rel": {"type": "uri", "value": "http://publications.europa.eu/ontology/cdm#resource_legal_amends_resource_legal"}
+    },
+    {
+      "celex": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "32014L0063"},
+      "date": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2014-05-15"},
+      "title": {"type": "literal", "xml:lang": "en", "value": "Directive 2014/63/EU of the European Parliament and of the Council of 15 May 2014 amending Council Directive 2001/110/EC relating to honey"},
+      "target": {"type": "literal", "value": "32001L0110"},
+      "rel": {"type": "uri", "value": "http://publications.europa.eu/ontology/cdm#resource_legal_amends_resource_legal"},
+      "inforce": {"type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#boolean", "value": "true"}
+    }
+  ]}
+}

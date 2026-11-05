@@ -1,0 +1,80 @@
+[
+ {
+  "htsno": "",
+  "indent": "0",
+  "description": "Heading text without a number (illustrative)",
+  "superior": null,
+  "units": [],
+  "general": "",
+  "special": "",
+  "other": "",
+  "footnotes": [],
+  "quotaQuantity": null,
+  "additionalDuties": null
+ },
+ {
+  "htsno": "9903.01.25",
+  "indent": "1",
+  "description": "Except as provided in headings 9903.01.28 and 9903.01.29, articles the product of any country, as provided for in subdivision (v) of U.S. note 2 to this subchapter (illustrative)",
+  "superior": null,
+  "units": [],
+  "general": "The duty provided in the applicable subheading + 10%",
+  "special": "",
+  "other": "",
+  "footnotes": [],
+  "quotaQuantity": null,
+  "additionalDuties": null
+ },
+ {
+  "htsno": "9903.01.26",
+  "indent": "1",
+  "description": "Articles the product of Brazil, as provided for in subdivision (w) of U.S. note 2 to this subchapter (illustrative)",
+  "superior": null,
+  "units": [],
+  "general": "The duty provided in the applicable subheading + 40%",
+  "special": "",
+  "other": "",
+  "footnotes": [],
+  "quotaQuantity": null,
+  "additionalDuties": null
+ },
+ {
+  "htsno": "9903.01.27",
+  "indent": "1",
+  "description": "Articles the product of Japan, as provided for in subdivision (x) of U.S. note 2 to this subchapter (illustrative)",
+  "superior": null,
+  "units": [],
+  "general": "The duty provided in the applicable subheading + 15%",
+  "special": "",
+  "other": "",
+  "footnotes": [],
+  "quotaQuantity": null,
+  "additionalDuties": null
+ },
+ {
+  "htsno": "9903.01.28",
+  "indent": "1",
+  "description": "Articles of any country excluded from heading 9903.01.25, as provided for in subdivision (y) of U.S. note 2 to this subchapter (illustrative)",
+  "superior": null,
+  "units": [],
+  "general": "The duty provided in the applicable subheading",
+  "special": "",
+  "other": "",
+  "footnotes": [],
+  "quotaQuantity": null,
+  "additionalDuties": null
+ },
+ {
+  "htsno": "9903.01.29",
+  "indent": "1",
+  "description": "Articles the product of all countries except Canada and Mexico, as provided for in subdivision (z) of U.S. note 2 to this subchapter (illustrative)",
+  "superior": null,
+  "units": [],
+  "general": "The duty provided in the applicable subheading + 5%",
+  "special": "",
+  "other": "",
+  "footnotes": [],
+  "quotaQuantity": null,
+  "additionalDuties": null
+ }
+]

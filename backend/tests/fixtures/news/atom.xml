@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xml:lang="en">
+  <title>Test Beekeeping Federation – News</title>
+  <link href="https://federation.example/news/" rel="alternate" type="text/html"/>
+  <link href="https://federation.example/news/atom.xml" rel="self" type="application/atom+xml"/>
+  <id>tag:federation.example,2026:news</id>
+  <updated>2026-11-01T10:00:00Z</updated>
+  <entry>
+    <title type="html">Federation calls for EU-wide honey authenticity testing at the border</title>
+    <link rel="alternate" type="text/html" href="https://federation.example/news/2026/authenticity-testing#top"/>
+    <id>tag:federation.example,2026:news/123</id>
+    <published>2026-10-31T08:00:00+01:00</published>
+    <updated>2026-11-01T10:00:00Z</updated>
+    <summary type="html">&lt;p&gt;The federation asks the &lt;strong&gt;European Commission&lt;/strong&gt; to make NMR testing mandatory for honey imports, after a coordinated action found syrup adulteration in a large share of samples.&lt;/p&gt;</summary>
+    <content type="html">&lt;p&gt;Full text not stored.&lt;/p&gt;</content>
+    <media:thumbnail url="https://federation.example/img/lab-testing.jpg" width="640" height="360"/>
+  </entry>
+  <entry>
+    <title>World Bee Day photo competition winners</title>
+    <link rel="alternate" href="https://federation.example/news/2026/photo-competition"/>
+    <id>tag:federation.example,2026:news/124</id>
+    <updated>2026-10-20T10:00:00Z</updated>
+    <summary>Congratulations to this year's winners: images of bees on lavender and sunflowers.</summary>
+  </entry>
+</feed>

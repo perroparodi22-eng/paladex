@@ -1,0 +1,126 @@
+{
+ "totalPages": 1,
+ "totalElements": 4,
+ "notifications": [
+  {
+   "notifId": 912345,
+   "reference": "2026.7712",
+   "ecValidationDate": "27-10-2026 15:42:10",
+   "subject": "Chloramphenicol in honey from China",
+   "notifyingCountry": {
+    "organizationName": "Italy",
+    "isoCode": "IT"
+   },
+   "originCountries": [
+    {
+     "organizationName": "China",
+     "isoCode": "CN"
+    }
+   ],
+   "productCategory": {
+    "description": "honey and royal jelly"
+   },
+   "productType": {
+    "description": "food"
+   },
+   "notificationClassification": {
+    "description": "border rejection notification"
+   },
+   "riskDecision": {
+    "description": "serious"
+   },
+   "published": true
+  },
+  {
+   "notifId": 911870,
+   "reference": "2026.7604",
+   "ecValidationDate": "21-10-2026 10:05:33",
+   "subject": "Adulteration of honey with sugar syrups from Ukraine",
+   "notifyingCountry": {
+    "organizationName": "Germany",
+    "isoCode": "DE"
+   },
+   "originCountries": [
+    {
+     "organizationName": "Ukraine",
+     "isoCode": "UA"
+    }
+   ],
+   "productCategory": {
+    "description": "honey and royal jelly"
+   },
+   "productType": {
+    "description": "food"
+   },
+   "notificationClassification": {
+    "description": "information notification for attention"
+   },
+   "riskDecision": {
+    "description": "not serious"
+   },
+   "published": true
+  },
+  {
+   "notifId": 911402,
+   "reference": "2026.7533",
+   "ecValidationDate": "16-10-2026 09:12:47",
+   "subject": "Chloramphenicol in royal jelly from China",
+   "notifyingCountry": {
+    "organizationName": "Belgium",
+    "isoCode": "BE"
+   },
+   "originCountries": [
+    {
+     "organizationName": "China",
+     "isoCode": "CN"
+    }
+   ],
+   "productCategory": {
+    "description": "honey and royal jelly"
+   },
+   "productType": {
+    "description": "food"
+   },
+   "notificationClassification": {
+    "description": "alert notification"
+   },
+   "riskDecision": {
+    "description": "serious"
+   },
+   "published": true
+  },
+  {
+   "notifId": 910977,
+   "reference": "2026.7420",
+   "ecValidationDate": "09-10-2026 17:30:02",
+   "subject": "Tylosin in acacia honey from Serbia, via Hungary",
+   "notifyingCountry": {
+    "organizationName": "Austria",
+    "isoCode": "AT"
+   },
+   "originCountries": [
+    {
+     "organizationName": "Serbia",
+     "isoCode": "RS"
+    },
+    {
+     "organizationName": "Hungary",
+     "isoCode": "HU"
+    }
+   ],
+   "productCategory": {
+    "description": "honey and royal jelly"
+   },
+   "productType": {
+    "description": "food"
+   },
+   "notificationClassification": {
+    "description": "information notification for follow-up"
+   },
+   "riskDecision": {
+    "description": "potentially serious"
+   },
+   "published": true
+  }
+ ]
+}

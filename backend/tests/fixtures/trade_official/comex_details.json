@@ -1,0 +1,46 @@
+{
+ "data": {
+  "list": [
+   {
+    "detail": "country",
+    "text": "Countries"
+   },
+   {
+    "detail": "economicBlock",
+    "text": "Economic blocks"
+   },
+   {
+    "detail": "state",
+    "text": "State of the company"
+   },
+   {
+    "detail": "via",
+    "text": "Mode of transport"
+   },
+   {
+    "detail": "urf",
+    "text": "Customs office"
+   },
+   {
+    "detail": "chapter",
+    "text": "HS2"
+   },
+   {
+    "detail": "heading",
+    "text": "HS4"
+   },
+   {
+    "detail": "subHeading",
+    "text": "HS6"
+   },
+   {
+    "detail": "ncm",
+    "text": "NCM 8 digits"
+   }
+  ]
+ },
+ "success": true,
+ "message": null,
+ "processo_info": null,
+ "language": "en"
+}

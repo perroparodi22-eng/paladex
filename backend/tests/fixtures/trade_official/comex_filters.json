@@ -1,0 +1,50 @@
+{
+ "data": {
+  "list": [
+   {
+    "filter": "country",
+    "text": "Countries"
+   },
+   {
+    "filter": "economicBlock",
+    "text": "Economic blocks"
+   },
+   {
+    "filter": "state",
+    "text": "State of the company"
+   },
+   {
+    "filter": "via",
+    "text": "Mode of transport"
+   },
+   {
+    "filter": "urf",
+    "text": "Customs office"
+   },
+   {
+    "filter": "section",
+    "text": "HS section"
+   },
+   {
+    "filter": "chapter",
+    "text": "HS2"
+   },
+   {
+    "filter": "heading",
+    "text": "HS4"
+   },
+   {
+    "filter": "subHeading",
+    "text": "HS6"
+   },
+   {
+    "filter": "ncm",
+    "text": "NCM 8 digits"
+   }
+  ]
+ },
+ "success": true,
+ "message": null,
+ "processo_info": null,
+ "language": "en"
+}

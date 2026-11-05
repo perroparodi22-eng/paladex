@@ -1,0 +1,148 @@
+{
+ "variables": {
+  "CTY_CODE": {
+   "label": "Country Code",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "CTY_NAME": {
+   "label": "Country Name",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "I_COMMODITY": {
+   "label": "Import Commodity Code",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "I_COMMODITY_SDESC": {
+   "label": "15-character Import Commodity Description",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "I_COMMODITY_LDESC": {
+   "label": "50-character Import Commodity Description",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "GEN_VAL_MO": {
+   "label": "General Imports, Total Value",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "GEN_QY1_MO": {
+   "label": "General Imports, Quantity 1",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "GEN_QY2_MO": {
+   "label": "General Imports, Quantity 2",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "GEN_CIF_MO": {
+   "label": "General Imports, CIF Value",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "GEN_CHA_MO": {
+   "label": "General Imports, Charges",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "CON_VAL_MO": {
+   "label": "Imports for Consumption, Total Value",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "CON_QY1_MO": {
+   "label": "Imports for Consumption, Quantity 1",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "CON_QY2_MO": {
+   "label": "Imports for Consumption, Quantity 2",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "CON_CIF_MO": {
+   "label": "Imports for Consumption, CIF Value",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "CON_CHA_MO": {
+   "label": "Imports for Consumption, Charges",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "DUT_VAL_MO": {
+   "label": "Dutiable Value",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "CAL_DUT_MO": {
+   "label": "Calculated Duty",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "UNIT_QY1": {
+   "label": "Unit of Quantity 1",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "UNIT_QY2": {
+   "label": "Unit of Quantity 2",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "COMM_LVL": {
+   "label": "4-character aggregation levels for commodity code",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "SUMMARY_LVL": {
+   "label": "Detail or Country Grouping indicator",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "YEAR": {
+   "label": "Year",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "MONTH": {
+   "label": "Month",
+   "predicateType": "string",
+   "group": "N/A",
+   "limit": 0
+  },
+  "time": {
+   "label": "ISO-8601 Date/Time value",
+   "predicateType": "datetime",
+   "group": "N/A",
+   "limit": 0
+  }
+ }
+}
