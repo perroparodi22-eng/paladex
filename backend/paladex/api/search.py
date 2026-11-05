@@ -331,7 +331,8 @@ def _sources(db: Session, specs, limit: int) -> tuple[list[dict], int]:
     fields = [S.name, S.publisher, S.key, S.category, S.homepage]
     rows = db.scalars(select(S).where(S.key != "demo", _text_condition(fields, specs)).order_by(S.name)).all()
     return [{
-        "key": s.key, "name": s.name, "publisher": s.publisher, "category": s.category, "reliability": s.reliability,
+        "key": s.key, "name": s.name, "name_en": s.name_en, "publisher": s.publisher, "category": s.category,
+        "reliability": s.reliability,
         "enabled": s.enabled, "homepage": s.homepage, "last_run_status": s.last_run_status,
         "latest_published_at": iso(s.latest_published_at), "freshness": freshness(s),
         "target": f"/fonti#{s.key}", "external": False,

@@ -153,6 +153,7 @@ def _outlet(d: NewsArticle, sources: dict[int, Source]) -> dict:
         "id": d.id, "publisher": d.publisher or (s.publisher if s else None), "url": d.url,
         "published_at": iso(d.published_at), "collected_at": iso(d.collected_at),
         "language": d.language, "source_key": s.key if s else None, "source_name": s.name if s else None,
+        "source_name_en": s.name_en if s else None,
     }
 
 
@@ -270,7 +271,8 @@ def _facets(db: Session, f: Filters, sources: dict[int, Source]) -> dict:
         "topics": [{"key": k, "it": v["it"], "en": v["en"], "count": t_count.get(k, 0)}
                    for k, v in news_service.TOPICS.items()],
         "sources": [
-            {"key": sources[sid].key, "name": sources[sid].name, "publisher": sources[sid].publisher,
+            {"key": sources[sid].key, "name": sources[sid].name, "name_en": sources[sid].name_en,
+             "publisher": sources[sid].publisher,
              "reliability": sources[sid].reliability, "count": n}
             for sid, n in sorted(s_count.items(), key=lambda kv: (-kv[1], sources[kv[0]].name if kv[0] in sources else ""))
             if sid in sources

@@ -563,6 +563,7 @@ class _QueryStats:
 class FederalRegisterCollector(Collector):
     key = "us_federal_register"
     name = "Federal Register USA: antidumping, dazi e avvisi sul miele"
+    name_en = "US Federal Register: anti-dumping, duties and notices on honey"
     publisher = "Office of the Federal Register (NARA) / U.S. Government Publishing Office"
     homepage = "https://www.federalregister.gov/"
     kind = SourceKind.API
@@ -1028,6 +1029,7 @@ def check_title_canary(acts: dict[str, EuAct], since: date) -> None:
 class EurLexHoneyCollector(Collector):
     key = "eurlex_honey"
     name = "EUR-Lex: legislazione UE sul miele"
+    name_en = "EUR-Lex: EU honey legislation"
     publisher = "Publications Office of the European Union (CELLAR / EUR-Lex)"
     homepage = "https://eur-lex.europa.eu/"
     kind = SourceKind.API

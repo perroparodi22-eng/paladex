@@ -146,12 +146,130 @@ for _iso in EU_MEMBERS:
     AVAILABILITY[_iso] = _entry(
         NONE, EU_AUTHORITIES.get(_iso, "Istituto nazionale di statistica / Eurostat"), EU_URL, _EU_REASON_IT, _EU_REASON_EN)
 
-# Main honey origins outside Europe and South America: not researched yet. Nothing is shown for them.
-for _iso in ("CHN", "IND", "VNM", "UKR", "MEX", "TUR", "THA", "NZL", "CAN", "AUS", "SRB", "MDA"):
-    AVAILABILITY[_iso] = _entry(
-        UNVERIFIED, "—", None,
-        "Non ancora verificato da Paladex: nessun elenco di aziende mostrato. " + TRACES_NOTE["it"],
-        "Not yet checked by Paladex: no company list is shown. " + TRACES_NOTE["en"], checked=None)
+# Main honey origins outside Europe and South America (checked live on 2026-11-05). For each, the list
+# of establishments it sends to the EU exists (TRACES_NOTE) but opens only with EU Login.
+AVAILABILITY.update({
+    "IND": _entry(
+        REGISTER, "Export Inspection Council of India (EIC) – Ministero del Commercio e dell'Industria",
+        "https://eicindia.gov.in/offerings/commodity-wise-facilities?tab=animal",
+        "L'Export Inspection Council pubblica l'elenco degli stabilimenti autorizzati a lavorare miele per "
+        "l'esportazione (27 al 5 novembre 2026, 16 dei quali autorizzati anche per l'Unione europea), con numero e "
+        "scadenza dell'autorizzazione: un elenco di nomi, non una classifica. Nessun dato per azienda sulle quantità "
+        "o i valori esportati. Le iscrizioni degli esportatori all'APEDA non sono state verificate.",
+        "The Export Inspection Council publishes the list of establishments approved to process honey for export (27 "
+        "on 5 November 2026, 16 of them approved for the European Union too), with approval number and validity: a "
+        "list of names, not a ranking. No company-level export quantities or values. Exporter registrations with "
+        "APEDA were not checked.",
+        sources=("in_eic_honey_establishments",), roles=(CompanyRole.REGISTERED_EXPORTER.value,)),
+    "CAN": _entry(
+        REGISTER, "Innovation, Science and Economic Development Canada (ISED) – Canadian Importers Database",
+        "https://www.ised-isde.canada.ca/app/ixb/cid-bdic/productReport.html?hsCode=040900",
+        "Il governo canadese (ISED, dati della dogana) pubblica ogni anno i principali importatori di miele (HS "
+        "040900): le aziende che insieme fanno fino all'80% del valore importato, con città e provincia, senza valori "
+        "per azienda (25 nel 2024). Per le esportazioni nessun elenco ufficiale di aziende: Statistics Canada pubblica "
+        "per prodotto e paese; il registro delle licenze alimentari della CFIA risponde «410 Gone».",
+        "The Canadian government (ISED, customs data) publishes every year the major honey importers (HS 040900): the "
+        "companies that together account for up to 80% of the import value, with city and province, without values "
+        "per company (25 in 2024). For exports there is no official company list: Statistics Canada publishes by "
+        "product and country; CFIA's food licence registry answers '410 Gone'.",
+        sources=("ca_cid_honey_importers",), roles=(CompanyRole.IMPORTER.value,)),
+    "CHN": _entry(
+        UNAVAILABLE, "General Administration of Customs of China (GACC)", "http://www.customs.gov.cn/",
+        "Gli esportatori di miele devono essere registrati presso la dogana cinese (GACC, registro delle imprese di "
+        "produzione di alimenti per l'esportazione), che compila anche l'elenco per l'UE. I siti della GACC non "
+        "rispondono dalla rete di sviluppo (nome a dominio non risolto il 5 novembre 2026): non verificato oltre. "
+        "Le statistiche doganali sono pubblicate per prodotto e paese. " + TRACES_NOTE["it"],
+        "Honey exporters must be registered with Chinese customs (GACC, register of export food production "
+        "enterprises), which also compiles the list for the EU. GACC's websites do not answer from the development "
+        "network (domain not resolved on 5 November 2026): not checked further. Customs statistics are published by "
+        "product and country. " + TRACES_NOTE["en"]),
+    "VNM": _entry(
+        UNAVAILABLE, "Ministero dell'Agricoltura e dell'Ambiente – servizi veterinari e qualità (già DAH e NAFIQAD)",
+        "https://www.nafiqad.gov.vn/",
+        "Gli stabilimenti che esportano miele nell'UE sono iscritti dalle autorità veterinarie vietnamite nell'elenco "
+        "inviato alla Commissione. I siti delle autorità (nafiqad.gov.vn, cucthuy.gov.vn, vfa.gov.vn) non rispondono "
+        "dalla rete di sviluppo (5 novembre 2026): non verificato se pubblichino un elenco proprio. " + TRACES_NOTE["it"],
+        "The establishments exporting honey to the EU are entered by the Vietnamese veterinary authorities in the list "
+        "sent to the Commission. The authorities' websites (nafiqad.gov.vn, cucthuy.gov.vn, vfa.gov.vn) do not answer "
+        "from the development network (5 November 2026): not checked whether they publish a list of their own. "
+        + TRACES_NOTE["en"]),
+    "UKR": _entry(
+        UNAVAILABLE, "Derzhprodspozhyvsluzhba (State Service of Ukraine on Food Safety and Consumer Protection)",
+        "https://dpss.gov.ua/news/z-30-lystopada-zminiuiutsia-pravyla-eksportu-medu-do-krain-ies",
+        "Dal 30 novembre 2024 esporta miele nell'UE solo chi è nell'elenco che il servizio veterinario ucraino invia "
+        "alla Commissione; il servizio pubblica le regole ma non l'elenco. Il suo registro pubblico delle strutture "
+        "degli operatori alimentari (agro-id.gov.ua) riguarda tutte le imprese alimentari, non gli esportatori. "
+        "Le statistiche del commercio estero non sono pubblicate per azienda. " + TRACES_NOTE["it"],
+        "Since 30 November 2024 only establishments on the list the Ukrainian food-safety service sends to the "
+        "Commission may export honey to the EU; the service publishes the rules but not the list. Its public register "
+        "of food business facilities (agro-id.gov.ua) covers all food businesses, not exporters. Foreign trade "
+        "statistics are not published by company. " + TRACES_NOTE["en"]),
+    "MEX": _entry(
+        UNAVAILABLE, "SENASICA (Servicio Nacional de Sanidad, Inocuidad y Calidad Agroalimentaria)",
+        "https://www.datos.gob.mx/dataset/empresas_habilitadas_exportacion",
+        "Il SENASICA pubblica come dato aperto le «Empresas habilitadas para exportación» (ragione sociale, paese di "
+        "destinazione e merce di origine animale; aggiornamento giugno 2025), ma il file e l'API del portale rispondono "
+        "«Access Denied» (403) dalla rete di sviluppo: non è stato possibile verificare se comprenda il miele. Da "
+        "riprovare dalla rete di produzione. " + TRACES_NOTE["it"],
+        "SENASICA publishes as open data the 'Empresas habilitadas para exportación' (company name, destination country "
+        "and animal product; June 2025 update), but the file and the portal API answer 'Access Denied' (403) to the "
+        "development network: it could not be checked whether it covers honey. To retry from the production network. "
+        + TRACES_NOTE["en"]),
+    "TUR": _entry(
+        UNAVAILABLE, "Ministero dell'Agricoltura e delle Foreste – Direzione generale Alimenti e Controllo (GKGM)",
+        "https://www.tarimorman.gov.tr/GKGM/Link/46/Ithalat-Ihracat",
+        "Il ministero pubblica le procedure di esportazione dei prodotti animali, non un elenco degli esportatori di "
+        "miele o degli stabilimenti autorizzati. L'istituto di statistica (TÜİK) pubblica per prodotto e paese, mai per "
+        "azienda. " + TRACES_NOTE["it"],
+        "The ministry publishes the export procedures for animal products, not a list of honey exporters or approved "
+        "establishments. The statistics institute (TÜİK) publishes by product and country, never by company. "
+        + TRACES_NOTE["en"]),
+    "THA": _entry(
+        UNAVAILABLE, "Department of Livestock Development (DLD) – Ministero dell'Agricoltura e delle Cooperative",
+        "https://certify.dld.go.th/",
+        "Il DLD certifica gli stabilimenti che esportano miele; il suo sito delle certificazioni non pubblica un elenco "
+        "per il miele e il sito principale blocca gli accessi automatici (protezione anti-bot). " + TRACES_NOTE["it"],
+        "DLD certifies the establishments exporting honey; its certification website publishes no honey list and its "
+        "main website blocks automated access (bot protection). " + TRACES_NOTE["en"]),
+    "NZL": _entry(
+        UNAVAILABLE, "Ministry for Primary Industries (MPI)",
+        "https://www.mpi.govt.nz/export/food/honey-and-bee-products/registers-and-lists",
+        "Il ministero (MPI) tiene registri pubblici: gli esportatori registrati per i prodotti animali (anche su "
+        "data.govt.nz) e gli stabilimenti di prodotti apistici approvati per singoli mercati, senza quantità né valori. "
+        "Il sito dell'MPI e il catalogo data.govt.nz rispondono alle richieste automatiche con una pagina anti-bot "
+        "(Imperva): Paladex non li può leggere. " + TRACES_NOTE["it"],
+        "The ministry (MPI) keeps public registers: the exporters registered for animal products (also on "
+        "data.govt.nz) and the bee-product premises approved for individual markets, without quantities or values. "
+        "MPI's website and the data.govt.nz catalogue answer automated requests with a bot-protection page (Imperva): "
+        "Paladex cannot read them. " + TRACES_NOTE["en"]),
+    "AUS": _entry(
+        UNAVAILABLE, "Department of Agriculture, Fisheries and Forestry (DAFF)",
+        "https://micor.agriculture.gov.au/npg/european_union/edible_apiculture_products",
+        "Chi esporta miele nell'UE deve essere uno stabilimento registrato presso il dipartimento (DAFF) e inserito "
+        "nell'elenco UE. I siti del dipartimento (agriculture.gov.au, micor) non rispondono dalla rete di sviluppo "
+        "(5 novembre 2026): non verificato se il registro degli stabilimenti sia pubblico. " + TRACES_NOTE["it"],
+        "Honey exporters to the EU must be establishments registered with the department (DAFF) and on the EU list. "
+        "The department's websites (agriculture.gov.au, micor) do not answer from the development network "
+        "(5 November 2026): not checked whether its establishment register is public. " + TRACES_NOTE["en"]),
+    "SRB": _entry(
+        UNAVAILABLE, "Uprava za veterinu (Direzione veterinaria) – Ministero dell'Agricoltura",
+        "https://www.vet.minpolj.gov.rs/registri/",
+        "I registri pubblicati dalla Direzione veterinaria (identificazione, canili, rifugi, sperimentazione) non "
+        "comprendono gli stabilimenti autorizzati all'esportazione; l'istituto di statistica non pubblica dati per "
+        "azienda. " + TRACES_NOTE["it"],
+        "The registers published by the Veterinary Directorate (identification, kennels, shelters, animal testing) do "
+        "not include the establishments approved for export; the statistical office publishes no company data. "
+        + TRACES_NOTE["en"]),
+    "MDA": _entry(
+        UNAVAILABLE, "ANSA (Agenția Națională pentru Siguranța Alimentelor)",
+        "https://www.ansa.gov.md/import-export.html",
+        "L'ANSA autorizza i produttori di miele che esportano nell'UE e li iscrive nell'elenco UE. L'unico elenco che "
+        "pubblica («întreprinderi autorizate ... import/export», file Word) risale a febbraio 2020, non contiene "
+        "operatori del miele e riporta dati personali: non usato. " + TRACES_NOTE["it"],
+        "ANSA authorises the honey producers that export to the EU and has them entered in the EU list. The only list "
+        "it publishes ('enterprises authorised ... import/export', a Word file) dates from February 2020, contains no "
+        "honey operator and carries personal data: not used. " + TRACES_NOTE["en"]),
+})
 
 
 def availability_for(iso3: str) -> dict:
@@ -175,8 +293,10 @@ def _counts(db: Session) -> dict[str, dict]:
     """{iso3: {role: companies, "latest_period": label}} over current records."""
     C = CompanyRecord
     out: dict[str, dict] = defaultdict(dict)
-    # One company = the source's own identifier when it gives one (HMRC trader number), else the name.
-    who = func.coalesce(cast(func.json_extract(C.extra, "$.trader_id"), String), C.company_name)
+    # One company = the source's own identifier when it gives one (HMRC trader number, EIC approval
+    # number), else the name.
+    who = func.coalesce(cast(func.json_extract(C.extra, "$.trader_id"), String),
+                        func.json_extract(C.extra, "$.register_no"), C.company_name)
     q = (select(C.country_iso3, C.role, who, func.max(C.period_end), func.max(C.period_label))
          .where(C.is_current.is_(True), demo_clause(C, db)).group_by(C.country_iso3, C.role, who))
     names: dict[tuple[str, str], int] = defaultdict(int)
@@ -278,11 +398,18 @@ def _figures_list(rows: list[CompanyRecord], src: Source | None) -> dict:
     }
 
 
+def _register_key(r: CompanyRecord):
+    """One company of a list: the source's own identifier when it gives one (HMRC trader number, EIC
+    approval number), else the name."""
+    extra = r.extra or {}
+    return extra.get("trader_id") or extra.get("register_no") or r.company_name
+
+
 def _register_list(rows: list[CompanyRecord]) -> dict:
     """Names only: one entry per company with the periods it is listed in; alphabetical, never ranked."""
     by: dict[str, dict] = {}
     for r in rows:
-        key = str((r.extra or {}).get("trader_id") or r.company_name)
+        key = str(_register_key(r))
         e = by.setdefault(key, {"name": r.company_name, "location": r.location, "periods": [], "_end": r.period_end})
         e["periods"].append(r.period_label)
         if r.period_end >= e["_end"]:
@@ -296,7 +423,10 @@ def _register_list(rows: list[CompanyRecord]) -> dict:
     # Alphabetical, ignoring leading quotes or punctuation ("'PRIFYSGOL ABERYSTWYTH'" under P).
     companies.sort(key=lambda e: (re.sub(r"^[^0-9A-Za-z]+", "", e["name"]).casefold(), e["location"] or ""))
     labels = sorted({r.period_label for r in rows})
-    return {"periods": labels, "first_period": labels[0], "latest_period": labels[-1], "companies": companies}
+    # The unit of `periods`: "M" (HMRC months), "A" (CID years), "register" (EIC: months seen listed).
+    frequency = max(rows, key=lambda r: r.period_end).frequency
+    return {"periods": labels, "first_period": labels[0], "latest_period": labels[-1], "frequency": frequency,
+            "companies": companies}
 
 
 @router.get("/{iso3}")
@@ -323,7 +453,7 @@ def companies_country(iso3: str, db: Session = Depends(get_db)):
             "published_at": iso(max((r.published_at for r in rs if r.published_at), default=None)),
             "collected_at": iso(max(r.collected_at for r in rs)), "last_seen_at": iso(max(r.last_seen_at for r in rs)),
             "reliability": newest.reliability, "is_demo": any(r.is_demo for r in rs), "notes": newest.notes,
-            "company_count": len({(r.extra or {}).get("trader_id") or r.company_name for r in rs}),
+            "company_count": len({_register_key(r) for r in rs}),
             **body,
         })
     return {"country": _country_ref(c), "availability": availability_for(code), "checked_on": CHECKED_ON,

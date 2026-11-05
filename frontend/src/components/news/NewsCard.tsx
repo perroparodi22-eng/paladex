@@ -8,7 +8,7 @@ import { useI18n } from '@/i18n'
 import { ApiError } from '@/lib/api'
 import { fmtAgo } from '@/lib/format'
 import { isMirror } from '@/lib/mirror'
-import { useLabels } from '@/lib/meta'
+import { sourceName, useLabels } from '@/lib/meta'
 import { fmtNewsDate, fmtNewsDateTime, RelevanceMeter, TagButton, useLangName, utc } from './bits'
 import type { DuplicateOutlet, NewsItem } from './types'
 
@@ -58,15 +58,15 @@ function Outlets({ outlets }: { outlets: DuplicateOutlet[] }) {
     <ul className="mt-3 divide-y divide-line-soft border-y border-line-soft bg-paper/60">
       {outlets.map((o) => (
         <li key={o.id} className="flex items-center gap-3 px-3 py-2 text-[0.9rem]">
-          <span className="shrink-0 font-medium text-charcoal">{o.publisher || o.source_name || '—'}</span>
+          <span className="shrink-0 font-medium text-charcoal">{o.publisher || (lang === 'en' && o.source_name_en) || o.source_name || '—'}</span>
           <span className="shrink-0 text-muted" title={t('news.card.publishedTip', { d: fmtNewsDateTime(o.published_at, lang), c: fmtNewsDateTime(o.collected_at, lang) })}>
             {o.published_at ? fmtNewsDate(o.published_at, lang) : t('news.card.collected', { ago: fmtAgo(utc(o.collected_at), lang) })}
           </span>
           {o.language && o.language.slice(0, 2) !== lang && (
             <span className="shrink-0 text-[0.8rem] text-muted">· {langName(o.language)}</span>
           )}
-          <span className="hidden min-w-0 flex-1 truncate text-[0.8rem] text-muted md:block" title={o.source_name ?? undefined}>
-            {o.source_name && <>· {t('news.card.via')} {o.source_name}</>}
+          <span className="hidden min-w-0 flex-1 truncate text-[0.8rem] text-muted md:block" title={((lang === 'en' && o.source_name_en) || o.source_name) ?? undefined}>
+            {o.source_name && <>· {t('news.card.via')} {(lang === 'en' && o.source_name_en) || o.source_name}</>}
           </span>
           <a href={o.url} target="_blank" rel="noreferrer" className="link ml-auto inline-flex shrink-0 items-center gap-1 text-[0.86rem]" title={t('news.card.opensNewTab')}>
             {t('news.card.outletOpen')} <ExternalLink size={13} />
@@ -224,8 +224,8 @@ export function NewsCard({ item, actions }: { item: NewsItem; actions: CardActio
         )}
         {item.source && (
           <span className="ml-auto flex min-w-[14rem] flex-1 items-center justify-end gap-2 text-[0.8rem] text-muted">
-            <span className="min-w-0 truncate" title={`${t('prov.source')}: ${item.source.name}${item.source.publisher ? ` (${item.source.publisher})` : ''}`}>
-              {t('news.card.via')} {item.source.name}
+            <span className="min-w-0 truncate" title={`${t('prov.source')}: ${sourceName(item.source, lang)}${item.source.publisher ? ` (${item.source.publisher})` : ''}`}>
+              {t('news.card.via')} {sourceName(item.source, lang)}
             </span>
             {item.reliability && <span className="shrink-0"><ReliabilityBadge reliability={item.reliability} /></span>}
           </span>

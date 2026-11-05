@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import calendar
+import json
 import re
 from datetime import date, datetime, timedelta
+from enum import Enum
 
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -100,10 +103,37 @@ def iso(v):
     return v
 
 
+def _json_default(o):
+    """What FastAPI's encoder does for the non-JSON values our answers contain."""
+    if isinstance(o, (date, datetime)):
+        return o.isoformat()
+    if isinstance(o, (set, frozenset, tuple)):
+        return list(o)
+    if isinstance(o, Enum):
+        return o.value
+    raise TypeError(f"not JSON serialisable: {type(o).__name__}")
+
+
+class FastJSONResponse(JSONResponse):
+    """The same bytes as FastAPI's default answer, written in one pass by the json module.
+
+    FastAPI first walks every value of a returned dict through `jsonable_encoder` (half a second
+    for the 900,000 values of a full customs price history) before writing it; an endpoint that
+    returns this response skips that walk. Dates become ISO strings, as before."""
+
+    def render(self, content) -> bytes:
+        return json.dumps(content, ensure_ascii=False, allow_nan=False, indent=None, separators=(",", ":"),
+                          default=_json_default).encode("utf-8")
+
+
+def json_response(content) -> FastJSONResponse:
+    return FastJSONResponse(content)
+
+
 def source_brief(source: Source | None) -> dict | None:
     if source is None:
         return None
-    return {"key": source.key, "name": source.name, "publisher": source.publisher,
+    return {"key": source.key, "name": source.name, "name_en": source.name_en, "publisher": source.publisher,
             "reliability": source.reliability, "homepage": source.homepage}
 
 

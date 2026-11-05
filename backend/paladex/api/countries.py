@@ -21,7 +21,7 @@ from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import String, cast, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from ..db import get_db
 from ..enums import PriceType
@@ -36,6 +36,7 @@ from ..models import (
 )
 from ..reference.countries import PRIORITY_ISO3
 from .common import demo_clause, iso
+from .memo import cached
 from .trade import (
     FLOWS,
     PSEUDO_AREAS,
@@ -115,6 +116,8 @@ def _production_rows(ctx: Ctx, iso3: str | None = None, metric: str | None = Non
     if iso3:
         q = q.where(P.country_iso3 == iso3)
     q = q.where(P.metric == metric) if metric else q.where(national_metric_clause(P))
+    # `extra` (JSON) and the revision bookkeeping are never read here: not loaded (a third of the time)
+    q = q.options(defer(P.extra), defer(P.value_hash), defer(P.series_key))
     return list(ctx.db.scalars(q.order_by(P.period_start)))
 
 
@@ -269,13 +272,15 @@ def _able(ctx: Ctx, providers: list[dict], iso3: str, kind: str) -> list[dict]:
     sources that have stored nothing yet."""
     db = ctx.db
     T, P = TradeFlowObservation, PriceObservation
+    # (each DISTINCT reads a whole table: once per database state, memo.py)
     if kind == "prices":
-        have_ids = set(db.scalars(select(P.source_id).distinct()))
+        have_ids = cached(db, "countries.sources_with", (kind,), lambda: set(db.scalars(select(P.source_id).distinct())))
     else:
-        have_ids = set(db.scalars(select(T.source_id).where(T.flow == kind).distinct()))
+        have_ids = cached(db, "countries.sources_with", (kind,),
+                          lambda: set(db.scalars(select(T.source_id).where(T.flow == kind).distinct())))
     if not hasattr(ctx, "_sources_with_rows"):
-        ctx._sources_with_rows = {sid for model in (T, P, ProductionStat)
-                                  for sid in db.scalars(select(model.source_id).distinct())}
+        ctx._sources_with_rows = cached(db, "countries.sources_with_rows", (), lambda: {
+            sid for model in (T, P, ProductionStat) for sid in db.scalars(select(model.source_id).distinct())})
     have = {s.key for sid in have_ids if (s := ctx.source(sid))}
     ran = {s.key for sid in ctx._sources_with_rows if (s := ctx.source(sid))}
     return [p for p in providers if p["key"] in have or p["key"] not in ran]
@@ -383,21 +388,12 @@ def list_countries(db: Session = Depends(get_db)):
     totals = Totals(ctx)
     exports = latest_totals(ctx, "export", totals=totals)
     imports = latest_totals(ctx, "import", totals=totals)
-    production = latest_production(ctx)
+    # every production row of every country: one answer per database state (memo.py)
+    production = cached(db, "countries.latest_production", (), lambda: latest_production(ctx))
 
-    # Availability counts (one cheap grouped query each)
+    # Availability counts (one grouped query each, over every price and trade row: once per database state)
     P, T, A, R, S = PriceObservation, TradeFlowObservation, NewsArticle, RegulationItem, ProductionStat
-    price_counts = dict(db.execute(select(P.origin_iso3, func.count()).where(P.is_current.is_(True), demo_clause(P, db))
-                                   .group_by(P.origin_iso3)).all())
-    prod_counts = dict(db.execute(select(S.country_iso3, func.count()).where(S.is_current.is_(True), demo_clause(S, db))
-                                  .group_by(S.country_iso3)).all())
-    trade_rep: dict[str, set[str]] = defaultdict(set)
-    for reporter, flow in db.execute(select(T.reporter_iso3, T.flow).where(*base_where(db)).distinct()):
-        trade_rep[reporter].add(flow)
-    mirror: dict[str, set[str]] = defaultdict(set)
-    for partner, flow in db.execute(select(T.partner_iso3, T.flow).where(*base_where(db),
-                                                                         T.partner_iso3.not_in(sorted(PSEUDO_AREAS))).distinct()):
-        mirror[partner].add("export" if flow == "import" else "import")
+    price_counts, prod_counts, trade_rep, mirror = cached(db, "countries.availability", (), lambda: _availability(db))
 
     news_30d: dict[str, int] = defaultdict(int)
     news_latest: dict[str, datetime] = {}
@@ -466,6 +462,22 @@ def list_countries(db: Session = Depends(get_db)):
                      "sources": [], "years": [], "providers": ctx.providers("news")},
         },
     }
+
+
+def _availability(db: Session) -> tuple[dict, dict, dict[str, set[str]], dict[str, set[str]]]:
+    P, T, S = PriceObservation, TradeFlowObservation, ProductionStat
+    price_counts = dict(db.execute(select(P.origin_iso3, func.count()).where(P.is_current.is_(True), demo_clause(P, db))
+                                   .group_by(P.origin_iso3)).all())
+    prod_counts = dict(db.execute(select(S.country_iso3, func.count()).where(S.is_current.is_(True), demo_clause(S, db))
+                                  .group_by(S.country_iso3)).all())
+    trade_rep: dict[str, set[str]] = defaultdict(set)
+    for reporter, flow in db.execute(select(T.reporter_iso3, T.flow).where(*base_where(db)).distinct()):
+        trade_rep[reporter].add(flow)
+    mirror: dict[str, set[str]] = defaultdict(set)
+    for partner, flow in db.execute(select(T.partner_iso3, T.flow).where(*base_where(db),
+                                                                         T.partner_iso3.not_in(sorted(PSEUDO_AREAS))).distinct()):
+        mirror[partner].add("export" if flow == "import" else "import")
+    return price_counts, prod_counts, dict(trade_rep), dict(mirror)
 
 
 def _headline(total: dict | None) -> dict | None:

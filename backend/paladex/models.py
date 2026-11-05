@@ -66,7 +66,8 @@ class Source(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     key: Mapped[str] = mapped_column(String(60), unique=True, index=True)
-    name: Mapped[str] = mapped_column(String(200))
+    name: Mapped[str] = mapped_column(String(200))                      # Italian (default language)
+    name_en: Mapped[str | None] = mapped_column(String(200))            # official English name (None = name)
     publisher: Mapped[str | None] = mapped_column(String(200))
     homepage: Mapped[str | None] = mapped_column(String(500))
     kind: Mapped[str] = mapped_column(String(20))                # SourceKind

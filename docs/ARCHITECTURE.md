@@ -68,7 +68,7 @@ Tables:
 * `news_articles` stores the canonical URL, publisher, language, snippet, image, countries, topics, relevance, AI title/summary in IT/EN, and the duplicate chain.
 * `regulations` covers EU/US/IT measures with reference (CELEX, Federal Register number), type, status, dates, URL and affected countries.
 * `tariff_measures` holds import duties on honey by origin (EU TARIC through the UK XI service, US HTS): measure type, duty as published, ad valorem rate, tariff quotas and their balances, with the same revision columns.
-* `company_records` (`models_companies.py`) holds honey exporters and importers by company, only from official sources that publish them (Uruguay XXI SIE, HMRC): name and location as published, role, product code, period and what the figure is (`exact_value`, `value_band`, `exact_volume`, `rank` or `none` for a names-only list), with the same provenance and revision columns.
+* `company_records` (`models_companies.py`) holds honey exporters and importers by company, only from official sources that publish them (Uruguay XXI SIE, HMRC, India EIC, Canada CID): name and location as published, role, product code, period and what the figure is (`exact_value`, `value_band`, `exact_volume`, `rank` or `none` for a names-only list), with the same provenance and revision columns.
 * `supplier_quotes`, `alert_rules`, `alert_events` and `briefings` hold user and business data (Milestones 6–7).
 * `data_quality_issues` tracks stale, missing, outlier, discrepancy, parse_warning and collection_failed issues, with auto-resolution.
 * `sources`, `collection_runs`, `raw_documents`, `countries` and `app_settings` support the system itself.

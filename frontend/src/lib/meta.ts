@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { api } from './api'
-import type { Meta } from './types'
+import type { Lang, Meta } from './types'
 import { useI18n } from '@/i18n'
 
 export function useMeta() {
@@ -37,4 +37,11 @@ export function useLabels() {
   const dataStatus = useCallback((k: string | null | undefined) => pick(data?.data_status, k), [data, pick])
   const reliability = useCallback((k: string | null | undefined) => pick(data?.reliability, k), [data, pick])
   return { country, variety, priceType, dataStatus, reliability, meta: data }
+}
+
+/** A data source's name in the interface language: its official English name in English
+ * (`name_en`, sent by the API with every source), else the name as registered (Italian). */
+export function sourceName(s: { name: string; name_en?: string | null } | null | undefined, lang: Lang): string {
+  if (!s) return ''
+  return (lang === 'en' && s.name_en) || s.name
 }

@@ -5,7 +5,7 @@ import { AlertTriangle, ExternalLink, Info, Loader2, Sparkles } from 'lucide-rea
 import type { ReactNode, SelectHTMLAttributes } from 'react'
 import { useI18n } from '@/i18n'
 import { fmtAgo, fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
-import { useLabels } from '@/lib/meta'
+import { sourceName, useLabels } from '@/lib/meta'
 import { isMirrorMissing } from '@/lib/mirror'
 import type { FreshnessStatus, Provenance } from '@/lib/types'
 
@@ -115,7 +115,7 @@ export function SourceLine({ p, compact = false, className }: { p: Partial<Prove
       {p.is_demo && <DemoBadge />}
       {p.source && (
         <span>
-          {t('prov.source')}: <span className="text-charcoal-soft font-medium">{p.source.publisher || p.source.name}</span>
+          {t('prov.source')}: <span className="text-charcoal-soft font-medium">{p.source.publisher || sourceName(p.source, lang)}</span>
         </span>
       )}
       {p.period_label && !compact && <span>· {t('prov.period')}: {fmtPeriod(p.period_label, lang)}</span>}

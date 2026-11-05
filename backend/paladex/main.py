@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
 
 from . import scheduler
-from .api import build_router
+from .api import build_router, memo
 from .collectors import base as _collector_base  # noqa: F401 - installs the httpx log filter that redacts API keys in URLs
 from .config import get_settings
 from .db import init_db
@@ -110,6 +110,8 @@ class LocalOnlyGuard:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    memo.enable_warming()
+    memo.warm_in_background()     # trade totals, overview analyses: ready before the first visit
     scheduler.start()
     yield
     scheduler.shutdown()

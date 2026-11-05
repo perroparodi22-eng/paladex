@@ -85,7 +85,28 @@ def init_db(url: str | None = None) -> Engine:
     migrate_add_missing_columns(engine)
     with session_scope() as s:
         seed_reference_data(s)
+    refresh_planner_stats(engine)
     return engine
+
+
+def refresh_planner_stats(engine: Engine | None = None) -> None:
+    """Table statistics for SQLite's query planner (`ANALYZE` -> sqlite_stat1).
+
+    Without them the planner assumes that an equality on ANY indexed column is selective, and reads
+    the 120,000 trade rows of a country profile through the `is_demo` index (every row matches)
+    instead of the reporter index: 1 s instead of 0.2 s. ANALYZE takes a fraction of a second; it
+    runs at start-up and after each collection, so the statistics follow the data as it grows.
+    Query results never depend on it, only their speed."""
+    engine = engine or get_engine()
+    if engine.dialect.name != "sqlite":
+        return
+    try:
+        with engine.begin() as conn:
+            conn.exec_driver_sql("ANALYZE")
+    except Exception as exc:  # pragma: no cover - e.g. database locked by a long collection
+        import logging
+
+        logging.getLogger(__name__).warning("planner statistics not refreshed: %s", exc)
 
 
 def migrate_add_missing_columns(engine: Engine) -> list[str]:

@@ -774,6 +774,7 @@ class _ComexAgg:
 class BrComexStatCollector(Collector):
     key = "br_comexstat"
     name = "Brasile – MDIC/SECEX Comex Stat: esportazioni di miele (NCM 04090000)"
+    name_en = "Brazil – MDIC/SECEX Comex Stat: honey exports (NCM 04090000)"
     publisher = "MDIC – Secretaria de Comércio Exterior (SECEX), Brazil"
     homepage = "https://comexstat.mdic.gov.br"
     kind = SourceKind.API
@@ -1226,6 +1227,7 @@ def _scrub(text: str, secret: str | None) -> str:
 class UsCensusTradeCollector(Collector):
     key = "us_census_trade"
     name = "US Census Bureau – Importazioni USA di miele per origine (HS 0409)"
+    name_en = "US Census Bureau – US honey imports by origin (HS 0409)"
     publisher = "U.S. Census Bureau, Economic Indicators Division (International Trade)"
     homepage = "https://www.census.gov/data/developers/data-sets/international-trade.html"
     kind = SourceKind.API

@@ -43,3 +43,35 @@ def test_sources_api_returns_both_languages(api):
     siena = rows["cciaa_siena_miele"]
     assert siena["expected_update"] == "Settimanale (listino del mercoledì)"
     assert siena["expected_update_en"] == "Weekly (Wednesday price list)"
+
+
+# --- English source names (name_en) -----------------------------------------------------------------
+# Collectors being written in parallel set their own; every other module must give one.
+_NEW_MODULES = ("production_official", "trade_origins", "companies_official")
+
+
+@pytest.mark.parametrize("c", [c for c in all_collectors() if type(c).__module__.rsplit(".", 1)[-1] not in _NEW_MODULES],
+                         ids=lambda c: c.key)
+def test_every_collector_has_an_english_name(c):
+    spec = c.source_spec()
+    assert "name_en" in spec
+    en = spec["name_en"] or spec["name"]           # "" only when the name is already English
+    assert en and not ITALIAN_WORDS.search(_prose(en).replace("Comext", "")), (c.key, en)
+
+
+def test_source_name_en_is_stored_migrated_and_sent(db, api, tmp_path):
+    from sqlalchemy import create_engine, inspect, text
+
+    from paladex.db import migrate_add_missing_columns
+
+    old = create_engine(f"sqlite:///{tmp_path / 'old.sqlite3'}")
+    with old.begin() as conn:
+        conn.execute(text("CREATE TABLE sources (id INTEGER PRIMARY KEY, key VARCHAR(60), name VARCHAR(200))"))
+    assert "sources.name_en" in migrate_add_missing_columns(old)
+    assert "name_en" in {c["name"] for c in inspect(old).get_columns("sources")}
+
+    by_key = {s["key"]: s for s in api.get("/api/sources").json()["sources"]}
+    assert by_key["cciaa_cuneo_miele"]["name_en"] == "Chamber of Commerce of Cuneo — wholesale honey prices"
+    assert by_key["ec_honey_market"]["name_en"].startswith("European Commission — DG Agriculture")
+    assert by_key["news_gn_it_prezzo_miele"]["name_en"] == "Google News · honey price (Italian)"
+    assert by_key["news_bee_culture"]["name_en"] is None   # already English: the name is shown

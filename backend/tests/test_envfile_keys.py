@@ -61,3 +61,30 @@ def test_api_refuses_unknown_settings_bad_values_and_form_posts(env_file, api):
     # A plain HTML form (what another website could make the browser send) is not accepted.
     assert api.put("/api/quality/keys/census_api_key", data={"value": "x"}).status_code == 422
     assert not re.search(r"^PALADEX_DATA_DIR=", env_file.read_text(), re.M)   # only the example's comment
+
+
+def test_ai_service_and_key_from_the_interface_apply_without_restart(env_file, api, monkeypatch):
+    """The Assistant / Sources panel: provider + key saved in .env, the status follows at once."""
+    monkeypatch.delenv("PALADEX_LLM_PROVIDER", raising=False)       # the test fixture pins it in the environment
+    from paladex.config import get_settings
+
+    get_settings.cache_clear()
+    st = api.get("/api/assistant/status").json()
+    assert st["llm_enabled"] is False and st["provider_setting"] == "none"
+    assert st["keys_saved"] == {"anthropic": False, "openai": False}
+    assert api.put("/api/quality/keys/anthropic_api_key", json={"value": "sk-ant-test-123"}).json()["configured"] is True
+    assert api.put("/api/quality/keys/llm_provider", json={"value": "anthropic"}).status_code == 200
+    st = api.get("/api/assistant/status").json()
+    assert st["llm_enabled"] is True and st["provider"] == "anthropic" and st["provider_setting"] == "anthropic"
+    assert st["keys_saved"] == {"anthropic": True, "openai": False}
+    assert "sk-ant-test-123" not in api.get("/api/assistant/status").text   # never sent back
+    assert api.get("/api/meta").json()["flags"]["llm_enabled"] is True
+    # switched off from the panel: the key stays saved, the AI is off
+    api.put("/api/quality/keys/llm_provider", json={"value": "none"})
+    st = api.get("/api/assistant/status").json()
+    assert st["llm_enabled"] is False and st["keys_saved"]["anthropic"] is True
+    text = env_file.read_text()
+    assert "PALADEX_LLM_PROVIDER=none" in text and "PALADEX_ANTHROPIC_API_KEY=sk-ant-test-123" in text
+    # "delete the saved key"
+    assert api.put("/api/quality/keys/anthropic_api_key", json={"value": ""}).json()["configured"] is False
+    assert api.get("/api/assistant/status").json()["keys_saved"]["anthropic"] is False

@@ -321,7 +321,7 @@ def check_stale(sources: list[Source], today: date) -> list[Finding]:
             message_it=(f"«{s.name}»: il dato più recente è del {_date(ref, 'it')} ({age} giorni fa), "
                         f"mentre questa fonte di solito si aggiorna entro {exp} giorni. "
                         f"I suoi dati non vanno considerati attuali."),
-            message_en=(f"“{s.name}”: the newest data is from {_date(ref, 'en')} ({age} days ago), "
+            message_en=(f"“{s.name_en or s.name}”: the newest data is from {_date(ref, 'en')} ({age} days ago), "
                         f"while this source usually updates within {exp} days. "
                         f"Its data should not be treated as current."),
             details={"reference_date": ref.isoformat(), "age_days": age, "expected_max_age_days": exp,
@@ -362,14 +362,14 @@ def check_collection(session: Session, sources: list[Source]) -> list[Finding]:
             it = (f"«{s.name}»: gli ultimi {streak} aggiornamenti non sono riusciti "
                   f"(dal {_date(first.started_at, 'it')} al {_date(last.started_at, 'it')}). Motivo: {why['it']} "
                   f"I dati raccolti in precedenza restano disponibili.")
-            en = (f"“{s.name}”: the last {streak} updates failed "
+            en = (f"“{s.name_en or s.name}”: the last {streak} updates failed "
                   f"({_date(first.started_at, 'en')} to {_date(last.started_at, 'en')}). Reason: {why['en']} "
                   f"Previously collected data remains available.")
         else:
             severity = Severity.WARNING
             it = (f"«{s.name}»: l'ultimo aggiornamento ({_date(last.started_at, 'it')}) non è riuscito. "
                   f"Motivo: {why['it']} I dati raccolti in precedenza restano disponibili.")
-            en = (f"“{s.name}”: the last update ({_date(last.started_at, 'en')}) failed. "
+            en = (f"“{s.name_en or s.name}”: the last update ({_date(last.started_at, 'en')}) failed. "
                   f"Reason: {why['en']} Previously collected data remains available.")
         out.append(Finding(
             dedup_key=f"collect:{s.key}",
@@ -414,7 +414,7 @@ def check_missing_keys(sources: list[Source]) -> list[Finding]:
             message_it=(f"«{s.name}» non viene aggiornata perché manca la chiave di accesso gratuita. "
                         f"Per attivarla: {where_it}apri il file .env nella cartella dell'applicazione, "
                         f"incolla la chiave dopo {env}= e riavvia l'applicazione."),
-            message_en=(f"“{s.name}” is not updated because its free access key is missing. "
+            message_en=(f"“{s.name_en or s.name}” is not updated because its free access key is missing. "
                         f"To turn it on: {where_en}open the .env file in the application folder, "
                         f"paste the key after {env}= and restart the application."),
             details={"setting": s.requires_key, "env_var": env, "signup_url": url, "service": help_.get("service"),
@@ -477,7 +477,7 @@ def _series_label(r, src: Source | None, lang: str) -> str:
     parts.append(_price_type_label(r.price_type, lang))
     if r.market_iso3:
         parts.append(("mercato " if lang == "it" else "market ") + country_name(r.market_iso3, lang))
-    name = src.name if src else "?"
+    name = (src.name if lang == "it" else (src.name_en or src.name)) if src else "?"
     q = ("«", "»") if lang == "it" else ("“", "”")
     return f"{q[0]}{name}{q[1]} {', '.join(parts)}"
 
@@ -637,6 +637,7 @@ def check_discrepancies(rows: list[Any], src_by_id: dict[int, Source]) -> list[F
                      "market_iso3": market, "organic": organic,
                      "values": [{"source_key": src_by_id[sid].key if sid in src_by_id else None,
                                  "source_name": src_by_id[sid].name if sid in src_by_id else None,
+                                 "source_name_en": src_by_id[sid].name_en if sid in src_by_id else None,
                                  "value": round(v, 6), "observation_ids": [r.id for r in per_source[sid]]}
                                 for sid, v in ordered],
                      "source_keys": [src_by_id[sid].key for sid, _ in ordered if sid in src_by_id],

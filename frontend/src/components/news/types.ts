@@ -31,6 +31,7 @@ export interface DuplicateOutlet {
   language: string | null
   source_key: string | null
   source_name: string | null
+  source_name_en?: string | null
 }
 
 export interface NewsItem {
@@ -77,7 +78,7 @@ export interface NewsDetail extends NewsItem {
 
 export interface CountryFacet { key: string; count: number; name_it: string; name_en: string; origin_of_interest: boolean }
 export interface TopicFacet { key: TopicKey; it: string; en: string; count: number }
-export interface SourceFacet { key: string; name: string; publisher: string | null; reliability: string; count: number }
+export interface SourceFacet { key: string; name: string; name_en?: string | null; publisher: string | null; reliability: string; count: number }
 export interface LanguageFacet { key: string; count: number }
 
 export interface NewsFacets {

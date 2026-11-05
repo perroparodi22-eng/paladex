@@ -53,6 +53,7 @@ starter/                     real starter data merged at start-up (services/star
 * Use `Depends(get_db)`, filter demo rows with `demo_clause(Model, db)` and current revisions with `Model.is_current.is_(True)`.
 * Return provenance: `source` (via `source_brief`), `source_url`, `published_at`, `collected_at`, `period_label`, `period_start`, `period_end`, `data_status`, `reliability`, `is_demo`.
 * Anything that changes data or calls a paid service (AI) is a POST, PUT or DELETE, never a GET: the server refuses those methods from other websites (`main.LocalOnlyGuard`), which a GET cannot be protected against in every browser.
+* An aggregate that reads a whole table (trade totals, every price row of a type) goes through `memo.cached(db, name, params, compute)`: it is reused until the next commit to the database (SQLite `PRAGMA data_version`, also seen from other processes) or the next day. The cached value is shared between requests: never modify it. Large answers can return `common.json_response(...)` (same bytes, without FastAPI's slow encoder pass).
 * Tests use the `api` fixture (FastAPI TestClient on a fresh database, addressed as `http://127.0.0.1:8765`: the server answers loopback host names only).
 
 ## Frontend conventions

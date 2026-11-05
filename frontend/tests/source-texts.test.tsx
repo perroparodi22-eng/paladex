@@ -5,7 +5,9 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { TradeNotes } from '@/components/trade/TradeNotes'
 import type { FacetsResponse } from '@/components/trade/types'
+import { SourceLine } from '@/components/ui'
 import { expectedUpdate } from '@/i18n'
+import { sourceName } from '@/lib/meta'
 import { render, text } from './helpers'
 
 const source = (key: string, publisher: string, it: string, en: string | null) => ({
@@ -35,4 +37,14 @@ test('a source without an English text falls back to the Italian one instead of 
   assert.equal(expectedUpdate({ expected_update: 'Settimanale', expected_update_en: 'Weekly' }, 'en'), 'Weekly')
   assert.equal(expectedUpdate({ expected_update: 'Settimanale', expected_update_en: 'Weekly' }, 'it'), 'Settimanale')
   assert.equal(expectedUpdate({ expected_update: null }, 'it'), null)
+})
+
+test('source names: the official English name in English, the registered (Italian) one otherwise', () => {
+  const src = { key: 'cciaa_cuneo_miele', name: "CCIAA Cuneo - Listino prezzi all'ingrosso: Miele",
+    name_en: 'Chamber of Commerce of Cuneo — wholesale honey prices', publisher: null, reliability: 'official', homepage: null }
+  assert.equal(sourceName(src, 'en'), 'Chamber of Commerce of Cuneo — wholesale honey prices')
+  assert.equal(sourceName(src, 'it'), "CCIAA Cuneo - Listino prezzi all'ingrosso: Miele")
+  assert.equal(sourceName({ ...src, name_en: null }, 'en'), src.name)       // already English, or not given
+  assert.match(text(render(<SourceLine p={{ source: src }} />, { lang: 'en' })), /Source: Chamber of Commerce of Cuneo — wholesale honey prices/)
+  assert.match(text(render(<SourceLine p={{ source: src }} />)), /CCIAA Cuneo - Listino prezzi all'ingrosso: Miele/)
 })

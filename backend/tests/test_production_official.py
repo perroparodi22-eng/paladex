@@ -1,15 +1,16 @@
-"""Tests for collectors/production_official.py: Brazil IBGE SIDRA table 74 (br_ibge_honey) and
-Argentina SAGyP RENAPA (ar_magyp_hives).
+"""Tests for collectors/production_official.py: Brazil IBGE SIDRA table 74 (br_ibge_honey),
+Argentina SAGyP RENAPA (ar_magyp_hives), Chile Odepa (cl_odepa_hives), Canada Statistics Canada
+(ca_statcan_honey), Mexico SIAP (mx_siap_honey) and Turkey TÜİK (tr_tuik_honey).
 
 Every `real_*` fixture in tests/fixtures/production_official/ is an unmodified capture of the live
-source (5 Nov 2026, see the README there). Variants (a revision, drift, an inconsistent extract)
+source (4-5 Nov 2026, see the README there). Variants (a revision, drift, an inconsistent extract)
 are built in the tests from those captures and say what they change.
 """
 from __future__ import annotations
 
 import json
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -66,9 +67,9 @@ def _static(spec):
 
 @pytest.fixture()
 def run(db, monkeypatch):
-    """Run a collector offline. `routes` maps an exact URL to bytes | (status, bytes[, content type])
-    | callable(request). Every request of the last run is in `run.sent`; any other URL fails as
-    'offline' (the internet check is patched to say offline)."""
+    """Run a collector offline. `routes` maps an exact URL (a GET), or ("POST", url), to bytes |
+    (status, bytes[, content type]) | callable(request). Every request of the last run is in
+    `run.sent`; any other URL fails as 'offline' (the internet check is patched to say offline)."""
     from paladex.collectors import base, runner
     from paladex.collectors.runner import run_collector
 
@@ -86,8 +87,9 @@ def run(db, monkeypatch):
             return side_effect
 
         with respx.mock(assert_all_called=False) as mock:
-            for url, spec in routes.items():
-                mock.route(method="GET", url=url).mock(side_effect=recorded(_static(spec)))
+            for target, spec in routes.items():
+                method, url = target if isinstance(target, tuple) else ("GET", target)
+                mock.route(method=method, url=url).mock(side_effect=recorded(_static(spec)))
 
             def unrouted(request):
                 sent.append(request)
@@ -721,3 +723,411 @@ def test_odepa_unreadable_table_stores_nothing(run, odepa_pdf, session_factory):
     assert res["status"] == "failed" and "Total nacional' row has 6 values" in res["error"]
     with session_factory() as s:
         assert _rows(s, "cl_odepa_hives", current=None) == []
+
+
+# ---------------------------------------------------------------------------------------------
+# Canada, Mexico, Turkey: registration
+# ---------------------------------------------------------------------------------------------
+
+
+def test_new_collectors_registered_with_official_metadata():
+    from paladex.collectors.registry import all_collectors, get_collector
+
+    all_collectors(refresh=True)
+    for key, iso3 in (("ca_statcan_honey", "CAN"), ("mx_siap_honey", "MEX"), ("tr_tuik_honey", "TUR")):
+        c = get_collector(key)
+        assert c is not None, key
+        assert c.reliability == "official" and c.category == "production" and c.country_iso3 == iso3
+        assert c.requires_key is None and c.default_enabled is True
+        assert 0 < len(c.expected_update) < 120 and 0 < len(c.expected_update_en) < 120
+        assert c.name_en and len(c.name) <= 200 and len(c.name_en) <= 120
+        assert c.schedule["trigger"] == "cron" and "day" in c.schedule      # monthly
+        assert c.expected_max_age_days and c.terms_note
+
+
+# ---------------------------------------------------------------------------------------------
+# Canada, Statistics Canada table 32-10-0353-01
+# ---------------------------------------------------------------------------------------------
+
+STATCAN_META_ROUTE = ("POST", po.STATCAN_METADATA_URL)
+STATCAN_DATA_ROUTE = ("POST", po.STATCAN_DATA_URL)
+
+
+def statcan_routes(meta: bytes | None = None, data: bytes | None = None) -> dict:
+    return {STATCAN_META_ROUTE: meta if meta is not None else F("real_statcan_getCubeMetadata.json"),
+            STATCAN_DATA_ROUTE: data if data is not None else F("real_statcan_data_honey_2015-2025.json")}
+
+
+def statcan_cube() -> po.StatcanCube:
+    return po.parse_statcan_metadata(F("real_statcan_getCubeMetadata.json"))
+
+
+def edit_statcan(doc: bytes, edit) -> bytes:
+    d = json.loads(doc)
+    edit(d)
+    return json.dumps(d).encode()
+
+
+def test_real_statcan_metadata_and_request():
+    cube = statcan_cube()
+    assert (cube.start_year, cube.end_year, cube.release_time) == (1924, 2025, "2026-04-29T09:23")
+    assert {k: m.member_id for k, m in cube.estimates.items()} == {"beekeepers": 1, "colonies": 2, "production": 4, "value": 5}
+    assert cube.national_id == 1 and len(cube.geos) == 10 and cube.terminated == []
+    assert {g.code for g in cube.geos.values() if g.geo_level == 2} == {"11", "12", "13", "24", "35", "46", "47", "48", "59"}
+    assert "Does not include Newfoundland and Labrador." in cube.notes_for(1, 4)
+    assert "Production excludes inventory." in cube.notes_for(1, 4)
+    assert "Production excludes inventory." not in cube.notes_for(1, 2)
+    assert cube.corrections and cube.corrections[0].startswith("2025-12-19")
+    body = po.statcan_request_body(cube)
+    # the body the README fixture was captured with
+    assert body == [{"productId": 32100353, "coordinate": f"{g}.{e}.0.0.0.0.0.0.0.0", "latestN": 11}
+                    for g in range(1, 11) for e in (1, 2, 4, 5)]
+
+
+def test_real_statcan_data():
+    cube = statcan_cube()
+    points, problems = po.parse_statcan_data(F("real_statcan_data_honey_2015-2025.json"), cube)
+    assert problems == [] and len(points) == 10 * 4 * 11
+    can = {(p.estimate, p.year): p for p in points if p.geo_id == 1}
+    p25 = can[("production", 2025)]
+    assert (p25.raw, p25.scalar_code, p25.value, p25.flag) == (84080.0, 3, 84080000.0, None)
+    assert p25.release == datetime(2026, 4, 29, 8, 30) and p25.vector_id == 47879
+    assert can[("value", 2024)].raw == 210238.0 and can[("colonies", 2025)].raw == 854653.0
+    assert can[("beekeepers", 2025)].raw == 16360.0
+    assert can[("production", 2023)].release == datetime(2024, 12, 12, 8, 30)
+    # provinces add up to Canada except one published inconsistency (beekeepers 2017), reported, never fixed
+    assert po.check_statcan_totals(points, cube) == [
+        "Statistics Canada: Beekeepers 2017: the provinces add up to 10,607, Canada is 10,589; both kept as published"]
+    # the 4 Nov capture (estimates 2, 4, 5, latest 5 years) reads the same figures
+    old, _ = po.parse_statcan_data(F("real_statcan_data_latest5.json"), cube)
+    assert {(p.geo_id, p.estimate, p.year): p.raw for p in old} == {
+        (p.geo_id, p.estimate, p.year): p.raw for p in points if p.year >= 2021 and p.estimate != "beekeepers"}
+
+
+def test_statcan_refusals_and_drift_fail_loudly():
+    cube = statcan_cube()
+    with pytest.raises(CollectorError, match="no data point"):     # the real answer to a wrong coordinate
+        po.parse_statcan_data(F("real_statcan_data_invalid_coordinate.json"), cube)
+    meta = F("real_statcan_getCubeMetadata.json")
+
+    def unit(d):
+        d[0]["object"]["dimension"][1]["member"][3]["memberUomCode"] = 9999       # production no longer in pounds
+    with pytest.raises(CollectorError, match="unit drift"):
+        po.parse_statcan_metadata(edit_statcan(meta, unit))
+
+    def renamed(d):
+        d[0]["object"]["dimension"][1]["member"][4]["memberNameEn"] = "Value of honey"
+    with pytest.raises(CollectorError, match="no estimate 'Value of natural honey, total'"):
+        po.parse_statcan_metadata(edit_statcan(meta, renamed))
+
+    def dims(d):
+        d[0]["object"]["dimension"][0]["dimensionNameEn"] = "Region"
+    with pytest.raises(CollectorError, match="dimensions"):
+        po.parse_statcan_metadata(edit_statcan(meta, dims))
+
+    def quarterly(d):
+        d[0]["object"]["vectorDataPoint"][0]["refPer"] = "2015-04-01"
+    with pytest.raises(CollectorError, match="not a year"):
+        po.parse_statcan_data(edit_statcan(F("real_statcan_data_honey_2015-2025.json"), quarterly), cube)
+
+
+def test_statcan_end_to_end_on_the_real_answers(run, session_factory):
+    res = run("ca_statcan_honey", statcan_routes())
+    assert res["status"] == "partial", res          # the beekeepers 2017 inconsistency, reported once
+    assert res["warnings"] == ["Statistics Canada: Beekeepers 2017: the provinces add up to 10,607, Canada is 10,589; "
+                               "both kept as published"]
+    assert [(r.method, str(r.url)) for r in run.sent] == [STATCAN_META_ROUTE, STATCAN_DATA_ROUTE]
+    assert json.loads(run.sent[0].content) == [{"productId": 32100353}]
+    assert json.loads(run.sent[1].content) == po.statcan_request_body(statcan_cube())
+    assert res["new"] == 10 * 3 * 11
+
+    with session_factory() as s:
+        _no_duplicate_current(s)
+        rows = _rows(s, "ca_statcan_honey")
+        by_metric: dict[str, list[ProductionStat]] = {}
+        for r in rows:
+            by_metric.setdefault(r.metric, []).append(r)
+        assert {m: len(v) for m, v in by_metric.items()} == {
+            "production": 11, "production_value": 11, "colonies": 11,
+            "production_by_region": 99, "production_value_by_region": 99, "colonies_by_region": 99}
+        assert all(r.country_iso3 == "CAN" and r.frequency == "A" and r.reliability == "official" for r in rows)
+        assert all(r.data_status == "published" and r.source_url == po.STATCAN_TABLE_PAGE and r.raw_document_id
+                   for r in rows)
+        nat = {r.period_label: r for r in by_metric["production"]}
+        assert sorted(nat) == [str(y) for y in range(2015, 2026)]
+        p25 = nat["2025"]
+        assert (p25.value, p25.unit) == (38138.046, "t")             # 84,080 thousand lb x 0.45359237
+        assert p25.extra["value_as_published"] == 84080.0 and p25.extra["scalar"] == "thousands"
+        assert p25.extra["unit_as_published"] == "Pounds" and "0.45359237" in p25.extra["conversion"]
+        assert p25.published_at == date(2026, 4, 29) and "region" not in p25.extra
+        assert "Does not include Newfoundland and Labrador." in p25.extra["footnotes"]
+        assert nat["2024"].value == 33678.78 and nat["2023"].value == 43384.749
+        assert nat["2023"].published_at == date(2024, 12, 12)
+        val = {r.period_label: r for r in by_metric["production_value"]}["2025"]
+        assert (val.value, val.unit, val.extra["unit_as_published"]) == (241314.0, "1000 CAD", "Dollars")
+        col = {r.period_label: r for r in by_metric["colonies"]}["2025"]
+        assert (col.value, col.unit, col.extra["beekeepers"]) == (854653.0, "number", 16360.0)
+        ab = next(r for r in by_metric["production_by_region"] if r.extra["region_abbr"] == "AB" and r.period_label == "2025")
+        assert ab.series_key == "statcan|32-10-0353-01|CA-AB|production_by_region|2025"
+        assert (ab.extra["region"], ab.extra["region_code"], ab.extra["value_as_published"]) == ("Alberta", "48", 34216.0)
+        assert all("region" in r.extra for m in ("production_by_region", "production_value_by_region",
+                                                 "colonies_by_region") for r in by_metric[m])
+        raw = s.get(RawDocument, p25.raw_document_id)
+        assert raw.url == po.STATCAN_DATA_URL and raw.published_at == date(2026, 4, 29)
+        assert _state(s, "ca_statcan_honey")["release"] == "2025|2026-04-29T09:23|1"
+
+
+def test_statcan_second_run_is_the_metadata_only(run, session_factory):
+    assert run("ca_statcan_honey", statcan_routes())["status"] == "partial"
+    res = run("ca_statcan_honey", statcan_routes())
+    assert res["status"] == "no_change" and [str(r.url) for r in run.sent] == [po.STATCAN_METADATA_URL]
+    res = run("ca_statcan_honey", statcan_routes(), force=True)     # forced: read again, nothing new, no repeat warning
+    assert res["status"] == "no_change" and res["warnings"] == [] and len(run.sent) == 2
+
+
+def test_statcan_new_release_with_a_preliminary_revision(run, session_factory):
+    assert run("ca_statcan_honey", statcan_routes())["status"] == "partial"
+
+    def release(d):
+        d[0]["object"]["releaseTime"] = "2026-12-10T09:00"
+
+    def revise(d):
+        for item in d:
+            if item["object"]["coordinate"] == "1.4.0.0.0.0.0.0.0.0":
+                pt = item["object"]["vectorDataPoint"][-1]
+                pt.update({"value": 85000.0, "symbolCode": 1, "releaseTime": "2026-12-10T08:30"})
+    res = run("ca_statcan_honey", statcan_routes(meta=edit_statcan(F("real_statcan_getCubeMetadata.json"), release),
+                                                 data=edit_statcan(F("real_statcan_data_honey_2015-2025.json"), revise)))
+    assert res["revised"] == 1 and res["new"] == 0, res
+    # only Canada was changed: the provinces no longer add up, which is reported (once), never fixed
+    assert res["status"] == "partial" and res["warnings"] == [
+        "Statistics Canada: Production of natural honey, total 2025: the provinces add up to 84,080,000, Canada is "
+        "85,000,000; both kept as published"]
+    with session_factory() as s:
+        hist = _rows(s, "ca_statcan_honey", current=None, metric="production", period_label="2025")
+        assert [(r.value, r.is_current) for r in hist] == [(38138.046, False), (round(85000000 * 0.45359237 / 1000, 3), True)]
+        cur = hist[-1]
+        assert cur.data_status == "provisional" and cur.flag_raw == "p" and cur.published_at == date(2026, 12, 10)
+
+
+# ---------------------------------------------------------------------------------------------
+# Mexico, SIAP year-end close (cierre de la producción pecuaria)
+# ---------------------------------------------------------------------------------------------
+
+SIAP_YEARS = list(range(2015, 2026))
+XML = "text/xml; charset=\"iso-8859-1\""
+
+
+def siap_report(year: int) -> bytes:
+    return F(f"real_siap_xajax_reporte2_miel_{year}.xml")
+
+
+def siap_routes(**overrides: bytes) -> dict:
+    routes = {po.SIAP_YEARS_URL: (200, F("real_siap_xajax_llenaAnio.xml"), XML)}
+    for y in SIAP_YEARS:
+        routes[po.siap_report_url(y)] = (200, overrides.get(f"y{y}", siap_report(y)), XML)
+    return routes
+
+
+def test_siap_urls_are_the_ones_checked_live():
+    assert po.SIAP_YEARS_URL == "https://nube.agricultura.gob.mx/cierre_pecuario/?xajax=llenaAnio&xajaxargs%5B%5D=aniopec"
+    assert po.siap_report_url(2024) == (
+        "https://nube.agricultura.gob.mx/cierre_pecuario/?xajax=reporte2&xajaxargs%5B%5D=2024&xajaxargs%5B%5D=undefined"
+        "&xajaxargs%5B%5D=0&xajaxargs%5B%5D=0&xajaxargs%5B%5D=0&xajaxargs%5B%5D=0&xajaxargs%5B%5D=1000101"
+        "&xajaxargs%5B%5D=0&xajaxargs%5B%5D=0&xajaxargs%5B%5D=1910080&xajaxargs%5B%5D=Miel")
+
+
+def test_real_siap_answers():
+    assert po.parse_siap_years(F("real_siap_xajax_llenaAnio.xml")) == list(range(1980, 2026))
+    totals = {}
+    for y in SIAP_YEARS:
+        rep = po.parse_siap_report(siap_report(y), y)
+        assert rep.problems == [] and po.check_siap_report(rep) == [], y      # states = total, price = value / volume
+        assert [s.name for s in rep.states] == list(po.MX_STATES), y        # the 32 entities, INEGI order
+        totals[y] = rep.total
+    assert totals[2024].raw == ("57,430.360", "43.01", "2,469,836.120")
+    assert (totals[2024].production_t, totals[2024].price_mxn_kg, totals[2024].value_kmxn) == (57430.36, 43.01, 2469836.12)
+    assert totals[2025].production_t == 60297.544 and totals[2015].production_t == 61881.117
+    rep = po.parse_siap_report(siap_report(2024), 2024)
+    yuc = next(s for s in rep.states if s.name == "Yucatán")
+    assert (yuc.production_t, yuc.price_mxn_kg, yuc.value_kmxn) == (9250.391, 27.01, 249886.665)
+    assert rep.source_note.startswith("Fuente: Dirección General del Servicio de Información Agroalimentaria")
+
+
+def test_siap_drift_fails_loudly():
+    with pytest.raises(CollectorError, match="not 'Miel"):          # the real wax (cera) report
+        po.parse_siap_report(F("real_siap_xajax_reporte2_cera_2025.xml"), 2025)
+    with pytest.raises(CollectorError, match="asked for 2025"):
+        po.parse_siap_report(siap_report(2024), 2025)
+    with pytest.raises(CollectorError, match="columns"):
+        po.parse_siap_report(siap_report(2024).replace(b"(toneladas)", b"(kilogramos)"), 2024)
+    with pytest.raises(CollectorError, match="'Total' row is incomplete"):
+        po.parse_siap_report(siap_report(2024).replace(b"57,430.360", b"n.d."), 2024)
+    with pytest.raises(CollectorError, match="no 'Resultado' content"):
+        po.parse_siap_report(b'<?xml version="1.0" encoding="iso-8859-1" ?><xjx></xjx>', 2024)
+
+
+def test_siap_end_to_end_on_the_real_answers(run, session_factory):
+    from paladex.models import PriceObservation
+
+    res = run("mx_siap_honey", siap_routes())
+    assert res["status"] == "success", res
+    assert [str(r.url) for r in run.sent] == [po.SIAP_YEARS_URL] + [po.siap_report_url(y) for y in reversed(SIAP_YEARS)]
+    assert all(r.method == "GET" for r in run.sent)
+    assert res["new"] == 11 * (2 + 1 + 2 * 32)          # national volume + value, the price, 32 states x 2
+
+    with session_factory() as s:
+        _no_duplicate_current(s)
+        rows = _rows(s, "mx_siap_honey")
+        by_metric: dict[str, list[ProductionStat]] = {}
+        for r in rows:
+            by_metric.setdefault(r.metric, []).append(r)
+        assert {m: len(v) for m, v in by_metric.items()} == {
+            "production": 11, "production_value": 11, "production_by_region": 352, "production_value_by_region": 352}
+        assert all(r.country_iso3 == "MEX" and r.data_status == "published" and r.published_at is None for r in rows)
+        nat = {r.period_label: r for r in by_metric["production"]}
+        p24 = nat["2024"]
+        assert (p24.value, p24.unit, p24.source_url) == (57430.36, "t", po.siap_report_url(2024))
+        assert p24.extra["production_as_published"] == "57,430.360" and p24.extra["price_mxn_per_kg"] == 43.01
+        assert "region" not in p24.extra and nat["2025"].value == 60297.544
+        v24 = {r.period_label: r for r in by_metric["production_value"]}["2024"]
+        assert (v24.value, v24.unit) == (2469836.12, "1000 MXN")
+        yuc = next(r for r in by_metric["production_by_region"] if r.extra["region"] == "Yucatán" and r.period_label == "2024")
+        assert yuc.series_key == "siap|cierre|MX-YUC|production_by_region|2024" and yuc.value == 9250.391
+        assert (yuc.extra["region_code"], yuc.extra["price_mxn_per_kg"]) == ("31", 27.01)
+        for y in SIAP_YEARS:                                        # never summed into the national row
+            states = [r.value for r in by_metric["production_by_region"] if r.period_label == str(y)]
+            assert len(states) == 32 and abs(sum(states) - nat[str(y)].value) < 1e-6
+        prices = list(s.scalars(select(PriceObservation).join(Source).where(Source.key == "mx_siap_honey")))
+        assert len(prices) == 11 and {p.price_type for p in prices} == {"producer"}      # national only, never states
+        pr = next(p for p in prices if p.period_label == "2024")
+        assert (pr.price_value, pr.currency, pr.unit, pr.price_per_kg) == (43.01, "MXN", "kg", 43.01)
+        assert (pr.origin_iso3, pr.market_iso3, pr.variety) == ("MEX", "MEX", "unspecified")
+        assert pr.market_location == "Mexico (national average)" and pr.source_url == po.siap_report_url(2024)
+
+
+def test_siap_second_run_and_a_revision(run, session_factory):
+    assert run("mx_siap_honey", siap_routes())["status"] == "success"
+    res = run("mx_siap_honey", siap_routes())
+    assert res["status"] == "no_change"
+    assert [str(r.url) for r in run.sent] == [po.SIAP_YEARS_URL, po.siap_report_url(2025)]
+    # SIAP revises the latest year: every year is read again, only the changed figures become revisions
+    revised = siap_report(2025).replace(b"9,893.", b"9,894.").replace(b"60,297.544", b"60,298.544")
+    assert b"9,894." in revised
+    res = run("mx_siap_honey", siap_routes(y2025=revised))
+    assert res["status"] == "success" and res["revised"] == 2 and res["new"] == 0, res
+    assert len(run.sent) == 1 + 11
+    with session_factory() as s:
+        hist = _rows(s, "mx_siap_honey", current=None, metric="production", period_label="2025")
+        assert [(r.value, r.is_current) for r in hist] == [(60297.544, False), (60298.544, True)]
+
+
+def test_siap_unreadable_latest_year_stores_nothing(run, session_factory):
+    res = run("mx_siap_honey", siap_routes(y2025=siap_report(2025).replace(b"Miel", b"Cera")))
+    assert res["status"] == "failed" and "not 'Miel" in res["error"]
+    with session_factory() as s:
+        assert _rows(s, "mx_siap_honey", current=None) == []
+
+
+# ---------------------------------------------------------------------------------------------
+# Turkey, TÜİK animal production statistics ("Arıcılık" table)
+# ---------------------------------------------------------------------------------------------
+
+TUIK_PRESS_URL = "https://veriportali.tuik.gov.tr/api/tr/press/58015"
+TUIK_XLS_URL = ("https://veriportali.tuik.gov.tr/api/tr/data/downloads?t=i&pid=58015&p=KApxb1ssWoKy0ovL00kvLoyG3R9mj7ld"
+                "fibsfuYaObxKlGQs8h%2Biw45fC%2FJ%2FTCF6")
+
+
+def tuik_routes(listing: bytes | None = None, press: bytes | None = None, xls: bytes | None = None) -> dict:
+    return {po.TUIK_PRESS_LIST_URL: listing if listing is not None else F("real_tuik_press_list_tr.json"),
+            TUIK_PRESS_URL: press if press is not None else F("real_tuik_press_58015_tr.json"),
+            TUIK_XLS_URL: (200, xls if xls is not None else F("real_tuik_aricilik_2025.xls"), "application/vnd.ms-excel")}
+
+
+def test_real_tuik_answers():
+    assert po.parse_tuik_press_list(F("real_tuik_press_list_tr.json")) == "58015"
+    b = po.parse_tuik_press(F("real_tuik_press_58015_tr.json"), "58015")
+    assert (b.title, b.period, b.published, b.table_url) == ("Hayvansal Üretim İstatistikleri", "2025", date(2026, 2, 10),
+                                                              TUIK_XLS_URL)
+    t = po.parse_tuik_apiculture_xls(F("real_tuik_aricilik_2025.xls"))
+    assert (t.title, t.sheet, t.source_note) == ("Arıcılık", "46_t11", "Kaynak: Tarım ve Orman Bakanlığı")
+    years = {y.year: y for y in t.years}
+    assert sorted(years) == list(range(1991, 2026))
+    y24, y25 = years[2024], years[2025]
+    assert (y24.honey_t, y24.new_hives, y24.old_hives, y24.holdings, y24.wax_t) == (95492.311, 8717162, 244813, 97984, 3315.791)
+    assert (y25.honey_t, y25.new_hives + y25.old_hives) == (97253.019, 8817155)
+    assert years[2012].holdings is None                 # '-' before 2013 (villages were counted instead)
+
+
+def test_tuik_drift_fails_loudly():
+    with pytest.raises(CollectorError, match="0 'Hayvansal Üretim İstatistikleri' entries"):
+        po.parse_tuik_press_list(F("real_tuik_press_list_tr.json").replace("Hayvansal Üretim".encode(), b"Bitkisel Uretim"))
+    with pytest.raises(CollectorError, match="0 'Arıcılık' statistical tables"):
+        po.parse_tuik_press(F("real_tuik_press_58015_tr.json").replace('"Arıcılık"'.encode(), b'"Aricilik X"'), "58015")
+    with pytest.raises(CollectorError, match="not a readable .xls"):
+        po.parse_tuik_apiculture_xls(b"<html>Sayfa bulunamad\xc4\xb1</html>")
+
+
+def test_tuik_end_to_end_on_the_real_answers(run, session_factory):
+    res = run("tr_tuik_honey", tuik_routes())
+    assert res["status"] == "success", res
+    assert [str(r.url) for r in run.sent] == [po.TUIK_PRESS_LIST_URL, TUIK_PRESS_URL, TUIK_XLS_URL]
+    assert [r.headers.get("X-Requested-With") for r in run.sent] == ["XMLHttpRequest", "XMLHttpRequest", None]
+    assert res["new"] == 22
+    with session_factory() as s:
+        _no_duplicate_current(s)
+        rows = _rows(s, "tr_tuik_honey")
+        prod = {r.period_label: r for r in rows if r.metric == "production"}
+        col = {r.period_label: r for r in rows if r.metric == "colonies"}
+        assert sorted(prod) == sorted(col) == [str(y) for y in range(2015, 2026)]
+        assert all(r.country_iso3 == "TUR" and r.published_at == date(2026, 2, 10) and r.source_url == TUIK_XLS_URL
+                   for r in rows)
+        assert (prod["2024"].value, prod["2024"].unit) == (95492.311, "t")
+        assert prod["2024"].extra["bulletin_url"] == "https://veriportali.tuik.gov.tr/tr/press/58015"
+        c24 = col["2024"]
+        assert (c24.value, c24.unit) == (8961975.0, "number")
+        assert (c24.extra["new_hives"], c24.extra["old_hives"], c24.extra["holdings"]) == (8717162, 244813, 97984)
+        raw = s.get(RawDocument, c24.raw_document_id)
+        assert raw.url == TUIK_XLS_URL and raw.published_at == date(2026, 2, 10)
+    res = run("tr_tuik_honey", tuik_routes())
+    assert res["status"] == "no_change" and [str(r.url) for r in run.sent] == [po.TUIK_PRESS_LIST_URL]
+
+
+# ---------------------------------------------------------------------------------------------
+# FAOSTAT and the national agencies side by side in the shared production views (never summed)
+# ---------------------------------------------------------------------------------------------
+
+
+def _faostat(db, iso3: str, rows: dict[int, float], metric: str = "production", unit: str = "t") -> None:
+    fao = db.scalars(select(Source).where(Source.key == "faostat")).one()
+    for year, value in rows.items():
+        start, end = year_bounds(year)
+        ingest.record(db, ProductionStat, source_id=fao.id, series_key=f"faostat|QCL|{iso3}|{metric}|{year}",
+                      country_iso3=iso3, metric=metric, value=value, unit=unit, period_start=start,
+                      period_end=end, period_label=str(year), frequency="A", flag_raw="A",
+                      published_at=date(2025, 12, 31), source_url="https://bulks-faostat.fao.org/production/",
+                      data_status="published", reliability="official")
+    db.commit()
+
+
+@pytest.mark.parametrize("key,iso3,routes,fao,latest", [
+    ("ca_statcan_honey", "CAN", statcan_routes, {2023: 43385.0, 2024: 35460.0}, (2025, 38138.046)),
+    ("mx_siap_honey", "MEX", siap_routes, {2023: 58033.18, 2024: 57430.36}, (2025, 60297.544)),
+    ("tr_tuik_honey", "TUR", tuik_routes, {2023: 114886.43, 2024: 95492.31}, (2025, 97253.019)),
+])
+def test_faostat_and_national_agency_side_by_side(run, api, db, key, iso3, routes, fao, latest):
+    assert run(key, routes())["status"] in ("success", "partial")
+    _faostat(db, iso3, fao)                      # the live FAOSTAT figures (QCL, flag A)
+    table = api.get("/api/harvest/production", params={"scope": "all"}).json()
+    row = next(c for c in table["countries"] if c["iso3"] == iso3)
+    series = {s["source"]["key"]: s for s in row["series"]}
+    assert set(series) == {"faostat", key}                           # two series, one per source
+    assert (series[key]["latest"]["year"], series[key]["latest"]["value"]) == latest
+    assert series[key]["years"] == 11 and series["faostat"]["latest"]["value"] == fao[2024]
+    country = api.get(f"/api/harvest/production/{iso3}").json()
+    prod = next(m for m in country["metrics"] if m["metric"] == "production")
+    assert {s["source"]["key"] for s in prod["series"]} == {"faostat", key}
+    assert not any(m["metric"].endswith("_by_region") for m in country["metrics"])
+    profile = api.get(f"/api/countries/{iso3}").json()
+    prof = next(m for m in profile["production"]["metrics"] if m["metric"] == "production")
+    assert {s["source"]["key"] for s in prof["series"]} == {"faostat", key}

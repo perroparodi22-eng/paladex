@@ -27,7 +27,7 @@ export type FreshnessStatus = 'current' | 'aging' | 'stale' | 'never' | 'unknown
 
 export interface Freshness { status: FreshnessStatus; age_days: number | null; reference_date: string | null }
 
-export interface SourceBrief { key: string; name: string; publisher: string | null; reliability: string; homepage: string | null }
+export interface SourceBrief { key: string; name: string; name_en?: string | null; publisher: string | null; reliability: string; homepage: string | null }
 
 export interface SourceInfo extends SourceBrief {
   kind: string; category: string; country_iso3: string | null

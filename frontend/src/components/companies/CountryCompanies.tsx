@@ -31,6 +31,7 @@ export function CountryCompaniesBody({ d }: { d: CompaniesCountry }) {
   const register = d.lists.filter((l): l is RegisterList => l.measure_kind === 'none')
   const imp = register.find((l) => l.role === 'importer')
   const exp = register.find((l) => l.role === 'exporter')
+  const reg = register.find((l) => l.role === 'registered_exporter')
   const span = (l: RegisterList) => ({ a: fmtPeriod(l.first_period, lang), b: fmtPeriod(l.latest_period, lang) })
   return (
     <Panel
@@ -68,7 +69,8 @@ export function CountryCompaniesBody({ d }: { d: CompaniesCountry }) {
             <p>
               {imp && exp ? t('companies.block.register', { n: imp.company_count, m: exp.company_count, ...span(imp) })
                 : imp ? t('companies.block.registerImp', { n: imp.company_count, ...span(imp) })
-                  : exp ? t('companies.block.registerExp', { n: exp.company_count, ...span(exp) }) : ''}
+                  : exp ? t('companies.block.registerExp', { n: exp.company_count, ...span(exp) })
+                    : reg ? t('companies.block.registerEst', { n: reg.company_count, b: fmtPeriod(reg.latest_period, lang) }) : ''}
             </p>
             <p className="text-[0.85rem] text-muted">{t('companies.what.none')}</p>
             <ListSource list={register[0]} />

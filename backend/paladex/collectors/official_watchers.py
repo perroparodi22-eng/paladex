@@ -993,6 +993,7 @@ def parse_dou_search(content: bytes, url: str | None = None) -> tuple[list[DouAc
 class BrMapaHoneyCollector(Collector):
     key = "br_mapa_honey"
     name = "MAPA Brasile: avvisi e norme sul miele (lista UE, residui, export)"
+    name_en = "MAPA Brazil: honey notices and rules (EU list, residues, exports)"
     publisher = "Ministério da Agricultura e Pecuária (MAPA), Brasil; Imprensa Nacional (Diário Oficial da União)"
     homepage = "https://www.gov.br/agricultura/pt-br"
     kind = SourceKind.HTML
@@ -1317,6 +1318,7 @@ def bo_catchup_days(last_read: date | None, latest: date, max_days: int = BO_CAT
 class ArSenasaHoneyCollector(Collector):
     key = "ar_senasa_honey"
     name = "SENASA Argentina: residui (Lista EAR), export e Boletín Oficial sul miele"
+    name_en = "SENASA Argentina: residues (EAR list), exports and Official Gazette notices on honey"
     publisher = ("SENASA (Servicio Nacional de Sanidad y Calidad Agroalimentaria); Secretaría de Agricultura, "
                  "Ganadería y Pesca; Boletín Oficial de la República Argentina")
     homepage = "https://www.argentina.gob.ar/senasa"
@@ -1877,6 +1879,7 @@ def merge_ocr_terms(a: MepTerms, b: MepTerms) -> MepTerms:
 class InDgftHoneyCollector(Collector):
     key = "in_dgft_honey"
     name = "DGFT India: prezzo minimo all'export (MEP) e regole export sul miele"
+    name_en = "DGFT India: minimum export price (MEP) and export rules for honey"
     publisher = DGFT_PUBLISHER
     homepage = "https://www.dgft.gov.in/"
     kind = SourceKind.HTML

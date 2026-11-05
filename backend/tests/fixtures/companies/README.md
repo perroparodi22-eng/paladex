@@ -1,7 +1,7 @@
 # Honey exporters and importers by company: real captures of 5 November 2026
 
 Every file was downloaded from the official source on **2026-11-05** (development sandbox; SIE at
-20:23 UTC, HMRC at 20:37 UTC). Where a file is trimmed, this README says exactly how; names and
+20:23 UTC, HMRC at 20:37 UTC, CID at 21:14 UTC, EIC at 21:25 UTC). Where a file is trimmed, this README says exactly how; names and
 numbers are never edited. Tests that need a variant (a revision, a withdrawn company, a broken
 answer) derive it from these files in the test code and say so.
 
@@ -51,3 +51,42 @@ What the real answers showed:
 * Examples (importers, July 2026): NELSON HONEY UK LIMITED (published address lines Gloucester Road,
   Mitcheldean, Gloucestershire; GL17 0DS), HONEY NEW ZEALAND EUROPE LTD (Burbage, Hinckley; LE10 3ER).
   Paladex keeps "GLOUCESTERSHIRE, GL17" and "HINCKLEY, LE10".
+
+## India: Export Inspection Council (EIC), "Commodity wise facilities" (JSON API of the EIC website)
+
+Query: `https://eicindia.gov.in/api/facilities` (the JSON the public page
+`/offerings/commodity-wise-facilities` loads; no login, no parameter). The answer is the whole register
+of EIC-approved facilities: 796 rows on 5 November 2026 (fish, milk, fruit, basmati, honey, ...).
+
+| File | What it is |
+|---|---|
+| `real_eic_facilities_honey_2026-11-05.json` | The real answer (424,163 bytes) **reduced to** its 27 honey rows (`category_id` "honey") and the first 4 rows of other categories (one fruit, three milk products, to test the filter), in the published order, every field as published (re-serialised compactly): 13,473 bytes. |
+
+What the real answer showed:
+
+* Per row: `id`, `name`, `address`, `scope`, `country` (the markets: "All Countries Including European
+  Union" or "Non-EU"), `approval_no` (e.g. `Honey/04/027/2018`), `valid_upto` (day first: `26/07/2028`),
+  `top_tab`, `category_id`, `facility_type`, `is_active`, `created_at` (2026-07-07 for every honey row).
+* 27 honey establishments, 16 approved for all countries including the EU, 11 for non-EU countries
+  only; e.g. Patanjali Food Limited (Haridwar, Uttarakhand), Kejriwal Bee Care India Pvt. Ltd. (Patiala,
+  Punjab), Shakti Apifoods (two units, two approval numbers). No quantities or values.
+* Paladex keeps the name and the state (from the address), never the address.
+
+## Canada: ISED, Canadian Importers Database (CID), product report HS6 040900
+
+Query: `https://www.ised-isde.canada.ca/app/ixb/cid-bdic/productReport.html?hsCode=040900`.
+
+| File | What it is |
+|---|---|
+| `real_cid_hs6_040900_2026-11-05.html` | The whole answer page, byte for byte (32,130 bytes). |
+
+What the real page showed:
+
+* Title `040900 - Honey, natural - Canadian Importers Database (CID)`; table "Major Canadian importers
+  in 2024": 25 companies in alphabetical order with city, province and postal code (blank for the
+  non-resident importers INTEGRA LIFESCIENCES SALES LLC, Princeton, New Jersey, and MIDLANDS APIARIES
+  LIMITED, Ashburton). Footnote: the major importers together account for up to 80 % of the import
+  value; individuals are not listed; the importer is not necessarily the end user.
+* "Market concentration": 3 importers 38.62 %, ..., 25 importers 53,031,865 CAD = 79.92 %, all
+  importers 66,356,117 CAD. **No value per company.**
+* Paladex keeps name, city and province, not the postal code.

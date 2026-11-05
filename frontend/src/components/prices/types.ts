@@ -71,7 +71,11 @@ export interface PriceSeries extends SeriesIdentity {
   has_range: boolean
   fx_missing_points: number
   freshness: SeriesFreshness
+  /** The newest point that has a value (legend figure), also when the points are not included. */
+  last_value?: { period_label: string; value: number | null } | null
   points: PricePoint[]
+  /** True when this answer leaves the series' points out (large views: asked for by id when shown). */
+  points_omitted?: boolean
 }
 
 export interface SeriesSource extends SourceBrief {
@@ -120,6 +124,8 @@ export interface SeriesResponse {
   from: string | null
   to: string | null
   series: PriceSeries[]
+  /** 'all': every series has its points; 'first': only the default lines (large view); 'ids': those asked for. */
+  points_scope?: 'all' | 'first' | 'ids'
   sources: SeriesSource[]
   discrepancies: Discrepancy[]
   today: string

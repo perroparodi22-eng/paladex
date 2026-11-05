@@ -25,12 +25,22 @@ function tsOfIndex(idx: number): number {
   return Date.UTC(Math.floor(idx / 12), idx % 12, 1)
 }
 
-/** Every period between the first and last point, so a missing month shows as a gap. */
+/** Month index of the start of a period label: '2026-03', '2026-Q2', '2026'. */
+function labelIndex(label: string): number {
+  const y = Number(label.slice(0, 4))
+  if (label.length === 4) return y * 12
+  if (label[5] === 'Q') return y * 12 + (Number(label.slice(6)) - 1) * 3
+  return y * 12 + Number(label.slice(5, 7)) - 1
+}
+
+/** Every period between the first and last point, so a missing month shows as a gap. The time
+ * axis spans every series of the view, also those whose points were not sent (large views). */
 function buildRows(series: PriceSeries[], unit: MassUnit): { rows: Row[]; gridFreq: Freq } {
   const pts = series.flatMap((s) => s.points)
   if (!pts.length) return { rows: [], gridFreq: 'M' }
   const gridFreq = series.reduce<Freq>((f, s) => (RANK[s.freq] < RANK[f] ? s.freq : f), 'A')
   const idxs = pts.map((p) => monthIndex(p.period_start))
+  for (const s of series) if (s.points_omitted && s.n_points) idxs.push(labelIndex(s.first_period), labelIndex(s.last_period))
   const lo = Math.min(...idxs)
   const hi = Math.max(...idxs)
   const byIdx = new Map<number, Row>()
@@ -91,7 +101,8 @@ function niceScale(vals: number[]): { domain: [number, number]; yTicks: number[]
   return { domain: [start, end], yTicks: ticks }
 }
 
-function lastValue(s: PriceSeries): PricePoint | null {
+function lastValue(s: PriceSeries): { period_label: string; value: number | null } | null {
+  if (s.last_value !== undefined) return s.last_value
   for (let i = s.points.length - 1; i >= 0; i--) if (s.points[i].value !== null) return s.points[i]
   return null
 }

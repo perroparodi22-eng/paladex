@@ -9,6 +9,7 @@ import { Badge, EmptyState, ErrorBlock, Loading, Segmented } from '@/components/
 import { pickLang, useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtAgo, fmtDate, fmtDateTime, fmtNumber, fmtPct, fmtPeriod } from '@/lib/format'
+import { sourceName as srcName } from '@/lib/meta'
 import { isMirror } from '@/lib/mirror'
 import type { Lang } from '@/lib/types'
 import { asUtc } from './explain'
@@ -116,7 +117,8 @@ function IssueItem({ issue }: { issue: QualityIssue }) {
   const typeLabel = t(`sources.q.type.${isKey ? 'missing_key' : issue.type}`)
   const message = pickLang(issue as unknown as Record<string, unknown>, 'message', lang)
   const toSource = issue.link?.startsWith('/fonti')
-  const sourceName = issue.source?.name ?? (d.values as { source_name?: string }[] | undefined)?.map((v) => v.source_name).filter(Boolean).join(' · ')
+  const sourceName = (issue.source ? srcName(issue.source, lang) : undefined) ?? (d.values as { source_name?: string; source_name_en?: string | null }[] | undefined)
+    ?.map((v) => (lang === 'en' && v.source_name_en) || v.source_name).filter(Boolean).join(' · ')
   const numbers = issueNumbers(issue, t, lang)
   return (
     <li className={clsx('flex gap-4 px-6 py-4', issue.status === 'resolved' && 'opacity-75')}>

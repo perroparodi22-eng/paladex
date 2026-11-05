@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 import { AiBadge, Badge, DemoBadge, FreshnessBadge, Panel, ReliabilityBadge } from '@/components/ui'
 import { pickLang, useI18n } from '@/i18n'
 import { fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
-import { useLabels } from '@/lib/meta'
+import { sourceName, useLabels } from '@/lib/meta'
 import { PRICE_TYPE_ORDER } from '@/components/prices/utils'
 import type {
   CountryHit, GroupKey, NewsHit, PriceHit, RegulationHit, ReportHit, SearchGroup, SourceHit, VarietyHit,
@@ -160,7 +160,7 @@ function NewsRow({ n }: { n: NewsHit }) {
         {n.is_demo && <DemoBadge />}
         {n.publisher && <span className="text-charcoal-soft">{n.publisher}</span>}
         {n.published_at && <span>· {fmtDate(n.published_at, lang)}</span>}
-        {n.source && <span>· {t('prov.source')}: {n.source.name}</span>}
+        {n.source && <span>· {t('prov.source')}: {sourceName(n.source, lang)}</span>}
       </div>
       {n.snippet ? (
         <p className="mt-1.5 text-[0.95rem] text-charcoal-soft leading-relaxed">{n.snippet}</p>
@@ -232,7 +232,7 @@ function SourceRow({ s }: { s: SourceHit }) {
     <li>
       <Link to={s.target} className={clsx(rowLinkCls, 'flex items-center justify-between gap-4')} {...resultProps}>
         <div className="min-w-0">
-          <div className="font-semibold text-[1.02rem] text-charcoal">{s.name}</div>
+          <div className="font-semibold text-[1.02rem] text-charcoal">{sourceName(s, lang)}</div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[0.85rem] text-muted">
             {s.publisher && <span>{s.publisher}</span>}
             <ReliabilityBadge reliability={s.reliability} />

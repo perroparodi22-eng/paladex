@@ -1,6 +1,6 @@
 """Honey exporters and importers BY COMPANY, from official sources that publish company-level data.
 
-Two collectors (checked live on 2026-11-05; the research behind every rejected lead is in
+Four collectors (checked live on 2026-11-05; the research behind every rejected lead is in
 docs/DATA_SOURCES.md and in ``api/companies.py``, which states per country what exists and why):
 
 * ``uy_sie_honey_exporters``: Uruguay, **Uruguay XXI – Sistema de Información Estadística (SIE)**, the
@@ -18,12 +18,29 @@ docs/DATA_SOURCES.md and in ``api/companies.py``, which states per country what 
   names only: one record per trader and month, ``measure_kind = none``, never ranked. Window: the last
   24 months HMRC has published.
 
+* ``in_eic_honey_establishments``: India, **Export Inspection Council of India (EIC, Ministry of
+  Commerce and Industry), "Commodity wise facilities"**: the establishments EIC has approved to process
+  honey for export, with EIC approval number, validity and the markets they are approved for ("All
+  Countries Including European Union" or "Non-EU"). Read from the JSON the EIC website itself loads
+  (``eicindia.gov.in/api/facilities``, public, no login). A register: **names only, never ranked**
+  (``registered_exporter``, ``measure_kind = none``); one record per establishment and month it is
+  seen listed.
+
+* ``ca_cid_honey_importers``: Canada, **Innovation, Science and Economic Development Canada (ISED),
+  Canadian Importers Database (CID)**, product report HS6 040900 (data: Canada Border Services
+  Agency): the "major importers" of natural honey in a year (the companies that together account for
+  up to 80 % of the import value), in alphabetical order with city and province. **No value per
+  company** (the CID publishes only aggregate concentration): names only, never ranked; individuals
+  are excluded by the CID itself.
+
 Privacy. Official lists can name private persons (sole traders). Only the name and the location as
 published are stored: the SIE gives names only (its page also embeds an autocomplete list of every
 exporter with an ID: never archived, never read); for HMRC the location is the last address line after
-the street line and the postcode district (outward code), never the street or the full postcode. No
-tax or personal identification number is stored or archived. Archived raw documents are reduced to
-what is stored (SIE: caption and result table; HMRC: month, HMRC trader number, name, location).
+the street line and the postcode district (outward code), never the street or the full postcode; for
+EIC the location is the Indian state only (from the published address), never the address; for the CID
+the city and province, never the postal code. No tax or personal identification number is stored or
+archived. Archived raw documents are reduced to what is stored (SIE: caption and result table; HMRC:
+month, HMRC trader number, name, location; EIC and CID: the stored fields of the honey rows).
 
 Revisions. Every changed figure or name is a new revision (``models_companies.record_company``); a
 record the source no longer publishes for a period that was read again is withdrawn (kept in history).
@@ -37,6 +54,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from bs4 import BeautifulSoup
 from sqlalchemy import select
 
 from ..enums import DataStatus, Reliability, SourceKind
@@ -69,6 +87,14 @@ def _clean(s: Any) -> str:
 def _has_rows(ctx: CollectContext) -> bool:
     C = CompanyRecord
     return ctx.session.scalar(select(C.id).where(C.source_id == ctx.source.id).limit(1)) is not None
+
+
+def _has_prefix(ctx: CollectContext, prefix: str) -> bool:
+    """Whether the source already holds current records under `prefix` (e.g. this month's register)."""
+    C = CompanyRecord
+    return ctx.session.scalar(select(C.id).where(
+        C.source_id == ctx.source.id, C.is_current.is_(True), C.series_key.startswith(prefix, autoescape=True),
+    ).limit(1)) is not None
 
 
 def _add(ctx: CollectContext, *, series_key: str, **fields) -> CompanyRecord:
@@ -436,3 +462,345 @@ class UkHmrcHoneyTradersCollector(Collector):
                     "doganali (HMRC, UK Trade Info). HMRC non pubblica quantità né valori per azienda."),
              extra={"trader_id": r.trader_id, "cn8": HMRC_CN8, "web_ui": HMRC_WEB_UI})
         return series
+
+
+# ===========================================================================
+# 3) India: Export Inspection Council, establishments approved for honey export (register, names only)
+# ===========================================================================
+
+EIC_API = "https://eicindia.gov.in/api/facilities"
+EIC_WEB_UI = "https://eicindia.gov.in/offerings/commodity-wise-facilities?tab=animal"
+EIC_CATEGORY = "honey"
+EIC_HS = "0409"
+
+_IN_STATES = (
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana",
+    "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+    "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+    "Uttar Pradesh", "Uttarakhand", "West Bengal", "Delhi", "Jammu and Kashmir", "Ladakh", "Chandigarh", "Puducherry",
+)
+_IN_STATE_RE = [(re.compile(r"\b" + re.escape(s).replace(r"\ ", r"\s+") + r"\b", re.IGNORECASE), s) for s in _IN_STATES]
+# Abbreviations as EIC writes them ("Sonepat, (HR)- 131001", "Saharanpur-247340,U.P.", "Bijnor (UP)-246722").
+_IN_STATE_RE += [(re.compile(r"\bU\.\s?P\b\.?|\bUP\b"), "Uttar Pradesh"), (re.compile(r"\bHR\b"), "Haryana"),
+                 (re.compile(r"\bUttaranchal\b", re.IGNORECASE), "Uttarakhand"),
+                 (re.compile(r"\bOrissa\b", re.IGNORECASE), "Odisha")]
+# PIN code -> state, only for the two-digit prefixes that belong to one state (24xxxx and 26xxxx are
+# shared by Uttar Pradesh and Uttarakhand, 40xxxx by Maharashtra and Goa...: no guess for those).
+_IN_PIN2 = {"11": "Delhi", "12": "Haryana", "13": "Haryana", "14": "Punjab", "15": "Punjab", "17": "Himachal Pradesh",
+            **{str(p): "Rajasthan" for p in range(30, 35)}, **{str(p): "Gujarat" for p in range(36, 40)},
+            **{str(p): "Madhya Pradesh" for p in range(45, 49)}, **{str(p): "Karnataka" for p in range(56, 60)},
+            **{str(p): "Kerala" for p in range(67, 70)}, **{str(p): "Odisha" for p in range(75, 78)}, "78": "Assam"}
+_IN_PIN_RE = re.compile(r"(?<!\d)(\d{3})\s?(\d{3})(?!\d)")
+
+
+def india_state(address: Any) -> str | None:
+    """The Indian state of a published address: the state name (or EIC's abbreviation) written last in
+    it, else the state of its PIN code when the PIN prefix belongs to a single state, else None. Only the
+    state is kept: never the street, the village or the PIN."""
+    text = _clean(address)
+    best: tuple[int, str] | None = None
+    for rx, state in _IN_STATE_RE:
+        for m in rx.finditer(text):
+            if best is None or m.end() > best[0]:
+                best = (m.end(), state)
+    if best:
+        return best[1]
+    pins = _IN_PIN_RE.findall(text)
+    return _IN_PIN2.get(pins[-1][0][:2]) if pins else None
+
+
+def _eic_date(s: Any) -> str | None:
+    """'05/03/2027' or '19.02.2027' (day first, as EIC writes it) -> '2027-03-05'; anything else -> None."""
+    m = re.fullmatch(r"(\d{1,2})[./-](\d{1,2})[./-](\d{4})", _clean(s))
+    if not m:
+        return None
+    try:
+        return date(int(m.group(3)), int(m.group(2)), int(m.group(1))).isoformat()
+    except ValueError:
+        return None
+
+
+def _eic_eu(approved_for: str) -> bool | None:
+    """EIC's market field: 'All Countries Including European Union' -> True, 'Non-EU' /
+    'Non-European Union Countries Only' -> False, anything else -> None (unknown)."""
+    t = re.sub(r"[\s-]+", " ", approved_for.lower())
+    if re.search(r"\bnon\b", t):
+        return False
+    if "european union" in t or re.fullmatch(r"(all countries including )?eu", t):
+        return True
+    return None
+
+
+@dataclass
+class EicEstablishment:
+    eic_id: int | None
+    name: str
+    state: str | None
+    approval_no: str
+    valid_until: str | None          # ISO date, None when EIC's date cannot be read
+    valid_until_raw: str
+    approved_for: str                # as published
+    eu_approved: bool | None
+    scope: str
+
+
+def parse_eic_facilities(payload: Any) -> tuple[list[EicEstablishment], int, list[str]]:
+    """The honey establishments of one EIC answer (the whole approved-facilities register): (active
+    honey rows, rows in the answer, problems). Fails loudly when the answer is not that register."""
+    if not isinstance(payload, list) or not payload:
+        raise CollectorError("EIC approved facilities: the answer is not a non-empty list (API changed?); nothing stored")
+    if not all(isinstance(r, dict) and "category_id" in r and "name" in r for r in payload):
+        raise CollectorError("EIC approved facilities: rows without 'category_id' or 'name' (format changed?); "
+                             "nothing stored")
+    out: list[EicEstablishment] = []
+    problems: list[str] = []
+    seen: dict[str, EicEstablishment] = {}
+    clash: set[str] = set()
+    for r in payload:
+        if _clean(r.get("category_id")).lower() != EIC_CATEGORY:
+            continue
+        if r.get("is_active") in (0, False, "0"):
+            continue
+        name, no = _clean(r.get("name")), _clean(r.get("approval_no"))
+        if not name or not no:
+            problems.append(f"EIC honey: a row without name or approval number ({name or no or r.get('id')!r}); skipped")
+            continue
+        approved_for = _clean(r.get("country"))
+        e = EicEstablishment(eic_id=r.get("id") if isinstance(r.get("id"), int) else None, name=name,
+                             state=india_state(r.get("address")), approval_no=no,
+                             valid_until=_eic_date(r.get("valid_upto")), valid_until_raw=_clean(r.get("valid_upto")),
+                             approved_for=approved_for, eu_approved=_eic_eu(approved_for), scope=_clean(r.get("scope")))
+        if no in seen:
+            if seen[no].name != name:
+                clash.add(no)
+            continue
+        seen[no] = e
+        out.append(e)
+    for no in sorted(clash):
+        problems.append(f"EIC honey: approval number {no!r} is listed for two different names; not stored")
+    return [e for e in out if e.approval_no not in clash], len(payload), problems
+
+
+def eic_extract(rows: list[EicEstablishment]) -> bytes:
+    """What is archived of the EIC answer: the stored fields of the honey rows (no address), sorted."""
+    data = sorted(({"approval_no": e.approval_no, "name": e.name, "state": e.state, "valid_upto": e.valid_until_raw,
+                    "approved_for": e.approved_for, "scope": e.scope, "eic_id": e.eic_id} for e in rows),
+                  key=lambda d: d["approval_no"])
+    return json.dumps(data, ensure_ascii=False, indent=0).encode("utf-8")
+
+
+class InEicHoneyEstablishmentsCollector(Collector):
+    key = "in_eic_honey_establishments"
+    name = "India – Export Inspection Council: stabilimenti autorizzati all'esportazione di miele (registro, solo nomi)"
+    name_en = "India – Export Inspection Council: establishments approved for honey export (register, names only)"
+    publisher = "Export Inspection Council of India (EIC), Ministry of Commerce and Industry"
+    homepage = EIC_WEB_UI
+    kind = SourceKind.API
+    reliability = Reliability.OFFICIAL
+    category = "companies"
+    country_iso3 = "IND"
+    language = "en"
+    expected_update = "Registro aggiornato da EIC senza calendario; controllo settimanale"
+    expected_update_en = "Register updated by EIC without a fixed calendar; checked weekly"
+    expected_max_age_days = 40
+    terms_note = ("Export Inspection Council of India, 'Commodity wise facilities' (eicindia.gov.in), read from the JSON "
+                  "the public page itself loads. Establishments approved by EIC to process honey for export, with EIC "
+                  "approval number, validity and markets (all countries including the EU, or non-EU only). A register: "
+                  "no quantities or values, never ranked. Paladex keeps the name and the state, never the address.")
+    schedule = {"trigger": "cron", "day_of_week": "tue", "hour": 8, "minute": 45}
+    order = 63
+
+    def collect(self, ctx: CollectContext) -> None:
+        ref = today()
+        label = f"{ref.year}-{ref.month:02d}"
+        prefix = f"eic|IND|{CompanyRole.REGISTERED_EXPORTER.value}|{EIC_HS}|{label}|"
+        doc = ctx.fetch(EIC_API, headers={"Accept": "application/json"}, store=False)
+        try:
+            payload = doc.json()
+        except ValueError as exc:
+            raise CollectorError(f"EIC approved facilities: the answer is not JSON ({exc})") from exc
+        rows, total, problems = parse_eic_facilities(payload)
+        for p in problems:
+            ctx.warn(p)
+        if not rows:
+            ctx.warn(f"EIC lists no active honey establishment among its {total} approved facilities")
+            return
+        raw_id, unchanged = ctx.store_raw(doc.url, eic_extract(rows), "application/json",
+                                          title=f"EIC establishments approved for honey export ({len(rows)}), {ref.isoformat()}")
+        if unchanged and not ctx.force and _has_prefix(ctx, prefix):
+            log.info("[%s] EIC honey register unchanged since the last run this month", self.key)
+            return
+        start, end = month_bounds(ref.year, ref.month)
+        present: set[str] = set()
+        for e in rows:
+            series = prefix + e.approval_no
+            present.add(series)
+            markets = ("tutti i paesi, Unione europea compresa" if e.eu_approved
+                       else "solo paesi extra-UE" if e.eu_approved is False else f"«{e.approved_for}»")
+            _add(ctx, series_key=series, country_iso3="IND", company_name=e.name, location=e.state,
+                 role=CompanyRole.REGISTERED_EXPORTER, hs_code=EIC_HS, measure_kind=MeasureKind.NONE,
+                 period_start=start, period_end=end, period_label=label, frequency="register", published_at=None,
+                 source_url=doc.url, raw_document_id=raw_id or None, data_status=DataStatus.PUBLISHED,
+                 reliability=Reliability.OFFICIAL,
+                 notes=("Stabilimento autorizzato dall'Export Inspection Council (ministero del Commercio indiano) a "
+                        f"lavorare miele per l'esportazione, per: {markets}. Elenco ufficiale: nessuna quantità né "
+                        "valore; presente nel registro nel mese indicato."),
+                 extra={"register_no": e.approval_no, "approval_no": e.approval_no, "valid_until": e.valid_until,
+                        "valid_until_published": e.valid_until_raw, "approved_for": e.approved_for,
+                        "eu_approved": e.eu_approved, "scope": e.scope, "eic_id": e.eic_id, "web_ui": EIC_WEB_UI})
+        gone = _retire(ctx, prefix, present)
+        if gone:
+            ctx.warn(f"EIC no longer lists {len(gone)} honey establishment(s) in {label}: "
+                     f"{', '.join(k.rsplit('|', 1)[-1] for k in gone[:10])}")
+
+
+# ===========================================================================
+# 4) Canada: ISED Canadian Importers Database, major importers of HS6 040900 (names only)
+# ===========================================================================
+
+CID_REPORT_URL = "https://www.ised-isde.canada.ca/app/ixb/cid-bdic/productReport.html"
+CID_HS6 = "040900"
+
+
+@dataclass
+class CidImporter:
+    name: str
+    city: str | None
+    province: str | None
+
+    @property
+    def location(self) -> str | None:
+        parts = [p for p in (self.city, self.province) if p]
+        return ", ".join(parts) if parts else None
+
+
+@dataclass
+class CidReport:
+    year: int
+    importers: list[CidImporter]
+    total_value_cad: float | None        # "All" row of the market-concentration table (all importers)
+    listed_share_pct: float | None       # cumulative % of the concentration row for as many importers as listed
+    problems: list[str]
+
+
+def _num(s: str) -> float | None:
+    x = re.sub(r"[,\s%$]", "", s)
+    try:
+        return float(x)
+    except ValueError:
+        return None
+
+
+def parse_cid_report(content: bytes) -> CidReport:
+    """Parse one CID product report (``productReport.html?hsCode=040900``): the year and the major
+    importers (name, city, province; the postal code is not kept), plus the published import total.
+    Fails loudly when the page is not the honey report or its importer table cannot be read."""
+    soup = BeautifulSoup(content, "lxml")
+    title = _clean(soup.title.get_text() if soup.title else "")
+    if not title.startswith(CID_HS6):
+        raise CollectorError(f"CID: the page is not the report for HS6 {CID_HS6} (title {title!r}); nothing stored")
+    table = next((t for t in soup.find_all("table") if t.caption
+                  and "major canadian importers" in _clean(t.caption.get_text()).lower()), None)
+    if table is None:
+        raise CollectorError("CID: no 'Major Canadian importers' table (page layout changed?); nothing stored")
+    m = re.search(r"\bin\s+((?:19|20)\d{2})\b", _clean(table.caption.get_text()))
+    if not m:
+        raise CollectorError("CID: the importer table does not state its year (caption changed?); nothing stored")
+    heads = [_clean(th.get_text()).lower() for th in table.find_all("th")]
+    if len(heads) < 3 or not heads[0].startswith("company name") or heads[1] != "city" or heads[2] != "province":
+        raise CollectorError(f"CID: unexpected importer table columns {heads!r}; nothing stored")
+    importers: list[CidImporter] = []
+    problems: list[str] = []
+    body = table.find("tbody") or table
+    for tr in body.find_all("tr"):
+        cells = [_clean(td.get_text()) for td in tr.find_all("td")]
+        if not cells:
+            continue
+        if len(cells) != len(heads) or not cells[0]:
+            problems.append(f"CID: unreadable importer row {cells!r}; skipped")
+            continue
+        importers.append(CidImporter(name=cells[0], city=cells[1] or None, province=cells[2] or None))
+    total = share = None
+    conc = next((t for t in soup.find_all("table") if t.caption
+                 and _clean(t.caption.get_text()).lower() == "market concentration"), None)
+    if conc is not None:
+        for tr in conc.find_all("tr"):
+            cells = [_clean(td.get_text()) for td in tr.find_all("td")]
+            if len(cells) != 3:
+                continue
+            if cells[0].lower() == "all":
+                total = _num(cells[1])
+            elif cells[0].isdigit() and int(cells[0]) == len(importers):
+                share = _num(cells[2])
+    return CidReport(year=int(m.group(1)), importers=importers, total_value_cad=total, listed_share_pct=share,
+                     problems=problems)
+
+
+def cid_extract(report: CidReport) -> bytes:
+    """What is archived of the CID page: year, published total, and name, city, province of each importer."""
+    data = {"hs6": CID_HS6, "year": report.year, "total_value_cad": report.total_value_cad,
+            "listed_share_pct": report.listed_share_pct,
+            "importers": [{"name": i.name, "city": i.city, "province": i.province} for i in report.importers]}
+    return json.dumps(data, ensure_ascii=False, indent=0).encode("utf-8")
+
+
+class CaCidHoneyImportersCollector(Collector):
+    key = "ca_cid_honey_importers"
+    name = "Canada – ISED, Canadian Importers Database: principali importatori di miele (HS 040900), solo nomi"
+    name_en = "Canada – ISED, Canadian Importers Database: major honey importers (HS 040900), names only"
+    publisher = "Innovation, Science and Economic Development Canada (ISED); data: Canada Border Services Agency"
+    homepage = f"{CID_REPORT_URL}?hsCode={CID_HS6}"
+    kind = SourceKind.HTML
+    reliability = Reliability.OFFICIAL
+    category = "companies"
+    country_iso3 = "CAN"
+    language = "en"
+    expected_update = "Annuale (i dati di un anno escono circa 17 mesi dopo); controllo mensile"
+    expected_update_en = "Annual (a year's data appear about 17 months later); checked monthly"
+    expected_max_age_days = 730
+    terms_note = ("ISED Canadian Importers Database, product report HS6 040900 (Open Government Licence - Canada). The "
+                  "'major importers' are the companies that together account for up to 80% of the import value of the "
+                  "year; the CID excludes individuals and publishes no value per company: names only, alphabetical, "
+                  "never ranked. The importer is not necessarily the end user. Paladex keeps name, city and province, "
+                  "not the postal code.")
+    schedule = {"trigger": "cron", "day": "3", "hour": 9, "minute": 5}
+    order = 64
+
+    def collect(self, ctx: CollectContext) -> None:
+        doc = ctx.fetch(CID_REPORT_URL, params={"hsCode": CID_HS6}, headers={"Accept": "text/html"}, store=False)
+        report = parse_cid_report(doc.content)
+        for p in report.problems:
+            ctx.warn(p)
+        if not report.importers:
+            ctx.warn(f"CID lists no major honey importer for {report.year}")
+            return
+        raw_id, unchanged = ctx.store_raw(doc.url, cid_extract(report), "application/json",
+                                          title=f"CID major importers of HS6 {CID_HS6} (natural honey), {report.year}")
+        prefix = f"cacid|CAN|{CompanyRole.IMPORTER.value}|{CID_HS6}|{report.year}|"
+        if unchanged and not ctx.force and _has_prefix(ctx, prefix):
+            log.info("[%s] CID honey importers unchanged since the last run", self.key)
+            return
+        present: set[str] = set()
+        dupes = {i.name for i in report.importers if sum(j.name == i.name for j in report.importers) > 1}
+        for name in sorted(dupes):
+            ctx.warn(f"CID: {name!r} is listed more than once for {report.year}; one record kept")
+        for imp in report.importers:
+            series = prefix + imp.name
+            if series in present:
+                continue
+            present.add(series)
+            _add(ctx, series_key=series, country_iso3="CAN", company_name=imp.name, location=imp.location,
+                 role=CompanyRole.IMPORTER, hs_code=CID_HS6, measure_kind=MeasureKind.NONE,
+                 period_start=date(report.year, 1, 1), period_end=date(report.year, 12, 31),
+                 period_label=str(report.year), frequency="A", published_at=None, source_url=doc.url,
+                 raw_document_id=raw_id or None, data_status=DataStatus.PUBLISHED, reliability=Reliability.OFFICIAL,
+                 notes=("Tra i principali importatori di miele naturale (HS 040900) del Canada nell'anno: le aziende che "
+                        "insieme fanno fino all'80% del valore importato (Canadian Importers Database, ISED, dati della "
+                        "dogana). Nessun valore per azienda; l'importatore non è necessariamente l'utilizzatore finale."),
+                 extra={"hs6": CID_HS6, "total_value_cad": report.total_value_cad,
+                        "listed_importers": len({i.name for i in report.importers}),
+                        "listed_share_pct": report.listed_share_pct, "web_ui": f"{CID_REPORT_URL}?hsCode={CID_HS6}"})
+        gone = _retire(ctx, prefix, present)
+        if gone:
+            ctx.warn(f"CID no longer lists {len(gone)} honey importer(s) for {report.year}: "
+                     f"{', '.join(k.rsplit('|', 1)[-1] for k in gone[:10])}")

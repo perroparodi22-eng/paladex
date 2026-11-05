@@ -1073,6 +1073,7 @@ def parse_cuneo_averages_pdf(content: bytes, *, year: int | None = None) -> Cune
 class CuneoHoneyCollector(Collector):
     key = "cciaa_cuneo_miele"
     name = "CCIAA Cuneo - Listino prezzi all'ingrosso: Miele"
+    name_en = "Chamber of Commerce of Cuneo — wholesale honey prices"
     publisher = "Camera di Commercio di Cuneo"
     homepage = CUNEO_INDEX_URL
     kind = SourceKind.HTML
@@ -1504,6 +1505,7 @@ def parse_ismea_prices(content: bytes | str) -> IsmeaTable:
 class IsmeaHoneyCollector(Collector):
     key = "ismea_miele"
     name = "ISMEA Mercati - Api e miele: prezzi medi all'origine"
+    name_en = "ISMEA Mercati — bees and honey: average farm-gate prices"
     publisher = "ISMEA (Istituto di Servizi per il Mercato Agricolo Alimentare)"
     homepage = "https://www.ismeamercati.it/api-miele"
     kind = SourceKind.HTML
@@ -2200,6 +2202,7 @@ def parse_onm_annual_pdf(content: bytes) -> OnmAnnualTables:
 class OnmInformamieleCollector(Collector):
     key = "onm_informamiele"
     name = "Osservatorio Nazionale Miele - Rilevazione mensile e Report annuale"
+    name_en = "Italian National Honey Observatory — monthly survey and annual report"
     publisher = "Osservatorio Nazionale Miele"
     homepage = "https://www.informamiele.it/monitoraggio-produzione-e-mercato/"
     kind = SourceKind.HTML
@@ -2599,6 +2602,7 @@ def parse_siena_pdf(content: bytes) -> SienaList:
 class SienaHoneyCollector(Collector):
     key = "cciaa_siena_miele"
     name = "CCIAA Arezzo-Siena - Listino settimanale (provincia di Siena): miele"
+    name_en = "Chamber of Commerce of Arezzo-Siena — weekly price list (province of Siena): honey"
     publisher = "Camera di Commercio di Arezzo-Siena"
     homepage = SIENA_INDEX_URL
     kind = SourceKind.PDF

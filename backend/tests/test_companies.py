@@ -1,5 +1,6 @@
 """Honey exporters and importers by company: collectors/companies_official.py (Uruguay XXI SIE "Por
-Empresa", HMRC UK Trade Info traders), models_companies.py and api/companies.py.
+Empresa", HMRC UK Trade Info traders, India EIC approved honey establishments, Canada ISED Canadian
+Importers Database), models_companies.py and api/companies.py.
 
 Every fixture in tests/fixtures/companies/ is a REAL capture of 5 Nov 2026 (trimmed where its README
 says so). Variants (a revision, a withdrawn company, a broken answer) are derived from the real files
@@ -25,7 +26,11 @@ FIX = Path(__file__).parent / "fixtures" / "companies"
 SIE_PAGE = (FIX / "real_sie_empresa_2026_page.html").read_bytes()
 HMRC_IMP = (FIX / "real_hmrc_import_04090000_2026-07_08.json").read_bytes()
 HMRC_EXP = (FIX / "real_hmrc_export_04090000_2026-07_08.json").read_bytes()
+EIC_JSON = (FIX / "real_eic_facilities_honey_2026-11-05.json").read_bytes()
+CID_PAGE = (FIX / "real_cid_hs6_040900_2026-11-05.html").read_bytes()
 SIE_URL = "https://herramientas.uruguayxxi.gub.uy/sistema_de_estadistica/filtros.php"
+EIC_URL = "https://eicindia.gov.in/api/facilities"
+CID_URL = "https://www.ised-isde.canada.ca/app/ixb/cid-bdic/productReport.html"
 C = CompanyRecord
 
 
@@ -216,6 +221,138 @@ def test_a_list_without_figures_cannot_carry_one(s):
 
 
 # ---------------------------------------------------------------------------------------------
+# India: Export Inspection Council, establishments approved for honey export
+# ---------------------------------------------------------------------------------------------
+
+
+def test_india_state_keeps_only_the_state():
+    assert co.india_state("Village and Post Kandera,Teh-Baraut,District-Baghpat, UP -250620") == "Uttar Pradesh"
+    assert co.india_state("Plot No. 01, Kami-Gannur Road, Kami Village, Sonepat, (HR)- 131001") == "Haryana"
+    assert co.india_state("V&PO Birakheri,Saharanpur-247340,U.P.") == "Uttar Pradesh"
+    assert co.india_state("Patanjali Food and Herbal Park,Laksar Road,Haridwar-249404(Uttarakhand)") == "Uttarakhand"
+    # the state named last wins (an address naming two states ends with its own)
+    assert co.india_state("C/o: Pagro Frozen Foods, Adjoining GT Road (Haryana border), Fatehgarh Sahib, Punjab-140406.") == "Punjab"
+    # no state name ("Gajarat" as published): the PIN prefix 38 belongs to Gujarat only
+    assert co.india_state("Block No. 268, Changodar,Ahmedabad,  Gajarat, 382213") == "Gujarat"
+    # PIN 24xxxx is shared by Uttar Pradesh and Uttarakhand: no guess
+    assert co.india_state("Vill Mundet, Deoband Road, Roorkee 247656") is None
+    assert co.india_state(None) is None
+
+
+def test_eic_parse_real_answer():
+    payload = json.loads(EIC_JSON)
+    rows, total, problems = co.parse_eic_facilities(payload)
+    assert problems == [] and total == 31 and len(rows) == 27          # the 4 dairy/fruit rows are not honey
+    by = {e.approval_no: e for e in rows}
+    pat = by["Honey/04/027/2018"]
+    assert (pat.name, pat.state, pat.valid_until, pat.eu_approved) == (
+        "Patanjali Food Limited", "Uttarakhand", "2028-07-26", True)
+    akr = by["Honey/04/038/2024"]
+    assert (akr.name, akr.state, akr.approved_for, akr.eu_approved) == ("AKR Great Honeybee Pvt. Ltd.", "Haryana", "Non-EU", False)
+    assert by["Honey/04/035/2023"].state is None
+    assert sum(e.eu_approved is True for e in rows) == 16 and sum(e.eu_approved is False for e in rows) == 11
+    # two establishments of one company are two entries (two approval numbers)
+    assert sum(e.name.startswith("Shakti Apifoods") for e in rows) == 2
+    # not the register: fail loudly
+    with pytest.raises(CollectorError, match="not a non-empty list"):
+        co.parse_eic_facilities({"error": "x"})
+    with pytest.raises(CollectorError, match="category_id"):
+        co.parse_eic_facilities([{"id": 1, "name": "A"}])
+    # an inactive row is not listed
+    payload[[r["approval_no"] for r in payload].index("Honey/04/027/2018")]["is_active"] = 0
+    assert "Honey/04/027/2018" not in {e.approval_no for e in co.parse_eic_facilities(payload)[0]}
+
+
+def test_eic_collector_end_to_end(run_with_routes, s, monkeypatch):
+    res = run_with_routes("in_eic_honey_establishments", {EIC_URL: (200, EIC_JSON, "application/json")})
+    assert res["status"] == "success", res
+    assert res["new"] == 27 and res["warnings"] == []
+    rows = _current(s, country_iso3="IND")
+    assert len(rows) == 27
+    assert all((r.role, r.measure_kind, r.hs_code, r.period_label, r.frequency) ==
+               ("registered_exporter", "none", "0409", "2026-11", "register") for r in rows)
+    assert all(r.value is None and r.rank is None for r in rows)
+    pat = next(r for r in rows if r.company_name == "Patanjali Food Limited")
+    assert pat.location == "Uttarakhand" and pat.extra["approval_no"] == "Honey/04/027/2018"
+    assert pat.extra["eu_approved"] is True and pat.extra["valid_until"] == "2028-07-26"
+    assert (pat.period_start, pat.period_end) == (date(2026, 11, 1), date(2026, 11, 30))
+    # the address is neither stored nor archived
+    from paladex.config import get_settings
+    raw = s.get(RawDocument, pat.raw_document_id)
+    body = (get_settings().raw_dir / raw.path).read_text()
+    assert "Laksar Road" not in body and "Honey/04/027/2018" in body and "Uttarakhand" in body
+    assert all("Road" not in (r.location or "") for r in rows)
+
+    again = run_with_routes("in_eic_honey_establishments", {EIC_URL: (200, EIC_JSON, "application/json")})
+    assert again["status"] == "no_change" and again["new"] == 0
+
+    # next month: the same register is listed again for December (one record per month listed);
+    # an establishment EIC no longer lists is withdrawn for that month only
+    monkeypatch.setattr(co, "today", lambda: date(2026, 12, 2))
+    data = [r for r in json.loads(EIC_JSON) if r["approval_no"] != "Honey/04/038/2024"]
+    dec = run_with_routes("in_eic_honey_establishments", {EIC_URL: (200, json.dumps(data).encode(), "application/json")})
+    assert dec["new"] == 26 and dec["revised"] == 0
+    assert len(_current(s, country_iso3="IND", period_label="2026-12")) == 26
+    assert len(_current(s, country_iso3="IND", period_label="2026-11")) == 27
+    # the withdrawal within a month that was read again is reported
+    data2 = [r for r in data if r["approval_no"] != "Honey/04/027/2018"]
+    gone = run_with_routes("in_eic_honey_establishments", {EIC_URL: (200, json.dumps(data2).encode(), "application/json")})
+    assert gone["revised"] == 1 and any("no longer lists 1 honey establishment" in w for w in gone["warnings"])
+    assert _current(s, company_name="Patanjali Food Limited", period_label="2026-12") == []
+
+
+# ---------------------------------------------------------------------------------------------
+# Canada: ISED Canadian Importers Database, major importers of HS6 040900
+# ---------------------------------------------------------------------------------------------
+
+
+def test_cid_parse_real_page():
+    r = co.parse_cid_report(CID_PAGE)
+    assert (r.year, len(r.importers), r.total_value_cad, r.listed_share_pct, r.problems) == (2024, 25, 66356117.0, 79.92, [])
+    by = {i.name: i for i in r.importers}
+    assert by["BILLY BEE HONEY PRODUCTS COMPANY"].location == "London, Ontario"
+    assert by["INTEGRA LIFESCIENCES SALES LLC"].location == "Princeton, New Jersey"      # non-resident importer
+    assert by["MIDLANDS APIARIES LIMITED"].location == "Ashburton"                        # no province published
+    assert "CITADELLE, COOPERATIVE DE PRODUCTEURS DE SIROP D'ERABLE/ CIT" in by           # as published (truncated)
+    assert [i.name for i in r.importers] == sorted(i.name for i in r.importers)
+    # another product's report, or a page without the importer table, is refused
+    with pytest.raises(CollectorError, match="not the report for HS6 040900"):
+        co.parse_cid_report(CID_PAGE.replace(b"<title>040900", b"<title>170290"))
+    with pytest.raises(CollectorError, match="Major Canadian importers"):
+        co.parse_cid_report(CID_PAGE.replace(b"Major Canadian importers", b"Major importers"))
+    with pytest.raises(CollectorError, match="year"):
+        co.parse_cid_report(CID_PAGE.replace(b"<span>in 2024</span>", b"<span></span>"))
+
+
+def test_cid_collector_end_to_end(run_with_routes, s):
+    res = run_with_routes("ca_cid_honey_importers", {CID_URL: (200, CID_PAGE, "text/html")})
+    assert res["status"] == "success", res
+    assert res["new"] == 25 and res["warnings"] == []
+    rows = _current(s, country_iso3="CAN")
+    assert all((r.role, r.measure_kind, r.hs_code, r.period_label, r.frequency) ==
+               ("importer", "none", "040900", "2024", "A") for r in rows)
+    billy = next(r for r in rows if r.company_name == "BILLY BEE HONEY PRODUCTS COMPANY")
+    assert billy.location == "London, Ontario" and billy.value is None
+    assert billy.extra["total_value_cad"] == 66356117.0 and billy.extra["listed_importers"] == 25
+    assert "hsCode=040900" in billy.source_url
+    # no postal code stored or archived
+    from paladex.config import get_settings
+    body = (get_settings().raw_dir / s.get(RawDocument, billy.raw_document_id).path).read_text()
+    assert "N6A 4Z2" not in body and "BILLY BEE HONEY PRODUCTS COMPANY" in body
+    assert all(not re.search(r"[A-Z]\d[A-Z] ?\d[A-Z]\d", r.location or "") for r in rows)
+
+    again = run_with_routes("ca_cid_honey_importers", {CID_URL: (200, CID_PAGE, "text/html")})
+    assert again["status"] == "no_change"
+
+    # an importer no longer listed for the year is withdrawn (variant derived from the real page)
+    text = CID_PAGE.decode("utf-8")
+    text = re.sub(r"<tr>\s*<td >FRITO LAY CANADA</td>.*?</tr>", "", text, flags=re.S)
+    res2 = run_with_routes("ca_cid_honey_importers", {CID_URL: (200, text.encode("utf-8"), "text/html")})
+    assert res2["revised"] == 1 and any("no longer lists 1 honey importer" in w for w in res2["warnings"])
+    assert _current(s, company_name="FRITO LAY CANADA") == []
+
+
+# ---------------------------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------------------------
 
@@ -229,12 +366,27 @@ def test_api_availability_per_country(api):
         assert st[iso3]["status"] == "not_published", iso3
         assert st[iso3]["reason_it"] and st[iso3]["reason_en"] and st[iso3]["authority"]
     assert st["CHL"]["status"] == "unavailable"
-    assert st["CHN"]["status"] == "unverified" and st["CHN"]["checked_on"] is None
     assert "Decree 11,544/2023" in st["BRA"]["reason_en"] and "gov.br/mdic" in st["BRA"]["url"]
     assert "ISTAT" in st["ITA"]["authority"]
-    # figures first, then registers, ... unverified last
+    # the twelve main non-EU origins have all been checked: two registers, ten lists that exist but
+    # cannot be read (EU Login, bot protection, unreachable hosts), each with authority and reason
+    origins = ("CHN", "IND", "VNM", "UKR", "MEX", "TUR", "THA", "NZL", "CAN", "AUS", "SRB", "MDA")
+    for iso3 in origins:
+        a = st[iso3]
+        assert a["status"] != "unverified" and a["checked_on"] == "2026-11-05", iso3
+        assert a["authority"] != "—" and a["url"] and a["reason_it"] and a["reason_en"], iso3
+    assert (st["IND"]["status"], st["IND"]["source_keys"], st["IND"]["roles"]) == (
+        "register", ["in_eic_honey_establishments"], ["registered_exporter"])
+    assert (st["CAN"]["status"], st["CAN"]["source_keys"], st["CAN"]["roles"]) == (
+        "register", ["ca_cid_honey_importers"], ["importer"])
+    assert {st[i]["status"] for i in origins if i not in ("IND", "CAN")} == {"unavailable"}
+    assert "Export Inspection Council" in st["IND"]["authority"] and "SENASICA" in st["MEX"]["authority"]
+    assert "EU Login" in st["UKR"]["reason_en"] and "Imperva" in st["NZL"]["reason_en"]
+    assert d["status_counts"]["unverified"] == 0
+    # figures first, then registers, then lists that exist but cannot be used, then not published
     order = [c["status"] for c in d["countries"]]
-    assert order.index("figures") < order.index("register") < order.index("not_published") < order.index("unverified")
+    assert order.index("figures") < order.index("register") < order.index("unavailable") < order.index("not_published")
+    assert order == sorted(order, key=["figures", "register", "unavailable", "not_published", "unverified"].index)
     assert st["URY"]["companies"] == {}
 
 
@@ -272,6 +424,25 @@ def test_api_country_lists(api, run_with_routes):
     assert all("values" not in c and "rank_in_ref" not in c for c in imp["companies"])
     nz = next(c for c in imp["companies"] if c["name"] == "HONEY NEW ZEALAND EUROPE LTD")
     assert nz["periods"] == ["2026-07", "2026-08"] and nz["location"] == "HINCKLEY, LE10"
+
+    run_with_routes("in_eic_honey_establishments", {EIC_URL: (200, EIC_JSON, "application/json")})
+    run_with_routes("ca_cid_honey_importers", {CID_URL: (200, CID_PAGE, "text/html")})
+    ov = {c["iso3"]: c for c in api.get("/api/companies").json()["countries"]}
+    assert ov["IND"]["companies"] == {"registered_exporter": 27} and ov["IND"]["latest_period"] == "2026-11"
+    assert ov["CAN"]["companies"] == {"importer": 25} and ov["CAN"]["latest_period"] == "2024"
+    ind = api.get("/api/companies/IND").json()
+    (reg,) = ind["lists"]
+    assert (reg["role"], reg["measure_kind"], reg["company_count"], reg["periods"]) == (
+        "registered_exporter", "none", 27, ["2026-11"])
+    names = [c["name"] for c in reg["companies"]]
+    assert names == sorted(names, key=lambda n: re.sub(r"^[^0-9A-Za-z]+", "", n).casefold())   # never ranked
+    assert next(c for c in reg["companies"] if c["name"] == "Patanjali Food Limited")["location"] == "Uttarakhand"
+    assert reg["source"]["key"] == "in_eic_honey_establishments" and "commodity-wise-facilities" in reg["web_url"]
+    can = api.get("/api/companies/CAN").json()
+    (imp_ca,) = can["lists"]
+    assert (imp_ca["role"], imp_ca["company_count"], imp_ca["latest_period"], imp_ca["frequency"]) == (
+        "importer", 25, "2024", "A")
+    assert reg["frequency"] == "register" and imp["frequency"] == "M"
 
     br = api.get("/api/companies/BRA").json()
     assert br["lists"] == [] and br["availability"]["status"] == "not_published"

@@ -1,7 +1,10 @@
-"""Official national honey production and beehive statistics from South American agencies.
+"""Official national honey production and beehive statistics from the agencies of origin countries
+(South America, Canada, Mexico, Turkey).
 
-Research: docs/research/official_south_america.json. Everything here is checked against the live
-sources (captures of 5 Nov 2026 in ``tests/fixtures/production_official/real_*``).
+Research: docs/research/official_south_america.json, official_north_america_oceania.json and
+official_asia_turkey.json. Everything here is checked against the live sources (captures of 4-5 Nov
+2026 in ``tests/fixtures/production_official/real_*``). Canada, Mexico and Turkey: see the sections
+"Canada, Mexico, Turkey" at the end of this docstring.
 
 Collectors
 ----------
@@ -109,11 +112,75 @@ Routes checked and NOT used (5 Nov 2026)
   datos.gob.cl has no apiculture dataset, and SAG's SIPEC Apícola needs a login. The hive register
   figures are collected by ``cl_odepa_hives``; the article's beekeeper table is kept only as its
   total row (its regional rows have blank cells).
+
+Canada, Mexico, Turkey (live checks of 5 Nov 2026)
+--------------------------------------------------
+* ``ca_statcan_honey``: Statistics Canada table **32-10-0353-01** "Production and value of honey"
+  (survey 3419, compiled from provincial apiculture data; NB and PEI by a StatCan mail survey), read
+  from the keyless Web Data Service: ``getCubeMetadata`` (POST, ~7 KB) as the release check, then
+  ``getDataFromCubePidCoordAndLatestNPeriods`` (POST, one request, ~110 KB) for Canada and the 9
+  provinces in the table (no Newfoundland and Labrador, also excluded from "Canada") x beekeepers,
+  colonies, production, value, from ``STATCAN_FIRST_YEAR``. Metrics: ``production`` in **t**
+  (published in thousands of pounds; x 0.45359237 / 1000, exact by definition of the pound; the
+  published figure is kept in ``extra.value_as_published``), ``production_value`` in ``1000 CAD`` as
+  published (nominal; excludes inventory sales except in Quebec), ``colonies`` (number; may include
+  pollination colonies) with the number of beekeepers in ``extra.beekeepers``; provinces under
+  ``production_by_region``, ``production_value_by_region`` and ``colonies_by_region`` (province in
+  ``extra.region``). The "Average yield per colony" estimate is terminated ('..' for every year since
+  2014): not stored, and not recomputed. ``published_at`` = the WDS ``releaseTime`` of each point;
+  symbol "p" (preliminary) -> data_status provisional, "r" (revised) kept in ``flag_raw``. StatCan
+  revises the previous year with each December release: FAOSTAT's 35,460 t for 2024 equals 78,176
+  thousand lb, presumably StatCan's first (December 2024) estimate (not verifiable from the WDS, which
+  keeps no vintages); the current table gives 74,249 thousand lb (33,678.8 t, released again
+  29 Apr 2026). 2018-2023 agree with FAOSTAT to the tonne (checked in the live run).
+* ``mx_siap_honey``: SIAP (SADER) "Cierre de la producción pecuaria", product "Miel" (code 1910080),
+  report "Producción, precio y valor": the page's own xajax service (``nube.agricultura.gob.mx/
+  cierre_pecuario/``, function ``reporte2``, national level, one ~8 KB answer per year; called as a
+  GET, which the service answers byte for byte like the page's POST). One row per state plus "Total".
+  Metrics: ``production`` (t, as published), ``production_value`` (``1000 MXN``, "miles de pesos",
+  nominal) for "Total"; the states under ``production_by_region`` / ``production_value_by_region``
+  (state in ``extra.region``, ISO 3166-2 suffix and INEGI code). The price ("pesos por kilogramo",
+  the average price paid to producers) is stored as a **producer** ``PriceObservation`` (MXN/kg,
+  national average only; each state's price is kept in ``extra.price_mxn_per_kg`` of its rows).
+  The states add up to "Total" exactly every year 2015-2025, and "Total" price = value / volume.
+  FAOSTAT carries SIAP's figures (2024: 57,430.36 t = SIAP 57,430.360 t; 2020 differs by 8 kg).
+  The service gives no publication date: ``published_at`` is empty.
+* ``tr_tuik_honey``: TÜİK "Hayvansal Üretim İstatistikleri" (annual bulletin, 10 Feb 2026 for 2025),
+  statistical table "Arıcılık" (an .xls: years 1991-2025; honey and wax in t; new and old hives;
+  villages / holdings practising apiculture), compiled from the Ministry of Agriculture and Forestry's
+  administrative records. Read through the public JSON API of TÜİK's data portal
+  (``veriportali.tuik.gov.tr/api/tr/press`` -> the latest bulletin id -> ``/api/tr/press/{id}`` ->
+  the table's download URL); the API answers 404 unless the request carries
+  ``X-Requested-With: XMLHttpRequest`` (as the portal's own web app does). Metrics: ``production``
+  (t) and ``colonies`` = new + old hives (TÜİK publishes the two columns, no total; both kept in
+  ``extra`` with holdings and wax), from ``TUIK_FIRST_YEAR``; ``published_at`` = the bulletin date.
+  FAOSTAT carries TÜİK's figures (2024: 95,492.31 t and 8,961,975 hives = TÜİK 95,492.311 t and
+  8,717,162 + 244,813 hives). Needs the ``xlrd`` package for the .xls table.
+
+Change detection: StatCan, the metadata ``releaseTime`` (the data are re-read on a new release or
+every ``STATCAN_FULL_REFRESH_DAYS``); SIAP, the year list plus the latest year's report (every year is
+re-read when that answer changes or every ``SIAP_FULL_REFRESH_DAYS``); TÜİK, the press list (the
+bulletin and its table are read for a new issue or every ``TUIK_REFRESH_DAYS``).
+
+Routes checked and NOT used (5 Nov 2026):
+
+* Canada: the full-table CSV zip (``getFullTableDownloadCSV``) carries the whole history since 1924;
+  the coordinate query returns the same figures for the years kept.
+* Mexico: SIAP's open-data bulk files (``nube.agricultura.gob.mx/datosAbiertos``, one file per year
+  with every species and municipality) are much larger than the state table needed; the year-end
+  close query gives the published state table directly. Hive inventory (colmenas) is not in the
+  close report; not collected.
+* Turkey: TÜİK's SDMX REST service (``nsiws.tuik.gov.tr/rest``) answers 401 without a token, and a
+  token needs an API key created after SMS verification of a Turkish mobile number (or requested by
+  e-mail); the portal's anonymous dataflow list (510 dataflows) has no honey or hive dataflow; the
+  MEDAS database (``biruni.tuik.gov.tr/medas``, provincial livestock figures) is a stateful ZK web
+  application with no file or API access. Provincial honey figures are therefore not collected.
 """
 from __future__ import annotations
 
 import copy
 import csv
+import hashlib
 import io
 import json
 import logging
@@ -123,10 +190,11 @@ import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Any
+from urllib.parse import urlencode
 
 from sqlalchemy import select
 
-from ..enums import DataStatus, Reliability, SourceKind
+from ..enums import DataStatus, PriceType, Reliability, SourceKind, Variety
 from ..models import AppSetting, ProductionStat, utcnow
 from .base import CollectContext, Collector, CollectorError, month_bounds, year_bounds
 
@@ -1041,30 +1109,982 @@ class ClOdepaHivesCollector(Collector):
             )
 
 
+# ===========================================================================
+# 4) Canada: Statistics Canada, table 32-10-0353-01 (Web Data Service)
+# ===========================================================================
+
+STATCAN_WDS = "https://www150.statcan.gc.ca/t1/wds/rest"
+STATCAN_METADATA_URL = f"{STATCAN_WDS}/getCubeMetadata"
+STATCAN_DATA_URL = f"{STATCAN_WDS}/getDataFromCubePidCoordAndLatestNPeriods"
+STATCAN_PRODUCT_ID = 32100353
+STATCAN_TABLE = "32-10-0353-01"
+STATCAN_TABLE_TITLE = "Production and value of honey"
+STATCAN_TABLE_PAGE = "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3210035301"
+STATCAN_FIRST_YEAR = 2015            # first year kept (the table goes back to 1924)
+STATCAN_FULL_REFRESH_DAYS = 90       # re-read the data at least this often (silent corrections)
+STATCAN_MAX_COORDINATES = 300        # WDS limit per request
+LB_IN_KG = 0.45359237                # the international pound, exact by definition
+
+# Estimates kept: Paladex key -> (member name as published, unit-of-measure code, unit name).
+# Unit codes from WDS getCodeSets (checked 5 Nov 2026): 223 Number, 254 Pounds, 81 Dollars.
+STATCAN_ESTIMATES: dict[str, tuple[str, int, str]] = {
+    "beekeepers": ("Beekeepers", 223, "Number"),
+    "colonies": ("Colonies", 223, "Number"),
+    "production": ("Production of natural honey, total", 254, "Pounds"),
+    "value": ("Value of natural honey, total", 81, "Dollars"),
+}
+# Paladex metrics per estimate: (Canada, province). Beekeepers are kept in `extra` of the colony rows.
+STATCAN_METRICS = {"production": ("production", "production_by_region"),
+                   "value": ("production_value", "production_value_by_region"),
+                   "colonies": ("colonies", "colonies_by_region")}
+STATCAN_SCALARS = {0: "units", 1: "tens", 2: "hundreds", 3: "thousands", 4: "tens of thousands",
+                   5: "hundreds of thousands", 6: "millions", 7: "tens of millions", 8: "hundreds of millions",
+                   9: "billions"}
+# WDS code sets: symbols (1 preliminary, 3 revised) and statuses ('..' etc. carry no value).
+STATCAN_SYMBOLS = {0: None, 1: "p", 3: "r"}
+STATCAN_STATUSES = {0: None, 1: "..", 2: "0s", 3: "A", 4: "B", 5: "C", 6: "D", 7: "E", 8: "F", 9: "...", 10: "<LOD"}
+STATCAN_NO_VALUE = {1, 8, 9}         # not available, too unreliable to be published, not applicable
+# Statistics Canada geography (SGC province code) -> (ISO 3166-2 suffix, English name).
+CA_PROVINCES: dict[str, tuple[str, str]] = {
+    "10": ("NL", "Newfoundland and Labrador"), "11": ("PE", "Prince Edward Island"), "12": ("NS", "Nova Scotia"),
+    "13": ("NB", "New Brunswick"), "24": ("QC", "Quebec"), "35": ("ON", "Ontario"), "46": ("MB", "Manitoba"),
+    "47": ("SK", "Saskatchewan"), "48": ("AB", "Alberta"), "59": ("BC", "British Columbia"), "60": ("YT", "Yukon"),
+    "61": ("NT", "Northwest Territories"), "62": ("NU", "Nunavut"),
+}
+
+
+@dataclass(frozen=True)
+class StatcanMember:
+    member_id: int
+    name: str
+    code: str | None            # classificationCode (SGC code for a geography)
+    geo_level: int | None
+    uom_code: int | None
+    terminated: bool
+
+
+@dataclass(frozen=True)
+class StatcanCube:
+    release_time: str
+    start_year: int
+    end_year: int
+    geos: dict[int, StatcanMember]                      # member id -> geography
+    estimates: dict[str, StatcanMember]                 # Paladex key -> estimate member
+    footnotes: dict[tuple[int, int], list[str]]         # (dimension, member id; 0 = every member) -> notes
+    corrections: list[str]
+    survey_codes: list[str]
+
+    @property
+    def national_id(self) -> int:
+        return next(m.member_id for m in self.geos.values() if m.geo_level == 0)
+
+    @property
+    def signature(self) -> str:
+        return f"{self.end_year}|{self.release_time}|{len(self.corrections)}"
+
+    @property
+    def terminated(self) -> list[str]:
+        return [k for k, m in self.estimates.items() if m.terminated]
+
+    def notes_for(self, geo_id: int, member_id: int) -> list[str]:
+        out: list[str] = []
+        for key in ((1, 0), (1, geo_id), (2, 0), (2, member_id)):
+            for note in self.footnotes.get(key, []):
+                if note not in out:
+                    out.append(note)
+        return out
+
+
+def _year_of(value: Any) -> int | None:
+    m = re.fullmatch(r"(\d{4})-01-01", str(value or ""))
+    return int(m.group(1)) if m else None
+
+
+def parse_statcan_metadata(content: bytes) -> StatcanCube:
+    """The getCubeMetadata answer for table 32-10-0353-01. Fails loudly (CollectorError) when the
+    table, its two dimensions, a kept estimate or its unit of measure changed."""
+    doc = _load_json(content, "Statistics Canada getCubeMetadata")
+    if not isinstance(doc, list) or not doc or not isinstance(doc[0], dict):
+        raise CollectorError(f"Statistics Canada: unexpected getCubeMetadata answer {str(doc)[:200]!r}")
+    first = doc[0]
+    obj = first.get("object")
+    if first.get("status") != "SUCCESS" or not isinstance(obj, dict):
+        raise CollectorError(f"Statistics Canada: getCubeMetadata did not succeed ({str(first)[:200]!r})")
+    if str(obj.get("productId")) != str(STATCAN_PRODUCT_ID) or _norm(obj.get("cubeTitleEn")) != _norm(STATCAN_TABLE_TITLE):
+        raise CollectorError(f"Statistics Canada schema drift: table {obj.get('productId')} is "
+                             f"{obj.get('cubeTitleEn')!r}, expected {STATCAN_PRODUCT_ID} {STATCAN_TABLE_TITLE!r}")
+    dims = {d.get("dimensionPositionId"): d for d in obj.get("dimension") or [] if isinstance(d, dict)}
+    if (set(dims) != {1, 2} or _norm(dims[1].get("dimensionNameEn")) != "geography"
+            or _norm(dims[2].get("dimensionNameEn")) != "estimates"):
+        raise CollectorError("Statistics Canada schema drift: the table's dimensions are "
+                             f"{[(k, d.get('dimensionNameEn')) for k, d in sorted(dims.items())]}, expected "
+                             "1 Geography and 2 Estimates; nothing stored")
+
+    def members(dim: dict) -> list[StatcanMember]:
+        out = []
+        for m in dim.get("member") or []:
+            if not isinstance(m, dict) or not isinstance(m.get("memberId"), int):
+                continue
+            out.append(StatcanMember(
+                member_id=m["memberId"], name=str(m.get("memberNameEn") or "").strip(),
+                code=str(m["classificationCode"]) if m.get("classificationCode") is not None else None,
+                geo_level=m.get("geoLevel"), uom_code=m.get("memberUomCode"), terminated=bool(m.get("terminated")),
+            ))
+        return out
+
+    geos = {m.member_id: m for m in members(dims[1])}
+    national = [m for m in geos.values() if m.geo_level == 0]
+    if len(national) != 1 or _norm(national[0].name) != "canada":
+        raise CollectorError(f"Statistics Canada schema drift: no single 'Canada' member at geographic level 0 "
+                             f"({[m.name for m in national]}); nothing stored")
+    by_name = {_norm(m.name): m for m in members(dims[2])}
+    estimates: dict[str, StatcanMember] = {}
+    for key, (name, uom, unit) in STATCAN_ESTIMATES.items():
+        m = by_name.get(_norm(name))
+        if m is None:
+            raise CollectorError(f"Statistics Canada schema drift: no estimate {name!r} in table {STATCAN_TABLE} "
+                                 f"(estimates: {[x.name for x in by_name.values()]}); nothing stored")
+        if m.uom_code != uom:
+            raise CollectorError(f"Statistics Canada unit drift: {name!r} has unit code {m.uom_code}, expected {uom} "
+                                 f"({unit}); nothing stored")
+        estimates[key] = m
+    start, end = _year_of(obj.get("cubeStartDate")), _year_of(obj.get("cubeEndDate"))
+    if start is None or end is None:
+        raise CollectorError(f"Statistics Canada schema drift: the table is not annual (start {obj.get('cubeStartDate')!r}, "
+                             f"end {obj.get('cubeEndDate')!r}); nothing stored")
+    footnotes: dict[tuple[int, int], list[str]] = {}
+    for f in obj.get("footnote") or []:
+        link = f.get("link") if isinstance(f, dict) else None
+        if isinstance(link, dict) and f.get("footnotesEn"):
+            footnotes.setdefault((link.get("dimensionPositionId"), link.get("memberId")), []).append(str(f["footnotesEn"]).strip())
+    corrections = [f"{c.get('correctionDate')}: {c.get('correctionNoteEn')}" for c in obj.get("correction") or []
+                   if isinstance(c, dict)]
+    return StatcanCube(release_time=str(obj.get("releaseTime") or ""), start_year=start, end_year=end, geos=geos,
+                       estimates=estimates, footnotes=footnotes, corrections=corrections,
+                       survey_codes=[str(s) for s in obj.get("surveyCode") or []])
+
+
+def statcan_request_body(cube: StatcanCube, first_year: int = STATCAN_FIRST_YEAR) -> list[dict]:
+    """One coordinate per geography and kept estimate ("geo.estimate.0.0.0.0.0.0.0.0"), each with
+    the latest N annual periods so that the first one is `first_year`."""
+    latest_n = max(1, cube.end_year - first_year + 1)
+    members = sorted(m.member_id for m in cube.estimates.values())
+    body = [{"productId": STATCAN_PRODUCT_ID, "coordinate": f"{g}.{e}.0.0.0.0.0.0.0.0", "latestN": latest_n}
+            for g in sorted(cube.geos) for e in members]
+    if len(body) > STATCAN_MAX_COORDINATES:
+        raise CollectorError(f"Statistics Canada: {len(body)} coordinates exceed the WDS limit of "
+                             f"{STATCAN_MAX_COORDINATES} per request (table grew?)")
+    return body
+
+
+@dataclass(frozen=True)
+class StatcanPoint:
+    geo_id: int
+    member_id: int
+    estimate: str               # Paladex key (STATCAN_ESTIMATES)
+    year: int
+    raw: float | None           # the number as published, before the scalar factor
+    scalar_code: int
+    symbol: str | None          # "p" preliminary, "r" revised
+    status: str | None          # ".." etc., or a quality letter
+    release: datetime | None
+    vector_id: int | None
+    coordinate: str
+
+    @property
+    def value(self) -> float | None:
+        """In the base unit (number, pounds, dollars)."""
+        return None if self.raw is None else self.raw * 10 ** self.scalar_code
+
+    @property
+    def flag(self) -> str | None:
+        return " ".join(x for x in (self.symbol, self.status) if x) or None
+
+
+def parse_statcan_data(content: bytes, cube: StatcanCube) -> tuple[list[StatcanPoint], list[str]]:
+    """Points of a getDataFromCubePidCoordAndLatestNPeriods answer, and problems (a coordinate the
+    WDS refused, an unknown code). Fails loudly when the answer is not the requested table, a
+    coordinate is not one Paladex asked for, or a period is not a year."""
+    doc = _load_json(content, "Statistics Canada getDataFromCubePidCoordAndLatestNPeriods")
+    if not isinstance(doc, list) or not doc:
+        raise CollectorError(f"Statistics Canada: unexpected data answer {str(doc)[:200]!r}; nothing stored")
+    key_of = {m.member_id: k for k, m in cube.estimates.items()}
+    points: list[StatcanPoint] = []
+    problems: list[str] = []
+    for item in doc:
+        obj = item.get("object") if isinstance(item, dict) else None
+        if not isinstance(obj, dict):
+            raise CollectorError(f"Statistics Canada: unexpected element {str(item)[:200]!r} in the data answer")
+        coord = str(obj.get("coordinate") or "")
+        if item.get("status") != "SUCCESS":
+            problems.append(f"Statistics Canada: coordinate {coord or '?'} was refused ({item.get('status')}, "
+                            f"responseStatusCode {obj.get('responseStatusCode')}); skipped")
+            continue
+        if str(obj.get("productId")) != str(STATCAN_PRODUCT_ID):
+            raise CollectorError(f"Statistics Canada: data for table {obj.get('productId')}, not {STATCAN_PRODUCT_ID}")
+        parts = coord.split(".")
+        if len(parts) < 2 or not parts[0].isdigit() or not parts[1].isdigit():
+            raise CollectorError(f"Statistics Canada schema drift: unreadable coordinate {coord!r}; nothing stored")
+        geo_id, member_id = int(parts[0]), int(parts[1])
+        if geo_id not in cube.geos or member_id not in key_of or any(p != "0" for p in parts[2:]):
+            raise CollectorError(f"Statistics Canada: coordinate {coord} is not one Paladex asked for; nothing stored")
+        for p in obj.get("vectorDataPoint") or []:
+            year = _year_of(p.get("refPer"))
+            if year is None:
+                raise CollectorError(f"Statistics Canada schema drift: period {p.get('refPer')!r} of {coord} is not a "
+                                     "year; nothing stored")
+            symbol_code, status_code = p.get("symbolCode") or 0, p.get("statusCode") or 0
+            scalar = p.get("scalarFactorCode") or 0
+            value = p.get("value")
+            if symbol_code not in STATCAN_SYMBOLS or status_code not in STATCAN_STATUSES or scalar not in STATCAN_SCALARS:
+                problems.append(f"Statistics Canada: unknown symbol/status/scalar code {symbol_code}/{status_code}/"
+                                f"{scalar} for {coord} {year}; kept with the raw codes")
+            if status_code in STATCAN_NO_VALUE or value is None:
+                raw = None
+            elif isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+                raw = float(value)
+            else:
+                problems.append(f"Statistics Canada: unreadable value {value!r} for {coord} {year}; skipped")
+                continue
+            points.append(StatcanPoint(
+                geo_id=geo_id, member_id=member_id, estimate=key_of[member_id], year=year, raw=raw,
+                scalar_code=int(scalar), symbol=STATCAN_SYMBOLS.get(symbol_code, str(symbol_code) or None),
+                status=STATCAN_STATUSES.get(status_code, str(status_code)),
+                release=_parse_iso_datetime(p.get("releaseTime")), vector_id=obj.get("vectorId"), coordinate=coord,
+            ))
+    if not points:
+        raise CollectorError(f"Statistics Canada returned no data point ({'; '.join(problems)[:300]}); nothing stored")
+    return points, problems
+
+
+def check_statcan_totals(points: list[StatcanPoint], cube: StatcanCube) -> list[str]:
+    """Provinces against Canada, per estimate and year (warnings, never fixes). Each figure is
+    rounded to its published scale, so a difference up to one unit of that scale per province is
+    rounding."""
+    msgs: list[str] = []
+    national_id = cube.national_id
+    groups: dict[tuple[str, int], list[StatcanPoint]] = {}
+    for p in points:
+        groups.setdefault((p.estimate, p.year), []).append(p)
+    for (est, year), items in sorted(groups.items()):
+        nat = next((p for p in items if p.geo_id == national_id), None)
+        provs = [p for p in items if p.geo_id != national_id]
+        if nat is None or nat.value is None or not provs or any(p.value is None for p in provs):
+            continue
+        total = sum(p.value for p in provs)
+        tolerance = sum(10 ** p.scalar_code for p in provs)
+        if abs(total - nat.value) > tolerance + 1e-6:
+            msgs.append(f"Statistics Canada: {STATCAN_ESTIMATES[est][0]} {year}: the provinces add up to {total:,.0f}, "
+                        f"Canada is {nat.value:,.0f}; both kept as published")
+    return msgs
+
+
+class CaStatcanHoneyCollector(Collector):
+    key = "ca_statcan_honey"
+    name = "Canada – Statistics Canada (tab. 32-10-0353-01): produzione, valore e alveari, Canada e province"
+    name_en = "Canada – Statistics Canada (table 32-10-0353-01): honey production, value and colonies, Canada and provinces"
+    publisher = "Statistics Canada (survey 3419, compiled from provincial apiculture data)"
+    homepage = STATCAN_TABLE_PAGE
+    kind = SourceKind.API
+    reliability = Reliability.OFFICIAL
+    category = "production"
+    country_iso3 = "CAN"
+    language = "en"
+    expected_update = "Annuale (anno Y pubblicato a dicembre Y, rivisto nell'edizione successiva); controllo mensile"
+    expected_update_en = "Annual (year Y released in December Y, revised in the next edition); checked monthly"
+    expected_max_age_days = 400
+    terms_note = (
+        "Source: Statistics Canada, Table 32-10-0353-01 'Production and value of honey' (Statistics Canada Open "
+        "Licence: reuse with attribution). Production is published in thousands of pounds and stored in tonnes "
+        "(1 lb = 0.45359237 kg, exact; the published figure is kept with each row); value in thousands of Canadian "
+        "dollars, as published, excluding inventory sales except in Quebec; colonies and beekeepers as published "
+        "(may include pollination colonies). Canada excludes Newfoundland and Labrador. Canada and each province are "
+        "separate rows (provinces under their own metrics), never summed. StatCan revises the previous year each "
+        "December: every change is kept as a revision."
+    )
+    # Monthly; each run is one ~7 KB metadata request unless the table was re-released (mid-December).
+    schedule = {"trigger": "cron", "day": 20, "hour": 6, "minute": 55}
+    order = 72
+
+    def collect(self, ctx: CollectContext) -> None:
+        state = _load_state(ctx)
+        meta = ctx.fetch(STATCAN_METADATA_URL, method="POST", json_body=[{"productId": STATCAN_PRODUCT_ID}],
+                         headers=JSON_HEADERS, store=False)
+        cube = parse_statcan_metadata(meta.content)
+        have_rows = _has_rows(ctx)
+        pulled_at = _parse_iso_datetime(state.get("pulled_at"))
+        recent = pulled_at is not None and utcnow() - pulled_at < timedelta(days=STATCAN_FULL_REFRESH_DAYS)
+        if have_rows and not ctx.force and recent and state.get("release") == cube.signature:
+            log.info("[%s] table %s unchanged (released %s)", self.key, STATCAN_TABLE, cube.release_time)
+            return
+        for key in cube.terminated:
+            _warn_once(ctx, state, f"terminated:{key}",
+                       f"Statistics Canada: the estimate {STATCAN_ESTIMATES[key][0]!r} is marked terminated "
+                       "(no longer updated); its published years are still read")
+        body = statcan_request_body(cube)
+        release = _parse_iso_datetime(cube.release_time)
+        doc = ctx.fetch(STATCAN_DATA_URL, method="POST", json_body=body, headers=JSON_HEADERS,
+                        title=(f"Statistics Canada {STATCAN_TABLE} '{STATCAN_TABLE_TITLE}': {len(body)} coordinates, "
+                               f"latest {body[0]['latestN']} years to {cube.end_year} (release {cube.release_time})"),
+                        published_at=release.date() if release else None)
+        if doc.unchanged and have_rows and not ctx.force:
+            log.info("[%s] same WDS answer as already stored", self.key)
+        else:
+            points, problems = parse_statcan_data(doc.content, cube)
+            for msg in problems:
+                ctx.warn(msg)
+            for msg in check_statcan_totals(points, cube):      # a property of the table: reported once
+                _warn_once(ctx, state, f"totals:{msg}", msg)
+            self._store(ctx, state, cube, points, doc.raw_document_id)
+        state.update({"release": cube.signature, "end_year": cube.end_year, "release_time": cube.release_time,
+                      "pulled_at": utcnow().isoformat(timespec="seconds")})
+        _save_state(ctx, state)
+        ctx.checkpoint()
+
+    def _store(self, ctx: CollectContext, state: dict, cube: StatcanCube, points: list[StatcanPoint],
+               raw_id: int) -> None:
+        grouped: dict[tuple[int, int], dict[str, StatcanPoint]] = {}
+        for p in points:
+            if p.year >= STATCAN_FIRST_YEAR:
+                grouped.setdefault((p.geo_id, p.year), {})[p.estimate] = p
+        national_id = cube.national_id
+        skipped = 0
+        for (geo_id, year), by_est in sorted(grouped.items()):
+            geo = cube.geos[geo_id]
+            national = geo_id == national_id
+            region: dict[str, Any] = {}
+            if national:
+                loc, place = "CAN", "Canada"
+            else:
+                prov = CA_PROVINCES.get(geo.code or "")
+                if prov is None or _norm(prov[1]) != _norm(geo.name):
+                    _warn_once(ctx, state, f"province:{geo.code}:{geo.name}",
+                               f"Statistics Canada: geography {geo.code} {geo.name!r} is not in Paladex's list of "
+                               "provinces; stored under its published name")
+                    prov = None
+                loc, place = f"CA-{prov[0] if prov else (geo.code or geo_id)}", geo.name
+                region = {"region": geo.name, "region_code": geo.code, "region_abbr": prov[0] if prov else None}
+            beekeepers = by_est.get("beekeepers")
+            for est in ("production", "value", "colonies"):
+                p = by_est.get(est)
+                if p is None:
+                    continue
+                if p.value is None:
+                    skipped += 1
+                    continue
+                name, _uom, unit_name = STATCAN_ESTIMATES[est]
+                metric = STATCAN_METRICS[est][0 if national else 1]
+                scale = STATCAN_SCALARS.get(p.scalar_code, f"10^{p.scalar_code}")
+                extra: dict[str, Any] = {
+                    "table": STATCAN_TABLE, "table_title": STATCAN_TABLE_TITLE, "product_id": STATCAN_PRODUCT_ID,
+                    "estimate": name, "geography": geo.name, "value_as_published": p.raw, "scalar": scale,
+                    "unit_as_published": unit_name, "vector_id": p.vector_id, "coordinate": p.coordinate,
+                    "release_time": p.release.isoformat() if p.release else None,
+                    "symbol": p.symbol, "status": p.status, "footnotes": cube.notes_for(geo_id, p.member_id),
+                    "api": {"endpoint": STATCAN_DATA_URL, "method": "POST"}, "survey_codes": cube.survey_codes,
+                    **region,
+                }
+                if est == "production":
+                    pounds = p.value
+                    value, unit = round(pounds * LB_IN_KG / 1000.0, 3), "t"
+                    extra["conversion"] = "pounds x 0.45359237 / 1000 = t (international pound, exact)"
+                    what = f"honey production, {place}: {p.raw:,.0f} {scale} of pounds as published, stored in tonnes"
+                elif est == "value":
+                    value, unit = round(p.value / 1000.0, 3), "1000 CAD"
+                    what = f"value of honey production, {place}: {p.raw:,.0f} {scale} of dollars as published (nominal)"
+                else:
+                    value, unit = p.value, "number"
+                    what = f"colonies, {place}: {p.raw:,.0f} as published"
+                    if beekeepers is not None and beekeepers.value is not None:
+                        extra["beekeepers"] = beekeepers.value
+                        extra["beekeepers_flag"] = beekeepers.flag
+                ps, pe = year_bounds(year)
+                ctx.add_production(
+                    series_key=f"statcan|{STATCAN_TABLE}|{loc}|{metric}|{year}", country_iso3="CAN", metric=metric,
+                    value=value, unit=unit, period_start=ps, period_end=pe, period_label=str(year), frequency="A",
+                    data_status=DataStatus.PROVISIONAL if p.symbol == "p" else DataStatus.PUBLISHED,
+                    reliability=Reliability.OFFICIAL, published_at=p.release.date() if p.release else None,
+                    source_url=STATCAN_TABLE_PAGE, raw_document_id=raw_id or None, flag_raw=p.flag, extra=extra,
+                    notes=f"Statistics Canada table {STATCAN_TABLE} '{STATCAN_TABLE_TITLE}': {what}.",
+                )
+        if skipped:
+            ctx.warn(f"Statistics Canada: {skipped} cell(s) published without a value ('..', 'F' or '...') were not stored")
+
+
+# ===========================================================================
+# 5) Mexico: SIAP, "Cierre de la producción pecuaria" (xajax query service)
+# ===========================================================================
+
+SIAP_CIERRE_URL = "https://nube.agricultura.gob.mx/cierre_pecuario/"
+SIAP_CLASSIFICATION = "1000101"      # the page's hidden 'idclasificacion'
+SIAP_HONEY_CODE = "1910080"          # "Miel" in the 'Otros productos' list (1910090 is "Cera", wax)
+SIAP_HONEY_NAME = "Miel"
+SIAP_REPORT_TITLE = "Producción, precio y valor"
+SIAP_FIRST_YEAR = 2015               # first year kept (the service goes back to 1980)
+SIAP_FULL_REFRESH_DAYS = 90          # re-read every year at least this often (revisions of earlier years)
+SIAP_MIN_STATES = 25                 # Mexico has 32 federal entities
+SIAP_HEADERS = ("estado", "produccion (toneladas)", "precio (pesos por kilogramo)",
+                "valor de la produccion (miles de pesos)")
+# SIAP state names -> (ISO 3166-2:MX suffix, INEGI code).
+MX_STATES: dict[str, tuple[str, str]] = {
+    "Aguascalientes": ("AGU", "01"), "Baja California": ("BCN", "02"), "Baja California Sur": ("BCS", "03"),
+    "Campeche": ("CAM", "04"), "Coahuila": ("COA", "05"), "Colima": ("COL", "06"), "Chiapas": ("CHP", "07"),
+    "Chihuahua": ("CHH", "08"), "Ciudad de México": ("CMX", "09"), "Durango": ("DUR", "10"),
+    "Guanajuato": ("GUA", "11"), "Guerrero": ("GRO", "12"), "Hidalgo": ("HID", "13"), "Jalisco": ("JAL", "14"),
+    "México": ("MEX", "15"), "Michoacán": ("MIC", "16"), "Morelos": ("MOR", "17"), "Nayarit": ("NAY", "18"),
+    "Nuevo León": ("NLE", "19"), "Oaxaca": ("OAX", "20"), "Puebla": ("PUE", "21"), "Querétaro": ("QUE", "22"),
+    "Quintana Roo": ("ROO", "23"), "San Luis Potosí": ("SLP", "24"), "Sinaloa": ("SIN", "25"),
+    "Sonora": ("SON", "26"), "Tabasco": ("TAB", "27"), "Tamaulipas": ("TAM", "28"), "Tlaxcala": ("TLA", "29"),
+    "Veracruz": ("VER", "30"), "Yucatán": ("YUC", "31"), "Zacatecas": ("ZAC", "32"),
+}
+_MX_STATE_KEYS = {_norm(k): (k, v) for k, v in MX_STATES.items()}
+_MX_NUMBER = re.compile(r"\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?")
+
+
+def siap_xajax_url(function: str, *args: Any) -> str:
+    """A call of the page's xajax service as a GET URL (the service answers GET and POST alike;
+    live check 5 Nov 2026: same bytes)."""
+    return SIAP_CIERRE_URL + "?" + urlencode([("xajax", function), *(("xajaxargs[]", str(a)) for a in args)])
+
+
+SIAP_YEARS_URL = siap_xajax_url("llenaAnio", "aniopec")
+
+
+def siap_report_url(year: int) -> str:
+    """The honey report, national level, exactly as the page's `reporte()` asks for it: year,
+    species (no such field on the page, so the browser sends "undefined"), state, district,
+    municipality, report type, classification, live animals, carcasses, other products (Miel),
+    title."""
+    return siap_xajax_url("reporte2", year, "undefined", 0, 0, 0, 0, SIAP_CLASSIFICATION, 0, 0, SIAP_HONEY_CODE,
+                          SIAP_HONEY_NAME)
+
+
+def _xajax_html(content: bytes, target: str, what: str) -> str:
+    """The HTML an xajax answer assigns to element `target` (CDATA of `<cmd n="as" t=target>`)."""
+    m = re.match(rb'<\?xml[^>]*encoding="([^"]+)"', content)
+    try:
+        text = content.decode(m.group(1).decode("ascii") if m else "iso-8859-1")
+    except (LookupError, UnicodeDecodeError):
+        text = content.decode("iso-8859-1")
+    found = re.search(r'<cmd n="as" t="%s" p="innerHTML"><!\[CDATA\[(.*?)\]\]></cmd>' % re.escape(target), text, re.S)
+    if not found:
+        raise CollectorError(f"SIAP: the answer to {what} has no '{target}' content (service changed?); starts with "
+                             f"{text[:150]!r}")
+    return found.group(1)
+
+
+def parse_siap_years(content: bytes) -> list[int]:
+    """Years offered by the service (the `llenaAnio` answer)."""
+    html_part = _xajax_html(content, "aniopec", "the year list")
+    years = sorted({int(y) for y in re.findall(r'<option value="(\d{4})"', html_part)})
+    if not years:
+        raise CollectorError("SIAP: the year list is empty (service changed?); nothing stored")
+    return years
+
+
+@dataclass(frozen=True)
+class SiapRow:
+    name: str
+    production_t: float | None
+    price_mxn_kg: float | None
+    value_kmxn: float | None
+    raw: tuple[str, str, str]   # the three cells as published
+
+
+@dataclass
+class SiapReport:
+    year: int
+    states: list[SiapRow]
+    total: SiapRow
+    source_note: str | None
+    problems: list[str] = field(default_factory=list)
+
+
+def _mx_number(cell: str) -> float | None:
+    s = cell.strip()
+    return float(s.replace(",", "")) if _MX_NUMBER.fullmatch(s) else None
+
+
+def parse_siap_report(content: bytes, year: int) -> SiapReport:
+    """The "Miel – Producción, precio y valor" table of one year: one row per state and the
+    "Total" row. Fails loudly (CollectorError) on another product, report or year, changed column
+    headers or units, a missing or incomplete total row, too few states, a state listed twice."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(_xajax_html(content, "Resultado", f"the honey report {year}"), "html.parser")
+    titles = [_norm(d.get_text(" ", strip=True)) for d in soup.select("div.textoTablaTitulo")]
+    if _norm(SIAP_HONEY_NAME) not in titles or _norm(SIAP_REPORT_TITLE) not in titles:
+        raise CollectorError(f"SIAP: the report is {titles[:3]}, not '{SIAP_HONEY_NAME} – {SIAP_REPORT_TITLE}' "
+                             "(product codes changed?); nothing stored")
+    if str(year) not in titles:
+        raise CollectorError(f"SIAP: asked for {year}, the report is for {[t for t in titles if t.isdigit()]}; nothing stored")
+    table = soup.find("table", id="Resultados-reporte")
+    rows = table.find_all("tr") if table else []
+    if not rows:
+        raise CollectorError(f"SIAP: no result table in the honey report {year}; nothing stored")
+    header = [_norm(c.get_text(" ", strip=True)) for c in rows[0].find_all(["th", "td"])]
+    if tuple(header) != SIAP_HEADERS:
+        raise CollectorError(f"SIAP schema drift: the {year} columns are {header}, expected {list(SIAP_HEADERS)}; "
+                             "nothing stored")
+    states: list[SiapRow] = []
+    total: SiapRow | None = None
+    problems: list[str] = []
+    for tr in rows[1:]:
+        cells = [c.get_text(" ", strip=True) for c in tr.find_all(["th", "td"])]
+        if not cells:
+            continue
+        if len(cells) != 4:
+            raise CollectorError(f"SIAP schema drift: row {cells} of the {year} table does not have 4 cells; nothing stored")
+        name, raw = cells[0], (cells[1], cells[2], cells[3])
+        nums = [_mx_number(c) for c in raw]
+        row = SiapRow(name=name, production_t=nums[0], price_mxn_kg=nums[1], value_kmxn=nums[2], raw=raw)
+        if _norm(name) == "total":
+            if any(n is None for n in nums):
+                raise CollectorError(f"SIAP: the {year} 'Total' row is incomplete ({list(raw)}); nothing stored")
+            total = row
+            continue
+        for label, n, r in zip(("production", "price", "value"), nums, raw):
+            if n is None:
+                problems.append(f"SIAP {year}: unreadable {label} {r!r} for {name}; not stored")
+        states.append(row)
+    if total is None:
+        raise CollectorError(f"SIAP: the {year} table has no 'Total' row; nothing stored")
+    if len({_norm(s.name) for s in states}) != len(states):
+        raise CollectorError(f"SIAP: a state appears twice in the {year} table; nothing stored")
+    if len(states) < SIAP_MIN_STATES:
+        raise CollectorError(f"SIAP: the {year} table lists only {len(states)} states; nothing stored")
+    note = soup.find(string=re.compile(r"Fuente:"))
+    return SiapReport(year=year, states=states, total=total, problems=problems,
+                      source_note=re.sub(r"\s+", " ", str(note)).strip() if note else None)
+
+
+def check_siap_report(report: SiapReport) -> list[str]:
+    """States against the total, and the total price against value / production (warnings only).
+    Published to the kg and the thousand-peso unit with three decimals, so the sums are exact up
+    to float noise; the price is published with two decimals."""
+    msgs: list[str] = []
+    t = report.total
+    for label, attr in (("production (t)", "production_t"), ("value (thousand MXN)", "value_kmxn")):
+        vals = [getattr(s, attr) for s in report.states]
+        if any(v is None for v in vals):
+            continue
+        total = sum(vals)
+        if abs(total - getattr(t, attr)) > 0.001 * len(vals):
+            msgs.append(f"SIAP {report.year}: the states add up to {total:,.3f} {label}, the published total is "
+                        f"{getattr(t, attr):,.3f}; both kept as published")
+    if t.production_t and abs(t.value_kmxn / t.production_t - t.price_mxn_kg) > 0.006:   # (1000 MXN / t = MXN / kg)
+        msgs.append(f"SIAP {report.year}: the national price {t.price_mxn_kg} MXN/kg differs from value / production "
+                    f"({t.value_kmxn / t.production_t:.4f}); kept as published")
+    return msgs
+
+
+class MxSiapHoneyCollector(Collector):
+    key = "mx_siap_honey"
+    name = "Messico – SIAP (chiusura della produzione zootecnica): miele, produzione, prezzo e valore, Messico e stati"
+    name_en = "Mexico – SIAP (livestock production year-end close): honey production, price and value, Mexico and states"
+    publisher = "SIAP – Servicio de Información Agroalimentaria y Pesquera (Secretaría de Agricultura y Desarrollo Rural)"
+    homepage = SIAP_CIERRE_URL
+    kind = SourceKind.HTML
+    reliability = Reliability.OFFICIAL
+    category = "production"
+    country_iso3 = "MEX"
+    language = "es"
+    expected_update = "Annuale (chiusura SIAP dell'anno Y pubblicata nel corso di Y+1); controllo mensile"
+    expected_update_en = "Annual (SIAP year-end close for year Y published during Y+1); checked monthly"
+    expected_max_age_days = 450
+    terms_note = (
+        "Fuente: SADER – Servicio de Información Agroalimentaria y Pesquera (SIAP), 'Cierre de la producción pecuaria', "
+        "product 'Miel', report 'Producción, precio y valor' (free government data, cite the source). Production in "
+        "tonnes and value in thousand pesos, as published; the price (pesos per kg) is the average price paid to "
+        "producers and is stored as a PRODUCER price, national average only (state prices are kept with the state "
+        "rows). Mexico and each state are separate rows (states under their own metrics), never summed. The service "
+        "gives no publication date. SIAP revises earlier years: every change is kept as a revision."
+    )
+    # Monthly: the year list (~2 KB) and the latest year's report (~8 KB); every year only when that
+    # report changes or every SIAP_FULL_REFRESH_DAYS.
+    schedule = {"trigger": "cron", "day": 16, "hour": 7, "minute": 35}
+    order = 72
+
+    def collect(self, ctx: CollectContext) -> None:
+        state = _load_state(ctx)
+        years = [y for y in parse_siap_years(ctx.fetch(SIAP_YEARS_URL, store=False).content) if y >= SIAP_FIRST_YEAR]
+        if not years:
+            raise CollectorError(f"SIAP: no year from {SIAP_FIRST_YEAR} on in the year list; nothing stored")
+        latest = max(years)
+        docs = {latest: ctx.fetch(siap_report_url(latest), title=self._title(latest))}
+        signature = f"{latest}|{hashlib.sha256(docs[latest].content).hexdigest()[:16]}"
+        have_rows = _has_rows(ctx)
+        pulled_at = _parse_iso_datetime(state.get("pulled_at"))
+        recent = pulled_at is not None and utcnow() - pulled_at < timedelta(days=SIAP_FULL_REFRESH_DAYS)
+        if have_rows and not ctx.force and recent and state.get("release") == signature:
+            log.info("[%s] SIAP honey report unchanged (latest year %s)", self.key, latest)
+            return
+        stored = 0
+        for year in sorted(years, reverse=True):
+            url = siap_report_url(year)
+            doc = docs.get(year) or ctx.fetch(url, title=self._title(year))
+            if doc.unchanged and have_rows and not ctx.force:
+                continue                                   # the same answer was stored on an earlier run
+            try:
+                report = parse_siap_report(doc.content, year)
+            except CollectorError as exc:
+                if year == latest:
+                    raise
+                ctx.warn(f"{exc} (year {year} skipped; the other years are stored)")
+                continue
+            for msg in report.problems:
+                ctx.warn(msg)
+            for msg in check_siap_report(report):               # a property of the table: reported once
+                _warn_once(ctx, state, f"totals:{msg}", msg)
+            self._store(ctx, state, report, url, doc.raw_document_id)
+            ctx.checkpoint()
+            stored += 1
+        log.info("[%s] %d year(s) parsed", self.key, stored)
+        state.update({"release": signature, "latest_year": latest, "years": years,
+                      "pulled_at": utcnow().isoformat(timespec="seconds")})
+        _save_state(ctx, state)
+        ctx.checkpoint()
+
+    @staticmethod
+    def _title(year: int) -> str:
+        return f"SIAP – Cierre de la producción pecuaria: {SIAP_HONEY_NAME}, {SIAP_REPORT_TITLE}, {year}"
+
+    def _store(self, ctx: CollectContext, state: dict, report: SiapReport, url: str, raw_id: int) -> None:
+        year = report.year
+        ps, pe = year_bounds(year)
+        common: dict[str, Any] = dict(
+            period_start=ps, period_end=pe, period_label=str(year), frequency="A", data_status=DataStatus.PUBLISHED,
+            reliability=Reliability.OFFICIAL, source_url=url, raw_document_id=raw_id or None)
+        base = {"service": "SIAP Cierre de la producción pecuaria (xajax 'reporte2')", "product": SIAP_HONEY_NAME,
+                "product_code": SIAP_HONEY_CODE, "report": SIAP_REPORT_TITLE, "source_note": report.source_note,
+                "web_page": SIAP_CIERRE_URL}
+        t = report.total
+        nat = {**base, "row": "Total", "production_as_published": t.raw[0], "price_as_published": t.raw[1],
+               "value_as_published": t.raw[2], "price_mxn_per_kg": t.price_mxn_kg}
+        ctx.add_production(
+            series_key=f"siap|cierre|MEX|production|{year}", country_iso3="MEX", metric="production",
+            value=t.production_t, unit="t", extra={**nat, "unit_as_published": "toneladas"},
+            notes=f"SIAP year-end close, honey (Miel), Mexico 'Total': {t.raw[0]} t as published.", **common)
+        ctx.add_production(
+            series_key=f"siap|cierre|MEX|production_value|{year}", country_iso3="MEX", metric="production_value",
+            value=t.value_kmxn, unit="1000 MXN", extra={**nat, "unit_as_published": "miles de pesos"},
+            notes=f"SIAP year-end close, honey (Miel), Mexico 'Total': value {t.raw[2]} thousand pesos (nominal).",
+            **common)
+        ctx.add_price(
+            series_key=f"siap|cierre|MEX|{year}", price_type=PriceType.PRODUCER, variety=Variety.UNSPECIFIED.value,
+            variety_raw="Miel (SIAP, all floral sources)", price_value=t.price_mxn_kg, currency="MXN", unit="kg",
+            origin_iso3="MEX", origin_label="México", market_iso3="MEX", market_location="Mexico (national average)",
+            terms="producer price (average price paid to producers), annual national average",
+            notes=(f"SIAP year-end close, honey: national average price {t.raw[1]} pesos per kg (weighted by production: "
+                   "value / volume). Producer price, not an export or wholesale price."),
+            extra={**nat, "unit_as_published": "pesos por kilogramo", "production_t": t.production_t,
+                   "value_thousand_mxn": t.value_kmxn},
+            **common)
+        for s in report.states:
+            known = _MX_STATE_KEYS.get(_norm(s.name))
+            if known is None:
+                _warn_once(ctx, state, f"state:{s.name}", f"SIAP: state {s.name!r} is not in Paladex's list of the 32 "
+                           "federal entities; stored under its published name")
+            iso = known[1][0] if known else re.sub(r"[^a-z0-9]+", "_", _norm(s.name)).upper()
+            region = {**base, "region": s.name, "region_abbr": known[1][0] if known else None,
+                      "region_code": known[1][1] if known else None, "production_as_published": s.raw[0],
+                      "price_as_published": s.raw[1], "value_as_published": s.raw[2], "price_mxn_per_kg": s.price_mxn_kg}
+            if s.production_t is not None:
+                ctx.add_production(
+                    series_key=f"siap|cierre|MX-{iso}|production_by_region|{year}", country_iso3="MEX",
+                    metric="production_by_region", value=s.production_t, unit="t",
+                    extra={**region, "unit_as_published": "toneladas"},
+                    notes=f"SIAP year-end close, honey (Miel), {s.name}: {s.raw[0]} t as published.", **common)
+            if s.value_kmxn is not None:
+                ctx.add_production(
+                    series_key=f"siap|cierre|MX-{iso}|production_value_by_region|{year}", country_iso3="MEX",
+                    metric="production_value_by_region", value=s.value_kmxn, unit="1000 MXN",
+                    extra={**region, "unit_as_published": "miles de pesos"},
+                    notes=f"SIAP year-end close, honey (Miel), {s.name}: value {s.raw[2]} thousand pesos (nominal).",
+                    **common)
+
+
+# ===========================================================================
+# 6) Turkey: TÜİK animal production statistics, "Arıcılık" table (data portal, XLS)
+# ===========================================================================
+
+TUIK_PORTAL = "https://veriportali.tuik.gov.tr"
+TUIK_PRESS_LIST_URL = f"{TUIK_PORTAL}/api/tr/press"
+TUIK_BULLETIN_TITLE = "Hayvansal Üretim İstatistikleri"
+TUIK_TABLE_TITLE = "Arıcılık"
+# The portal's JSON API answers 404 ("Sayfa bulunamadı") without the header its own web app sends.
+TUIK_API_HEADERS = {"Accept": "application/json", "X-Requested-With": "XMLHttpRequest"}
+TUIK_FIRST_YEAR = 2015               # first year kept (the table goes back to 1991)
+TUIK_REFRESH_DAYS = 180              # re-read the bulletin and its table at least this often
+
+
+def tuik_press_url(press_id: str) -> str:
+    return f"{TUIK_PORTAL}/api/tr/press/{press_id}"
+
+
+def tuik_press_page(press_id: str) -> str:
+    return f"{TUIK_PORTAL}/tr/press/{press_id}"
+
+
+def _tr_norm(s: Any) -> str:
+    """`_norm` that keeps the Turkish dotless i ("Arıcılık" -> "aricilik")."""
+    return _norm(str(s or "").replace("ı", "i").replace("İ", "I"))
+
+
+def parse_tuik_press_list(content: bytes) -> str:
+    """Id of the latest "Hayvansal Üretim İstatistikleri" bulletin in the portal's press list
+    (one entry per bulletin series, the latest issue)."""
+    doc = _load_json(content, "TÜİK press list")
+    items = doc.get("data") if isinstance(doc, dict) and doc.get("isError") is False else None
+    if not isinstance(items, list):
+        raise CollectorError(f"TÜİK: unexpected press list answer {str(doc)[:200]!r}")
+    found = [str(i.get("id")) for i in items if isinstance(i, dict) and _tr_norm(i.get("title")) == _tr_norm(TUIK_BULLETIN_TITLE)]
+    if len(found) != 1 or not found[0].isdigit():
+        raise CollectorError(f"TÜİK: {len(found)} '{TUIK_BULLETIN_TITLE}' entries in the press list (expected 1); "
+                             "portal changed? nothing stored")
+    return found[0]
+
+
+@dataclass(frozen=True)
+class TuikBulletin:
+    press_id: str
+    title: str
+    period: str
+    published: date | None
+    table_url: str
+    table_category: str | None
+
+
+def parse_tuik_press(content: bytes, press_id: str) -> TuikBulletin:
+    """The bulletin: title, period, release date and the download URL of its "Arıcılık" table."""
+    doc = _load_json(content, f"TÜİK bulletin {press_id}")
+    data = doc.get("data") if isinstance(doc, dict) and doc.get("isError") is False else None
+    if not isinstance(data, dict):
+        raise CollectorError(f"TÜİK: unexpected bulletin answer {str(doc)[:200]!r}")
+    if _tr_norm(data.get("title")) != _tr_norm(TUIK_BULLETIN_TITLE):
+        raise CollectorError(f"TÜİK: bulletin {press_id} is {data.get('title')!r}, not '{TUIK_BULLETIN_TITLE}'")
+    tables = [t for t in data.get("statisticalTables") or [] if isinstance(t, dict)
+              and _tr_norm(t.get("title")) == _tr_norm(TUIK_TABLE_TITLE)]
+    if len(tables) != 1 or not str(tables[0].get("url") or "").startswith("/api/"):
+        raise CollectorError(f"TÜİK: bulletin {press_id} has {len(tables)} '{TUIK_TABLE_TITLE}' statistical tables "
+                             "with a download link (expected 1); nothing stored")
+    released = _parse_iso_datetime(data.get("date"))
+    return TuikBulletin(press_id=press_id, title=str(data.get("title")), period=str(data.get("period") or ""),
+                        published=released.date() if released else None,
+                        table_url=TUIK_PORTAL + str(tables[0]["url"]), table_category=tables[0].get("category"))
+
+
+@dataclass(frozen=True)
+class TuikApicultureYear:
+    year: int
+    holdings: int | None        # agricultural holdings practising apiculture (from 2013)
+    new_hives: int | None       # "Yeni kovan" (modern, movable-frame hives)
+    old_hives: int | None       # "Eski kovan" (traditional hives)
+    honey_t: float | None
+    wax_t: float | None
+    raw_honey: Any
+
+
+@dataclass
+class TuikApiculture:
+    title: str
+    sheet: str
+    years: list[TuikApicultureYear]
+    source_note: str | None
+
+
+# Columns of the table: Paladex key -> (header fragment, unit fragment), compared with `_tr_norm`.
+TUIK_COLUMNS = {"holdings": ("aricilik yapan tarimsal isletme sayisi", "adet"), "new_hives": ("yeni kovan", "adet"),
+                "old_hives": ("eski kovan", "adet"), "honey": ("bal", "ton"), "wax": ("bal mumu", "ton")}
+
+
+def parse_tuik_apiculture_xls(content: bytes) -> TuikApiculture:
+    """The "Arıcılık / Apiculture (Türkiye)" sheet: one row per year with holdings, new and old
+    hives, honey and wax (t). Fails loudly when a column, its unit or the year rows are missing."""
+    try:
+        import xlrd
+    except ImportError as exc:      # pragma: no cover - xlrd is in requirements.txt
+        raise CollectorError("TÜİK: reading the .xls table needs the 'xlrd' package (requirements.txt); "
+                             "run the launcher to install it") from exc
+    try:
+        book = xlrd.open_workbook(file_contents=content)
+    except Exception as exc:  # noqa: BLE001 - xlrd raises several types on a broken file
+        raise CollectorError(f"TÜİK: the '{TUIK_TABLE_TITLE}' table is not a readable .xls ({exc}); nothing stored") from exc
+    sheet = book.sheet_by_index(0)
+    rows = [[sheet.cell_value(r, c) for c in range(sheet.ncols)] for r in range(sheet.nrows)]
+    head = next((i for i, r in enumerate(rows) if r and _tr_norm(r[0]).startswith("yil")), None)
+    if head is None or _tr_norm(rows[0][0] if rows[0] else "") != _tr_norm(TUIK_TABLE_TITLE):
+        raise CollectorError(f"TÜİK schema drift: no '{TUIK_TABLE_TITLE}' title or 'Yıl' header in the table; nothing stored")
+    header = [_tr_norm(c) for c in rows[head]]
+    units_row = next((r for r in rows[head + 1:head + 4] if any("(ton" in _tr_norm(c) for c in r)), None)
+    if units_row is None:
+        raise CollectorError("TÜİK schema drift: no units row under the header; nothing stored")
+    cols: dict[str, int] = {}
+    for key, (label, unit) in TUIK_COLUMNS.items():
+        idx = next((i for i, h in enumerate(header) if h == label or (key == "holdings" and h.startswith(label))), None)
+        if idx is None or unit not in _tr_norm(units_row[idx]):
+            raise CollectorError(f"TÜİK schema drift: column {label!r} with unit {unit!r} not found (header {header}, "
+                                 f"units {[str(u) for u in units_row]}); nothing stored")
+        cols[key] = idx
+
+    def num(cell: Any) -> float | None:
+        return float(cell) if isinstance(cell, (int, float)) and math.isfinite(cell) else None
+
+    def count(cell: Any) -> int | None:
+        v = num(cell)
+        return int(round(v)) if v is not None else None
+
+    years: list[TuikApicultureYear] = []
+    source_note = None
+    for r in rows[head + 1:]:
+        y = num(r[0]) if r else None
+        if y is None or not (1900 < y < 2100) or y != int(y):
+            if years and r and str(r[0]).strip():
+                source_note = source_note or str(r[0]).strip()
+            continue
+        years.append(TuikApicultureYear(
+            year=int(y), holdings=count(r[cols["holdings"]]), new_hives=count(r[cols["new_hives"]]),
+            old_hives=count(r[cols["old_hives"]]), honey_t=num(r[cols["honey"]]), wax_t=num(r[cols["wax"]]),
+            raw_honey=r[cols["honey"]],
+        ))
+    if not years or len({y.year for y in years}) != len(years):
+        raise CollectorError("TÜİK: the table has no year rows, or a year twice; nothing stored")
+    return TuikApiculture(title=str(rows[0][0]).strip(), sheet=sheet.name, years=years, source_note=source_note)
+
+
+class TrTuikHoneyCollector(Collector):
+    key = "tr_tuik_honey"
+    name = "Turchia – TÜİK (statistiche della produzione animale): produzione di miele e alveari, totale nazionale"
+    name_en = "Turkey – TÜİK (animal production statistics): honey production and beehives, national total"
+    publisher = "TÜİK – Türkiye İstatistik Kurumu (Turkish Statistical Institute), from Ministry of Agriculture records"
+    homepage = TUIK_PORTAL
+    kind = SourceKind.BULK_FILE
+    reliability = Reliability.OFFICIAL
+    category = "production"
+    country_iso3 = "TUR"
+    language = "tr"
+    expected_update = "Annuale (bollettino TÜİK di febbraio sull'anno precedente); controllo mensile"
+    expected_update_en = "Annual (TÜİK bulletin each February on the previous year); checked monthly"
+    expected_max_age_days = 400
+    terms_note = (
+        "Kaynak: TÜİK, 'Hayvansal Üretim İstatistikleri' bulletin, statistical table 'Arıcılık' (free, cite TÜİK; "
+        "compiled from the Ministry of Agriculture and Forestry's administrative records). Honey in tonnes as "
+        "published. Hives: TÜİK publishes new (modern) and old (traditional) hives separately; the colonies figure is "
+        "their sum, with both parts kept. Year-end counts. TÜİK states that these data are not revised."
+    )
+    # Monthly: one ~24 KB request to the press list; the bulletin and its table only for a new issue.
+    schedule = {"trigger": "cron", "day": 18, "hour": 8, "minute": 10}
+    order = 72
+
+    def collect(self, ctx: CollectContext) -> None:
+        state = _load_state(ctx)
+        listing = ctx.fetch(TUIK_PRESS_LIST_URL, headers=TUIK_API_HEADERS, store=False)
+        press_id = parse_tuik_press_list(listing.content)
+        have_rows = _has_rows(ctx)
+        pulled_at = _parse_iso_datetime(state.get("pulled_at"))
+        recent = pulled_at is not None and utcnow() - pulled_at < timedelta(days=TUIK_REFRESH_DAYS)
+        if have_rows and not ctx.force and recent and state.get("press_id") == press_id:
+            log.info("[%s] TÜİK bulletin unchanged (press %s)", self.key, press_id)
+            return
+        bulletin = parse_tuik_press(ctx.fetch(tuik_press_url(press_id), headers=TUIK_API_HEADERS, store=False).content,
+                                    press_id)
+        xls = ctx.fetch(bulletin.table_url, title=f"TÜİK – {bulletin.title}, {bulletin.period}: {TUIK_TABLE_TITLE} (xls)",
+                        published_at=bulletin.published)
+        if xls.unchanged and have_rows and not ctx.force:
+            log.info("[%s] TÜİK table identical to the one already stored", self.key)
+        else:
+            self._store(ctx, bulletin, parse_tuik_apiculture_xls(xls.content), xls.raw_document_id)
+        state.update({"press_id": press_id, "period": bulletin.period, "table_url": bulletin.table_url,
+                      "published": bulletin.published.isoformat() if bulletin.published else None,
+                      "pulled_at": utcnow().isoformat(timespec="seconds")})
+        _save_state(ctx, state)
+        ctx.checkpoint()
+
+    def _store(self, ctx: CollectContext, bulletin: TuikBulletin, table: TuikApiculture, raw_id: int) -> None:
+        if bulletin.published is None:
+            ctx.warn(f"TÜİK: no release date in bulletin {bulletin.press_id}; rows are stored without one")
+        base = {"bulletin": f"{bulletin.title}, {bulletin.period}", "bulletin_url": tuik_press_page(bulletin.press_id),
+                "press_id": bulletin.press_id, "table": TUIK_TABLE_TITLE, "table_title": table.title,
+                "sheet": table.sheet, "source_note": table.source_note}
+        for y in table.years:
+            if y.year < TUIK_FIRST_YEAR:
+                continue
+            ps, pe = year_bounds(y.year)
+            common: dict[str, Any] = dict(
+                country_iso3="TUR", period_start=ps, period_end=pe, period_label=str(y.year), frequency="A",
+                data_status=DataStatus.PUBLISHED, reliability=Reliability.OFFICIAL, published_at=bulletin.published,
+                source_url=bulletin.table_url, raw_document_id=raw_id or None)
+            detail = {"holdings": y.holdings, "new_hives": y.new_hives, "old_hives": y.old_hives, "wax_t": y.wax_t}
+            if y.honey_t is not None:
+                ctx.add_production(
+                    series_key=f"tuik|aricilik|TUR|production|{y.year}", metric="production",
+                    value=round(y.honey_t, 3), unit="t",
+                    extra={**base, **detail, "column": "Bal / Honey", "value_as_published": y.raw_honey,
+                           "unit_as_published": "ton"},
+                    notes=f"TÜİK '{TUIK_TABLE_TITLE}' table: honey (bal) {y.honey_t:,.3f} t in {y.year}.", **common)
+            if y.new_hives is not None and y.old_hives is not None:
+                hives = y.new_hives + y.old_hives
+                ctx.add_production(
+                    series_key=f"tuik|aricilik|TUR|colonies|{y.year}", metric="colonies", value=float(hives),
+                    unit="number",
+                    extra={**base, **detail, "total_method": ("new hives + old hives (Yeni kovan + Eski kovan); TÜİK "
+                                                              "publishes the two columns, not a total")},
+                    notes=(f"TÜİK '{TUIK_TABLE_TITLE}' table: {y.new_hives:,} new + {y.old_hives:,} old hives = "
+                           f"{hives:,} hives at the end of {y.year}."),
+                    **common)
+
+
 __all__ = [
     "BR_STATES",
+    "CA_PROVINCES",
     "IBGE_FIRST_YEAR",
+    "MX_STATES",
     "RENAPA_PACKAGE_URL",
+    "SIAP_YEARS_URL",
     "SIDRA_PROBE_URL",
+    "STATCAN_DATA_URL",
+    "STATCAN_METADATA_URL",
+    "TUIK_PRESS_LIST_URL",
     "ArMagypHivesCollector",
     "BrIbgeHoneyCollector",
+    "CaStatcanHoneyCollector",
     "CkanResource",
     "ClOdepaHivesCollector",
+    "MxSiapHoneyCollector",
     "OdepaArticle",
     "OdepaTable",
+    "SiapReport",
+    "SiapRow",
     "SidraParse",
     "SidraRelease",
     "SidraRow",
+    "StatcanCube",
+    "StatcanPoint",
+    "TrTuikHoneyCollector",
+    "TuikApiculture",
+    "TuikBulletin",
+    "check_siap_report",
     "check_sidra_totals",
+    "check_statcan_totals",
     "find_odepa_articles",
     "parse_odepa_article",
     "parse_odepa_table",
     "parse_renapa_departments",
     "parse_renapa_package",
     "parse_renapa_provinces",
+    "parse_siap_report",
+    "parse_siap_years",
     "parse_sidra",
     "parse_sidra_probe",
+    "parse_statcan_data",
+    "parse_statcan_metadata",
+    "parse_tuik_apiculture_xls",
+    "parse_tuik_press",
+    "parse_tuik_press_list",
     "pdf_pages_text",
     "pick_odepa_article",
     "sidra_url",
+    "siap_report_url",
+    "statcan_request_body",
+    "tuik_press_url",
 ]

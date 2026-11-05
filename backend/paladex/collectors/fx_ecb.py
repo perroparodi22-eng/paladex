@@ -44,6 +44,7 @@ def parse_ecb_xml(content: bytes) -> list[tuple[date, str, float]]:
 class EcbFxCollector(Collector):
     key = "ecb_fx"
     name = "Tassi di cambio di riferimento BCE"
+    name_en = "ECB euro foreign exchange reference rates"
     publisher = "European Central Bank"
     homepage = "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html"
     kind = SourceKind.API

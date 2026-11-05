@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import calendar
 import csv
+import functools
 import hashlib
 import io
 import math
@@ -48,7 +49,8 @@ from ..enums import DataStatus, PriceType
 from ..models import Country, PriceObservation, Source
 from ..reference.countries import PRIORITY_ISO3
 from ..reference.varieties import LABELS as VARIETY_LABELS
-from .common import demo_clause, get_setting, iso, source_brief
+from .common import demo_clause, get_setting, iso, json_response, source_brief
+from .memo import cached
 
 router = APIRouter(prefix="/prices", tags=["prices"])
 
@@ -61,6 +63,13 @@ MAX_CSV_ROWS = 100_000
 # (collectors/trade_official.py). A cross-source average keeps one of them, never both.
 SAME_DATA_SOURCES = ("us_census_trade", "usda_fas_gats")
 
+# A view of more observations than this (every customs unit value series: 13,000 to 17,000 rows, 10
+# to 14 MB with every point) ships the points of its first SERIES_DEFAULT_POINTS series only (the
+# lines the chart draws by default: frontend prices/utils.ts DEFAULT_VISIBLE); the interface asks
+# for the others by id when they are switched on. Smaller views (quotations, producer prices: at
+# most 2 MB) keep every point.
+SERIES_ALL_POINTS_MAX_ROWS = 5000
+SERIES_DEFAULT_POINTS = 6
 # Fallback publication rhythm (days) when a source has no `expected_max_age_days`.
 DEFAULT_CADENCE_DAYS = {"D": 7, "W": 14, "irregular": 45, "M": 45, "Q": 120, "A": 400}
 # Granularity rank: finer -> coarser. "irregular" dated quotes are bucketed by month.
@@ -160,6 +169,7 @@ def _split(values: list[str] | None) -> list[str]:
     return out
 
 
+@functools.lru_cache(maxsize=4096)
 def _month_end(y: int, m: int) -> date:
     return date(y, m, calendar.monthrange(y, m)[1])
 
@@ -278,6 +288,15 @@ def _freq(value: str | None) -> str:
 # ---------------------------------------------------------------------------
 
 
+def bucket_label(d: date, freq: str) -> str:
+    """`bucket(d, freq)[0]`, without building the period's dates."""
+    if freq == "A":
+        return str(d.year)
+    if freq == "Q":
+        return f"{d.year}-Q{(d.month - 1) // 3 + 1}"
+    return f"{d.year}-{d.month:02d}"
+
+
 def bucket(d: date, freq: str) -> tuple[str, date, date]:
     """(label, start, end) of the period of frequency `freq` containing `d`."""
     if freq == "A":
@@ -333,11 +352,14 @@ def convert_row(r: PriceObservation, currency: Currency) -> dict:
     return {"value": base, "low": low, "high": high, "currency": ccy, "fx_missing": False}
 
 
+_CAUTION_VALUES = tuple(s.value for s in STATUS_CAUTION)
+
+
 def _most_cautious(statuses: Iterable[str]) -> str | None:
     st = set(statuses)
-    for s in STATUS_CAUTION:
-        if s.value in st:
-            return s.value
+    for v in _CAUTION_VALUES:
+        if v in st:
+            return v
     return next(iter(st), None)
 
 
@@ -567,35 +589,70 @@ def _priority_rank(iso3: str | None) -> int:
         return len(PRIORITY_ISO3)
 
 
+def _last_value(points: list[dict]) -> dict | None:
+    """The newest point that has a value (the legend's figure)."""
+    p = next((p for p in reversed(points) if p["value"] is not None), None)
+    return {"period_label": p["period_label"], "value": p["value"]} if p else None
+
+
+def _light_meta(rows: list[PriceObservation], currency: Currency, freq: str, eff: str) -> dict:
+    """What `build_points` would say about a series, without building every point: the periods,
+    how many have no converted value, whether any has a low-high range, and the newest value
+    (built from that one period's rows only; periods are independent buckets)."""
+    by_label: dict[str, list[PriceObservation]] = defaultdict(list)
+    for r in rows:
+        by_label[bucket_label(_bucket_date(r), eff)].append(r)
+    labels = sorted(by_label)
+    fx_missing, has_range, last_valued = 0, False, None
+    for label in labels:
+        conv = [c for r in by_label[label] if (c := convert_row(r, currency))["value"] is not None]
+        if not conv:
+            fx_missing += 1
+            continue
+        last_valued = label
+        # a point has a range when every valued row has one (`_combine`)
+        has_range = has_range or all(c["low"] is not None and c["high"] is not None for c in conv)
+    last = None
+    if last_valued is not None:
+        last = _last_value(build_points(by_label[last_valued], currency, freq)[0])
+    return {"n_points": len(labels), "first_period": labels[0], "last_period": labels[-1], "weighting": None,
+            "fx_missing_points": fx_missing, "has_range": has_range, "last_value": last}
+
+
 def build_series(db: Session, rows: list[PriceObservation], currency: Currency, freq: str,
-                 points_for: set[str] | None = None) -> list[dict]:
-    """One entry per series. With `points_for`, only those series ids carry their points; the
-    others carry metadata only (`points_omitted`), which is much cheaper to build and ship."""
+                 points_for: set[str] | None = None, *, default_points: int | None = None) -> list[dict]:
+    """One entry per series, in display order. With `points_for`, only those series ids carry their
+    points; the others carry metadata only (`points_omitted`, with their newest value), which is
+    much cheaper to build and ship. With `default_points` instead, a view of more than
+    SERIES_ALL_POINTS_MAX_ROWS rows carries the points of its first `default_points` series only."""
     sources = {s.id: s for s in db.scalars(select(Source))}
     groups: dict[tuple, list[PriceObservation]] = defaultdict(list)
     for r in rows:
         groups[series_key(r, currency)].append(r)
-    out = []
+    entries = []
     for key, grp in groups.items():
-        sid = series_id(key)
         grp.sort(key=lambda r: (r.period_start, r.published_at or date.min))
+        latest_row = max(grp, key=lambda r: (r.period_start, r.published_at or date.min, r.collected_at))
+        entries.append((series_id(key), grp, latest_row, sources.get(latest_row.source_id)))
+    entries.sort(key=lambda e: (_priority_rank(e[2].origin_iso3), e[2].origin_iso3 or "~", e[2].variety,
+                                e[2].color_grade or "", e[3].key if e[3] else "", e[0]))
+    if points_for is None and default_points is not None and len(rows) > SERIES_ALL_POINTS_MAX_ROWS:
+        points_for = {e[0] for e in entries[:default_points]}
+    out = []
+    for sid, grp, latest_row, src in entries:
         nat = native_freq(grp)
         omitted = points_for is not None and sid not in points_for
         if omitted:
             eff = _eff_freq(nat, freq)[1]
-            labels = sorted({bucket(_bucket_date(r), eff)[0] for r in grp})
             points: list[dict] = []
-            meta = {"n_points": len(labels), "first_period": labels[0], "last_period": labels[-1],
-                    "weighting": None, "fx_missing_points": None,
-                    "has_range": any(r.price_low is not None and r.price_high is not None for r in grp)}
+            meta = _light_meta(grp, currency, freq, eff)
         else:
             points, eff = build_points(grp, currency, freq)
             meta = {"n_points": len(points), "first_period": points[0]["period_label"],
                     "last_period": points[-1]["period_label"], "weighting": _series_weighting(points),
                     "fx_missing_points": sum(1 for p in points if p["value"] is None),
-                    "has_range": any(p["low"] is not None and p["high"] is not None for p in points)}
-        latest_row = max(grp, key=lambda r: (r.period_start, r.published_at or date.min, r.collected_at))
-        src = sources.get(latest_row.source_id)
+                    "has_range": any(p["low"] is not None and p["high"] is not None for p in points),
+                    "last_value": _last_value(points)}
         pubs = [r.published_at for r in grp if r.published_at]
         out.append({
             "id": sid,
@@ -628,11 +685,10 @@ def build_series(db: Session, rows: list[PriceObservation], currency: Currency, 
             "has_range": meta["has_range"],
             "fx_missing_points": meta["fx_missing_points"],
             "freshness": _freshness_of(latest_row, src, nat),
+            "last_value": meta["last_value"],
             "points": points,
             "points_omitted": omitted,
         })
-    out.sort(key=lambda s: (_priority_rank(s["origin_iso3"]), s["origin_iso3"] or "~", s["variety"],
-                            s["color_grade"] or "", (s["source"] or {}).get("key", ""), s["id"]))
     return out
 
 
@@ -681,7 +737,7 @@ def find_discrepancies(db: Session, rows: list[PriceObservation], currency: Curr
     groups: dict[tuple, dict[int, dict[str | None, list[PriceObservation]]]] = defaultdict(
         lambda: defaultdict(lambda: defaultdict(list)))
     for r in rows:
-        label, _, _ = bucket(_bucket_date(r), _base_freq(r.frequency))
+        label = bucket_label(_bucket_date(r), _base_freq(r.frequency))
         gk = (r.price_type, r.origin_iso3, r.variety, r.color_grade, bool(r.organic), r.market_iso3, label, r.is_demo)
         groups[gk][r.source_id][r.terms].append(r)
 
@@ -756,6 +812,18 @@ def _rows(db: Session, f: PriceFilters, *conds, **kw) -> list[PriceObservation]:
     return list(db.scalars(q.order_by(M.period_start, M.id)))
 
 
+# Every column the series and discrepancy builders read: plain read-only rows (attribute access
+# like the model) instead of tracked objects, about twice as fast for the 17,000 customs rows.
+_SERIES_COLUMNS = tuple(c for c in M.__table__.columns
+                        if c.key not in ("extra", "notes", "value_hash", "series_key", "raw_document_id",
+                                         "supersedes_id", "revision", "last_seen_at"))
+
+
+def _series_rows(db: Session, f: PriceFilters) -> list:
+    q = apply_filters(select(*_SERIES_COLUMNS), f, db)
+    return list(db.execute(q.order_by(M.period_start, M.id)))
+
+
 def _latest_rows(db: Session, f: PriceFilters, currency: Currency) -> list[PriceObservation]:
     """Only the recent stretch of each series that `latest` needs: rows from 1 January of the year
     before the series' newest period (minus a week, for ISO weeks counted by their Thursday). That
@@ -784,6 +852,12 @@ def _series_index(db: Session, f: PriceFilters, currency: Currency) -> dict[str,
 
 @router.get("/facets")
 def facets(f: PriceFilters = Depends(price_filters), db: Session = Depends(get_db)):
+    """Filter options with counts (`_facets_answer`), one answer per view and database state (memo.py)."""
+    body = cached(db, "prices.facets", _filters_key(f), lambda: json_response(_facets_answer(f, db)).body)
+    return Response(body, media_type="application/json")
+
+
+def _facets_answer(f: PriceFilters, db: Session) -> dict:
     """What exists, with counts, so the interface only offers filters that have data.
 
     Price-type counts ignore the other filters (the type selector is always complete); every
@@ -859,16 +933,29 @@ def series(
     db: Session = Depends(get_db),
 ):
     """Time series for ONE price type, one line per (source, origin, market, market location, variety, colour,
-    terms, organic, and period granularity when coarser than monthly)."""
+    terms, organic, and period granularity when coarser than monthly).
+
+    Every series comes with its identity, provenance, freshness and newest value (`last_value`).
+    Points come for every series in a view of up to SERIES_ALL_POINTS_MAX_ROWS observations; in a
+    larger view (1,300 customs series: 14 MB with every point) only for the first
+    SERIES_DEFAULT_POINTS, the lines the chart draws by default, unless `ids` names the series wanted."""
     pt = _require_type(f)
     ccy, fq = _currency(currency), _freq(freq)
     if f.date_from and fq != "M":
         # widen to the start of the quarter/year so the first bucket is not artificially partial
         f.date_from = bucket(f.date_from, fq)[1]
-    rows = _rows(db, f)
     want = set(_split(ids)) if ids else None
-    data = build_series(db, rows, ccy, fq, points_for=want)
-    return {
+    params = (pt, tuple(f.origins), tuple(f.varieties), tuple(f.markets), tuple(f.sources), tuple(f.color_grades),
+              iso(f.date_from), iso(f.date_to), f.include_small, ccy, fq, tuple(sorted(want)) if want else None)
+    # One answer per view and database state (memo.py): switching back to a view is immediate.
+    body = cached(db, "prices.series", params, lambda: _series_answer(db, f, pt, ccy, fq, want).body)
+    return Response(body, media_type="application/json")
+
+
+def _series_answer(db: Session, f: PriceFilters, pt: str, ccy: Currency, fq: str, want: set[str] | None):
+    rows = _series_rows(db, f)
+    data = build_series(db, rows, ccy, fq, points_for=want, default_points=None if want else SERIES_DEFAULT_POINTS)
+    return json_response({
         "price_type": pt,
         "currency": "original" if ccy == "ORIGINAL" else ccy,
         "unit": "kg",
@@ -878,10 +965,13 @@ def series(
         "aggregation": "mean_of_available_months" if fq != "M" else "monthly_mean_of_observations",
         "weighting": "volume_for_unit_values" if pt in UNIT_VALUE_TYPES else "simple",
         "series": data,
+        # "all": every series carries its points; "first": only the first SERIES_DEFAULT_POINTS (a
+        # large view); "ids": the series named in `ids`. The others say `points_omitted`.
+        "points_scope": "ids" if want else ("first" if any(s["points_omitted"] for s in data) else "all"),
         "sources": _sources_summary(data),
         "discrepancies": find_discrepancies(db, rows, ccy),
         "today": date.today().isoformat(),
-    }
+    })
 
 
 def _point_ref(p: dict | None) -> dict | None:
@@ -898,6 +988,11 @@ def _pct(curr: float | None, prev: float | None) -> float | None:
     return round((curr - prev) / prev * 100, 2)
 
 
+def _filters_key(f: PriceFilters) -> tuple:
+    return (f.price_type, tuple(f.origins), tuple(f.varieties), tuple(f.markets), tuple(f.sources), tuple(f.color_grades),
+            iso(f.date_from), iso(f.date_to), f.include_small)
+
+
 @router.get("/latest")
 def latest(
     f: PriceFilters = Depends(price_filters),
@@ -905,6 +1000,13 @@ def latest(
     freq: str = Query("M"),
     db: Session = Depends(get_db),
 ):
+    """Latest point per series (`_latest_answer`), one answer per view and database state (memo.py)."""
+    body = cached(db, "prices.latest", (_filters_key(f), currency, freq),
+                  lambda: json_response(_latest_answer(f, currency, freq, db)).body)
+    return Response(body, media_type="application/json")
+
+
+def _latest_answer(f: PriceFilters, currency: str, freq: str, db: Session):
     """Latest point per series, with change vs the previous period and vs a year earlier.
 
     Changes are computed only against the exact previous period and the exact same period one
@@ -1213,7 +1315,8 @@ def _csv(rows: list[PriceObservation], sources: dict[int, Source], countries: di
             "organic": yes if r.organic else no,
             "data_status": st_labels.get(r.data_status, r.data_status),
             "reliability": rel_labels.get(r.reliability, r.reliability),
-            "source_name": src.name if src else "", "publisher": (src.publisher or "") if src else "",
+            "source_name": ((src.name if it else (src.name_en or src.name)) if src else ""),
+            "publisher": (src.publisher or "") if src else "",
             "collected_at": r.collected_at.strftime("%Y-%m-%d %H:%M") if r.collected_at else "",
             "is_demo": ("SÌ — NON REALE" if it else "YES — NOT REAL") if r.is_demo else no,
         }

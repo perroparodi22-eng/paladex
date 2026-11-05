@@ -880,6 +880,7 @@ class _XiRead:
 class XiEuTariffCollector(Collector):
     key = "eu_tariff_xi"
     name = "Dazi UE sul miele: TARIC (servizio XI del governo britannico)"
+    name_en = "EU duties on honey: TARIC (UK government XI service)"
     publisher = "HM Revenue & Customs, UK Online Trade Tariff (XI), dati TARIC della Commissione europea"
     homepage = "https://www.trade-tariff.service.gov.uk/xi/headings/0409"
     kind = SourceKind.API
@@ -1310,6 +1311,7 @@ def classify_ch99(row: HtsRow, footnote_ref: bool, scan_unreferenced: bool = Tru
 class UsHtsCollector(Collector):
     key = "us_hts"
     name = "Dazi USA sul miele: tariffa doganale HTS (USITC)"
+    name_en = "US duties on honey: Harmonized Tariff Schedule (USITC)"
     publisher = "U.S. International Trade Commission (USITC)"
     homepage = "https://hts.usitc.gov/search?query=0409.00.00"
     kind = SourceKind.API

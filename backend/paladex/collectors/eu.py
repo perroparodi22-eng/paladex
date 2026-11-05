@@ -520,6 +520,7 @@ def _http_error_label(content: bytes) -> str:
 class EurostatComextCollector(Collector):
     key = "eurostat_comext"
     name = "Eurostat Comext: commercio UE di miele (NC 04090000)"
+    name_en = "Eurostat Comext: EU honey trade (CN 04090000)"
     publisher = "Eurostat (European Commission)"
     homepage = "https://ec.europa.eu/eurostat/web/international-trade-in-goods/database"
     kind = SourceKind.API
@@ -904,6 +905,7 @@ def parse_taxud_weekly(content: bytes, sector: str = TAXUD_SECTOR) -> TaxudParse
 class TaxudWeeklyCollector(Collector):
     key = "ec_taxud_weekly"
     name = "Commissione europea: importazioni settimanali di miele (sorveglianza TAXUD)"
+    name_en = "European Commission: weekly honey imports (TAXUD surveillance)"
     publisher = "European Commission, DG AGRI Agri-food Data Portal (TAXUD surveillance data)"
     homepage = "https://agridata.ec.europa.eu/extensions/DashboardTaxud/TaxudWeeklyImport-m.html"
     kind = SourceKind.API
@@ -1311,6 +1313,7 @@ def extract_price_tables(content: bytes) -> list[PdfPriceRow]:
 class EcHoneyMarketCollector(Collector):
     key = "ec_honey_market"
     name = "Commissione europea (DG AGRI): presentazioni sul mercato del miele"
+    name_en = "European Commission — DG Agriculture: honey market presentations"
     publisher = "European Commission, DG Agriculture and Rural Development"
     homepage = HONEY_PAGE_URL
     kind = SourceKind.PDF
@@ -1608,6 +1611,7 @@ def _rasff_body(page: int, date_from: date | None) -> dict:
 class RasffHoneyCollector(Collector):
     key = "rasff_honey"
     name = "RASFF: notifiche di sicurezza alimentare sul miele"
+    name_en = "RASFF: food safety notifications on honey"
     publisher = "European Commission, RASFF Window"
     homepage = "https://webgate.ec.europa.eu/rasff-window/screen/search"
     kind = SourceKind.API
