@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<title>Anuario Estadístico de la Producción Ganadera</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta http-equiv="imagetoolbar" content="no" />
+<meta http-equiv="pragma" content="no-cache" />
+<meta http-equiv="expires" content="Wed, 04 Nov 2026 16:12:41" />
+<meta http-equiv="cache-control" content="no-cache" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta http-equiv="Last-Modified" content="Wed, 04 Nov 2026 16:12:41" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no, maximum-scale=1, user-scalable=no" />
+<link href="https://framework-gb.cdn.gob.mx/favicon.ico" rel="shortcut icon" />
+<link rel="stylesheet" type="text/css" href="https://framework-gb.cdn.gob.mx/assets/styles/main.css" />
+<link rel="stylesheet" type="text/css" href="css/font-awesome.css" />
+<link rel="stylesheet" type="text/css" href="css/index.css" />
+<link rel="stylesheet" type="text/css" href="css/styles_menu.css" />
+<link rel="stylesheet" type="text/css" href="css/ejemplo.css" />
+<link rel="stylesheet" type="text/css" href="css/ejemplo_cap.css" />
+<style> .alert{ margin-top: 46px; }</style>
+<!-- Respond.js soporte de media queries para Internet Explorer 8 -->
+<!-- ie8.js EventTarget para cada nodo en Internet Explorer 8 -->
+<!--[if lt IE 9]>
+  <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ie8/0.2.2/ie8.js"></script>
+<![endif]-->
+
+	<script type="text/javascript">
+var xajaxRequestUri="https://nube.agricultura.gob.mx/cierre_pecuario/";
+var xajaxDebug=false;
+var xajaxStatusMessages=false;
+var xajaxWaitCursor=true;
+var xajaxDefinedGet=0;
+var xajaxDefinedPost=1;
+var xajaxLoaded=false;
+function xajax_miCuenta(){return xajax.call("miCuenta", arguments, 1);}
+function xajax_usuarios(){return xajax.call("usuarios", arguments, 1);}
+function xajax_reporte2(){return xajax.call("reporte2", arguments, 1);}
+function xajax_reporte(){return xajax.call("reporte", arguments, 1);}
+function xajax_Salir(){return xajax.call("Salir", arguments, 1);}
+function xajax_Val_login(){return xajax.call("Val_login", arguments, 1);}
+function xajax_guardaNewuser(){return xajax.call("guardaNewuser", arguments, 1);}
+function xajax_buscaUsuario(){return xajax.call("buscaUsuario", arguments, 1);}
+function xajax_limpiaDiv(){return xajax.call("limpiaDiv", arguments, 1);}
+function xajax_mensaje(){return xajax.call("mensaje", arguments, 1);}
+function xajax_inicio(){return xajax.call("inicio", arguments, 1);}
+function xajax_llenacicloSel(){return xajax.call("llenacicloSel", arguments, 1);}
+function xajax_llenaModael(){return xajax.call("llenaModael", arguments, 1);}
+function xajax_cargaDistrito(){return xajax.call("cargaDistrito", arguments, 1);}
+function xajax_llenaAnio(){return xajax.call("llenaAnio", arguments, 1);}
+function xajax_llenaGanAvePie(){return xajax.call("llenaGanAvePie", arguments, 1);}
+function xajax_llenaEstado(){return xajax.call("llenaEstado", arguments, 1);}
+function xajax_cargamunicipio(){return xajax.call("cargamunicipio", arguments, 1);}
+function xajax_Lanzareporte(){return xajax.call("Lanzareporte", arguments, 1);}
+function xajax_cargamuni(){return xajax.call("cargamuni", arguments, 1);}
+function xajax_llenaOtrosProd(){return xajax.call("llenaOtrosProd", arguments, 1);}
+	</script>
+	<script type="text/javascript" src="xajax/xajax_js/xajax.js"></script>
+	<script type="text/javascript">
+window.setTimeout(function () { if (!xajaxLoaded) { alert('Error: the xajax Javascript file could not be included. Perhaps the URL is incorrect?\nURL: xajax/xajax_js/xajax.js'); } }, 6000);
+	</script>
+<script type="text/javascript" language="javascript" src="js/jQuery.js"></script>
+<script type="text/javascript" language="javascript" src="js/jquery.blockUI.js"></script>
+<script type="text/javascript" language="javascript" src="js/funciones.js?648520261104 041241"></script>
+<script type="text/javascript" language="javascript">
+    $(document).ajaxStop($.unblockUI);
+    function stopLoad() { 
+        $.ajax({ url: ''});
+    }
+    function startLoad() { 
+        $.blockUI({message: '<center><img src="imagenes/ajax-loader.gif?648520261104 041241" /></center>',
+        css: {opacity: .8}});
+    }
+</script>
+</head>
+<body>
+<center>
+<!-- ********************** Header SIAP ******************** -->
+<main class="page">
+	<nav class="havbar navbar-inverse sub-navbar navbar-fixed-top">
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" role="button" data-target="#subenlaces" aria-expanded="false" aria-controls="subenlaces">
+                    <span class="sr-only">Submen&uacute;</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="https://www.gob.mx/agricultura/dgsiap">DGSIAP</a>
+            </div>
+            <div class="collapse navbar-collapse" id="subenlaces">
+                <ul class="nav navbar-nav navbar-right">
+                    <li><a class="home_menu" style="font-size: 16px !important;" href="https://www.gob.mx/agricultura/dgsiap/es/archivo/articulos" data-section=".news.section">Blog</a></li>
+                    <li><a class="home_menu" style="font-size: 16px !important;" href="https://www.gob.mx/agricultura/dgsiap/es/archivo/multimedia" data-section=".multimedia">Multimedia</a></li>
+                    <li><a class="home_menu" style="font-size: 16px !important;" href="https://www.gob.mx/agricultura/dgsiap/es/archivo/prensa" data-section=".press">Prensa</a></li>
+                    <li><a class="home_menu" style="font-size: 16px !important;" href="https://www.gob.mx/agricultura/dgsiap/es/archivo/agenda" data-section=".schedule">Agenda</a></li>
+                    <li><a class="home_menu" style="font-size: 16px !important;" href="https://www.gob.mx/agricultura/dgsiap/es/archivo/acciones_y_programas" data-section=".programs">Acciones y Programas</a></li>
+                    <li><a class="home_menu" style="font-size: 16px !important;" href="https://www.gob.mx/agricultura/dgsiap/es/archivo/documentos" data-section=".documents">Documentos</a></li>
+            <li><a class="home_menu" style="font-size: 16px !important;" href="http://infosiap.siap.gob.mx/gobmx/transparencia.html" data-section=".tran.section">Transparencia</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="top-buffer text-left">
+    	<ol class="breadcrumb">
+        	<li><a href="https://www.gob.mx/agricultura/"><i class="icon icon-home"></i></a></li>
+            <li><a href="https://www.gob.mx/agricultura/dgsiap">Dirección General del Servicio de Información Agroalimentaria y Pesquera</a></li>
+            <li><a href="https://www.gob.mx/agricultura/dgsiap/es/archivo/acciones_y_programas">Acciones y Programas</a></li>
+            <li class="active">Cierre de la producción ganadera</li>
+        </ol>
+    </div>
+</main>
+<!-- ************************************************************************************ --><div class="container">
+<div id="divNoImprimir" >
+	<form action="index.jsp" method="post" name="Forma">
+        <div class="row">
+            <div class="col-sm-12" style="text-align:center">
+                    <h2>Anuario Estadístico de la Producción Ganadera</h2>
+            </div>
+        </div>
+	    <br />
+        
+<!-- /********************************************************************************************************************************************-->
+    <div class="borde_prin row">
+        <div class="row">
+            <div class="col-md-4"></div>
+            <div class="form-group col-md-4">
+                <label class="control-label" for="aniopec">Año:</label>
+                <select class="form-control" id="aniopec" name="aniopec"></select>
+            </div>
+            <div class="col-md-4"></div>
+        </div>
+        <div class="row"><div class="col-md-12"><hr /></div></div>
+
+        <div class="row">
+            <div class="form-group col-md-4 divCultivo">
+                <input type="hidden" id="idclasificacion" value="1000101"/>
+                <label class="control-label" for="cveGanAvePie">Ganado y ave en pie:</label>
+                <select class="form-control" id="cveGanAvePie" name="cveGanAvePie" onChange="selReport('cveGanAvePie')"></select>
+            </div>
+            <div class="form-group col-md-4 divCultivo">
+                <label class="control-label" for="cveGanAveCanal">Carne en canal:</label>
+                <select class="form-control" id="cveGanAveCanal" name="cveGanAveCanal" onChange="selReport('cveGanAveCanal')"></select>
+            </div>
+            <div class="form-group col-md-4 divCultivo">
+                <label class="control-label" for="cveOtrosProd">Otros productos:</label>
+                <select class="form-control" id="cveOtrosProd" name="cveOtrosProd" onChange="selReport('cveOtrosProd')"></select>
+            </div>
+        </div>
+         <div class="row"><div class="col-md-12"><hr /></div></div>
+        <div class="row">
+            <div class="form-group col-md-4">
+                <label class="control-label" for="cveCultivo">Entidad federativa:</label>
+                <select class="form-control" id="cveEstado" name="cveEstado" size="1" tabindex="1" onChange="cargaDistrito('cveDistrito'); cargamuni('cveMunicipio');"></select>
+            </div>
+            <div class="form-group col-md-4 div-mun-select" style="display:">
+                <label class="control-label" for="cveDistrito">Distrito:</label>
+                <select class="form-control" id="cveDistrito" name="cveDistrito" size="1" tabindex="1" onChange="cargamuni('cveMunicipio');">
+                    <option value="0">--</option>
+                </select>
+            </div>
+            <div class="form-group col-md-4 div-muni-select">
+                <label class="control-label" for="cveCultivo">Municipio:</label>
+                <select class="form-control" id="cveMunicipio" name="cveMunicipio" size="1" tabindex="1" onChange="">
+                    <option value="0">--</option>
+                </select>
+            </div>
+        </div>
+	</div>
+    <br />
+    <div class="container">
+        <div class="row justify-content-md-center">
+             <div class="col-sm-3"></div>
+            <div class="col-sm-2">
+                <button type="button" class="btn btn-primary" id="Consultar" onclick="reporte();">
+                    <i class="icon-search pr-2"></i>
+                    <span class="h6">Consultar</span>
+                </button>
+            </div>
+            <div class="col-sm-2">
+                <button type="button" class="btn btn-default" id="Imprimir" onclick="printDiv('Resultado');">
+                    <img src="imagenes/print_gb.png" style="width:20px;" />
+                    <span class="h6">Imprimir</span>
+                </button>
+            </div>
+            <div class="col-sm-2">
+                <button type="button" class="btn btn-default" id="Excel" onclick="descargarExcel();">
+                    <img src="imagenes/Excel.png" style="width:20px;" />
+                    <span class="h6">Generar</span>
+                </button>
+            </div>
+            <div class="col-sm-3"></div>
+        </div>
+    </div> 
+    <hr class="red">
+	</form>
+		<div id="Resultado" name="Resultado" class="divResultados"></div>
+        <br />
+    </div>
+</div>
+<script language="javascript">window.onload = llenaCombos();</script>
+<script language="javascript">window.onload = xajax_Lanzareporte(0,0,0,0,0,1000101);</script>
+<script src="https://framework-gb.cdn.gob.mx/gobmx.js"></script>
