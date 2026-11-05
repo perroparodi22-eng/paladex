@@ -27,6 +27,7 @@ export const CAPTURE = [
   /^\/news$/, /^\/news\/topics$/, /^\/news\/\d+$/,
   /^\/trade\/(facets|leaders|flows|series)$/,
   /^\/countries$/, /^\/countries\/[A-Za-z0-9_]+$/,
+  /^\/companies$/, /^\/companies\/[A-Za-z0-9_]+$/,   // official company lists (public sources only)
   /^\/regulations$/, /^\/regulations\/duties$/, /^\/regulations\/duties\/[A-Za-z0-9_]+$/,
   /^\/sources$/,
   /^\/quality\/(summary|issues)$/,

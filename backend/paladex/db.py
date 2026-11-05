@@ -77,6 +77,7 @@ def get_db() -> Iterator[Session]:
 
 def init_db(url: str | None = None) -> Engine:
     from . import models  # noqa: F401  (register tables)
+    from . import models_companies  # noqa: F401  (company_records: official company-level lists)
     from .reference.seed import seed_reference_data
 
     engine = get_engine(url)

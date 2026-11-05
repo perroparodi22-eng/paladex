@@ -1,0 +1,790 @@
+{
+ "country": {
+  "iso3": "URY",
+  "name_it": "Uruguay",
+  "name_en": "Uruguay",
+  "region": "South America",
+  "priority": true
+ },
+ "availability": {
+  "status": "figures",
+  "authority": "Uruguay XXI – Sistema de Información Estadística (dati Dirección Nacional de Aduanas)",
+  "url": "https://herramientas.uruguayxxi.gub.uy/sistema_de_estadistica/",
+  "reason_it": "Uruguay XXI, l'agenzia governativa per le esportazioni, pubblica le esportazioni di miele (NCM 0409) di ogni azienda: valore FOB esatto in dollari per anno, dai dati della dogana. Per le importazioni non esiste una vista per azienda.",
+  "reason_en": "Uruguay XXI, the government export agency, publishes the honey exports (NCM 0409) of every company: exact FOB value in US dollars per year, from customs data. There is no company view for imports.",
+  "source_keys": [
+   "uy_sie_honey_exporters"
+  ],
+  "roles": [
+   "exporter"
+  ],
+  "checked_on": "2026-11-05"
+ },
+ "checked_on": "2026-11-05",
+ "lists": [
+  {
+   "role": "exporter",
+   "hs_code": "0409",
+   "measure_kind": "exact_value",
+   "source": {
+    "key": "uy_sie_honey_exporters",
+    "name": "Uruguay – Uruguay XXI (SIE, dati Dirección Nacional de Aduanas): esportatori di miele per azienda (NCM 0409)",
+    "publisher": "Uruguay XXI – Instituto de Promoción de Inversiones, Exportaciones e Imagen País (data: DNA, MEF)",
+    "reliability": "official",
+    "homepage": "https://herramientas.uruguayxxi.gub.uy/sistema_de_estadistica/",
+    "freshness": {
+     "status": "current",
+     "age_days": 0,
+     "reference_date": "2026-11-05"
+    },
+    "expected_update": "Controllo settimanale: il SIE si aggiorna ogni 48 ore; l'anno in corso è parziale e provvisorio",
+    "expected_update_en": "Checked weekly: the SIE is updated every 48 hours; the running year is year-to-date, provisional",
+    "terms_note": "Fuente: Uruguay XXI – Sistema de Información Estadística (SIE), 'Por Empresa' view filtered on NCM 0409, built on Dirección Nacional de Aduanas data. Public web tool, no reuse terms published. Exact FOB value in US$ per company and year, as published; the running year is year-to-date and provisional. Names as published (the SIE truncates long names); private persons can appear: only the name is stored. The page's autocomplete list of exporters with their IDs is never archived.",
+    "latest_period_label": "2026",
+    "last_success_at": "2026-11-05T20:47:50.168733"
+   },
+   "source_url": "https://herramientas.uruguayxxi.gub.uy/sistema_de_estadistica/filtros.php?t=empresa&pr=&e=&a=2026&pa=&cat=Todos&ncm=0409",
+   "web_url": "https://herramientas.uruguayxxi.gub.uy/sistema_de_estadistica/",
+   "published_at": null,
+   "collected_at": "2026-11-05T20:47:50.161490",
+   "last_seen_at": "2026-11-05T20:47:50.161490",
+   "reliability": "official",
+   "is_demo": false,
+   "notes": "Esportazioni di miele naturale NCM 0409 dell'azienda (Uruguay XXI, Sistema de Información Estadística, dati della Dirección Nacional de Aduanas): valore FOB in USD dell'anno, da gennaio al mese indicato (2026 (ene - oct)), provvisorio.",
+   "company_count": 17,
+   "periods": [
+    {
+     "label": "2022",
+     "start": "2022-01-01",
+     "end": "2022-12-31",
+     "frequency": "A",
+     "data_status": "published",
+     "months_covered": [
+      1,
+      12
+     ],
+     "running_year": false
+    },
+    {
+     "label": "2023",
+     "start": "2023-01-01",
+     "end": "2023-12-31",
+     "frequency": "A",
+     "data_status": "published",
+     "months_covered": [
+      1,
+      12
+     ],
+     "running_year": false
+    },
+    {
+     "label": "2024",
+     "start": "2024-01-01",
+     "end": "2024-12-31",
+     "frequency": "A",
+     "data_status": "published",
+     "months_covered": [
+      1,
+      12
+     ],
+     "running_year": false
+    },
+    {
+     "label": "2025",
+     "start": "2025-01-01",
+     "end": "2025-12-31",
+     "frequency": "A",
+     "data_status": "published",
+     "months_covered": [
+      1,
+      12
+     ],
+     "running_year": false
+    },
+    {
+     "label": "2026",
+     "start": "2026-01-01",
+     "end": "2026-10-31",
+     "frequency": "YTD",
+     "data_status": "provisional",
+     "months_covered": [
+      1,
+      10
+     ],
+     "running_year": true
+    }
+   ],
+   "ref_period": "2025",
+   "national_totals": {
+    "2022": 35580437.25,
+    "2023": 18478487.19,
+    "2024": 27135495.47,
+    "2025": 27928748.53,
+    "2026": 33100409.13
+   },
+   "companies": [
+    {
+     "name": "NECTARBEE S.A.",
+     "location": null,
+     "values": {
+      "2022": {
+       "value": 17236140.38,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 48.4
+      },
+      "2023": {
+       "value": 9763467.95,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 52.8
+      },
+      "2024": {
+       "value": 13117614.95,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 48.3
+      },
+      "2025": {
+       "value": 15571168.32,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 55.8
+      },
+      "2026": {
+       "value": 18061978.55,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "provisional",
+       "revision": 1,
+       "share_pct": 54.6
+      }
+     },
+     "rank_in_ref": 1
+    },
+    {
+     "name": "BUZARAM COMPANY S.A.",
+     "location": null,
+     "values": {
+      "2023": {
+       "value": 73692.32,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 0.4
+      },
+      "2024": {
+       "value": 1736712.56,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 6.4
+      },
+      "2025": {
+       "value": 3074002.27,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 11.0
+      },
+      "2026": {
+       "value": 5750902.81,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "provisional",
+       "revision": 1,
+       "share_pct": 17.4
+      }
+     },
+     "rank_in_ref": 2
+    },
+    {
+     "name": "SOCIEDAD ANONIMA URUGUAYA DE IMPORTACIONES Y EXPORTACIONES (UR",
+     "location": null,
+     "values": {
+      "2022": {
+       "value": 3597488.14,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 10.1
+      },
+      "2023": {
+       "value": 2296920.82,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 12.4
+      },
+      "2024": {
+       "value": 2051958.95,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 7.6
+      },
+      "2025": {
+       "value": 2036890.13,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 7.3
+      },
+      "2026": {
+       "value": 1703082.54,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "provisional",
+       "revision": 1,
+       "share_pct": 5.1
+      }
+     },
+     "rank_in_ref": 3
+    },
+    {
+     "name": "MEGAVOR S.A",
+     "location": null,
+     "values": {
+      "2022": {
+       "value": 1010331.55,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 2.8
+      },
+      "2023": {
+       "value": 1915129.79,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 10.4
+      },
+      "2024": {
+       "value": 2778740.34,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 10.2
+      },
+      "2025": {
+       "value": 1849266.68,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 6.6
+      },
+      "2026": {
+       "value": 2343160.27,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "provisional",
+       "revision": 1,
+       "share_pct": 7.1
+      }
+     },
+     "rank_in_ref": 4
+    },
+    {
+     "name": "NIMELOR S A",
+     "location": null,
+     "values": {
+      "2022": {
+       "value": 745914.3,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 2.1
+      },
+      "2023": {
+       "value": 461684.55,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 2.5
+      },
+      "2024": {
+       "value": 1811938.83,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 6.7
+      },
+      "2025": {
+       "value": 1583780.55,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 5.7
+      },
+      "2026": {
+       "value": 1084390.16,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "provisional",
+       "revision": 1,
+       "share_pct": 3.3
+      }
+     },
+     "rank_in_ref": 5
+    },
+    {
+     "name": "SALIBEL SOCIEDAD ANONIMA",
+     "location": null,
+     "values": {
+      "2022": {
+       "value": 3423795.73,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 9.6
+      },
+      "2023": {
+       "value": 746363.52,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 4.0
+      },
+      "2024": {
+       "value": 1580510.78,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 5.8
+      },
+      "2025": {
+       "value": 1419203.68,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 5.1
+      },
+      "2026": {
+       "value": 2315672.43,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "provisional",
+       "revision": 1,
+       "share_pct": 7.0
+      }
+     },
+     "rank_in_ref": 6
+    },
+    {
+     "name": "PUEBLANUEVA SOCIEDAD ANONIMA",
+     "location": null,
+     "values": {
+      "2022": {
+       "value": 3027671.91,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 8.5
+      },
+      "2023": {
+       "value": 532548.0,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 2.9
+      },
+      "2024": {
+       "value": 1814392.86,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 6.7
+      },
+      "2025": {
+       "value": 963086.79,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 3.4
+      },
+      "2026": {
+       "value": 1048270.26,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "provisional",
+       "revision": 1,
+       "share_pct": 3.2
+      }
+     },
+     "rank_in_ref": 7
+    },
+    {
+     "name": "COOPERATIVA AGRARIA PUEBLO APICOLA",
+     "location": null,
+     "values": {
+      "2022": {
+       "value": 1414865.43,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 4.0
+      },
+      "2023": {
+       "value": 714019.86,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 3.9
+      },
+      "2024": {
+       "value": 642059.85,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 2.4
+      },
+      "2025": {
+       "value": 751568.4,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 2.7
+      },
+      "2026": {
+       "value": 666896.11,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "provisional",
+       "revision": 1,
+       "share_pct": 2.0
+      }
+     },
+     "rank_in_ref": 8
+    },
+    {
+     "name": "URUMIEL LTDA.",
+     "location": null,
+     "values": {
+      "2022": {
+       "value": 516693.35,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 1.5
+      },
+      "2023": {
+       "value": 468434.63,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 2.5
+      },
+      "2024": {
+       "value": 320628.0,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 1.2
+      },
+      "2025": {
+       "value": 531428.0,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 1.9
+      },
+      "2026": {
+       "value": 117140.8,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "provisional",
+       "revision": 1,
+       "share_pct": 0.4
+      }
+     },
+     "rank_in_ref": 9
+    },
+    {
+     "name": "COOPERATIVA AGRARIA EXPORTADORA DE PRODUCTORES APICOLAS",
+     "location": null,
+     "values": {
+      "2025": {
+       "value": 145956.5,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 0.5
+      }
+     },
+     "rank_in_ref": 10
+    },
+    {
+     "name": "PRODU SAS",
+     "location": null,
+     "values": {
+      "2025": {
+       "value": 2397.2,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 0.0
+      }
+     },
+     "rank_in_ref": 11
+    },
+    {
+     "name": "LORENZ HELMUT",
+     "location": null,
+     "values": {
+      "2022": {
+       "value": 2802.0,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 0.0
+      },
+      "2023": {
+       "value": 3024.0,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 0.0
+      },
+      "2026": {
+       "value": 8915.2,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "provisional",
+       "revision": 1,
+       "share_pct": 0.0
+      }
+     },
+     "rank_in_ref": null
+    },
+    {
+     "name": "API BEEA SRL",
+     "location": null,
+     "values": {
+      "2024": {
+       "value": 17408.0,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 0.1
+      }
+     },
+     "rank_in_ref": null
+    },
+    {
+     "name": "AVONDET FERNANDEZ JUAN MANUEL",
+     "location": null,
+     "values": {
+      "2022": {
+       "value": 70643.2,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 0.2
+      },
+      "2023": {
+       "value": 251911.86,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 1.4
+      },
+      "2024": {
+       "value": 46911.15,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 0.2
+      }
+     },
+     "rank_in_ref": null
+    },
+    {
+     "name": "CAMPO CERCANO S A",
+     "location": null,
+     "values": {
+      "2023": {
+       "value": 200.0,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 0.0
+      }
+     },
+     "rank_in_ref": null
+    },
+    {
+     "name": "CUANIA SOCIEDAD ANONIMA",
+     "location": null,
+     "values": {
+      "2022": {
+       "value": 3514918.0,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 9.9
+      },
+      "2023": {
+       "value": 710577.0,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 3.8
+      },
+      "2024": {
+       "value": 987118.8,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 3.6
+      }
+     },
+     "rank_in_ref": null
+    },
+    {
+     "name": "TASTIL SOCIEDAD ANONIMA",
+     "location": null,
+     "values": {
+      "2022": {
+       "value": 1019173.25,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 2.9
+      },
+      "2023": {
+       "value": 540512.87,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 2.9
+      },
+      "2024": {
+       "value": 229500.4,
+       "value_min": null,
+       "value_max": null,
+       "volume_kg": null,
+       "data_status": "published",
+       "revision": 1,
+       "share_pct": 0.8
+      }
+     },
+     "rank_in_ref": null
+    }
+   ],
+   "currency": "USD",
+   "value_basis": "FOB"
+  }
+ ]
+}

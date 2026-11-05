@@ -25,6 +25,7 @@ SECTION_MODULES = [
     "paladex.api.archive",       # Milestone 7: historical comparisons, revision history
     "paladex.api.assistant",     # Milestone 6: AI assistant + daily briefing
     "paladex.api.harvest",       # Milestone 5: production, weather anomalies
+    "paladex.api.companies",     # honey exporters / importers by company (official sources only)
 ]
 
 

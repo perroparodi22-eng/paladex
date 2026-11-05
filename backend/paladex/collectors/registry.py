@@ -30,7 +30,9 @@ COLLECTOR_MODULES: list[str] = [
     "paladex.collectors.weather",          # NASA POWER monthly weather anomalies per honey region
     "paladex.collectors.trade_argentina",  # Argentina: official honey exports by destination, producer prices
     "paladex.collectors.trade_uruguay_chile",  # Uruguay and Chile: official honey exports by destination
+    "paladex.collectors.trade_uk",         # United Kingdom: HMRC OTS honey imports and exports by partner
     "paladex.collectors.production_official",  # official production: Brazil IBGE and other South American agencies
+    "paladex.collectors.companies_official",   # honey exporters/importers by company: Uruguay XXI SIE, HMRC traders
 ]
 
 IMPORT_ERRORS: dict[str, str] = {}

@@ -151,7 +151,7 @@ test('the copy shows its strip and only the market sections; the computer shows 
   try {
     const copy = render(<Shell><p>page</p></Shell>, { url: '/' })
     for (const route of ['/offerte', '/avvisi', '/archivio', '/assistente', '/cerca']) assert.ok(!hrefs(copy).includes(route), route)
-    for (const route of ['/', '/prezzi', '/notizie', '/paesi', '/commercio', '/normative', '/fonti']) assert.ok(hrefs(copy).includes(route), route)
+    for (const route of ['/', '/prezzi', '/notizie', '/paesi', '/commercio', '/aziende', '/normative', '/fonti']) assert.ok(hrefs(copy).includes(route), route)
     assert.match(text(copy), /Copia online di sola lettura/)
     assert.doesNotMatch(text(copy), /Aggiorna dati/)
     assert.doesNotMatch(copy, /<input/)                       // no search box

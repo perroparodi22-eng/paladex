@@ -9,6 +9,7 @@ const News = lazy(() => import('@/pages/News'))
 const Countries = lazy(() => import('@/pages/Countries'))
 const CountryDetail = lazy(() => import('@/pages/CountryDetail'))
 const Trade = lazy(() => import('@/pages/Trade'))
+const Companies = lazy(() => import('@/pages/Companies'))
 const Sources = lazy(() => import('@/pages/Sources'))
 const SearchPage = lazy(() => import('@/pages/Search'))
 const Regulations = lazy(() => import('@/pages/Regulations'))
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/paesi" element={<Countries />} />
           <Route path="/paesi/:iso3" element={<CountryDetail />} />
           <Route path="/commercio" element={<Trade />} />
+          <Route path="/aziende" element={<Companies />} />
           <Route path="/fonti" element={<Sources />} />
           <Route path="/cerca" element={<SearchPage />} />
           <Route path="/raccolti" element={<Harvest />} />
