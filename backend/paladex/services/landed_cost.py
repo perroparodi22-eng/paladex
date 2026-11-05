@@ -355,6 +355,7 @@ class DutyPlan:
     has_data: bool
     origin_covered: bool
     general_us: TariffMeasure | None = None
+    other_origins: int = 0             # US headings to review that name other countries only (not listed)
 
 
 def _eu_plan(ctx: Context, q: QuoteInput, on: date) -> DutyPlan:
@@ -404,9 +405,22 @@ def _eu_plan(ctx: Context, q: QuoteInput, on: date) -> DutyPlan:
     return DutyPlan("EU", alts, stack, review, not_applied, has_data, q.origin_iso3 in TARIFF_ORIGINS)
 
 
+def _concerns_origin(m: TariffMeasure, origin: str) -> bool:
+    """False for a US heading published for all origins whose text names other countries only (e.g.
+    a Chapter 99 heading "articles the product of China and Hong Kong" for an Argentine quote)."""
+    if m.origin_iso3 != ALL_ORIGINS:
+        return True
+    ex = m.extra or {}
+    named = ex.get("countries_named") or []
+    if ex.get("country_scope") in ("single", "multiple") and named:
+        return origin in named
+    return True
+
+
 def _us_plan(ctx: Context, q: QuoteInput, on: date) -> DutyPlan:
-    rel = [m for m in ctx.measures(q.is_demo) if m.jurisdiction == "US" and _valid_on(m, on)
-           and m.origin_iso3 in (q.origin_iso3, ALL_ORIGINS)]
+    candidates = [m for m in ctx.measures(q.is_demo) if m.jurisdiction == "US" and _valid_on(m, on)
+                  and m.origin_iso3 in (q.origin_iso3, ALL_ORIGINS)]
+    rel = [m for m in candidates if _concerns_origin(m, q.origin_iso3)]
     has_data = any(m.jurisdiction == "US" for m in ctx.measures(q.is_demo))
     review = [m for m in rel if _needs_review(m)]
     ok = [m for m in rel if not _needs_review(m)]
@@ -425,7 +439,8 @@ def _us_plan(ctx: Context, q: QuoteInput, on: date) -> DutyPlan:
             notes.append({"code": "program_certification", "params": {"codes": codes, "general": _rate(general)}})
         alts.append({"kind": m.measure_type, "measure": m, "role": "applicable", "available": True, "reason": None,
                      "notes": notes})
-    return DutyPlan("US", alts, stack, review, not_applied, has_data, True, general_us=general)
+    return DutyPlan("US", alts, stack, review, not_applied, has_data, True, general_us=general,
+                    other_origins=sum(1 for m in candidates if m not in rel and _needs_review(m)))
 
 
 # ---------------------------------------------------------------------------
@@ -500,7 +515,7 @@ def calculate(session: Session, q: QuoteInput, *, fx_mode: str = "received", tod
         currencies.add(ccy)
         v, detail = _per_kg(it.amount, it.basis, qty, container_kg)
         if v is None:
-            flag("cost_no_quantity", kind=key)
+            flag("cost_no_quantity", cost=key)
             return ({"key": key, "index": idx, "status": "not_computable", "per_kg": None,
                      "input": {"amount": it.amount, "currency": ccy, "note": it.note, **detail},
                      "source": quote_src, "fx": fx.line_fx(ccy)}, None)
@@ -556,8 +571,12 @@ def calculate(session: Session, q: QuoteInput, *, fx_mode: str = "received", tod
     # --- insurance (% of the CIF value: premium = r x (goods + freight) / (1 - r)) ---------------
     insurance = ZERO
     if eff.insurance:
-        lines.append({"key": "insurance", "status": "included", "per_kg": ZERO.as_dict(), "input": None,
-                      "source": quote_src, "fx": None})
+        ins_line = {"key": "insurance", "status": "included", "per_kg": ZERO.as_dict(), "input": None,
+                    "source": quote_src, "fx": None}
+        if q.insurance_pct is not None:
+            flag("insurance_ignored", kind="info", incoterm=incoterm)
+            ins_line["input"] = {"pct": q.insurance_pct, "of": "cif"}
+        lines.append(ins_line)
     elif q.insurance_pct is None:
         flag("insurance_missing")
         lines.append({"key": "insurance", "status": "missing", "per_kg": None, "input": None, "source": None,
@@ -746,6 +765,7 @@ def _duty_info(ctx: Context, plan: DutyPlan, q: QuoteInput, today: date, jurisdi
         "as_of_latest": max(dates).isoformat() if dates else None,
         "applied": [_serialize(ctx, m) for m in used],
         "review": [_serialize(ctx, m) for m in plan.review],
+        "review_other_origins": plan.other_origins,
         "not_applied": [_serialize(ctx, m) for m in plan.not_applied],
         "origin_covered": plan.origin_covered,
         "source": _brief(src),
@@ -778,6 +798,8 @@ REFERENCE_SOURCES = {
     "us_importer": ("usda_honey_report",),
     "it_wholesale": ("cciaa_cuneo_miele", "onm_informamiele"),
 }
+# Buckets, not varieties: an "other" quote and an "other" line of a price list are different honeys.
+GENERIC_VARIETIES = frozenset({"other", "unspecified"})
 
 
 def _obs(r: PriceObservation, src: Source | None, today: date, **extra) -> dict:
@@ -815,14 +837,18 @@ def market_reference(session: Session, origin_iso3: str, variety: str, today: da
     """Latest published reference prices for a quote's origin and variety, one block per price type:
 
     * ``eu_import``: Eurostat Comext import unit value (CIF, EUR/kg, all honey CN 0409) from the
-      origin into Italy and into the EU27 (customs statistic, not a quote);
+      origin into Italy and into the EU27 (customs statistic, not a quote): the latest month with a
+      bulk-size volume (at least 10 t, the rule of the price views);
     * ``us_importer``: USDA National Honey Report prices paid to US importers for the origin (USD/lb as
       published: duty paid, ex-dock), the quote's variety when published, otherwise the origin's rows
       with ``variety_match=False``;
     * ``it_wholesale``: Italian-origin honey of the same variety on Italian price lists (CCIAA Cuneo
-      monthly, Osservatorio Nazionale Miele annual; VAT included, drums).
+      monthly, Osservatorio Nazionale Miele annual; VAT included, drums). Not matched for the
+      generic buckets "other" / "unspecified" (``variety_generic``).
 
     Each row keeps its source, period and publication date. Nothing is averaged across blocks."""
+    from ..api.prices import MIN_BULK_UNIT_VALUE_KG, bulk_unit_value_clause
+
     today = today or date.today()
     P = PriceObservation
     srcs = {s.key: s for s in session.scalars(select(Source))}
@@ -835,22 +861,24 @@ def market_reference(session: Session, origin_iso3: str, variety: str, today: da
     if origin_iso3 not in _eu_members():
         for market in ("ITA", "EU27"):
             for r in _latest(session, [P.source_id.in_(ids("eu_import")), P.price_type == "import_unit_value",
-                                       P.origin_iso3 == origin_iso3, P.market_iso3 == market], freq="M"):
+                                       P.origin_iso3 == origin_iso3, P.market_iso3 == market,
+                                       bulk_unit_value_clause(P)], freq="M"):
                 eu_rows.append(_obs(r, by_id.get(r.source_id), today))
 
     us_rows: list[dict] = []
-    match = True
+    match = variety not in GENERIC_VARIETIES
     us_conds = [P.source_id.in_(ids("us_importer")), P.price_type == "wholesale_bulk", P.origin_iso3 == origin_iso3,
                 P.market_iso3 == "USA"]
-    rows = _latest(session, [*us_conds, P.variety == variety], freq="M")
+    rows = _latest(session, [*us_conds, P.variety == variety], freq="M") if match else []
     if not rows:
         match = False
         rows = _latest(session, us_conds, freq="M")
     us_rows = [_obs(r, by_id.get(r.source_id), today, variety_match=match and r.variety == variety) for r in rows]
 
     it_rows: list[dict] = []
+    generic = variety in GENERIC_VARIETIES
     for key in REFERENCE_SOURCES["it_wholesale"]:
-        if key not in srcs:
+        if key not in srcs or generic:
             continue
         conds = [P.source_id == srcs[key].id, P.price_type == "wholesale_bulk", P.market_iso3 == "ITA",
                  P.origin_iso3 == "ITA", P.variety == variety]
@@ -862,9 +890,10 @@ def market_reference(session: Session, origin_iso3: str, variety: str, today: da
         "variety": variety,
         "blocks": [
             {"key": "eu_import", "price_type": "import_unit_value", "rows": eu_rows,
-             "not_applicable": origin_iso3 in _eu_members()},
+             "not_applicable": origin_iso3 in _eu_members(), "min_volume_kg": MIN_BULK_UNIT_VALUE_KG},
             {"key": "us_importer", "price_type": "wholesale_bulk", "rows": us_rows, "variety_match": match,
              "not_applicable": origin_iso3 == "USA"},
-            {"key": "it_wholesale", "price_type": "wholesale_bulk", "rows": it_rows, "not_applicable": False},
+            {"key": "it_wholesale", "price_type": "wholesale_bulk", "rows": it_rows, "not_applicable": False,
+             "variety_generic": generic},
         ],
     }

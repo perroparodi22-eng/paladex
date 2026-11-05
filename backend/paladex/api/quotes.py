@@ -2,7 +2,7 @@
 
 Quotes are the owner's private business data:
 
-* they never leave this computer (no endpoint sends them anywhere; the LLM never sees them);
+* they never leave this computer: no route of this module sends them anywhere;
 * the app never deletes them: there is no DELETE route, a quote is archived instead (and can be
   restored); demo quotes are removed only by the demo purge, like every other demo row;
 * every edit keeps ``created_at`` and moves ``updated_at``.
@@ -10,7 +10,8 @@ Quotes are the owner's private business data:
 Routes (static paths first, so they are not read as an id):
 
 * ``GET  /quotes``                 list with status/origin/variety/supplier/text filters, counts, facets,
-                                   and the landed cost of each quote (ECB rate of its date received)
+                                   and the landed cost of each quote (ECB rate of its date received,
+                                   or of today with ``fx=today``)
 * ``GET  /quotes/meta``            currencies with ECB rates, Incoterms, cost kinds, drum/container weights
 * ``GET  /quotes/export``          CSV of the filtered list (Italian Excel: ';' and decimal comma)
 * ``GET  /quotes/compare?ids=``    2-6 quotes ranked by landed EUR/kg, with differences to the cheapest
@@ -85,8 +86,15 @@ class CostItemIn(BaseModel):
     currency: str | None = None
     note: str | None = Field(None, max_length=200)
 
-    _c = field_validator("currency")(lambda cls, v: _ccy(v))
-    _n = field_validator("note")(lambda cls, v: _text(v))
+    @field_validator("currency")
+    @classmethod
+    def _v_currency(cls, v):
+        return _ccy(v)
+
+    @field_validator("note")
+    @classmethod
+    def _v_note(cls, v):
+        return _text(v)
 
     @model_validator(mode="after")
     def _check(self):
@@ -106,7 +114,8 @@ class QuoteCalcIn(BaseModel):
     origin_iso3: str
     variety: str
     variety_note: str | None = Field(None, max_length=200)
-    price: float = Field(gt=0, le=1000)
+    # Any currency: 1 kg of honey is ~1,500 HUF or ~60,000 IDR, so the bound only catches typos.
+    price: float = Field(gt=0, le=1_000_000)
     price_unit: Literal["kg", "lb"] = "kg"
     currency: str
     quantity_kg: float | None = Field(None, gt=0, le=10_000_000)
@@ -126,9 +135,15 @@ class QuoteCalcIn(BaseModel):
     valid_until: date | None = None
     notes: str | None = Field(None, max_length=4000)
 
-    _ccys = field_validator("currency", "shipping_cost_currency", "other_costs_currency")(lambda cls, v: _ccy(v))
-    _texts = field_validator("supplier_name", "variety_note", "packaging", "incoterm_place", "notes")(
-        lambda cls, v: _text(v))
+    @field_validator("currency", "shipping_cost_currency", "other_costs_currency")
+    @classmethod
+    def _v_currencies(cls, v):
+        return _ccy(v)
+
+    @field_validator("supplier_name", "variety_note", "packaging", "incoterm_place", "notes")
+    @classmethod
+    def _v_texts(cls, v):
+        return _text(v)
 
     @field_validator("origin_iso3")
     @classmethod
@@ -350,14 +365,16 @@ def list_quotes(
     variety: str | None = Query(None, description="variety key (comma-separated)"),
     supplier: str | None = Query(None, max_length=200),
     q: str | None = Query(None, max_length=200, description="text in supplier, notes, packaging, place"),
+    fx: str = Query("received", description="ECB rate of each quote's date received, or of today"),
     db: Session = Depends(get_db),
 ):
     on = today()
+    fx = _fx_mode(fx)
     rows, unfiltered = _filtered(db, status=status, origin=origin, variety=variety, supplier=supplier, q=q, on=on)
     ctx = lc.load_context(db, include_demo=any(m.is_demo for m in rows))
     items = []
     for m in rows:
-        landed = lc.calculate(db, lc.input_from_model(m), today=on, ctx=ctx)
+        landed = lc.calculate(db, lc.input_from_model(m), fx_mode=fx, today=on, ctx=ctx)
         items.append({**serialize_quote(m, on), "landed": compact_landed(landed)})
     counts = {s: 0 for s in STATUSES}
     for m in unfiltered:
@@ -379,6 +396,7 @@ def list_quotes(
         "facets": {"origins": facet("origin_iso3"), "varieties": facet("variety"), "suppliers": facet("supplier_name")},
         "today": on.isoformat(),
         "expiring_days": EXPIRING_DAYS,
+        "fx_mode": fx,
     }
 
 
@@ -571,13 +589,15 @@ def export_quotes(
     supplier: str | None = Query(None, max_length=200),
     q: str | None = Query(None, max_length=200),
     lang: str | None = Query(None, description="it | en"),
+    fx: str = Query("received"),
     db: Session = Depends(get_db),
 ):
     on = today()
+    fx = _fx_mode(fx)
     lang = lang if lang in ("it", "en") else get_setting(db, "language", "it")
     rows, _ = _filtered(db, status=status, origin=origin, variety=variety, supplier=supplier, q=q, on=on)
     ctx = lc.load_context(db, include_demo=any(m.is_demo for m in rows))
-    items = [(m, lc.calculate(db, lc.input_from_model(m), today=on, ctx=ctx)) for m in rows]
+    items = [(m, lc.calculate(db, lc.input_from_model(m), fx_mode=fx, today=on, ctx=ctx)) for m in rows]
     countries = {c.iso3: c for c in db.scalars(select(Country))}
     body = _quotes_csv(items, countries, lang or "it", on)
     stem = "offerte-fornitori" if lang == "it" else "supplier-quotes"
