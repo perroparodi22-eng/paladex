@@ -9,6 +9,7 @@ import { fmtAgo, fmtDate, fmtPeriod } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import { BlockEmpty, BlockHead, BlockStamp, SectionLink } from './parts'
 import type { AlertsBlock, CountriesBlock, NewsBlock, NewsItem, ReportsBlock } from './types'
+import { pageUrl } from '@/lib/links'
 
 // ---------------------------------------------------------------- alerts
 
@@ -47,7 +48,7 @@ export function AlertsPanel({ block }: { block: AlertsBlock }) {
             return (
               <li key={a.id} className="hover:bg-paper">
                 {a.link ? (external
-                  ? <a href={a.link} target="_blank" rel="noreferrer">{body}</a>
+                  ? <a href={pageUrl(a.link) ?? undefined} target="_blank" rel="noreferrer">{body}</a>
                   : <Link to={a.link}>{body}</Link>) : body}
               </li>
             )
@@ -80,7 +81,7 @@ function NewsRow({ n }: { n: NewsItem }) {
   const { country } = useLabels()
   return (
     <li>
-      <a href={n.url} target="_blank" rel="noreferrer" className="flex gap-3 px-5 py-2.5 hover:bg-paper"
+      <a href={pageUrl(n.url) ?? undefined} target="_blank" rel="noreferrer" className="flex gap-3 px-5 py-2.5 hover:bg-paper"
         title={n.title_is_ai ? `${t('overview.news.translated')}: ${n.original_title}` : n.original_title}>
         <Thumb src={n.image_url} />
         <div className="min-w-0 flex-1">
@@ -143,7 +144,7 @@ export function ReportsPanel({ block }: { block: ReportsBlock }) {
         <ul className="divide-y divide-line-soft py-1">
           {block.items.map((r) => (
             <li key={r.id}>
-              <a href={r.url} target="_blank" rel="noreferrer" className="block px-5 py-2.5 hover:bg-paper">
+              <a href={pageUrl(r.url) ?? undefined} target="_blank" rel="noreferrer" className="block px-5 py-2.5 hover:bg-paper">
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-[0.93rem] leading-snug text-charcoal">{r.title}</span>
                   {r.is_new && <Badge tone="gold" className="mt-0.5">{t('overview.reports.new')}</Badge>}

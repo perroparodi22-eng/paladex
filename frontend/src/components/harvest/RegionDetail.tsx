@@ -13,6 +13,7 @@ import { fmtNumber, fmtPeriod } from '@/lib/format'
 import { CONDITION_COLORS, countryOf, fmtAnomaly, fmtPctOfNormal, monthName, monthSpan, regionName } from './format'
 import { ConditionBadge, FlagLine } from './parts'
 import type { HarvestRegion, RegionDetailResponse, RegionMonth } from './types'
+import { pageUrl } from '@/lib/links'
 
 export function RegionDetail({ regionKey, onClose }: { regionKey: string; onClose: () => void }) {
   const { t } = useI18n()
@@ -133,10 +134,10 @@ export function RegionBody({ r }: { r: HarvestRegion & { months: RegionMonth[] }
                       <td className="py-1.5 px-2">
                         <div className="flex flex-wrap gap-x-2 gap-y-0.5">
                           {(m.points ?? []).map((p) => p.source_url && (
-                            <a key={p.point} href={p.source_url} target="_blank" rel="noreferrer"
+                            <a key={p.point} href={pageUrl(p.source_url) ?? undefined} target="_blank" rel="noreferrer"
                               className={clsx('link inline-flex items-center gap-0.5 whitespace-nowrap text-[0.8rem]', p.exceptional && 'text-warn')}
                               aria-label={`${t('prov.original')}: ${p.name}`}
-                              title={`${p.name}: ${fmtNumber(p.precip_mm, lang, 0)} mm, ${fmtAnomaly(p.temp_anomaly_c, lang)} · ${t(`harvest.detail.basis.${p.basis ?? 'monthly'}`)}`}>
+                              title={`${p.name}: ${fmtNumber(p.precip_mm, lang, 0)} mm, ${fmtAnomaly(p.temp_anomaly_c, lang)} · ${t(`harvest.detail.basis.${p.basis ?? 'monthly'}`)} · ${t('prov.exactAddress', { url: p.source_url })}`}>
                               {pointNo.get(p.point) ?? '?'}<ExternalLink size={11} />
                             </a>
                           ))}

@@ -10,6 +10,7 @@ import { fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import { countryName } from './parts'
 import type { CountryProfile, MissingItem, PriceRow } from './types'
+import { isMappedUrl, pageUrl } from '@/lib/links'
 
 // ---------------------------------------------------------------------------
 // Prices
@@ -90,7 +91,7 @@ function PriceLine({ r }: { r: PriceRow }) {
         <div className="flex flex-wrap items-center gap-1.5">
           {r.is_demo ? <DemoBadge /> : r.data_status && r.data_status !== 'published' && <StatusBadge status={r.data_status} />}
           <span>{r.source?.publisher || r.source?.name}</span>
-          {r.source_url && <a className="link inline-flex" href={r.source_url} target="_blank" rel="noreferrer" title={t('prov.original')}><ExternalLink size={12} /></a>}
+          {r.source_url && <a className="link inline-flex" href={pageUrl(r.source_url) ?? undefined} target="_blank" rel="noreferrer" title={isMappedUrl(r.source_url) ? t('prov.exactAddress', { url: r.source_url }) : t('prov.original')}><ExternalLink size={12} /></a>}
         </div>
         {r.published_at && <div className="text-[0.75rem]">{t('prov.published')} {fmtDate(r.published_at, lang)}</div>}
       </td>
@@ -119,7 +120,7 @@ export function ProfileNews({ p }: { p: CountryProfile }) {
         <ul className="flex flex-col divide-y divide-line-soft -my-2">
           {d.items.map((n) => (
             <li key={n.id} className="py-2.5">
-              <a href={n.url} target="_blank" rel="noreferrer" className="text-[0.97rem] leading-snug text-charcoal hover:text-forest-800 hover:underline decoration-gold/50 underline-offset-2">
+              <a href={pageUrl(n.url) ?? undefined} target="_blank" rel="noreferrer" className="text-[0.97rem] leading-snug text-charcoal hover:text-forest-800 hover:underline decoration-gold/50 underline-offset-2">
                 {n.title}
               </a>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8rem] text-muted">
@@ -151,7 +152,7 @@ export function ProfileRegulations({ p }: { p: CountryProfile }) {
             const summary = pickLang(r as unknown as Record<string, unknown>, 'summary', lang)
             return (
               <li key={r.id} className="py-2.5">
-                <a href={r.url} target="_blank" rel="noreferrer" className="text-[0.95rem] leading-snug text-charcoal hover:text-forest-800 hover:underline decoration-gold/50 underline-offset-2">
+                <a href={pageUrl(r.url) ?? undefined} target="_blank" rel="noreferrer" className="text-[0.95rem] leading-snug text-charcoal hover:text-forest-800 hover:underline decoration-gold/50 underline-offset-2">
                   {r.title}
                 </a>
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8rem] text-muted">
@@ -232,7 +233,7 @@ export function ProfileContext({ p }: { p: CountryProfile }) {
           {c.refs.length > 0 && (
             <div>
               <div className="eyebrow mb-0.5">{t('countries.ctx.refs')}</div>
-              {c.refs.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer" className="link block truncate text-[0.85rem]">{u}</a>)}
+              {c.refs.map((u) => <a key={u} href={pageUrl(u) ?? undefined} target="_blank" rel="noreferrer" className="link block truncate text-[0.85rem]">{u}</a>)}
             </div>
           )}
           <p className="text-[0.78rem] text-muted border-t border-line-soft pt-2">{lang === 'it' ? c.label_it : c.label_en}</p>

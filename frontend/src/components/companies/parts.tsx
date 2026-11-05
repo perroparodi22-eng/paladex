@@ -10,6 +10,7 @@ import type { Lang } from '@/lib/types'
 import type {
   Availability, AvailabilityStatus, CompanyList, FigureCell, FiguresList, PeriodInfo, RegisterList,
 } from './types'
+import { pageUrl } from '@/lib/links'
 
 const TONE: Record<AvailabilityStatus, 'forest' | 'gold' | 'warn' | 'neutral' | 'outline'> = {
   figures: 'forest', register: 'gold', unavailable: 'warn', not_published: 'neutral', unverified: 'outline',
@@ -38,7 +39,7 @@ export function AvailabilityNote({ a, compact = false }: { a: Availability; comp
           {a.url && (
             <>
               {' · '}
-              <a href={a.url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
+              <a href={pageUrl(a.url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
                 {t('companies.officialSite')} <ExternalLink size={12} />
               </a>
             </>
@@ -268,7 +269,7 @@ export function ListSource({ list }: { list: CompanyList }) {
         {s?.freshness && <FreshnessBadge status={s.freshness.status} ageDays={s.freshness.age_days} />}
         {rhythm && <span>{t('companies.rhythm')}: {rhythm}</span>}
         {list.web_url && (
-          <a href={list.web_url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
+          <a href={pageUrl(list.web_url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
             {t('companies.openSource')} <ExternalLink size={12} />
           </a>
         )}

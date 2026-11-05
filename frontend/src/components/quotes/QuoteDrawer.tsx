@@ -18,6 +18,7 @@ import { MarketReference } from './MarketReference'
 import { StatusChip } from './QuoteTable'
 import type { FxMode, Landed, Quote, QuoteBody, QuoteDetail, QuotesMeta } from './types'
 import { bodyFromQuote, CONTAINER_KG, fmtPlain, fmtTons, sameBody } from './utils'
+import { isMappedUrl, pageUrl } from '@/lib/links'
 
 export function QuoteDrawer({ id, fx, onFx, onClose, onEdit, onOpenQuote }: {
   id: number
@@ -152,7 +153,8 @@ export function QuoteDrawer({ id, fx, onFx, onClose, onEdit, onOpenQuote }: {
                   {t(fx === 'today' ? 'quotes.drawer.fxModeToday' : 'quotes.drawer.fxModeReceived', { date: fmtDate(landed.fx.date, lang) })}
                   {landed.fx.source && <> · {t('prov.source')}: {landed.fx.source.publisher ?? landed.fx.source.name}</>}
                   {landed.fx.source_url && (
-                    <> · <a href={landed.fx.source_url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">{t('prov.original')} <ExternalLink size={11} /></a></>
+                    <> · <a href={pageUrl(landed.fx.source_url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5"
+                      title={isMappedUrl(landed.fx.source_url) ? t('prov.exactAddress', { url: landed.fx.source_url ?? '' }) : undefined}>{t(isMappedUrl(landed.fx.source_url) ? 'prov.officialPage' : 'prov.original')} <ExternalLink size={11} /></a></>
                   )}
                 </p>
               </Section>

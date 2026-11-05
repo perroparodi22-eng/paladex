@@ -1508,7 +1508,8 @@ class UsdaHoneyReportCollector(Collector):
     name = "USDA AMS – National Honey Report (prezzi miele USA)"
     name_en = "USDA AMS – National Honey Report (US honey prices)"
     publisher = "USDA Agricultural Marketing Service (AMS), Specialty Crops Market News"
-    homepage = "https://mymarketnews.ams.usda.gov/viewReport/2901"
+    # Every issue with its PDF (USDA ESMIS archive); MyMarketNews (viewReport/2901) often answers slowly.
+    homepage = "https://esmis.nal.usda.gov/publication/national-honey-report"
     kind = SourceKind.PDF
     reliability = Reliability.OFFICIAL
     category = "prices"

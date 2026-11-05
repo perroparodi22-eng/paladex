@@ -5,6 +5,7 @@ import { useI18n } from '@/i18n'
 import { fmtDate, fmtPeriod } from '@/lib/format'
 import { BlockHead, fmtClock } from './parts'
 import type { BriefingBlock, BriefingBullet } from './types'
+import { pageUrl } from '@/lib/links'
 
 const DAY: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' }
 
@@ -36,7 +37,7 @@ function Bullet({ b, n }: { b: BriefingBullet; n: number }) {
           {!b.is_demo && b.data_status && !['published', 'live'].includes(b.data_status) && <StatusBadge status={b.data_status} />}
           {b.is_ai && <AiBadge />}
           {b.url && (
-            <a href={b.url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
+            <a href={pageUrl(b.url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
               {t('prov.original')} <ExternalLink size={12} />
             </a>
           )}

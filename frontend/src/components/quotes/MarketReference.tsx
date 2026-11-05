@@ -9,6 +9,7 @@ import { useLabels } from '@/lib/meta'
 import { colorLabel } from '@/components/prices/utils'
 import type { MarketReference as MR, RefBlock, RefRow } from './types'
 import { fmtPerKg, fmtPrice, fmtTons } from './utils'
+import { isMappedUrl, pageUrl } from '@/lib/links'
 
 const OLD_DAYS = 120
 
@@ -26,7 +27,8 @@ function Src({ r }: { r: RefRow }) {
       {r.is_demo && <DemoBadge />} {r.source?.publisher ?? r.source?.name}
       {r.published_at && <> · {t('prov.published')} {fmtDate(r.published_at, lang)}</>}
       {r.source_url && (
-        <> · <a href={r.source_url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">{t('prov.original')} <ExternalLink size={11} /></a></>
+        <> · <a href={pageUrl(r.source_url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5"
+          title={isMappedUrl(r.source_url) ? t('prov.exactAddress', { url: r.source_url ?? '' }) : undefined}>{t(isMappedUrl(r.source_url) ? 'prov.officialPage' : 'prov.original')} <ExternalLink size={11} /></a></>
       )}
     </div>
   )

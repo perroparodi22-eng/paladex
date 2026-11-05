@@ -105,7 +105,7 @@ test('the NASA POWER citation and access date are shown with the weather data', 
   assert.match(s, /Prediction Of Worldwide Energy Resources \(POWER\) project funded through the NASA Earth Science Division/)
 })
 
-test('region detail: 12 months, every value one click from its exact NASA query, context labelled', () => {
+test('region detail: 12 months, every value one click from NASA POWER (its exact query in the link), context labelled', () => {
   const hun = W.regions.find((r) => r.key === 'HUN')!
   const months: RegionMonth[] = hun.recent.map((m) => ({
     ...m,
@@ -118,8 +118,11 @@ test('region detail: 12 months, every value one click from its exact NASA query,
   }))
   const html = render(<RegionBody r={{ ...hun, months }} />)
   const s = text(html)
-  const nasa = hrefs(html).filter((h) => h.startsWith('https://power.larc.nasa.gov/api/temporal/'))
+  // The data service answers raw JSON: the link opens NASA's own POWER Data Access Viewer, and the
+  // exact query each value was read from is in the link's description.
+  const nasa = hrefs(html).filter((h) => h === 'https://power.larc.nasa.gov/data-access-viewer/')
   assert.equal(nasa.length, 3 * hun.points.length)
+  assert.equal((html.match(/power\.larc\.nasa\.gov\/api\/temporal\/monthly\/point/g) ?? []).length, 3 * hun.points.length)
   assert.match(s, /1 Kecskemét \(46,91, 19,69\)/)
   assert.match(s, /Contesto \(non dati raccolti\)/)
   assert.match(s, /Provvisorio/)
@@ -156,7 +159,7 @@ test('production table: latest year, change on the year before, the status the s
   assert.match(s, /Paesi monitorati \(24\)/)
   assert.match(s, /Tutti i paesi \(137\)/)
   assert.match(s, /l'ultimo anno pubblicato qui è il 2024/)
-  assert.ok(hrefs(html).some((h) => h.startsWith('https://bulks-faostat.fao.org/')))
+  assert.ok(hrefs(html).includes('https://www.fao.org/faostat/en/#data/QCL'))   // FAOSTAT's page, not its bulk ZIP
   assert.match(html, /overflow-x-auto/)
 })
 

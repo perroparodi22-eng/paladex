@@ -14,10 +14,11 @@ import { useLabels } from '@/lib/meta'
 import { DutyLayer, useLayerLabel } from './DutyLayer'
 import { fmtDuty, fmtKg } from './format'
 import type { AdCase, DutiesResponse, DutyHistory, DutyRow, JurisdictionStatus, OriginDuties } from './types'
+import { pageUrl } from '@/lib/links'
 
 function ExtLink({ href, title, children }: { href: string; title?: string; children: ReactNode }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" title={title} className="link inline-flex items-center gap-0.5">
+    <a href={pageUrl(href) ?? undefined} target="_blank" rel="noreferrer" title={title} className="link inline-flex items-center gap-0.5">
       {children} <ExternalLink size={11} />
     </a>
   )
@@ -60,7 +61,7 @@ function AdCaseBlock({ ad }: { ad: AdCase }) {
       <div className="text-[0.78rem] text-muted">{ad.product} · {t('regulations.ad.ratesNote')}</div>
       {latest ? (
         <div className="mt-1 text-[0.8rem] leading-snug">
-          <a href={latest.url} target="_blank" rel="noreferrer" title={latest.title} className="link line-clamp-2">
+          <a href={pageUrl(latest.url) ?? undefined} target="_blank" rel="noreferrer" title={latest.title} className="link line-clamp-2">
             {t('regulations.ad.latestDoc', { title: latest.title })}
           </a>
           <span className="text-muted">{fmtDate(latest.published_at, lang)}</span>

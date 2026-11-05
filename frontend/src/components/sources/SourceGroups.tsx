@@ -14,6 +14,7 @@ import { KeyHelp } from './KeyHelp'
 import { RunHistory } from './RunHistory'
 import type { ApiKeyInfo } from './types'
 import { Switch } from './widgets'
+import { pageUrl } from '@/lib/links'
 
 const GROUP_ORDER = ['prices', 'trade', 'production', 'companies', 'reports', 'news', 'regulation', 'weather', 'fx', 'quotes', 'other']
 const COUNT_KEYS = ['prices', 'trade', 'production', 'companies', 'news', 'reports', 'regulations'] as const
@@ -109,7 +110,7 @@ function SourceRow({ s, state }: { s: SourceInfo; state: RowState }) {
           <div className={clsx('font-semibold text-[1.05rem] leading-snug', s.enabled ? 'text-charcoal' : 'text-muted')}>
             {sourceName(s, lang)}
             {s.homepage && (
-              <a href={s.homepage} target="_blank" rel="noreferrer" className="ml-1.5 inline-block align-[-1px] text-muted hover:text-forest-700"
+              <a href={pageUrl(s.homepage) ?? undefined} target="_blank" rel="noreferrer" className="ml-1.5 inline-block align-[-1px] text-muted hover:text-forest-700"
                 title={t('sources.row.homepage')} aria-label={`${t('sources.row.homepage')}: ${sourceName(s, lang)}`}>
                 <ExternalLink size={14} />
               </a>

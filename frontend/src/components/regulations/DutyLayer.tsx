@@ -7,6 +7,7 @@ import { useI18n } from '@/i18n'
 import { fmtDate } from '@/lib/format'
 import { fmtDuty, fmtKg, fmtPct, isChapter99, legalLabel } from './format'
 import type { DutyRow, Quota } from './types'
+import { pageUrl } from '@/lib/links'
 
 const QUOTA_TONE: Record<string, 'up' | 'warn' | 'down' | 'outline'> = {
   open: 'up', critical: 'warn', exhausted: 'down', blocked: 'down',
@@ -110,13 +111,13 @@ export function DutyLayer({ row, general }: { row: DutyRow; general?: string }) 
           </Badge>
         )}
         {row.legal_url && legal && (
-          <a href={row.legal_url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5"
+          <a href={pageUrl(row.legal_url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5"
             title={t('regulations.duties.legalLinkTitle')}>
             {row.jurisdiction === 'EU' ? t('regulations.duties.legalLink', { ref: legal }) : legal} <ExternalLink size={11} />
           </a>
         )}
         {!row.legal_url && row.consult_url && (
-          <a href={row.consult_url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
+          <a href={pageUrl(row.consult_url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">
             {t('regulations.duties.consultLink')} <ExternalLink size={11} />
           </a>
         )}

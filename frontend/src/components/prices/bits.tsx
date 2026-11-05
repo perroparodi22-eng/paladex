@@ -6,6 +6,7 @@ import { useI18n } from '@/i18n'
 import { fmtPct } from '@/lib/format'
 import type { MassUnit, PointRef } from './types'
 import { fmtPeriodLabel, fmtPrice, toUnit } from './utils'
+import { isMappedUrl, pageUrl } from '@/lib/links'
 
 /** Coloured ▲▼ change with a tooltip naming the exact comparison period; "—" when not computable. */
 export function Change({ pct, cmp, expectedLabel, unit, unitText }: {
@@ -65,7 +66,8 @@ export function DocLink({ url, label }: { url: string | null | undefined; label?
   const { t } = useI18n()
   if (!url) return <span className="text-muted" title={t('prices.latest.noDoc')}>—</span>
   return (
-    <a href={url} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-1" title={t('prov.original')}>
+    <a href={pageUrl(url)} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-1"
+      title={isMappedUrl(url) ? t('prov.exactAddress', { url }) : t('prov.original')}>
       {label}
       <ExternalLink size={14} />
     </a>
