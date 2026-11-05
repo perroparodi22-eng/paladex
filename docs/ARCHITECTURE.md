@@ -91,8 +91,8 @@ Tables:
 | 3 | Price intelligence: price database, explorer (M/Q/A, USD/EUR, per kg/lb), history, origin and variety comparisons, discrepancies, CSV export | **done** |
 | 4 | Global news: GDELT (10 languages) + trade-press RSS (+ opt-in Google News), honey gate, dedup, relevance, AI summaries/translation (optional key), search and filters | **done** |
 | 5 | Map (offline), country profiles and trade leaders/flows; regulations and duties UI; harvest & production: FAOSTAT production plus NASA POWER monthly weather and anomalies vs 1991-2020 for 64 honey regions (130 points), transparent rule-based signals (drought watch, heat stress, wet season) labelled as automatic assessments (Open-Meteo not used: its free tier is non-commercial) | **done** |
-| 6 | AI assistant (database-grounded, cited answers), daily AI briefing (a rule-based daily summary already runs, labelled "not AI") | planned |
-| 7 | Supplier quotes, landed-cost calculator, alerts, historical archive views | schema ready, planned |
+| 6 | AI assistant (database-grounded, cited answers, number and citation post-check; retrieval-only answers without an AI key), daily AI briefing (only with an AI key; the rule-based daily summary, labelled "not AI", stays otherwise) | **done** |
+| 7 | Supplier quotes and landed-cost calculator (official EU/US duties incl. tariff quotas, ECB rates), alert center (5 rule types, no flood on bulk imports), historical archive (year-on-year views, revision history) | **done** |
 | 8 | Polish, source verification on the live machine, performance, installer | in progress: real starter data shipped with the app (`starter/`, merged once per version at start-up so a new installation opens with data); first-run notice |
 
 ## 6. Security and privacy
