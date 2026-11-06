@@ -8,6 +8,8 @@ import { AiBadge, Badge, DemoBadge, Note } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { fmtDate, fmtPeriod } from '@/lib/format'
 import { Citations } from './Citation'
+import { CorrectedTag } from '@/components/corrections/CorrectionBadge'
+import { fmtFigureValue } from '@/components/corrections/format'
 import type { Answer, AnswerSection, AssistantFact, FactStatus, HowToEnable } from './types'
 import { pageUrl } from '@/lib/links'
 
@@ -45,6 +47,7 @@ function Section({ section, facts, plain }: { section: AnswerSection; facts: Map
           return (
             <li key={i} className="break-words text-[0.98rem] leading-relaxed text-charcoal">
               {tag && <Badge tone={tag.tone} className="mr-1.5 align-[0.1em]">{t(tag.key)}</Badge>}
+              {plain && it.status === 'corrected' && <CorrectedTag label={t('assistant.badge.corrected')} className="mr-1.5 align-[0.1em]" />}
               {it.text}
               <Citations refs={it.refs} facts={facts} />
             </li>
@@ -76,7 +79,14 @@ function SourcesList({ facts }: { facts: AssistantFact[] }) {
                 )}
                 {f.published_at && <span>· {t('assistant.cite.published', { date: fmtDate(f.published_at, lang) })}</span>}
                 {f.period_label && f.kind !== 'news' && <span>· {t('assistant.cite.period', { p: fmtPeriod(f.period_label, lang) })}</span>}
-                <span>· {f.status_label}</span>
+                {f.status === 'corrected' ? (
+                  <CorrectedTag label={f.status_label} title={f.correction ? t('assistant.cite.corrected', {
+                    v: fmtFigureValue(f.correction.official_value, f.correction.unit, f.correction.currency, lang),
+                  }) : undefined} />
+                ) : <span>· {f.status_label}</span>}
+                {f.status === 'corrected' && f.correction && (
+                  <span>· {t('assistant.cite.corrected', { v: fmtFigureValue(f.correction.official_value, f.correction.unit, f.correction.currency, lang) })}</span>
+                )}
                 {f.is_demo && <DemoBadge />}
                 {f.url && !f.private && (
                   <a href={pageUrl(f.url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-0.5">

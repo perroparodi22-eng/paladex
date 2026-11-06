@@ -10,17 +10,31 @@ Endpoints, field names and the confidence of every detail are documented in
       downloaded once and parsed, oldest first, so a corrected copy supersedes the original.
       ESMIS also files other AMS reports under FVMHONEY (a tomato and a watermelon report in
       2025): they are recognised from their title, remembered and ignored. ESMIS stopped at the
-      Sept 30, 2025 issue (checked Nov 2026); later issues come only from the AMS URL.
+      Sept 30, 2025 issue (checked Nov 2026).
     * The AMS "latest issue" URL is fetched on every run, because ESMIS may lag. Its file is
       overwritten each month, so every download is archived by hash. If ESMIS is down, this
       is the fallback.
+    * The keyless MyMarketNews file repository (AMS's own archive of every published document,
+      slug 2901: ``/filerepo/reports?field_slug_id_value=2901``, 50 rows a page, newest first) fills
+      the issues the two routes above miss: every issue since Oct 2025, and any month the AMS URL
+      overwrote unseen. It is read only while a market month of the last ``MMN_GAP_MONTHS`` has no
+      issue on file (a new hole: the next run of the day; an old one: every ``MMN_RECHECK_DAYS``),
+      at most once a day, so the monthly run stays two requests. Each listed PDF of the last
+      ``MMN_BACKFILL_DAYS`` is downloaded once (remembered in the collector state, archived by
+      hash) unless an issue within ``REPORT_DATE_MATCH_DAYS`` of its date came from ESMIS or the
+      AMS URL; a copy whose printed issue date is already on file (a re-upload) is not stored
+      twice, a corrected copy supersedes as above. MyMarketNews also lists tomato reports under
+      2901 (May 2025, Apr 2026): recognised and ignored. A month no official route has stays a
+      gap (warned with the months), never estimated. The keyed MARS API (``usda_mmn_api_key``)
+      is not needed and not used: its public endpoints give only the latest issue's metadata.
     * Real issues (2023-2026, checked against the PDFs) print the price tables with horizontally
       compressed fonts, sometimes as two independent columns side by side (US beekeepers on the
       left, Canadian beekeepers + importers on the right), as pivot tables whose floral-source cell
       is left blank under the row it repeats, and in some months as pasted images. The PDF reader
       therefore rebuilds words from glyph positions, splits two-column page regions at their
       gutter, and the parser reads labels and floral sources from their column positions. Tables
-      printed as images are reported, never guessed. The prices refer to the market month printed
+      printed as images, and import tables printed without their title (HTS code unknown), are
+      reported, never guessed. The prices refer to the market month printed
       on page 1 ("HONEY MARKET FOR THE MONTH OF AUGUST 2025"), one month before the issue date.
     * The parser is versioned (``PARSER_VERSION``). Price types are kept apart:
         - prices paid to US beekeepers           -> PriceType.PRODUCER (market USA, by state)
@@ -48,6 +62,7 @@ from __future__ import annotations
 import calendar
 import copy
 import difflib
+import html
 import io
 import logging
 import re
@@ -57,8 +72,9 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
+import httpx
 from sqlalchemy import func, select
 
 from ..enums import DataStatus, PriceType, Reliability, SourceKind, TradeFlow, Variety
@@ -100,6 +116,23 @@ def _period_label(year: int, month: int) -> str:
 
 def _long_date(d: date) -> str:
     return f"{calendar.month_name[d.month]} {d.day}, {d.year}"
+
+
+def _today() -> date:
+    return date.today()
+
+
+def _months_text(labels: list[str]) -> str:
+    """['2025-09', '2025-10', '2025-11', '2026-02'] -> '2025-09..2025-11, 2026-02 (4 months)'."""
+    runs: list[list[str]] = []
+    for lb in sorted(labels):
+        y, m = (int(x) for x in lb.split("-"))
+        if runs and runs[-1][-1] == _period_label(*months_back(y, m, 1)):
+            runs[-1].append(lb)
+        else:
+            runs.append([lb])
+    text = ", ".join(r[0] if len(r) == 1 else f"{r[0]}..{r[-1]}" for r in runs)
+    return f"{text} ({len(labels)} month{'s' if len(labels) != 1 else ''})"
 
 
 def _state_key(source_key: str) -> str:
@@ -174,7 +207,7 @@ _ORGANIC = re.compile(r"\b(certified\s+(for\s+)?)?organic\b", re.I)
 # 1) AMS National Honey Report (FVMHONEY) - PDF parser (pure functions)
 # =============================================================================================
 
-PARSER_VERSION = "fvmhoney/2026.11-2"
+PARSER_VERSION = "fvmhoney/2026.11-3"
 
 # Section keys
 BEEKEEPER = "beekeeper"                     # prices paid to US beekeepers (producer prices)
@@ -952,6 +985,7 @@ class _AceTable:
     fields: list[str] | None = None
     rows: int = 0
     warned_month: bool = False
+    untitled: bool = False      # a table printed without its title: HTS code unknown, rows skipped
 
 
 @dataclass
@@ -1303,6 +1337,13 @@ class _HoneyReportParser:
             if t is None:
                 self.warn(line, "import column header outside a table")
                 return
+            if t.rows:
+                # A column header below rows already read starts a new table whose title is missing (the
+                # May 29, 2026 issue, p.10). Its HTS code and colour are unknown: its rows are skipped, never
+                # filed under the table above. (No real issue repeats the header in a table over two pages.)
+                self.warn(line, f"import table without a title (after '{t.title[:60]}') - its rows are skipped")
+                t = self.ace = _AceTable(title="", hts=None, color=None, organic=False, page=line.page,
+                                         untitled=True)
             t.fields = _ace_fields(norm)
             self._ace_month(t, text)
             return
@@ -1317,6 +1358,9 @@ class _HoneyReportParser:
             return
         if t is None or not t.fields:
             self.warn(line, "import row without a table title / column header - skipped")
+            return
+        if t.untitled:
+            t.rows += 1
             return
         if t.month is None:
             if not t.warned_month:
@@ -1485,6 +1529,55 @@ def parse_esmis_releases(payload: Any) -> tuple[list[EsmisRelease], list[str]]:
     return out, warnings
 
 
+# ------------------------------------------------------------------ MyMarketNews file repository (pure)
+
+MMN_SLUG_ID = "2901"                # MyMarketNews slug of the National Honey Report (FVMHONEY)
+MMN_FILEREPO_URL = "https://mymarketnews.ams.usda.gov/filerepo/reports"
+MMN_HOST = "mymarketnews.ams.usda.gov"
+# Document links of the file repository: /filerepo/sites/default/files/{slug}/{report date}/{node id}/{name}.pdf
+# (seen for 2901: .../2901/2026-06-30/1334983/ams_2901_00090.pdf and .../2901/2018-02-26/686229/FV20180226MHONEY.PDF)
+_MMN_FILE = re.compile(
+    r"/filerepo/sites/default/files/(?P<slug>\d+)/(?P<date>\d{4}-\d{2}-\d{2})/(?P<node>\d+)/[^/?#]+\.pdf$", re.I)
+_HREF = re.compile(r"""\bhref\s*=\s*(["'])(.*?)\1""", re.I | re.S)
+
+
+@dataclass(frozen=True)
+class MmnDocument:
+    report_date: date       # the report date in the document path (= the issue date for FVMHONEY)
+    node_id: int
+    url: str
+
+
+def parse_mmn_filerepo(text: str, *, page: int = 0, base_url: str = MMN_FILEREPO_URL,
+                       slug: str = MMN_SLUG_ID) -> tuple[list[MmnDocument], bool]:
+    """Parse one page of the MyMarketNews file repository listing ("Mars Document" view, an HTML
+    table). Only the links matter: each PDF link carries the slug, the report date and the node id
+    in its path, so the table layout may change freely. Returns (documents of `slug`, newest first;
+    True when the pager links to a later page)."""
+    docs: dict[str, MmnDocument] = {}
+    later_page = False
+    for m in _HREF.finditer(text or ""):
+        url = urljoin(base_url, html.unescape(m.group(2)).strip())
+        parts = urlparse(url)
+        fm = _MMN_FILE.search(parts.path)
+        if fm:
+            d = parse_date(fm["date"])
+            if fm["slug"] == slug and d is not None and url not in docs:
+                docs[url] = MmnDocument(report_date=d, node_id=int(fm["node"]), url=url)
+            continue
+        if parts.path.rstrip("/").endswith("/filerepo/reports"):
+            nums = [n for n in parse_qs(parts.query).get("page", []) if n.isdigit()]
+            later_page = later_page or any(int(n) > page for n in nums)
+    out = sorted(docs.values(), key=lambda d: (d.report_date, d.node_id), reverse=True)
+    return out, later_page
+
+
+def months_back(year: int, month: int, n: int) -> tuple[int, int]:
+    """The month `n` months before (year, month)."""
+    k = year * 12 + (month - 1) - n
+    return k // 12, k % 12 + 1
+
+
 # ------------------------------------------------------------------ collector
 
 ESMIS_FVMHONEY_URL = "https://esmis.nal.usda.gov/api/v1/release/findByIdentifier/FVMHONEY"
@@ -1497,6 +1590,12 @@ HONEY_BACKFILL_RELEASES = 24        # newest ESMIS issues downloaded and parsed
 ESMIS_MAX_PAGES = 2                 # ESMIS pages read for the first backfill (25 rows per page)
 ESMIS_EMPTY_RETRIES = 3             # ESMIS sometimes answers with an empty list; retry, 5 s apart
 REPORT_DATE_MATCH_DAYS = 4          # an AMS issue within this many days of an ESMIS release = same issue
+# MyMarketNews file repository (official AMS archive of every published issue), used to fill the
+# issues ESMIS no longer files (since Oct 2025) and the months the AMS "latest" URL overwrote unseen.
+MMN_GAP_MONTHS = 24                 # market months checked for holes, back from the newest one on file
+MMN_BACKFILL_DAYS = 730             # documents dated within this many days of the newest one listed
+MMN_MAX_PAGES = 6                   # listing pages read per check
+MMN_RECHECK_DAYS = 30               # an unchanged hole (issue never published?) is looked up again monthly
 # A customs unit value says nothing about the bulk market on tiny consignments (samples, a few jars:
 # the Sep 2026 ACE table prints 61 kg from Ontario for $69,649), so a unit value is derived only from
 # at least this much. Same threshold as Comtrade, Eurostat and the official trade collectors.
@@ -1508,7 +1607,8 @@ class UsdaHoneyReportCollector(Collector):
     name = "USDA AMS – National Honey Report (prezzi miele USA)"
     name_en = "USDA AMS – National Honey Report (US honey prices)"
     publisher = "USDA Agricultural Marketing Service (AMS), Specialty Crops Market News"
-    # Every issue with its PDF (USDA ESMIS archive); MyMarketNews (viewReport/2901) often answers slowly.
+    # Every issue to Sept 2025 with its PDF (USDA ESMIS archive); later issues in the MyMarketNews file
+    # repository (MMN_FILEREPO_URL; viewReport/2901 often answers slowly).
     homepage = "https://esmis.nal.usda.gov/publication/national-honey-report"
     kind = SourceKind.PDF
     reliability = Reliability.OFFICIAL
@@ -1520,7 +1620,8 @@ class UsdaHoneyReportCollector(Collector):
     expected_max_age_days = 40
     terms_note = (
         "US Government work (public domain, 17 USC 105). Cite 'USDA AMS Market News, National Honey "
-        "Report'. Back issues via USDA National Agricultural Library ESMIS. Prices are published per "
+        "Report'. Back issues via USDA National Agricultural Library ESMIS (to Sept 2025) and the AMS "
+        "MyMarketNews file repository (since Oct 2025). Prices are published per "
         "pound (USD) for the market month printed on page 1; per-kg values are converted."
     )
     # Around month end (issue date) and the first days of the next month, morning and evening (Rome).
@@ -1588,6 +1689,21 @@ class UsdaHoneyReportCollector(Collector):
         except CollectorError as exc:
             errors.append(exc)
             ctx.warn(f"AMS latest issue not processed: {exc}")
+
+        # 3) MyMarketNews file repository: the issues still missing after 1) and 2), each downloaded
+        #    once. Consulted only while a market month is missing, so the monthly run stays cheap.
+        if self._mmn_due(ctx, state):
+            try:
+                self._mmn_backfill(ctx, state, not_honey)
+                successes += 1
+            except CollectorError as exc:
+                errors.append(exc)
+                if successes or not isinstance(exc, Offline):   # host problem: retried tomorrow, not every run
+                    state.setdefault("mmn", {})["attempted"] = _today().isoformat()
+                    _save_state(ctx, state)
+                missing = self._missing_months(ctx)
+                ctx.warn(f"MyMarketNews archive unavailable ({exc})"
+                         + (f"; market months still without an issue: {_months_text(missing)}" if missing else ""))
 
         if successes == 0 and errors:
             if all(isinstance(e, Offline) for e in errors):
@@ -1675,18 +1791,167 @@ class UsdaHoneyReportCollector(Collector):
                            raw_document_id=doc.raw_document_id)
             return
         parsed = parse_honey_report_pdf(doc.content)
+        self._store_issue(ctx, doc, parsed, url=url, report_key=report_key, title=title, release_date=release_date)
+
+    def _store_issue(self, ctx: CollectContext, doc, parsed: HoneyReportParse, *, url: str, report_key: str,
+                     title: str, release_date: date, listed_by: str = "ESMIS release",
+                     published_at: date | None = None) -> None:
+        """Store an archived issue (ESMIS or MyMarketNews copy): prices link to the archive's own URL.
+        The report is dated `published_at` (default: the release date of the listing)."""
         issue = parsed.issue_date or release_date
         if parsed.issue_date and abs((parsed.issue_date - release_date).days) > 31:
             ctx.warn(f"{title}: issue date printed in the PDF ({parsed.issue_date}) differs from the "
-                     f"ESMIS release date ({release_date}); using the printed date")
+                     f"{listed_by} date ({release_date}); using the printed date")
         title = self._issue_title(parsed, issue)
         self._store(ctx, parsed, issue, title=title, source_url=doc.url, raw_document_id=doc.raw_document_id)
-        report, _ = ctx.add_report(report_key=report_key, title=title, url=url, published_at=release_date,
-                                   period_label=self._market_label(parsed),
+        report, _ = ctx.add_report(report_key=report_key, title=title, url=url,
+                                   published_at=published_at or release_date, period_label=self._market_label(parsed),
                                    raw_document_id=doc.raw_document_id, narrative=parsed.narrative)
         if report.period_label is None and parsed.market_month:
             report.period_label = self._market_label(parsed)        # late metadata: filled, never changed
         ctx.checkpoint()
+
+    # -------------------------------------------------------------- MyMarketNews file repository
+    def _missing_months(self, ctx: CollectContext) -> list[str] | None:
+        """Market months without a parsed issue over the MMN_GAP_MONTHS that end with the newest one
+        on file (None when no issue is on file at all)."""
+        labels = set(ctx.session.scalars(select(Report.period_label).where(
+            Report.source_id == ctx.source.id, Report.raw_document_id.is_not(None),
+            Report.period_label.is_not(None))).all())
+        months = sorted(lb for lb in labels if re.fullmatch(r"\d{4}-\d{2}", lb or ""))
+        if not months:
+            return None
+        y, m = (int(x) for x in months[-1].split("-"))
+        window = (_period_label(*months_back(y, m, k)) for k in range(MMN_GAP_MONTHS))
+        return sorted(lb for lb in window if lb not in labels)
+
+    def _mmn_due(self, ctx: CollectContext, state: dict) -> bool:
+        """Read the MyMarketNews listing only when it can fill something: a month is missing and the
+        hole is new, or was last looked up MMN_RECHECK_DAYS ago. At most one attempt a day."""
+        if ctx.force:
+            return True
+        mmn = state.get("mmn") or {}
+        today = _today()
+        if mmn.get("attempted") == today.isoformat():
+            return False
+        missing = self._missing_months(ctx)
+        if missing is None:             # nothing on file (ESMIS and AMS failed): the archive is all that is left
+            return True
+        if not missing:
+            return False
+        if missing != mmn.get("missing"):
+            return True
+        checked = parse_date(mmn.get("checked"))
+        return checked is None or (today - checked).days >= MMN_RECHECK_DAYS
+
+    @staticmethod
+    def _mmn_fetch(ctx: CollectContext, url: str, **kw):
+        try:
+            return ctx.fetch(url, **kw)
+        except httpx.HTTPError as exc:      # e.g. the server closes the connection without an answer
+            raise CollectorError(f"{MMN_HOST}: {type(exc).__name__} {exc}".strip()[:300]) from exc
+
+    def _mmn_listing(self, ctx: CollectContext) -> tuple[list[MmnDocument], date]:
+        """(documents of the backfill window, oldest first; the window start). Pages are read until one
+        reaches back past the window (the listing is newest first) or MMN_MAX_PAGES."""
+        docs: dict[str, MmnDocument] = {}
+        for page in range(MMN_MAX_PAGES):
+            params = {"field_slug_id_value": MMN_SLUG_ID, **({"page": page} if page else {})}
+            title = f"MyMarketNews – National Honey Report documents (page {page})"
+            try:
+                res = self._mmn_fetch(ctx, MMN_FILEREPO_URL, params=params, headers={"Accept": "text/html"},
+                                      title=title)
+            except CollectorError as exc:
+                if not docs:
+                    raise
+                ctx.warn(f"MyMarketNews listing page {page} unavailable ({exc}); older issues follow on a later run")
+                break
+            found, more = parse_mmn_filerepo(res.content.decode("utf-8", errors="replace"), page=page,
+                                             base_url=res.url)
+            if not found and not docs:
+                raise CollectorError("MyMarketNews listing shows no National Honey Report document "
+                                     "(page layout changed?)")
+            for d in found:
+                docs.setdefault(d.url, d)
+            start = max(d.report_date for d in docs.values()) - timedelta(days=MMN_BACKFILL_DAYS)
+            if not more or not found or min(d.report_date for d in found) < start:
+                break
+        start = max(d.report_date for d in docs.values()) - timedelta(days=MMN_BACKFILL_DAYS)
+        window = [d for d in docs.values() if d.report_date >= start]
+        return sorted(window, key=lambda d: (d.report_date, d.node_id)), start
+
+    def _issue_on_file(self, ctx: CollectContext, d: date, *, mmn_too: bool = False) -> Report | None:
+        """The issue of date `d` (within REPORT_DATE_MATCH_DAYS) already parsed from ESMIS or the AMS
+        latest URL (with `mmn_too`, also from MyMarketNews). MyMarketNews copies count only when asked, so
+        a corrected copy listed there after the first one is processed like ESMIS's (oldest first, the
+        corrected copy supersedes), while a mere re-upload of a stored issue is not stored twice."""
+        rows = [r for r in ctx.session.scalars(select(Report).where(
+            Report.source_id == ctx.source.id, Report.raw_document_id.is_not(None),
+            Report.published_at >= d - timedelta(days=REPORT_DATE_MATCH_DAYS),
+            Report.published_at <= d + timedelta(days=REPORT_DATE_MATCH_DAYS),
+        )).all() if mmn_too or urlparse(r.url or "").netloc != MMN_HOST]
+        rows.sort(key=lambda r: abs((r.published_at - d).days))
+        return rows[0] if rows else None
+
+    def _mmn_backfill(self, ctx: CollectContext, state: dict, not_honey: dict[str, str]) -> None:
+        docs, start = self._mmn_listing(ctx)
+        mmn = state.setdefault("mmn", {})
+        mmn["attempted"] = _today().isoformat()
+        files: dict[str, str] = mmn.setdefault("files", {})        # document URL -> outcome
+        for url in list(files):
+            m = _MMN_FILE.search(urlparse(url).path)
+            if m is None or (parse_date(m["date"]) or start) < start:
+                del files[url]          # left the backfill window
+        pending = 0
+        for d in docs:
+            if d.url in not_honey or (d.url in files and not ctx.force):
+                continue
+            if self._issue_on_file(ctx, d.report_date) is not None:
+                continue                # the issue came from ESMIS or the AMS latest URL: never twice
+            try:
+                files[d.url] = self._process_mmn(ctx, d)
+            except NotAHoneyReport as exc:
+                not_honey[d.url] = str(exc)[:200]
+                ctx.warn(f"MyMarketNews document {d.url} is listed under slug {MMN_SLUG_ID} but {exc}; ignored")
+            except CollectorError as exc:
+                pending += 1
+                ctx.warn(f"MyMarketNews issue of {d.report_date} ({d.url}) not processed: {exc}")
+                continue
+            _save_state(ctx, state)
+            ctx.checkpoint()
+        missing = self._missing_months(ctx) or []
+        mmn["missing"] = missing
+        if pending:
+            mmn.pop("checked", None)    # retried on the next day's run
+        else:
+            mmn["checked"] = _today().isoformat()
+        _save_state(ctx, state)
+        ctx.checkpoint()
+        if missing:
+            ctx.warn(f"No issue on file for market month(s) {_months_text(missing)}: not in ESMIS, the AMS latest "
+                     "issue or the MyMarketNews archive (the gap is kept, never estimated)")
+
+    def _process_mmn(self, ctx: CollectContext, d: MmnDocument) -> str:
+        """Download, parse and store one MyMarketNews document; returns what happened (kept in the state)."""
+        title = f"National Honey Report – {_long_date(d.report_date)}"
+        doc = self._mmn_fetch(ctx, d.url, title=title, published_at=d.report_date)
+        if self._already_parsed(ctx, doc.raw_document_id) and not ctx.force:
+            prev = self._report_with_file(ctx, doc.raw_document_id)
+            return f"same file as report {prev.report_key}" if prev else "same file as an issue on file"
+        parsed = parse_honey_report_pdf(doc.content)
+        other = (self._issue_on_file(ctx, parsed.issue_date, mmn_too=not parsed.corrected)
+                 if parsed.issue_date else None)
+        if other is not None and other.raw_document_id != doc.raw_document_id:     # (a forced run re-stores)
+            ctx.warn(f"MyMarketNews document {d.url} is the issue of {parsed.issue_date}, already on file "
+                     f"(report {other.report_key}); not stored twice")
+            return f"duplicate of report {other.report_key}"
+        key = d.report_date.isoformat()
+        same_key = self._report(ctx, key)
+        if same_key is not None and same_key.raw_document_id and same_key.raw_document_id != doc.raw_document_id:
+            key = f"{key}-{d.node_id}"      # a second document dated the same day (e.g. a corrected copy)
+        self._store_issue(ctx, doc, parsed, url=d.url, report_key=key, title=title, release_date=d.report_date,
+                          listed_by="MyMarketNews report", published_at=parsed.issue_date)
+        return f"stored as report {key}"
 
     def _process_latest(self, ctx: CollectContext) -> None:
         doc = None
@@ -2445,7 +2710,7 @@ __all__ = [
     "words_to_lines", "chars_to_words", "dedupe_glyphs", "find_gutter", "column_blocks", "pdf_layout",
     "pdf_to_lines", "lines_from_text", "parse_honey_report_lines", "parse_honey_report_pdf", "parse_price_token",
     "split_price_tail", "split_color", "market_month", "ace_origin", "group_warnings", "extract_color", "describe",
-    "parse_esmis_releases", "parse_gats_release_dates",
+    "parse_esmis_releases", "parse_mmn_filerepo", "MmnDocument", "parse_gats_release_dates",
     "select_gats_months", "parse_gats_imports", "parse_gats_commodities", "hs10_attributes", "parse_nass_rows",
     "UsdaHoneyReportCollector", "UsdaFasGatsCollector", "UsdaNassHoneyCollector",
 ]

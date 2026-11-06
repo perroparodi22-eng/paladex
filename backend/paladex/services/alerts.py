@@ -26,6 +26,11 @@ Rules about events:
   Exception: ``new_report`` also looks back 14 days when the rule starts watching, so a rule
   created just after a release still reports it.
 * Demo rows never produce events (events are stored and would outlive the demo data).
+* A value corrected by a person (reliability ``user``, services/corrections.py) never produces a
+  market event: price and trade rules leave out corrected rows and every figure that includes one,
+  since the event would name the source. The correction's own notices (the source published a new
+  value, a received correction in conflict) are raised by services/corrections.py. An undo restores
+  the official row with its original ``collected_at``, so it is not new data either.
 * Messages are factual (numbers, period, source, publication date), in Italian and English, and
   never contain AI text.
 
@@ -620,8 +625,11 @@ def _price_rows(session: Session, p: dict) -> list[PriceObservation]:
     from ..api.prices import bulk_unit_value_clause
 
     M = PriceObservation
+    # A value corrected by a person (reliability 'user', services/corrections.py) is not a move of the
+    # source's price: the alert, which names the source, never fires on it.
     conds = [M.is_current.is_(True), M.is_demo.is_(False), bulk_unit_value_clause(M), M.frequency == "M",
-             M.price_type == p["price_type"], M.origin_iso3 == p["origin"], M.variety == p["variety"]]
+             M.price_type == p["price_type"], M.origin_iso3 == p["origin"], M.variety == p["variety"],
+             M.reliability != "user"]
     if p.get("market"):
         conds.append(M.market_iso3 == p["market"])
     if p.get("color_grade"):
@@ -1134,8 +1142,9 @@ def _new_trade_cells(session: Session, reporter: str, partner: str, flow: str, w
     from ..api.trade import _partner_filter
 
     T = TradeFlowObservation
+    # a value corrected by a person is not new data from the source (services/corrections.py)
     conds = [T.is_current.is_(True), T.is_demo.is_(False), T.hs_code.like("0409%"), T.reporter_iso3 == reporter,
-             T.flow == flow, T.frequency.in_(["A", "M"]), *watch.conds(T),
+             T.flow == flow, T.frequency.in_(["A", "M"]), T.reliability != "user", *watch.conds(T),
              _partner_filter() if partner == "WLD" else T.partner_iso3 == partner]
     cells: set[tuple] = set()
     for sid, f, ps in session.execute(select(T.source_id, T.frequency, T.period_start).where(*conds).distinct()):
@@ -1167,7 +1176,9 @@ def eval_trade_change(session: Session, p: dict, watch: Watch | None) -> Evaluat
     for s in data["series"]:
         if s.get("is_demo"):
             continue
-        pts = {pt["period_label"]: pt for pt in s["points"] if pt.get("net_weight_kg")}
+        # A figure that is, or includes, a value corrected by a person (`correction`, services/corrections.py)
+        # is never compared: the alert names the source, and the source did not publish it.
+        pts = {pt["period_label"]: pt for pt in s["points"] if pt.get("net_weight_kg") and not pt.get("correction")}
         if not pts:
             continue
         last_label = max(pts)

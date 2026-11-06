@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { I18nProvider } from './i18n'
 import { isMirrorMissing } from './lib/mirror'
+import { ViewProvider } from './lib/view'
 import './styles/index.css'
 
 const queryClient = new QueryClient({
@@ -22,9 +23,11 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
-        <BrowserRouter future={ROUTER_FUTURE}>
-          <App />
-        </BrowserRouter>
+        <ViewProvider>
+          <BrowserRouter future={ROUTER_FUTURE}>
+            <App />
+          </BrowserRouter>
+        </ViewProvider>
       </I18nProvider>
     </QueryClientProvider>
   </StrictMode>,

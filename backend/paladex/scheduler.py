@@ -94,6 +94,14 @@ def start() -> BackgroundScheduler | None:
     for c in all_collectors():
         sched.add_job(**collector_job_kwargs(c))
     sched.add_job(_daily_briefing, "cron", hour=7, minute=0, id="briefing", replace_existing=True)
+    try:
+        # Corrections from the owner's other computers: pulled shortly after start-up (the starter data
+        # is merged before the server starts), then every PALADEX_CORRECTIONS_SYNC_MINUTES.
+        from .services import corrections_sync
+
+        corrections_sync.schedule(sched)
+    except Exception:  # pragma: no cover - never block start-up
+        log.exception("corrections synchronisation not scheduled")
     sched.start()
     _scheduler = sched
 

@@ -9,6 +9,9 @@ import { sourceName, useLabels } from '@/lib/meta'
 import { isMirrorMissing } from '@/lib/mirror'
 import type { FreshnessStatus, Provenance } from '@/lib/types'
 import { isMappedUrl, pageUrl } from '@/lib/links'
+import { CorrectionBadge } from '@/components/corrections/CorrectionBadge'
+import { FixButton } from '@/components/corrections/FixButton'
+import type { FigureRef } from '@/components/corrections/types'
 
 export function PageHeader({ title, subtitle, eyebrow, actions }: { title: string; subtitle?: ReactNode; eyebrow?: string; actions?: ReactNode }) {
   return (
@@ -108,8 +111,10 @@ export function FreshnessBadge({ status, ageDays }: { status: FreshnessStatus; a
   )
 }
 
-/** One-line provenance: "Fonte: USDA AMS · Periodo: set 2026 · Pubblicato 15 ott 2026 · Raccolto 2 ore fa · [doc]" */
-export function SourceLine({ p, compact = false, className }: { p: Partial<Provenance>; compact?: boolean; className?: string }) {
+/** One-line provenance: "Fonte: USDA AMS · Periodo: set 2026 · Pubblicato 15 ott 2026 · Raccolto 2 ore fa · [doc]".
+ * A value corrected by a person (`p.correction`) shows "Corretto da … il …" with undo; `figure` (the
+ * stored row, when the figure is one row) adds "Segnala o correggi". */
+export function SourceLine({ p, compact = false, className, figure }: { p: Partial<Provenance>; compact?: boolean; className?: string; figure?: FigureRef | null }) {
   const { t, lang } = useI18n()
   return (
     <div className={clsx('flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8rem] text-muted', className)}>
@@ -128,6 +133,8 @@ export function SourceLine({ p, compact = false, className }: { p: Partial<Prove
           {t(isMappedUrl(p.source_url) ? 'prov.officialPage' : 'prov.original')} <ExternalLink size={12} />
         </a>
       )}
+      <FixButton figure={figure} correction={p.correction} small />
+      {p.correction && <CorrectionBadge c={p.correction} className="basis-full" />}
     </div>
   )
 }

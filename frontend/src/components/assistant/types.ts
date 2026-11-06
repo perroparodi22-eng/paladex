@@ -1,8 +1,10 @@
 // Responses of /api/assistant/* (backend/paladex/api/assistant.py, services/assistant.py, services/briefing.py).
-import type { Lang, SourceBrief } from '@/lib/types'
+import type { CorrectionInfo, Lang, SourceBrief } from '@/lib/types'
 
 /** How a fact was published: drives its section and badge. */
-export type FactStatus = 'verified_official' | 'verified_industry' | 'provisional' | 'estimate' | 'historical' | 'press' | 'user'
+/** 'corrected': a market figure whose value a person corrected (label "Corretto da <nome> il <data>",
+ * `correction` gives the official value); real supplier offers stay 'user' (private). */
+export type FactStatus = 'verified_official' | 'verified_industry' | 'provisional' | 'estimate' | 'historical' | 'press' | 'user' | 'corrected'
 
 export type SectionKey = 'verified' | 'historical' | 'estimates' | 'news' | 'quotes' | 'analysis' | 'forecast'
 
@@ -29,6 +31,8 @@ export interface AssistantFact {
   price_type: string | null
   change_pct: number | null
   quote_id?: number
+  /** a value corrected by a person: who, when, why, and the official value it replaced */
+  correction?: (CorrectionInfo & { unit: string | null; currency: string | null }) | null
 }
 
 export interface AnswerItem { text: string; refs: number[]; kind?: string; status?: FactStatus }

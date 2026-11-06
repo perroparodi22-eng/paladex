@@ -55,6 +55,13 @@ export interface FirstRunState {
   starter: { built_at: string | null; data_collected_until: string | null; imported_at: string | null } | null
 }
 
+/** A value corrected by a person (components/corrections/types.ts CorrectionBrief). */
+export interface CorrectionInfo {
+  event_id: string; author: string | null; created_at: string | null; reason: string | null
+  official_value: number | null; unit: string | null; currency: string | null
+  field?: string | null; corrected_value?: number | null; rows?: number; part_of_total?: boolean
+}
+
 /** Provenance block that every fact row carries in API responses. */
 export interface Provenance {
   source: SourceBrief | null
@@ -67,4 +74,6 @@ export interface Provenance {
   data_status: string
   reliability: string
   is_demo: boolean
+  /** "corrected by …": a value a person corrected (shown as a badge by SourceLine) */
+  correction?: CorrectionInfo | null
 }

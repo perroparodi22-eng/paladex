@@ -140,6 +140,31 @@ jobs:
           echo "Collection took $(( (SECONDS - start) / 60 )) min $(( (SECONDS - start) % 60 )) s"
           python -c "import sqlite3, os; c = sqlite3.connect(os.path.join(os.environ['PALADEX_DATA_DIR'], 'paladex.sqlite3')); c.execute('PRAGMA wal_checkpoint(TRUNCATE)'); c.close()"
 
+      - name: Apply the corrections made on the owner's computers
+        working-directory: backend
+        run: |
+          # Corrections live on the paladex-corrections branch of this repository (README, "Correzioni e
+          # secondo computer"). They are read with the checkout's own read-only token and applied to this
+          # database after the collection, so the copy shows the corrected values with "corrected by";
+          # nothing is ever written to the repository. No branch yet = nothing to apply.
+          # Read only (never pushes); sync is off by default everywhere, so it is enabled for this step.
+          PALADEX_CORRECTIONS_SYNC=true python -m paladex corrections-apply --from-git > "$RUNNER_TEMP/corrections.json" \
+            || echo "::warning::The corrections could not be read; the copy shows the sources' values only."
+          python - "$RUNNER_TEMP/corrections.json" <<'EOF'
+          import json, os, sys
+          try:
+              r = json.loads(open(sys.argv[1], encoding="utf-8").read() or "{}")
+          except ValueError:
+              r = {}
+          got = r.get("last_received") or {}
+          line = (f"{got.get('received', 0)} new correction(s) received, {got.get('present', 0)} on the branch; "
+                  f"applied: {got.get('applied') or {}}" if r.get("ok") else f"not read: {(r.get('error') or {}).get('code')}")
+          print(line)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+              f.write("### Corrections\n\n" + line + "\n")
+          EOF
+          python -c "import sqlite3, os; c = sqlite3.connect(os.path.join(os.environ['PALADEX_DATA_DIR'], 'paladex.sqlite3')); c.execute('PRAGMA wal_checkpoint(TRUNCATE)'); c.close()"
+
       - name: Keep the database for the next run
         if: always() && hashFiles('ci-data/paladex.sqlite3') != ''
         uses: actions/cache/save@v5

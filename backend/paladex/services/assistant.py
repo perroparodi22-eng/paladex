@@ -18,7 +18,9 @@ One question (`answer()`):
    quotas, ECB exchange rates and, only when the question is about them, the supplier offers.
    Each block carries source, URL, publication date, period, unit and a status: verified official
    / published by an industry source / provisional / estimate / historical / press report /
-   entered by the user.
+   entered by the user (supplier offers) / corrected by a person (a market figure corrected in
+   Paladex, services/corrections.py: kept with the market data, never with the offers, its block
+   names who corrected it and when and gives the source's official value).
 3. **Compose**: with an AI provider, a system prompt in the user's language forbids any fact that
    is not in the context and requires citations; the model returns sentences grouped into the
    sections 'Fatti verificati', 'Contesto storico', 'Stime', 'Analisi (IA)' and 'Previsioni (IA,
@@ -62,6 +64,7 @@ from ..models import (
     Briefing,
     FxRate,
     NewsArticle,
+    PriceObservation,
     ProductionStat,
     RegulationItem,
     Report,
@@ -76,6 +79,7 @@ from ..reference.varieties import LABELS as VARIETY_LABELS
 from ..reference.varieties import normalize_variety
 from . import llm
 from .ai_enrich import _NUM, _readings
+from .corrections import briefs_by_id, row_correction
 from .news import fold, tag_countries
 
 log = logging.getLogger(__name__)
@@ -132,6 +136,9 @@ STATUS_LABELS = {
     "historical": {"it": "Dato storico", "en": "Historical data"},
     "press": {"it": "Notizia (non verificata)", "en": "News report (not verified)"},
     "user": {"it": "Inserito da voi", "en": "Entered by you"},
+    # A market figure corrected by a person (services/corrections.py); the label names who and when
+    # when the block knows it (Fact.status_label).
+    "corrected": {"it": "Corretto da una persona", "en": "Corrected by a person"},
 }
 
 SECTION_TITLES = {
@@ -148,6 +155,7 @@ FACT_SECTIONS = frozenset({"verified", "historical", "estimates"})   # every sen
 STATUS_SECTION = {
     "verified_official": "verified", "verified_industry": "verified", "provisional": "verified",
     "historical": "historical", "estimate": "estimates", "press": "news", "user": "quotes",
+    "corrected": "verified",          # market data, stated as corrected, never with the supplier offers
 }
 PLAIN_SECTIONS = ("quotes", "verified", "estimates", "historical", "news")
 
@@ -287,6 +295,11 @@ def _money(v: float | None, cur: str, lang: str) -> str:
     return f"{_num(v, lang, 0)} {cur}"
 
 
+def _correction_day(created_at: str | None, lang: str) -> str | None:
+    """Day of a correction ('2026-11-06T09:12:00Z') as the assistant writes dates."""
+    return _date(created_at, lang) if created_at else None
+
+
 def _months_span(m: int, year: int, lang: str) -> str:
     names = _MONTHS[lang]
     return f"{names[0]} {year}" if m == 1 else f"{names[0]}–{names[m - 1]} {year}"
@@ -330,9 +343,13 @@ def _most_cautious(statuses) -> str | None:
 
 def fact_status(data_status: str | None, reliability: str | None, period_end: date | None, today: date,
                 *, stale: bool = False) -> str:
-    """verified_official | verified_industry | provisional | estimate | historical | press | user."""
+    """verified_official | verified_industry | provisional | estimate | historical | press | corrected.
+
+    Market rows with reliability 'user' / status 'user_entered' are figures corrected by a person
+    (services/corrections.py): status 'corrected'. Supplier offers are not market rows: their blocks
+    set the status 'user' themselves (`quote_fact`)."""
     if reliability == "user" or data_status == "user_entered":
-        return "user"
+        return "corrected"
     if reliability in ("trade_press", "aggregator"):
         return "press"
     if data_status in ("estimate", "forecast"):
@@ -734,19 +751,30 @@ class Fact:
                  self.published_at or "", self.unit or ""]
         return "\n".join(p for p in parts if p)
 
+    def status_label(self, lang: str) -> str:
+        """'Corretto da Mario il 06/11/2026' for a corrected figure whose correction is known."""
+        c = self.meta.get("correction")
+        if self.status == "corrected" and isinstance(c, dict) and c.get("author"):
+            when = _correction_day(c.get("created_at"), lang)
+            return (f"Corretto da {c['author']}" + (f" il {when}" if when else "") if lang == "it"
+                    else f"Corrected by {c['author']}" + (f" on {when}" if when else ""))
+        return STATUS_LABELS[self.status][lang]
+
     def to_dict(self, lang: str) -> dict:
         return {
             "id": self.id, "kind": self.kind, "title": self.title, "text": self.text, "status": self.status,
-            "status_label": STATUS_LABELS[self.status][lang], "source": self.source, "source_name": self.source_name,
+            "status_label": self.status_label(lang), "source": self.source, "source_name": self.source_name,
             "url": self.url, "link": self.link, "published_at": self.published_at, "period_label": self.period_label,
             "unit": self.unit, "data_status": self.data_status, "reliability": self.reliability,
             "is_demo": self.is_demo, "private": self.private, "country": self.country, "price_type": self.price_type,
             "change_pct": self.meta.get("change_pct"),
+            # who corrected the figure, when, why and the source's official value (None: not corrected)
+            "correction": self.meta.get("correction"),
             **({"quote_id": self.meta["quote_id"]} if self.kind == "quote" else {}),
         }
 
     def to_llm(self) -> dict:
-        return {"id": self.id, "type": self.kind, "status": STATUS_LABELS[self.status]["en"],
+        return {"id": self.id, "type": self.kind, "status": self.status_label("en"),
                 "title": self.llm_title or self.title, "text": self.llm_text or self.text,
                 "source": self.source_name if not self.private else "(entered by the user)",
                 "published": self.published_at, "period": self.period_label, "unit": self.unit}
@@ -842,7 +870,36 @@ class Retriever:
             self.notes.append(msg)
 
     def add(self, fact: Fact | None) -> bool:
+        if fact is not None and fact.status == "corrected" and not fact.meta.get("correction"):
+            # a figure built from several rows, one of them corrected by a person: said in the block itself
+            fact.text += self.t(" Il dato include un valore corretto da una persona in Paladex; il valore ufficiale "
+                                "della fonte resta nello storico.",
+                                " The figure includes a value corrected by a person in Paladex; the source's official "
+                                "value stays in the history.")
         return self.facts.add(fact) is not None
+
+    def correction_note(self, c: dict, official: str, *, part: bool = False) -> str:
+        """' Valore corretto da Mario il 06/11/2026; valore ufficiale della fonte: 3,96 USD/kg (motivo: ...).'"""
+        when = _correction_day(c.get("created_at"), self.lang) or "—"
+        who = c.get("author") or "?"
+        why_it = f"; motivo: {c['reason']}" if c.get("reason") else ""
+        why_en = f"; reason: {c['reason']}" if c.get("reason") else ""
+        if part:
+            return self.t(f" Il dato include un valore corretto da {who} il {when} (valore ufficiale della fonte per "
+                          f"quella voce: {official}{why_it}).",
+                          f" The figure includes a value corrected by {who} on {when} (the source's official value "
+                          f"for that item: {official}{why_en}).")
+        return self.t(f" Valore corretto da {who} il {when}; valore ufficiale della fonte: {official}{why_it}.",
+                      f" Value corrected by {who} on {when}; the source's official value: {official}{why_en}.")
+
+    def price_correction(self, p) -> dict | None:
+        """The correction of a price row (shared rows are detached and carry no `extra`)."""
+        if getattr(p, "reliability", None) != "user":
+            return None
+        cache = self.__dict__.setdefault("_price_corrections", {})
+        if p.id not in cache:
+            cache[p.id] = briefs_by_id(self.db, PriceObservation, [p.id]).get(p.id)
+        return cache[p.id]
 
     # -- prices ------------------------------------------------------------------
     def _variety_name(self, s: ov.PriceSeries) -> str | None:
@@ -943,6 +1000,17 @@ class Retriever:
         elif p.frequency == "M":
             text += self.t(" Variazione non calcolabile (mancano i periodi di confronto).",
                            " Change not computable (comparison periods missing).")
+        corr = self.price_correction(p)
+        if corr:
+            op = corr.get("official_per_kg") or {}
+            parts = []
+            if op.get("native") is not None:
+                parts.append(f"{_num(op['native'], lang)} {op.get('currency') or cur}/kg")
+            if corr.get("unit") and corr["unit"] != "kg" and corr.get("official_value") is not None:
+                parts.append(self.t(f"{_num(corr['official_value'], lang)} {corr.get('currency') or cur}/{corr['unit']} "
+                                    f"come pubblicato", f"{_num(corr['official_value'], lang)} "
+                                    f"{corr.get('currency') or cur}/{corr['unit']} as published"))
+            text += self.correction_note(corr, " (".join(parts) + (")" if len(parts) > 1 else "") if parts else "—")
         if note:
             text += f" {note}"
         # Sub-annual series are judged on their source's rhythm too (a June figure in November is late);
@@ -957,7 +1025,7 @@ class Retriever:
             period_label=p.period_label, unit=f"{cur}/kg", data_status=p.data_status, reliability=p.reliability,
             is_demo=p.is_demo, country=s.origin_iso3, price_type=s.price_type,
             key="price:" + "|".join("" if k is None else str(k) for k in s.key) + f"@{p.period_label}",
-            meta={"change_pct": ch["mom_pct"]},
+            meta={"change_pct": ch["mom_pct"], "correction": corr},
         )
 
     def _usable_series(self, pool: list[ov.PriceSeries]) -> list[ov.PriceSeries]:
@@ -1097,13 +1165,19 @@ class Retriever:
             text += self.t(" Totale ottenuto sommando i paesi partner dichiarati.", " Total summed from the declared partner countries.")
         if row.get("summed_from_months"):
             text += self.t(" Totale annuo sommato dai dati mensili.", " Annual total summed from monthly data.")
+        corr = row.get("correction")
+        if corr:
+            ov_ = corr.get("official_value")
+            official = (_tonnes(ov_, lang) if corr.get("field") != "value"
+                        else _money(ov_, corr.get("currency") or "USD", lang)) if ov_ is not None else "—"
+            text += self.correction_note(corr, official, part=bool(corr.get("part_of_total")))
         return Fact(kind="trade", title=f"{name} · {what} · {row['year']}", text=text,
                     status=fact_status(row.get("data_status"), row.get("reliability"), _as_date(row.get("period_end")), self.today),
                     source=row.get("source"), url=row.get("source_url"), link=f"/paesi/{row['iso3']}",
                     published_at=row.get("published_at"), period_label=str(row["year"]), unit="t",
                     data_status=row.get("data_status"), reliability=row.get("reliability"),
                     is_demo=bool(row.get("is_demo")), country=row["iso3"], key=f"trade:{row['iso3']}:{flow}:{row['year']}",
-                    meta={"change_pct": row.get("yoy_volume_pct")})
+                    meta={"change_pct": row.get("yoy_volume_pct"), "correction": corr})
 
     def trade_country_facts(self, iso3: str, flows: tuple[str, ...] = ("export", "import")) -> int:
         """Latest complete year of the country's own declarations (the flow that matters for it)."""
@@ -1323,12 +1397,17 @@ class Retriever:
             text += "."
             if last.data_status in ("estimate", "forecast"):
                 text += self.t(" Il dato più recente è una stima della fonte.", " The latest figure is the source's estimate.")
+            corr = row_correction(last)
+            if corr:
+                text += self.correction_note(corr, f"{_num(corr['official_value'], self.lang, 0)} {corr.get('unit') or ''}"
+                                             .strip() if corr.get("official_value") is not None else "—")
             added += self.add(Fact(
                 kind="production", title=self.t(f"{name} · produzione", f"{name} · production"), text=text,
                 status=fact_status(last.data_status, last.reliability, last.period_end, self.today),
                 source=source_brief(src), url=last.source_url, link=f"/paesi/{c}", published_at=iso(last.published_at),
                 period_label=last.period_label, unit="t", data_status=last.data_status, reliability=last.reliability,
-                is_demo=last.is_demo, country=c, key=f"prod:{c}:{last.period_label}", meta={"change_pct": ch}))
+                is_demo=last.is_demo, country=c, key=f"prod:{c}:{last.period_label}",
+                meta={"change_pct": ch, "correction": corr}))
         return added
 
     # -- news ----------------------------------------------------------------------
@@ -2205,7 +2284,7 @@ Usa ESCLUSIVAMENTE i blocchi del CONTESTO, che provengono dal database locale (f
 1. Non aggiungere nessun fatto, numero, data, nome, causa o conseguenza che non sia scritto nel contesto, anche se pensi che sia vero. Nessuna conoscenza esterna.
 2. Ogni frase con un fatto indica in "refs" gli id dei blocchi da cui proviene; usa solo id presenti nel contesto. Copia i numeri esattamente come sono scritti nel contesto (stesse cifre e unità). Non calcolare nuove percentuali, differenze, medie o conversioni.
 3. Non mescolare tipi di prezzo: prezzo all'ingrosso, prezzo al produttore, valore unitario all'import o all'export (dogana) e prezzo al dettaglio sono serie diverse. Indica sempre tipo, mercato e periodo; confronta solo dati con stesso tipo, mercato e periodo.
-4. Indica il periodo dei dati: un dato vecchio non va presentato come attuale. Le notizie non sono dati verificati: attribuiscile alla testata.
+4. Indica il periodo dei dati: un dato vecchio non va presentato come attuale. Le notizie non sono dati verificati: attribuiscile alla testata. Un blocco con stato «Corretto da …» contiene un valore corretto da una persona: dillo sempre (chi e quando); il valore ufficiale della fonte scritto nel blocco si può citare.
 5. Sezioni (ometti quelle vuote): "verified" = Fatti verificati (dati ufficiali o pubblicati recenti; un dato provvisorio va detto provvisorio); "historical" = Contesto storico (dati più vecchi); "estimates" = Stime (stime o previsioni della fonte, dichiarate come tali); "analysis" = Analisi (IA): la tua interpretazione per un importatore, basata solo sui fatti citati, senza numeri nuovi; "forecast" = Previsioni (IA, incerte): solo tendenze possibili, qualitative, senza numeri, con l'incertezza esplicita.
 6. Se i dati non bastano per rispondere, scrivilo chiaramente in "insufficient_note" e non inventare.
 7. Al massimo 220 parole in totale. Frasi brevi, per un lettore non tecnico.""",
@@ -2215,7 +2294,7 @@ Use ONLY the blocks of the CONTEXT, which come from the local database (official
 1. Do not add any fact, number, date, name, cause or consequence that is not written in the context, even if you believe it is true. No outside knowledge.
 2. Every sentence stating a fact lists in "refs" the ids of the blocks it comes from; use only ids present in the context. Copy numbers exactly as written in the context (same digits and units). Do not compute new percentages, differences, averages or conversions.
 3. Never mix price types: wholesale price, producer price, import or export unit value (customs) and retail price are different series. Always state type, market and period; compare only data with the same type, market and period.
-4. State the period of the data: old data must not be presented as current. News reports are not verified data: attribute them to the outlet.
+4. State the period of the data: old data must not be presented as current. News reports are not verified data: attribute them to the outlet. A block whose status is "Corrected by ..." holds a value corrected by a person: always say so (who and when); the source's official value written in the block may be quoted.
 5. Sections (omit empty ones): "verified" = Verified facts (recent official or published data; a provisional figure must be called provisional); "historical" = Historical context (older data); "estimates" = Estimates (the source's estimates or forecasts, stated as such); "analysis" = Analysis (AI): your interpretation for an importer, based only on the cited facts, with no new numbers; "forecast" = Outlook (AI, uncertain): possible qualitative tendencies only, no numbers, with the uncertainty stated.
 6. If the data are not enough to answer, say so plainly in "insufficient_note" and do not invent.
 7. At most 220 words in total. Short sentences, for a non-technical reader.""",

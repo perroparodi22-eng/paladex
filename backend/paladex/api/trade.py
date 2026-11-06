@@ -43,6 +43,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..enums import SourceKind
 from ..models import Country, Source, TradeFlowObservation
+from ..services.corrections import briefs_by_id
 from .common import demo_clause, freshness, iso, source_brief
 from .memo import cached
 
@@ -111,6 +112,11 @@ class Agg:
     # destinations, `extra.confidential_bucket` of its World row): a global dataset that allocates
     # only the visible destinations comes out lower by about this much.
     confidential_kg: float | None = None
+    # Rows corrected by a person among those summed (services/corrections.py), and the newest one's id.
+    corr_n: int = 0
+    corr_id: int | None = None
+    # the stored row of a figure made of exactly one row (n == 1): what a person can correct
+    row_id: int | None = None
 
     @classmethod
     def from_row(cls, r) -> Agg:
@@ -123,6 +129,8 @@ class Agg:
             published_at=r.pub, collected_at=r.col, is_demo=bool(r.demo),
             statuses={s for s in (r.statuses or "").split(",") if s}, source_url=r.url,
             currencies=currencies, value_basis=r.vb, confidential_kg=getattr(r, "conf_kg", None),
+            corr_n=getattr(r, "corr_n", 0) or 0, corr_id=getattr(r, "corr_id", None),
+            row_id=getattr(r, "row_id", None) if (r.n or 0) == 1 else None,
         )
 
     def merge(self, other: Agg) -> Agg:
@@ -146,6 +154,7 @@ class Agg:
             source_url=self.source_url or other.source_url, currencies=self.currencies | other.currencies,
             value_basis=self.value_basis or other.value_basis,
             confidential_kg=add(self.confidential_kg, other.confidential_kg),
+            corr_n=self.corr_n + other.corr_n, corr_id=mx(self.corr_id, other.corr_id),
         )
 
     @property
@@ -207,6 +216,10 @@ def _agg_columns(with_confidential: bool = False) -> list:
         func.group_concat(distinct(T.data_status)).label("statuses"),
         func.min(T.currency).label("ccy_min"), func.max(T.currency).label("ccy_max"),
         func.max(T.value_basis).label("vb"),
+        # rows corrected by a person (reliability 'user'): how many, and one of them for "corrected by"
+        func.sum(case((T.reliability == "user", 1), else_=0)).label("corr_n"),
+        func.max(case((T.reliability == "user", T.id), else_=None)).label("corr_id"),
+        func.max(T.id).label("row_id"),      # meaningful when the group is one row (Agg.row_id)
     ] + ([
         # JSON is read only for one reporter's series (a few hundred rows), never for the global totals
         func.sum(case((T.partner_iso3 == "WLD", func.json_extract(T.extra, "$.confidential_bucket.kg")),
@@ -361,6 +374,18 @@ class Ctx:
                  "expected_update_en": s.expected_update_en}
                 for s in sorted(rows, key=key)]
 
+    def correction(self, agg: Agg) -> dict | None:
+        """"Corrected by ..." for a figure that is, or includes, a value corrected by a person: who,
+        when, why, the official value of that row; `rows` corrected rows summed, `part_of_total`
+        when the figure adds up other rows too."""
+        if not agg.corr_n or agg.corr_id is None:
+            return None
+        cache = self.__dict__.setdefault("_corrections", {})
+        if agg.corr_id not in cache:
+            cache[agg.corr_id] = briefs_by_id(self.db, T, [agg.corr_id]).get(agg.corr_id)
+        brief = cache[agg.corr_id]
+        return {**brief, "rows": agg.corr_n, "part_of_total": agg.n > 1} if brief else None
+
     def freshness_for(self, sid: int, ref: date | None, freq: str | None) -> dict:
         """Source freshness; for a source without run metadata (demo, imported rows), judged
         from the newest data actually shown."""
@@ -514,8 +539,12 @@ def provenance(ctx: Ctx, sid: int, agg: Agg, freq: str, period_label: str | None
         "period_end": iso(agg.end),
         "frequency": freq,
         "data_status": agg.data_status,
-        "reliability": src.reliability if src else None,
+        # a figure made only of values corrected by a person is theirs, not the source's
+        "reliability": "user" if agg.corr_n and agg.corr_n >= agg.n else (src.reliability if src else None),
         "is_demo": agg.is_demo,
+        "correction": ctx.correction(agg),
+        # the stored row when the figure is exactly one row (what a person can correct); None for sums
+        "row_id": agg.row_id if agg.n == 1 else None,
     }
 
 

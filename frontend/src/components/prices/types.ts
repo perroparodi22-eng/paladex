@@ -1,5 +1,5 @@
 // Types for /api/prices/* (mirror backend/paladex/api/prices.py).
-import type { FreshnessStatus, SourceBrief } from '@/lib/types'
+import type { CorrectionInfo, FreshnessStatus, SourceBrief } from '@/lib/types'
 
 export type PriceTypeKey = 'wholesale_bulk' | 'producer' | 'import_unit_value' | 'export_unit_value' | 'retail' | 'other'
 export type Freq = 'M' | 'Q' | 'A'
@@ -35,6 +35,9 @@ export interface PricePoint {
   fx_date: string | null
   data_status: string
   is_demo: boolean
+  /** the stored row of a point made of exactly one row (what a person can correct); null for an average */
+  row_id?: number | null
+  correction?: CorrectionInfo | null
 }
 
 /** Fields that identify a series (one line on the chart). */
@@ -131,6 +134,8 @@ export interface SeriesResponse {
   today: string
 }
 
+export interface MissingPeriod { period_label: string; source_has_period: boolean | null }
+
 export interface PointRef { period_label: string; value: number | null; n_points: number; published_at: string | null }
 
 export interface LatestRow extends SeriesIdentity {
@@ -151,6 +156,12 @@ export interface LatestRow extends SeriesIdentity {
   year_ago: PointRef | null
   change_prev_pct: number | null
   change_yoy_pct: number | null
+  correction?: CorrectionInfo | null
+  /** the newest earlier point of the same series (any distance), and the change against it */
+  earlier?: PointRef | null
+  change_earlier_pct?: number | null
+  /** a comparison period without a point; `source_has_period` false = the source published nothing then */
+  missing?: { previous: MissingPeriod | null; year_ago: MissingPeriod | null }
   freshness: SeriesFreshness
   is_stale: boolean
 }
@@ -268,6 +279,7 @@ export interface ObservationRow {
   revision: number
   is_demo: boolean
   notes: string | null
+  correction?: CorrectionInfo | null
 }
 
 export interface ObservationsResponse { total: number; page: number; page_size: number; pages: number; rows: ObservationRow[] }

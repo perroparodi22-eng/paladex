@@ -254,12 +254,21 @@ async function launch() {
   }
 }
 
+// `view`: the interface's "Vista: Semplice | Completa" (frontend/src/lib/view.tsx). A new browser
+// opens in the simple view; the plan drives the full view (every table and filter), and the
+// `simple` context the simple view's own requests (its short price tables and chart).
 const CONTEXTS = {
-  it: { lang: 'it', timezoneId: 'Europe/Rome' },
-  en: { lang: 'en', timezoneId: 'Europe/Rome' },
+  it: { lang: 'it', timezoneId: 'Europe/Rome', view: 'full' },
+  en: { lang: 'en', timezoneId: 'Europe/Rome', view: 'full' },
   // "Oggi / 7 giorni / 30 giorni" on the news page depend on the viewer's date: the American
   // evening is still the previous day in the US while the copy is produced in the European morning.
-  la: { lang: 'it', timezoneId: 'America/Los_Angeles' },
+  la: { lang: 'it', timezoneId: 'America/Los_Angeles', view: 'full' },
+  simple: { lang: 'it', timezoneId: 'Europe/Rome', view: 'simple' },
+}
+// Titles of the simple view's price-chart tabs (frontend/src/lib/plain.ts PLAIN_PRICE_TYPE_TITLE).
+const SIMPLE_TYPE_TITLES = {
+  wholesale_bulk: "Prezzi all'ingrosso", import_unit_value: 'Prezzi medi pagati in dogana (import)',
+  producer: "Prezzi pagati all'apicoltore", export_unit_value: "Prezzi medi all'esportazione",
 }
 
 async function runTasks(browser, origin, tasks, mode, linkSink) {
@@ -270,7 +279,9 @@ async function runTasks(browser, origin, tasks, mode, linkSink) {
     const context = await browser.newContext({
       locale: spec.lang === 'it' ? 'it-IT' : 'en-GB', timezoneId: spec.timezoneId, viewport: { width: 1440, height: 1000 },
     })
-    await context.addInitScript((lang) => { try { localStorage.setItem('paladex.lang', lang) } catch { /* ignore */ } }, spec.lang)
+    await context.addInitScript(([lang, view]) => {
+      try { localStorage.setItem('paladex.lang', lang); localStorage.setItem('paladex.view', view) } catch { /* ignore */ }
+    }, [spec.lang, spec.view])
     const n = name === 'it' ? CONCURRENCY : 1
     const pages = await Promise.all(Array.from({ length: Math.min(n, list.length) }, () => openPage(context, origin, mode)))
     let i = 0
@@ -354,6 +365,12 @@ async function plan() {
     }
     priceCounts[T] = n
   }
+
+  // Simple view: its short tables (main origins, one request per price type and currency) and the
+  // chart of each type (a tab each); its other pages ask what the full view asks.
+  const typeTabs = types.slice(1).filter((T) => SIMPLE_TYPE_TITLES[T]).map((T) => ({ role: 'tab', text: SIMPLE_TYPE_TITLES[T], optional: true }))
+  for (const ccy of ['EUR', 'USD']) add('simple', `/prezzi?valuta=${ccy}`, { essential: true, clicks: typeTabs })
+  for (const url of ['/', '/notizie', '/paesi']) add('simple', url, { essential: true })
 
   // News: the default list and its switches, the period presets (in two time zones), and each
   // country, topic, source and language that has relevant news.

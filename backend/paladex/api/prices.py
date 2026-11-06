@@ -49,6 +49,7 @@ from ..enums import DataStatus, PriceType
 from ..models import Country, PriceObservation, Source
 from ..reference.countries import PRIORITY_ISO3
 from ..reference.varieties import LABELS as VARIETY_LABELS
+from ..services.corrections import briefs_by_id, newest_brief, row_correction
 from .common import demo_clause, get_setting, iso, json_response, source_brief
 from .memo import cached
 
@@ -421,7 +422,11 @@ def _combine(items: list[dict], label: str, start: date, end: date, expected: in
     cols = [i["collected_at"] for i in items if i["collected_at"]]
     value = (_wmean([(i["value"], i["weight"]) for i in have]) if weighted
              else _mean([i["value"] for i in have]))
+    ids = {i.get("row_id") for i in items}
     return {
+        # the stored row behind a point made of exactly one row (what a person can correct, POST
+        # /api/corrections); None for an average of several quotations
+        "row_id": next(iter(ids)) if len(ids) == 1 else None,
         "period_label": label,
         "period_start": start.isoformat(),
         "period_end": end.isoformat(),
@@ -443,12 +448,16 @@ def _combine(items: list[dict], label: str, start: date, end: date, expected: in
         "fx_date": latest.get("fx_date"),
         "data_status": _most_cautious(i["data_status"] for i in items),
         "is_demo": any(i["is_demo"] for i in items),
+        # A value corrected by a person (services/corrections.py) is part of this point: who, when,
+        # why and the official value. Only present then (most points have none).
+        **({"correction": corr} if (corr := newest_brief(i.get("correction") for i in items)) else {}),
     }
 
 
-def _row_item(r: PriceObservation, currency: Currency) -> dict:
+def _row_item(r: PriceObservation, currency: Currency, briefs: dict[int, dict] | None = None) -> dict:
     c = convert_row(r, currency)
-    return {
+    item = {
+        "row_id": r.id,
         "period_label": r.period_label,
         "period_start": r.period_start,
         "value": c["value"], "low": c["low"], "high": c["high"], "currency": c["currency"],
@@ -459,6 +468,9 @@ def _row_item(r: PriceObservation, currency: Currency) -> dict:
         "source_url": r.source_url, "fx_date": iso(r.fx_date),
         "data_status": r.data_status, "is_demo": r.is_demo,
     }
+    if briefs and r.id in briefs:
+        item["correction"] = briefs[r.id]
+    return item
 
 
 def series_key(r: PriceObservation, currency: Currency) -> tuple:
@@ -509,8 +521,10 @@ def _eff_freq(nat: str, freq: str) -> tuple[str, str]:
     return RANK_FREQ[base_rank], RANK_FREQ[max(base_rank, FREQ_RANK[freq])]
 
 
-def build_points(rows: list[PriceObservation], currency: Currency, freq: str) -> tuple[list[dict], str]:
-    """Rows of one series -> points at `freq` (or the series' own, coarser frequency)."""
+def build_points(rows: list[PriceObservation], currency: Currency, freq: str,
+                 briefs: dict[int, dict] | None = None) -> tuple[list[dict], str]:
+    """Rows of one series -> points at `freq` (or the series' own, coarser frequency). `briefs`:
+    the corrections of corrected rows (`correction_briefs`), carried by their points."""
     base_f, eff_f = _eff_freq(native_freq(rows), freq)
 
     # 1) collapse raw rows into their own monthly/quarterly/annual period
@@ -520,7 +534,7 @@ def build_points(rows: list[PriceObservation], currency: Currency, freq: str) ->
     weekly: set[str] = set()
     for r in rows:
         label, s, e = bucket(_bucket_date(r), base_f)
-        base_groups[label].append(_row_item(r, currency))
+        base_groups[label].append(_row_item(r, currency, briefs))
         base_bounds[label] = (s, e)
         rf = _base_freq(r.frequency)
         if FREQ_RANK[rf] < FREQ_RANK[finest.get(label, base_f)]:
@@ -595,7 +609,8 @@ def _last_value(points: list[dict]) -> dict | None:
     return {"period_label": p["period_label"], "value": p["value"]} if p else None
 
 
-def _light_meta(rows: list[PriceObservation], currency: Currency, freq: str, eff: str) -> dict:
+def _light_meta(rows: list[PriceObservation], currency: Currency, freq: str, eff: str,
+                briefs: dict[int, dict] | None = None) -> dict:
     """What `build_points` would say about a series, without building every point: the periods,
     how many have no converted value, whether any has a low-high range, and the newest value
     (built from that one period's rows only; periods are independent buckets)."""
@@ -614,7 +629,7 @@ def _light_meta(rows: list[PriceObservation], currency: Currency, freq: str, eff
         has_range = has_range or all(c["low"] is not None and c["high"] is not None for c in conv)
     last = None
     if last_valued is not None:
-        last = _last_value(build_points(by_label[last_valued], currency, freq)[0])
+        last = _last_value(build_points(by_label[last_valued], currency, freq, briefs)[0])
     return {"n_points": len(labels), "first_period": labels[0], "last_period": labels[-1], "weighting": None,
             "fx_missing_points": fx_missing, "has_range": has_range, "last_value": last}
 
@@ -626,6 +641,7 @@ def build_series(db: Session, rows: list[PriceObservation], currency: Currency, 
     much cheaper to build and ship. With `default_points` instead, a view of more than
     SERIES_ALL_POINTS_MAX_ROWS rows carries the points of its first `default_points` series only."""
     sources = {s.id: s for s in db.scalars(select(Source))}
+    briefs = correction_briefs(db, rows)
     groups: dict[tuple, list[PriceObservation]] = defaultdict(list)
     for r in rows:
         groups[series_key(r, currency)].append(r)
@@ -645,9 +661,9 @@ def build_series(db: Session, rows: list[PriceObservation], currency: Currency, 
         if omitted:
             eff = _eff_freq(nat, freq)[1]
             points: list[dict] = []
-            meta = _light_meta(grp, currency, freq, eff)
+            meta = _light_meta(grp, currency, freq, eff, briefs)
         else:
-            points, eff = build_points(grp, currency, freq)
+            points, eff = build_points(grp, currency, freq, briefs)
             meta = {"n_points": len(points), "first_period": points[0]["period_label"],
                     "last_period": points[-1]["period_label"], "weighting": _series_weighting(points),
                     "fx_missing_points": sum(1 for p in points if p["value"] is None),
@@ -686,10 +702,19 @@ def build_series(db: Session, rows: list[PriceObservation], currency: Currency, 
             "fx_missing_points": meta["fx_missing_points"],
             "freshness": _freshness_of(latest_row, src, nat),
             "last_value": meta["last_value"],
+            # the newest correction by a person among the series' rows (None: every value is the source's)
+            "correction": newest_brief(briefs.get(r.id) for r in grp) if briefs else None,
             "points": points,
             "points_omitted": omitted,
         })
     return out
+
+
+def correction_briefs(db: Session, rows) -> dict[int, dict]:
+    """{row id: correction} for the rows corrected by a person (reliability 'user'): one query by
+    primary key, and none at all when no row is corrected (the usual case)."""
+    ids = [r.id for r in rows if r.reliability == "user"]
+    return briefs_by_id(db, M, ids) if ids else {}
 
 
 def _sources_summary(series: list[dict]) -> list[dict]:
@@ -1019,12 +1044,24 @@ def _latest_answer(f: PriceFilters, currency: str, freq: str, db: Session):
     ccy, fq = _currency(currency), _freq(freq)
     rows = _latest_rows(db, f, ccy)
     out = []
+    missing_refs: list[tuple[dict, int | None, str]] = []   # (missing entry, source id, freq) to check below
+    source_id_of = dict(db.execute(select(Source.key, Source.id)).all())
     for s in build_series(db, rows, ccy, fq):
         pts = {p["period_label"]: p for p in s["points"]}
         last = s["points"][-1]
         eff = s["freq"]
-        prev = pts.get(shift_label(last["period_label"], eff, -1))
-        year_ago = pts.get(shift_label(last["period_label"], eff, -PERIODS_PER_YEAR[eff]))
+        prev_label = shift_label(last["period_label"], eff, -1)
+        ya_label = shift_label(last["period_label"], eff, -PERIODS_PER_YEAR[eff])
+        prev = pts.get(prev_label)
+        year_ago = pts.get(ya_label)
+        # The newest earlier point of the SAME series (same source, type, origin, variety, grade,
+        # market, terms): shown with its own date when the exact previous period is missing.
+        earlier = next((p for p in reversed(s["points"][:-1]) if p["value"] is not None), None)
+        missing: dict[str, dict | None] = {"previous": None, "year_ago": None}
+        for k, label, got in (("previous", prev_label, prev), ("year_ago", ya_label, year_ago)):
+            if got is None and not (k == "year_ago" and eff == "A"):
+                missing[k] = {"period_label": label, "source_has_period": None}
+                missing_refs.append((missing[k], source_id_of.get((s["source"] or {}).get("key")), eff))
         fr = s["freshness"]
         out.append({
             "series_id": s["id"],
@@ -1037,15 +1074,57 @@ def _latest_answer(f: PriceFilters, currency: str, freq: str, db: Session):
             "collected_at": last["collected_at"],
             "source_url": last["source_url"],
             "data_status": last["data_status"],
+            "correction": last.get("correction"),
             "previous": _point_ref(prev),
             "year_ago": _point_ref(year_ago),
             "change_prev_pct": _pct(last["value"], prev["value"] if prev else None),
             "change_yoy_pct": _pct(last["value"], year_ago["value"] if year_ago else None),
+            "earlier": _point_ref(earlier),
+            "change_earlier_pct": _pct(last["value"], earlier["value"] if earlier else None),
+            # the comparison period that has no point, and whether the SOURCE published anything for
+            # that period (False: a gap in the source, e.g. USDA reports missing for some months)
+            "missing": missing,
             "freshness": fr,
             "is_stale": fr["status"] in ("aging", "stale"),
         })
+    _mark_source_periods(db, missing_refs)
     return {"price_type": pt, "currency": "original" if ccy == "ORIGINAL" else ccy, "unit": "kg", "freq": fq,
             "rows": out, "today": date.today().isoformat()}
+
+
+def _mark_source_periods(db: Session, refs: list[tuple[dict, int | None, str]]) -> None:
+    """Fill `source_has_period` of each missing comparison period: does the source have any current
+    row (any series) in that period, at a frequency at least as fine? One query per source."""
+    by_source: dict[int, list[tuple[dict, str]]] = defaultdict(list)
+    for entry, sid, eff in refs:
+        if sid is not None:
+            by_source[sid].append((entry, eff))
+    for sid, items in by_source.items():
+        bounds = [_label_bounds(e["period_label"], eff) for e, eff in items]
+        lo = min(b[0] for b in bounds) - timedelta(days=7)
+        hi = max(b[1] for b in bounds)
+        have: set[tuple[str, str]] = set()
+        for ps, fr in db.execute(select(M.period_start, M.frequency).where(
+                M.source_id == sid, M.is_current.is_(True), M.period_start >= lo, M.period_start <= hi).distinct()):
+            base = _base_freq(fr)
+            d = ps + timedelta(days=3) if fr == "W" else ps
+            for eff in ("M", "Q", "A"):
+                if FREQ_RANK[base] <= FREQ_RANK[eff]:
+                    have.add((eff, bucket_label(d, eff)))
+        for entry, eff in items:
+            entry["source_has_period"] = (eff, entry["period_label"]) in have
+
+
+def _label_bounds(label: str, freq: str) -> tuple[date, date]:
+    """First and last day of a bucket label ('2026-08', '2026-Q3', '2026')."""
+    if freq == "A":
+        y = int(label)
+        return date(y, 1, 1), date(y, 12, 31)
+    if freq == "Q":
+        y, q = int(label[:4]), int(label[-1])
+        return date(y, q * 3 - 2, 1), _month_end(y, q * 3)
+    y, m = int(label[:4]), int(label[5:7])
+    return date(y, m, 1), _month_end(y, m)
 
 
 @router.get("/compare")
@@ -1120,7 +1199,7 @@ def compare(
             "source": s["source"], "period_label": p["period_label"], "partial": p.get("partial", False),
             "value": p["value"], "low": p["low"], "high": p["high"],
             "published_at": p["published_at"], "source_url": p["source_url"], "data_status": p["data_status"],
-            "is_demo": p["is_demo"], "freshness": s["freshness"],
+            "is_demo": p["is_demo"], "freshness": s["freshness"], "correction": p.get("correction"),
             "_line": (s["source"] or {}).get("key"), "_total": _is_total_line(s["terms"], s["variety_raw"]),
         })
     for sid, meta in index.items():
@@ -1272,6 +1351,7 @@ def _serialize_obs(r: PriceObservation, src: Source | None) -> dict:
         "frequency": r.frequency, "published_at": iso(r.published_at), "collected_at": iso(r.collected_at),
         "source_url": r.source_url, "data_status": r.data_status, "reliability": r.reliability,
         "revision": r.revision, "is_demo": r.is_demo, "notes": r.notes,
+        "correction": row_correction(r),
     }
 
 

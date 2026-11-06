@@ -24,10 +24,17 @@ import sys
 from pathlib import Path
 
 # Tables the read-only market pages need (data, reference lists, source status, data quality).
+# `correction_events` (corrections made by a person, synced through git) is deliberately NOT kept:
+# a corrected figure is a row of the series tables above, and its "corrected by <name> on <date>"
+# (author, date, reason, official value) is stored on that row (`extra.correction`), which is what
+# the API shows. The events table would add only the notes, the original wording given to the AI and
+# the computers' ids, which the phone copy does not need. A "doubtful figure" flag is a data-quality
+# issue (kept, with its author and reason).
 KEEP = {
     "countries", "sources", "collection_runs", "raw_documents", "fx_rates",
     "price_observations", "trade_flows", "production_stats", "weather_observations", "tariff_measures",
     "company_records",          # official company lists (public sources only: Uruguay XXI, HMRC)
+    "web_findings",             # figures found on public web pages, each verified on its page (non-official panel)
     "reports", "news_articles", "regulations", "data_quality_issues", "app_settings", "briefings",
 }
 # Settings removed from the copy (preferences of the computer, and anything that sounds private).

@@ -38,7 +38,8 @@ SETTING_KEY = "starter_data"
 
 # Observation-like tables: identity = (source, series_key); copied as whole series.
 SERIES_TABLES = ("price_observations", "trade_flows", "production_stats", "weather_observations", "tariff_measures",
-                 "company_records")   # companies as officially published (names, places, values): no private data
+                 "company_records",   # companies as officially published (names, places, values): no private data
+                 "web_findings")      # non-official web figures, each verified on its page (own panel, never mixed)
 # Tables with a natural unique key: rows are added when that key is missing (INSERT OR IGNORE).
 UNIQUE_TABLES = ("reports", "regulations")
 KEEP_TABLES = frozenset({"sources", "fx_rates", "news_articles", *SERIES_TABLES, *UNIQUE_TABLES})
@@ -139,6 +140,9 @@ def build(src_db: Path, out_xz: Path) -> dict:
             raise ValueError(f"{src_db} is not a Paladex database (missing tables: {sorted(missing)})")
         for t in tables - KEEP_TABLES:      # quotes, alerts, runs, settings, raw documents ... never shipped
             dst.execute(f'DELETE FROM "{t}"')
+        from .corrections import strip_from_snapshot
+
+        strip_from_snapshot(dst)     # a person's corrections stay on the owner's computers (official rows back)
         for t in (*SERIES_TABLES, *UNIQUE_TABLES, "news_articles"):
             dst.execute(f'DELETE FROM "{t}" WHERE is_demo = 1')
             if "raw_document_id" in _columns(dst, t):

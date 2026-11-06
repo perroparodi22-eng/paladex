@@ -47,6 +47,22 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
     llm_max_articles_per_run: int = 40
+    # "Other sources (non-official)": weekly AI web search for recent figures (services/findings_ai.py).
+    # Off by default; the Sources page switch (app setting) overrides this value. Anthropic only.
+    web_findings_ai: bool = False
+    web_findings_ai_max_searches: int = 20
+    web_findings_ai_model: str = "claude-haiku-5-5"
+
+    # --- corrections by a person (services/corrections.py, corrections_sync.py) ---
+    # Name shown on this computer's corrections ("corrected by ..."); the name typed on screen wins.
+    user_name: str | None = None
+    # Exchange corrections with the owner's other installations through the `paladex-corrections`
+    # branch of the git repository this folder was cloned from. OFF unless switched on deliberately on
+    # each computer (the switch on screen writes PALADEX_CORRECTIONS_SYNC=true to this computer's .env):
+    # a test run, a copy of the folder or a second checkout must never publish anything by default.
+    corrections_sync: bool = False
+    corrections_sync_minutes: int = 15
+    corrections_git_dir: Path | None = None     # the repository (default: the project folder)
 
     # --- data-source keys (all optional) ---
     comtrade_api_key: str | None = None

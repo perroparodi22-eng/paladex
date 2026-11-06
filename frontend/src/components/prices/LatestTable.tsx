@@ -7,6 +7,7 @@ import { useI18n } from '@/i18n'
 import { fmtDate } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import { Change, DocLink, ScrollHint, Swatch, useOverflows } from './bits'
+import { RowCorrection } from '@/components/corrections/FixButton'
 import type { LatestRow, MassUnit } from './types'
 import { colorLabel, fmtPeriodLabel, fmtPrice, toUnit, unitLabel } from './utils'
 
@@ -142,6 +143,11 @@ export function LatestTable({ rows, unit, colorOf, toggle }: {
                 <>
                   <FreshnessBadge status={r.freshness.status} ageDays={r.freshness.age_days} />
                   {r.data_status !== 'published' && <StatusBadge status={r.data_status} />}
+                  <RowCorrection correction={p.correction} figure={p.row_id && orig ? {
+                    table: 'price_observations', row_id: p.row_id, value: orig.value, unit: orig.unit, currency: orig.currency,
+                    label: `${r.origin_iso3 ? country(r.origin_iso3) : r.origin_label ?? ''} · ${variety(r.variety)}${r.color_grade ? ` · ${colorLabel(r.color_grade, t)}` : ''} · ${fmtPeriodLabel(r.period_label, lang)}`,
+                    country_iso3: r.origin_iso3, period_label: r.period_label,
+                  } : null} />
                 </>
               )
               return (

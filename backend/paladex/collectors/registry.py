@@ -34,6 +34,8 @@ COLLECTOR_MODULES: list[str] = [
     "paladex.collectors.trade_origins",    # Ukraine (customs open data) and Mexico (INEGI): honey exports by destination
     "paladex.collectors.production_official",  # official production: Brazil IBGE and other South American agencies
     "paladex.collectors.companies_official",   # honey exporters/importers by company: Uruguay XXI SIE, HMRC traders
+    "paladex.collectors.web_findings",     # other sources (non-official): recent web figures, each verified on its page
+    "paladex.collectors.production_europe",  # official production, Europe: Spain MAPA, Hungary KSH, Bulgaria MZH, Greece ELSTAT
 ]
 
 IMPORT_ERRORS: dict[str, str] = {}

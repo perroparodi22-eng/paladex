@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { AiKeyPanel } from '@/components/assistant/AiKeyPanel'
+import { WebFindingsAiPanel } from '@/components/findings/WebFindingsAiPanel'
+import { CorrectionsSection } from '@/components/corrections/CorrectionsSection'
 import { DemoPanel } from '@/components/sources/DemoPanel'
 import { QualityPanel } from '@/components/sources/QualityPanel'
 import { SourceGroups, type RowState } from '@/components/sources/SourceGroups'
@@ -145,7 +147,10 @@ export default function Sources() {
 
       <QualityPanel onNotice={setNotice} />
 
+      {!isMirror() && <CorrectionsSection />}
+
       {!isMirror() && <AiKeyPanel />}
+      {!isMirror() && <WebFindingsAiPanel onNotice={setNotice} />}
 
       {list && <SourceGroups sources={list} state={rowState} />}
 
