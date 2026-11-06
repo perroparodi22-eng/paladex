@@ -55,6 +55,7 @@ from ..models import (
 )
 from ..reference.regions import Region, all_regions, context, get_region
 from ..reference.regions import countries as region_countries
+from ..services.corrections import row_correction
 from .common import demo_clause, freshness, iso, source_brief
 from .countries import TONNES_PER_UNIT, production_section
 from .reports import serialize_report
@@ -154,6 +155,7 @@ def _prod_point(r: ProductionStat) -> dict:
         "period_label": r.period_label, "year": r.period_start.year, "value": r.value, "unit": r.unit,
         "flag_raw": r.flag_raw, "notes": r.notes, "source_url": r.source_url, "published_at": iso(r.published_at),
         "collected_at": iso(r.collected_at), "data_status": r.data_status, "is_demo": r.is_demo,
+        "correction": row_correction(r),      # "corrected by ..." (services/corrections.py), else None
     }
 
 

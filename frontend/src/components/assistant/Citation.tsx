@@ -17,7 +17,7 @@ export function citationTitle(f: AssistantFact, t: (k: string, v?: Record<string
 
 const STATUS_DOT: Record<string, string> = {
   verified_official: 'bg-forest-600', verified_industry: 'bg-gold', provisional: 'bg-warn', estimate: 'bg-warn',
-  historical: 'bg-muted', press: 'bg-line', user: 'bg-gold-dark',
+  historical: 'bg-muted', press: 'bg-line', user: 'bg-gold-dark', corrected: 'bg-[#24507A]',
 }
 
 export function Citation({ fact }: { fact: AssistantFact }) {

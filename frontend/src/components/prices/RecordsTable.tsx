@@ -9,6 +9,7 @@ import { api, qs } from '@/lib/api'
 import { fmtAgo, fmtDate, fmtNumber } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import { isMirror } from '@/lib/mirror'
+import { RowCorrection } from '@/components/corrections/FixButton'
 import { DocLink, ScrollHint, useOverflows } from './bits'
 import type { Ccy, MassUnit, ObservationsResponse } from './types'
 import { colorLabel, fmtPeriodLabel, fmtPrice, rowValuePerKg, toUnit, unitLabel } from './utils'
@@ -106,6 +107,13 @@ export function RecordsTable({ filters, from, ccy, unit }: {
                   <>
                     <StatusBadge status={r.data_status} />
                     {r.revision > 1 && <span className="ml-1.5 text-[0.72rem] text-muted">{t('prices.rec.revision', { n: r.revision })}</span>}
+                    <span className="mt-1 block">
+                      <RowCorrection correction={r.correction} figure={r.is_demo ? null : {
+                        table: 'price_observations', row_id: r.id, value: r.price_value, unit: r.unit, currency: r.currency,
+                        label: `${r.origin_iso3 ? country(r.origin_iso3) : r.origin_label ?? ''} · ${variety(r.variety)}${r.color_grade ? ` · ${colorLabel(r.color_grade, t)}` : ''} · ${fmtPeriodLabel(r.period_label, lang)}`,
+                        country_iso3: r.origin_iso3, period_label: r.period_label,
+                      }} />
+                    </span>
                   </>
                 )
                 const source = <span className="text-charcoal-soft">{r.source?.publisher || r.source?.name}</span>

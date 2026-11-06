@@ -35,14 +35,44 @@ export function fmtMetric(v: number | null, m: MapMetric, lang: Lang, newsUnit: 
   return `${fmtNumber(v, lang, v < 10 ? 1 : 0)} t`
 }
 
-/** Compact legend bound: 66 811 -> "66,8 mila" / "66.8K"; small volumes keep their decimals
- * (0,09 t), otherwise the lowest class read "0 – 0". */
-export function fmtBound(v: number, m: MapMetric, lang: Lang): string {
-  if (m === 'news') return fmtNumber(v, lang)
-  // Italian CLDR abbreviates thousands as "K", which is not Italian usage: write "mila".
-  if (lang === 'it' && v >= 1000 && v < 1e6) {
-    return `${new Intl.NumberFormat('it-IT', { maximumFractionDigits: 1 }).format(v / 1000)} mila`
+/** Year of the figure coloured on the map (null for news, which counts the last 30 days). */
+export function metricYearNum(c: CountryListItem, m: MapMetric): number | null {
+  const x = c.metrics
+  if (m === 'exports') return x.exports?.year ?? null
+  if (m === 'imports') return x.imports?.year ?? null
+  if (m === 'production') return x.production?.year ?? null
+  return null
+}
+
+/** Legend label of one fixed class, contiguous with its neighbours: "< 100 t", "100 – 1.000 t",
+ * "≥ 50.000 t"; news counts are whole articles: "1", "2 – 3", "≥ 21". */
+export function fmtClassRange(lo: number | null, hi: number | null, m: MapMetric, lang: Lang): string {
+  if (m === 'news') {
+    const a = lo ?? 1
+    if (hi === null) return `≥ ${fmtNumber(a, lang)}`
+    const b = hi - 1
+    return a === b ? fmtNumber(a, lang) : `${fmtNumber(a, lang)} – ${fmtNumber(b, lang)}`
   }
-  const digits = v < 1 ? 2 : v < 10 ? 1 : v < 1000 ? 0 : 1
-  return new Intl.NumberFormat(lang === 'it' ? 'it-IT' : 'en-GB', { notation: 'compact', maximumFractionDigits: digits }).format(v)
+  if (lo === null) return `< ${fmtNumber(hi, lang)} t`
+  if (hi === null) return `≥ ${fmtNumber(lo, lang)} t`
+  return `${fmtNumber(lo, lang)} – ${fmtNumber(hi, lang)} t`
+}
+
+/** Short name of a source for the map legend: "UN Comtrade", "FAOSTAT", "Eurostat Comext",
+ * "Argentina – INDEC" (the registry names continue with a description after ":" or "—"). */
+export function shortSourceName(s: { name: string; name_en?: string | null } | null | undefined, lang: Lang): string {
+  if (!s) return '—'
+  const full = (lang === 'en' && s.name_en) || s.name
+  for (const sep of [': ', ' — ']) {
+    const i = full.indexOf(sep)
+    if (i > 0) return full.slice(0, i)
+  }
+  const dash = full.indexOf(' – ')
+  return dash > 0 ? full.slice(0, dash) : full
+}
+
+/** The source object behind a country's figure for a metric (null for news). */
+export function metricSourceBrief(c: CountryListItem, m: MapMetric) {
+  const h = m === 'exports' ? c.metrics.exports : m === 'imports' ? c.metrics.imports : m === 'production' ? c.metrics.production : null
+  return h?.source ?? null
 }

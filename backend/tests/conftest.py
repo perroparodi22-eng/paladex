@@ -29,6 +29,9 @@ def db(tmp_path, monkeypatch):
     monkeypatch.setenv("PALADEX_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("PALADEX_SCHEDULER_ENABLED", "false")
     monkeypatch.setenv("PALADEX_LLM_PROVIDER", "none")
+    # Corrections are never exchanged with the real repository's origin from a test (test_corrections.py
+    # turns it on against a temporary bare repository).
+    monkeypatch.setenv("PALADEX_CORRECTIONS_SYNC", "false")
     for k in ("PALADEX_COMTRADE_API_KEY", "PALADEX_USDA_MMN_API_KEY", "PALADEX_USDA_NASS_API_KEY",
               "PALADEX_ANTHROPIC_API_KEY", "PALADEX_OPENAI_API_KEY"):
         monkeypatch.delenv(k, raising=False)

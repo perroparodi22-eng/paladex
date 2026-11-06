@@ -7,7 +7,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Database } from 'lucide-react'
 import { PageHeader, QueryState } from '@/components/ui'
 import { BriefingPanel } from '@/components/overview/BriefingPanel'
-import { fmtClock, fmtLongDate, RefreshButton } from '@/components/overview/parts'
+import { BlockHead, fmtClock, fmtLongDate, RefreshButton } from '@/components/overview/parts'
+import { WriteBox } from '@/components/corrections/WriteBox'
 import { PriceTiles } from '@/components/overview/PriceTiles'
 import { AlertsPanel, CountryActivityPanel, NewsPanel, ReportsPanel } from '@/components/overview/SidePanels'
 import { StatusStrip } from '@/components/overview/StatusStrip'
@@ -17,6 +18,8 @@ import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { isMirror } from '@/lib/mirror'
 import type { CollectState } from '@/lib/types'
+import { useView } from '@/lib/view'
+import { SimpleOverview } from '@/components/simple/SimpleOverview'
 
 function FirstLaunch({ running }: { running: boolean }) {
   const { t } = useI18n()
@@ -38,8 +41,15 @@ function FirstLaunch({ running }: { running: boolean }) {
 }
 
 function Body({ d, running }: { d: OverviewData; running: boolean }) {
+  const { t } = useI18n()
+  const { simple } = useView()
   const firstLaunch = d.status.never_collected && !d.prices.items.length && !d.trade.available
     && !d.news.items.length && !d.reports.items.length
+  if (simple) {
+    // Simple view (lib/view.tsx): four cards in plain words; the data status only when something is wrong.
+    const status = { ...d.status, collection_running: d.status.collection_running || running }
+    return <SimpleOverview d={{ ...d, status }} firstLaunch={firstLaunch ? <FirstLaunch running={running} /> : undefined} />
+  }
   return (
     <>
       <StatusStrip status={{ ...d.status, collection_running: d.status.collection_running || running }} quality={d.quality} showDemo={d.show_demo} />
@@ -52,6 +62,12 @@ function Body({ d, running }: { d: OverviewData; running: boolean }) {
         </div>
         {/* Right column; on tablets the four panels flow into two balanced columns. */}
         <div className="min-w-0 gap-6 md:columns-2 xl:columns-1 [&>*]:mb-6 [&>*]:break-inside-avoid">
+          {!isMirror() && (
+            <section className="panel" id="scrivi">
+              <BlockHead eyebrow={t('corrections.form.eyebrow')} title={t('corrections.box.title')} sub={t('corrections.box.sub')} />
+              <div className="px-5 py-4"><WriteBox compact /></div>
+            </section>
+          )}
           {!isMirror() && <AlertsPanel block={d.alerts} />}
           <NewsPanel block={d.news} />
           <ReportsPanel block={d.reports} />
@@ -64,6 +80,7 @@ function Body({ d, running }: { d: OverviewData; running: boolean }) {
 
 export default function Overview() {
   const { t, lang } = useI18n()
+  const { simple } = useView()
   const q = useQuery({
     queryKey: ['overview', lang],
     queryFn: () => api.get<OverviewData>('/overview', { lang }),
@@ -77,8 +94,8 @@ export default function Overview() {
       <PageHeader
         eyebrow={t('overview.eyebrow')}
         title={fmtLongDate(q.data?.today, lang)}
-        subtitle={t('overview.tagline')}
-        actions={q.data && (
+        subtitle={simple ? t('simple.overview.tagline') : t('overview.tagline')}
+        actions={q.data && !simple && (
           <span className="text-sm text-muted">{t('overview.pageUpdated', { time: fmtClock(q.data.generated_at, lang) })}</span>
         )}
       />

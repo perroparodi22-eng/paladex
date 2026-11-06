@@ -6,15 +6,24 @@ import { Link, useParams } from 'react-router-dom'
 import { Badge, DemoBadge, EmptyState, ErrorBlock, Loading, PageHeader, Panel, StatTile, StatusBadge } from '@/components/ui'
 import { CountryCompaniesBlock } from '@/components/companies/CountryCompanies'
 import { AvailabilityChips, countryName, useRegion } from '@/components/countries/parts'
-import { ProfileProduction } from '@/components/countries/ProfileProduction'
+import { ProfileProduction, useNextRelease } from '@/components/countries/ProfileProduction'
 import { ProfileContext, ProfileMissing, ProfileNews, ProfilePrices, ProfileRegulations } from '@/components/countries/ProfileSections'
 import { ProfileTrade } from '@/components/countries/ProfileTrade'
+import { useYtdTitle } from '@/components/countries/ProfileYtd'
 import type { CountryProfile, TradeFlowSection } from '@/components/countries/types'
-import { fmtT, SourcesFooter, useProviderText } from '@/components/trade/bits'
+import { ProfileWebFindings } from '@/components/findings/ProfileWebFindings'
+import { fmtT, fmtUsd, SourcesFooter, useProviderText } from '@/components/trade/bits'
+import { prevSpan } from '@/components/trade/ytd'
 import { useI18n } from '@/i18n'
 import { ApiError, api } from '@/lib/api'
 import { fmtNumber } from '@/lib/format'
 import { isMirrorMissing } from '@/lib/mirror'
+import { useView } from '@/lib/view'
+import { CorrectionBadge } from '@/components/corrections/CorrectionBadge'
+import { RowCorrection } from '@/components/corrections/FixButton'
+import { CountryNotes } from '@/components/corrections/CorrectionsPanel'
+import { Details } from '@/components/simple/Details'
+import { CountryYtdPanel } from '@/components/simple/SimpleCountry'
 
 export default function CountryDetail() {
   const { iso3 = '' } = useParams()
@@ -43,22 +52,44 @@ export default function CountryDetail() {
 
 function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
   const { t, lang } = useI18n()
+  const { simple } = useView()
   const region = useRegion()
   const c = p.country
+  const header = (
+    <PageHeader
+      eyebrow={`${region(c.region)} · ${c.iso3}`}
+      title={countryName(c, lang)}
+      subtitle={simple ? undefined : <span className="block mt-2"><AvailabilityChips a={p.availability} /></span>}
+      actions={
+        <div className="flex items-center gap-2">
+          {p.is_demo && <DemoBadge />}
+          {c.priority && <Badge tone="gold"><Star size={11} /> {t('countries.priority')}</Badge>}
+        </div>
+      }
+    />
+  )
+  if (simple) {
+    // Simple view (lib/view.tsx): the headline figures, the year so far, production and the
+    // unofficial sources; everything else one click away.
+    return (
+      <div data-view="simple">
+        {back}
+        {header}
+        <KpiRow p={p} />
+        <CountryYtdPanel p={p} name={countryName(c, lang)} />
+        <div className="mb-5"><ProfileProduction data={p.production} /></div>
+        <div className="mb-5"><ProfileWebFindings p={p} /></div>
+        <CountryNotes iso3={c.iso3} name={countryName(c, lang)} className="mb-5" />
+        <Details hint={t('simple.country.detailsHint')}>
+          <FullSections p={p} />
+        </Details>
+      </div>
+    )
+  }
   return (
     <div>
       {back}
-      <PageHeader
-        eyebrow={`${region(c.region)} · ${c.iso3}`}
-        title={countryName(c, lang)}
-        subtitle={<span className="block mt-2"><AvailabilityChips a={p.availability} /></span>}
-        actions={
-          <div className="flex items-center gap-2">
-            {p.is_demo && <DemoBadge />}
-            {c.priority && <Badge tone="gold"><Star size={11} /> {t('countries.priority')}</Badge>}
-          </div>
-        }
-      />
+      {header}
 
       <KpiRow p={p} />
       <ProfileMissing p={p} />
@@ -71,6 +102,8 @@ function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
       <div className="mb-5"><ProfileTrade p={p} /></div>
       <div className="mb-5"><CountryCompaniesBlock iso3={c.iso3} /></div>
       <div className="mb-5"><ProfilePrices p={p} /></div>
+      <div className="mb-5"><ProfileWebFindings p={p} /></div>
+      <CountryNotes iso3={c.iso3} name={countryName(c, lang)} className="mb-5" />
 
       <div className="grid gap-5 xl:grid-cols-2 items-start mb-5">
         <ProfileNews p={p} />
@@ -83,6 +116,29 @@ function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
         </Panel>
       )}
     </div>
+  )
+}
+
+/** Simple view's "Mostra dettagli": the sections the simple page leaves out, in the full order. */
+function FullSections({ p }: { p: CountryProfile }) {
+  const { t } = useI18n()
+  return (
+    <>
+      <ProfileMissing p={p} />
+      <div className="mb-5"><ProfileContext p={p} /></div>
+      <div className="mb-5"><ProfileTrade p={p} /></div>
+      <div className="mb-5"><CountryCompaniesBlock iso3={p.country.iso3} /></div>
+      <div className="mb-5"><ProfilePrices p={p} /></div>
+      <div className="grid gap-5 xl:grid-cols-2 items-start mb-5">
+        <ProfileNews p={p} />
+        <ProfileRegulations p={p} />
+      </div>
+      {p.sources.length > 0 && (
+        <Panel title={t('countries.sourcesTitle')}>
+          <SourcesFooter sources={p.sources} />
+        </Panel>
+      )}
+    </>
   )
 }
 
@@ -106,9 +162,45 @@ export function KpiRow({ p }: { p: CountryProfile }) {
   const prodSeries = prodMetric?.series.reduce<(typeof prodMetric.series)[number] | undefined>(
     (best, s) => (!best || (s.latest.period_label ?? '') > (best.latest.period_label ?? '') ? s : best), undefined)
   const prod = prodSeries?.latest
+  const nextRelease = useNextRelease()
+  const prodNote = prodSeries ? nextRelease(prodSeries) : null
 
+  const ytdTitle = useYtdTitle()
   const tradeTile = (s: TradeFlowSection, label: string, mirrorKey: string) => {
     const l = s.latest
+    const y = s.ytd?.own
+    if (y) {
+      // The freshest period leads: the year so far against the same months of the year before (one
+      // source); the last full year stays in the footer. Without weights (Uruguay), the value.
+      const byValue = y.net_weight_kg === null && y.usd_value !== null
+      return (
+        <StatTile
+          label={label}
+          value={byValue ? fmtUsd(y.usd_value, lang) : <>{fmtT(y.net_weight_kg, lang)}<span className="text-muted text-[0.6em] ml-1">t</span></>}
+          sub={
+            <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+              {ytdTitle(y)}
+              {y.data_status && !['published', 'live', 'demo'].includes(y.data_status) && <StatusBadge status={y.data_status} />}
+            </span>
+          }
+          delta={byValue ? y.change_value_pct : y.change_volume_pct}
+          deltaLabel={y.comparable ? t('countries.ytd.vs', { p: prevSpan(y, lang) }) : undefined}
+          demo={y.is_demo}
+          footer={
+            <div className="text-[0.78rem] text-muted">
+              <div>{t('prov.source')}: {y.source?.publisher || y.source?.name}</div>
+              {(y.correction || l?.correction) && <CorrectionBadge c={y.correction ?? l?.correction} compact className="my-1" />}
+              {l && (
+                <div>
+                  {t('countries.kpi.fullYear', { y: l.year })}: <span className="num">{fmtT(l.net_weight_kg, lang)} t</span>
+                  {l.source?.key !== y.source?.key && <> ({l.source?.publisher || l.source?.name})</>}
+                </div>
+              )}
+            </div>
+          }
+        />
+      )
+    }
     if (l) {
       return (
         <StatTile
@@ -118,7 +210,13 @@ export function KpiRow({ p }: { p: CountryProfile }) {
           delta={l.yoy_volume_pct}
           deltaLabel={l.prev ? `vs ${l.prev.year}` : undefined}
           demo={l.is_demo}
-          footer={<span className="text-[0.78rem] text-muted">{t('prov.source')}: {l.source?.publisher || l.source?.name}</span>}
+          footer={<>
+            <span className="text-[0.78rem] text-muted">{t('prov.source')}: {l.source?.publisher || l.source?.name}</span>
+            <div className="mt-1"><RowCorrection correction={l.correction} figure={l.row_id && !l.is_demo && l.net_weight_kg !== null ? {
+              table: 'trade_flows', row_id: l.row_id, value: l.net_weight_kg, unit: 'kg', currency: null, field: 'net_weight_kg',
+              label: `${label} · ${countryName(p.country, lang)} · ${l.year}`, country_iso3: p.country.iso3, period_label: String(l.year),
+            } : null} /></div>
+          </>}
         />
       )
     }
@@ -138,9 +236,19 @@ export function KpiRow({ p }: { p: CountryProfile }) {
         <StatTile
           label={t('countries.kpi.production')}
           value={<>{fmtNumber(prod.value, lang, 0)}<span className="text-muted text-[0.6em] ml-1">{prod.unit}</span></>}
-          sub={<YearSub year={prod.period_label ?? '—'} status={prod.data_status} />}
+          sub={<>
+            <YearSub year={prod.period_label ?? '—'} status={prod.data_status} />
+            {prodNote && <div className="text-[0.78rem] leading-snug">{prodNote}</div>}
+          </>}
           demo={prod.is_demo}
-          footer={<span className="text-[0.78rem] text-muted">{t('prov.source')}: {prodSeries.source?.publisher || prodSeries.source?.name}</span>}
+          footer={<>
+            <span className="text-[0.78rem] text-muted">{t('prov.source')}: {prodSeries.source?.publisher || prodSeries.source?.name}</span>
+            <div className="mt-1"><RowCorrection correction={prod.correction} figure={prod.row_id && !prod.is_demo ? {
+              table: 'production_stats', row_id: prod.row_id, value: prod.value, unit: prod.unit, currency: null,
+              label: `${t('countries.kpi.production')} · ${countryName(p.country, lang)} · ${prod.period_label}`,
+              country_iso3: p.country.iso3, period_label: prod.period_label,
+            } : null} /></div>
+          </>}
         />
       ) : (
         <StatTile label={t('countries.kpi.production')} value={<span className="text-muted">—</span>} sub={t('ui.noData')}

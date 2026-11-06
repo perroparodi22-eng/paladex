@@ -296,6 +296,58 @@ def test_rule_based_briefing_content_and_provenance(api, market):
     assert news["publisher"] == "Honey Times" and news["url"].startswith("https://news.example.org/")
 
 
+def test_briefing_bullets_carry_the_figures_of_their_sentence(api, market):
+    # The interface's simple view rewrites each change in plain words from these fields (never by
+    # re-reading the sentence): the same figure, period and source as the sentence.
+    br = get(api)["briefing"]
+    price = br["bullets"][0]
+    assert price["origin_iso3"] == "ARG" and price["variety"] == "polyflora" and price["price_type"] == "wholesale_bulk"
+    assert price["value_per_kg"] == pytest.approx(3.15) and price["currency"] == "USD"
+    assert price["market_iso3"] is None or isinstance(price["market_iso3"], str)
+    assert price["prev_period_label"] and price["prev_period_label"] < price["period_label"]
+    trade = br["bullets"][2]
+    assert (trade["flow"], trade["reporter_iso3"], trade["partner_iso3"]) == ("import", "USA", "ARG")
+    assert trade["net_weight_kg"] == pytest.approx(40_000_000)
+    assert trade["prev_period_label"] == str(TODAY.year - 2) and trade["period_label"] == str(TODAY.year - 1)
+
+
+def test_price_tiles_name_the_missing_month_and_the_source_gap(api, db):
+    # USDA, Nov 2026: no report between Sep 2025 and Aug 2026, so the latest month has neither the
+    # month before nor the same month a year earlier. The tile says so, and gives the newest earlier
+    # figure of the same series with its own date.
+    usda = make_source(db, "t_usda", "prices", publisher="USDA AMS")
+    add_price_series(db, usda, "ARG", "polyflora", [3.0, 3.2], last_months_back=14)   # ends 14 months ago
+    add_price_series(db, usda, "ARG", "polyflora", [3.6], last_months_back=1)
+    db.commit()
+    tile = next(t for t in get(api)["prices"]["items"] if t["origin_iso3"] == "ARG")
+    assert tile["mom_pct"] is None and tile["yoy_pct"] is None
+    assert tile["earlier_pct"] == pytest.approx(12.5) and tile["earlier_period_label"] == f"{month_start(14):%Y-%m}"
+    assert tile["mom_missing"] == {"period_label": f"{month_start(2):%Y-%m}", "source_has_period": False}
+    assert tile["yoy_missing"] == {"period_label": f"{month_start(13):%Y-%m}", "source_has_period": False}
+    # the source published that month for another origin: the gap is this figure's, not the source's
+    add_price_series(db, usda, "BRA", "polyflora", [2.0], last_months_back=2)
+    db.commit()
+    tile = next(t for t in get(api)["prices"]["items"] if t["origin_iso3"] == "ARG")
+    assert tile["mom_missing"]["source_has_period"] is True
+
+
+def test_a_corrected_price_keeps_its_tile_and_names_its_row(api, db):
+    # A value corrected by a person (reliability 'user') must not send its series down the ranking:
+    # the tile stays, shows the corrected value with its "corrected by" and the row to correct again.
+    usda = make_source(db, "t_usda", "prices", publisher="USDA AMS")
+    add_price_series(db, usda, "BRA", "polyflora", [4.0, 4.2, 4.4], last_months_back=1)
+    add_price_series(db, usda, "BRA", "polyflora", [5.0, 5.1], last_months_back=1, terms="secchio 25 kg")
+    db.commit()
+    tile = next(t for t in get(api)["prices"]["items"] if t["origin_iso3"] == "BRA")
+    assert tile["terms"] is None and tile["row_id"]
+    res = api.post("/api/corrections", json={"kind": "value_correction", "target": {"table": "price_observations",
+                   "row_id": tile["row_id"]}, "value": 4.5, "reason": "offerta ricevuta"})
+    assert res.status_code == 201, res.text
+    tile2 = next(t for t in get(api)["prices"]["items"] if t["origin_iso3"] == "BRA")
+    assert tile2["terms"] is None and tile2["price_value"] == pytest.approx(4.5)
+    assert tile2["correction"]["official_value"] == pytest.approx(4.4) and tile2["row_id"] != tile["row_id"]
+
+
 def test_rule_based_briefing_in_english(api, market):
     br = get(api, "en")["briefing"]
     price = br["bullets"][0]

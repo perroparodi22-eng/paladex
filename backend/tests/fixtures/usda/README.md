@@ -19,6 +19,23 @@ in the file names are those of the original issue.
 | `real_esmis_misfiled_tomato_2025-05-15_p1.pdf` | https://esmis.nal.usda.gov/sites/default/release-files/m613mx60p/ff367354m/ww72d826j/FVMHONEY.PDF (ESMIS release 2025-05-15) | ESMIS lists this file under FVMHONEY, but it is the AMS **Tomato Fax Report**. (The 2025-09-05 FVMHONEY release is likewise a National Watermelon Report.) |
 | `real_esmis_fvmhoney_page0.json` | https://esmis.nal.usda.gov/api/v1/release/findByIdentifier/FVMHONEY?page=0 (fetched 2026-11-04, unchanged) | 25 rows = 13 releases (most listed twice, under `AMS` and `AMS-SC`), newest 2025-09-30: ESMIS has not received an FVMHONEY issue since Sept 2025. |
 
+## National Honey Report from the MyMarketNews file repository: REAL captures
+
+Downloaded from the AMS MyMarketNews file repository (the official archive of every published
+issue; ESMIS has none after Sept 2025) on **2026-11-06**, during the live run that recovered the
+Oct 2025 - Sept 2026 issues. PDFs are page subsets cut as above (page numbers of the original).
+
+| File | Original URL | What it covers |
+|---|---|---|
+| `real_mmn_filerepo_2901_page0.html` | https://mymarketnews.ams.usda.gov/filerepo/reports?field_slug_id_value=2901 (sha256 c628a12e...) | The listing ("Mars Document" view): 50 rows, newest first (2026-10-30 back to 2023-07-26), document links relative to `/filerepo/reports` (`sites/default/files/2901/{report date}/{node id}/ams_2901_NNNNN.pdf`), a pager to `page=1` and `page=2`. Lists re-uploads (`_01` files: same bytes as an earlier issue) and two Tomato Fax Reports (2025-05-15, 2026-04-13). The Oct 31, 2025 issue is listed on 2025-11-12, as a corrected copy only. |
+| `real_mmn_filerepo_2901_page1.html` | the same with `&page=1` | Rows 51-100: 2023-06-27 back to 2019-07-29. |
+| `real_fvmhoney_2025-10-31_corrected_p1-2-10.pdf` | https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/2901/2025-11-12/1285160/ams_2901_00078.pdf (sha256 0493f8a9...) | Vol. XLV No. 10, "CORRECTED COPY", market month September 2025 (the first issue after the federal funding lapse). Page 1: beekeeper table ("CanoLight Amber": overlapping glyphs, rows skipped and reported). Page 2: importer table. Page 10: ACE table HTS 0409000045 for Sep 2025 (Uruguay without a value). |
+| `real_fvmhoney_2026-09-30_p1-2-11.pdf` | https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/2901/2026-09-30/1355143/ams_2901_00094.pdf (sha256 d6e043d4...; byte-identical to the 2026-10-23 re-upload `.../1360720/ams_2901_00095_01.pdf`) | Vol. XLVI No. 9, market month August 2026: beekeeper, Canadian and importer tables, ACE table HTS 0409000045 for Aug 2026. |
+| `real_fvmhoney_2026-05-29_p1-9-10.pdf` | https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/2901/2026-05-29/1328060/ams_2901_00089.pdf (sha256 5a8ca750...) | Vol. XLVI No. 5. Page 9: ACE table HTS 0409000065 for Apr 2026. Page 10: an ACE table **printed without its title** (HTS code unknown): its rows are skipped, not filed under 0409000065. |
+
+The MyMarketNews tests serve these PDFs (and, for the 2024-12-26, 2025-03-28 and 2025-05-15
+rows of the real listing, the ESMIS subsets above: the same reports) at the URLs of the real listing.
+
 Facts checked against these files (and the other 2023-2026 issues of the live run): the price
 tables print US dollars per pound although their headings still say "cents"; prices refer to the
 market month printed on page 1, one month before the issue date; Canadian prices are "in U.S.

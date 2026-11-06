@@ -10,9 +10,12 @@ import { MAP_METRICS } from '@/components/countries/metrics'
 import type { CountriesResponse, MapMetric } from '@/components/countries/types'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
+import { useView } from '@/lib/view'
+import { Details } from '@/components/simple/Details'
 
 export default function Countries() {
   const { t } = useI18n()
+  const { simple } = useView()
   const [sp, setSp] = useSearchParams()
   const q = useQuery({ queryKey: ['countries'], queryFn: () => api.get<CountriesResponse>('/countries') })
   const fromUrl = sp.get('misura') as MapMetric | null
@@ -47,12 +50,16 @@ export default function Countries() {
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px] items-start">
             <div className="min-w-0 flex flex-col gap-5">
               <MapPanel data={q.data} metric={metric} />
-              <div className="hidden xl:block"><OtherCountries data={q.data} metric={metric} /></div>
+              {!simple && <div className="hidden xl:block"><OtherCountries data={q.data} metric={metric} /></div>}
             </div>
             <PriorityList data={q.data} metric={metric} />
           </div>
-          {/* below the priority list on narrower screens */}
-          <div className="mt-5 xl:hidden"><OtherCountries data={q.data} metric={metric} /></div>
+          {/* below the priority list on narrower screens; in the simple view, one click away */}
+          {simple ? (
+            <Details label={t('simple.countries.others')} hideLabel={t('simple.countries.othersHide')}>
+              <OtherCountries data={q.data} metric={metric} />
+            </Details>
+          ) : <div className="mt-5 xl:hidden"><OtherCountries data={q.data} metric={metric} /></div>}
         </>
       ) : null}
     </div>

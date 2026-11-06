@@ -35,7 +35,9 @@ from ..models import (
     utcnow,
 )
 from ..reference.countries import PRIORITY_ISO3
+from ..services.corrections import row_correction
 from .common import demo_clause, iso
+from .findings import country_block as web_findings_block   # non-official web findings: own block, never mixed
 from .memo import cached
 from .trade import (
     FLOWS,
@@ -52,6 +54,7 @@ from .trade import (
     partner_breakdown,
     sources_used,
 )
+from .ytd import mirror_ytd, reporter_ytd
 
 router = APIRouter(prefix="/countries", tags=["countries"])
 
@@ -156,11 +159,30 @@ def latest_production(ctx: Ctx) -> dict[str, dict]:
 
 def _obs_provenance(ctx: Ctx, r) -> dict:
     return {
+        "row_id": r.id,      # the stored row (what a person can correct, POST /api/corrections)
         "source": ctx.brief(r.source_id), "source_url": r.source_url, "published_at": iso(r.published_at),
         "collected_at": iso(r.collected_at), "period_label": r.period_label, "period_start": iso(r.period_start),
         "period_end": iso(r.period_end), "frequency": r.frequency, "data_status": r.data_status,
         "reliability": r.reliability, "is_demo": r.is_demo,
+        "correction": row_correction(r),      # "corrected by ..." (services/corrections.py), else None
     }
+
+
+# When a source releases year Y of its annual production series, from its own published calendar
+# (sources registry, `expected_update`): FAOSTAT publishes production of year Y in December Y+1.
+ANNUAL_RELEASE = {"faostat": {"lag_years": 1, "month": 12}}
+
+
+def _next_release(ctx: Ctx, sid: int, newest: ProductionStat) -> dict | None:
+    """The next year of an annual series and when its source says it comes out ("the 2025 figure
+    is expected in December 2026"), so the newest year is read as the latest available, not as old."""
+    src = ctx.source(sid)
+    rule = ANNUAL_RELEASE.get(src.key) if src else None
+    if rule is None or newest.frequency != "A":
+        return None
+    year = newest.period_start.year + 1
+    due = date(year + rule["lag_years"], rule["month"], 1)
+    return {"year": year, "expected": f"{due.year}-{due.month:02d}", "overdue": due < date(ctx.today.year, ctx.today.month, 1)}
 
 
 def production_section(ctx: Ctx, iso3: str) -> dict:
@@ -182,11 +204,15 @@ def production_section(ctx: Ctx, iso3: str) -> dict:
             "source": ctx.brief(sid), "unit": unit, "frequency": newest.frequency, "points": points,
             "latest": points[-1], "is_demo": any(r.is_demo for r in items),
             "freshness": ctx.freshness_for(sid, newest.published_at or newest.period_end, newest.frequency),
+            "next_release": _next_release(ctx, sid, newest),
         })
     ordered = sorted(metrics.values(), key=lambda m: (METRIC_ORDER.index(m["metric"]) if m["metric"] in METRIC_ORDER
                                                       else len(METRIC_ORDER), m["metric"]))
     for m in ordered:
-        m["series"].sort(key=lambda s: (-len(s["points"]), _source_rank(ctx, ctx.source_id(s["source"]["key"]) or 0)))
+        # The series with the NEWEST year first (a national 2025 figure before FAOSTAT's 2024), then the
+        # longer, then the more reliable.
+        m["series"].sort(key=lambda s: (-int((s["latest"]["period_start"] or "0000")[:4]), -len(s["points"]),
+                                        _source_rank(ctx, ctx.source_id(s["source"]["key"]) or 0)))
     return {"available": bool(ordered), "metrics": ordered, "providers": ctx.providers("production", country=iso3)}
 
 
@@ -204,6 +230,7 @@ def trade_section(ctx: Ctx, iso3: str, totals: Totals) -> dict:
             if latest_c else None
         mirror = mirror_declarations(ctx, iso3, flow)
         latest = candidate_total(ctx, latest_c, totals) if latest_c is not None else None
+        own = reporter_ytd(ctx, iso3, flow)
         out[flow] = {
             "available": bool(series["series"]),
             "latest": latest,
@@ -212,6 +239,10 @@ def trade_section(ctx: Ctx, iso3: str, totals: Totals) -> dict:
             "discrepancies": series["discrepancies"],
             "partners": partners if partners and partners.get("available") else None,
             "mirror": mirror if mirror["rows"] else None,
+            # The year so far from monthly data (ytd.py): the country's own figure, else what its
+            # partners declare month by month; each with its source and months, never added up.
+            "ytd": {"own": own["figure"], "status": own["status"], "last_month": own["last_month"],
+                    "mirror": mirror_ytd(ctx, iso3, flow) if own["figure"] is None else None},
         }
     out["providers"] = section_providers(ctx, "exports", iso3)
     out["providers_import"] = section_providers(ctx, "imports", iso3)
@@ -550,6 +581,9 @@ def country_profile(iso3: str, db: Session = Depends(get_db)):
         "news": news,
         "regulations": regulations,
         "context": context,
+        # Other sources (non-official): verified web findings, apart from every official figure above
+        # (not in `availability`, `missing`, `sources` or the map list).
+        "web_findings": web_findings_block(db, code),
         "missing": missing,
         "sources": sources_used(ctx, prov_rows),
         "is_demo": any_demo,

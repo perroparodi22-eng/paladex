@@ -78,6 +78,8 @@ def get_db() -> Iterator[Session]:
 def init_db(url: str | None = None) -> Engine:
     from . import models  # noqa: F401  (register tables)
     from . import models_companies  # noqa: F401  (company_records: official company-level lists)
+    from . import models_findings  # noqa: F401  (web_findings: non-official figures verified on their page)
+    from . import models_corrections  # noqa: F401  (correction_events: corrections made by a person)
     from .reference.seed import seed_reference_data
 
     engine = get_engine(url)

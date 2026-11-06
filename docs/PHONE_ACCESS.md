@@ -9,6 +9,7 @@ Una **copia online di sola lettura** delle pagine di mercato di Paladex, da apri
 * Indirizzo: <https://paladex-pg-mobile.netlify.app> (progetto Netlify «paladex-pg-mobile»).
 * È **privata**: si apre solo dopo l'accesso con l'account Netlify del titolare. Nessun altro può vederla.
 * Si aggiorna **da sola ogni mattina** (la copia nuova è pronta verso le 6:30 ora italiana, le 7:30 con l'ora legale): GitHub raccoglie i dati dalle stesse fonti ufficiali del computer, prepara la copia e la pubblica. Il computer non serve.
+* Mostra anche le **correzioni** fatte sui computer (README, «Correzioni e secondo computer»), con «corretto da … il …»: la copia le legge ogni mattina dal ramo `paladex-corrections` dopo la raccolta. Le note e le parole scritte all'IA non sono nella copia.
 * In cima a ogni pagina una fascia dice **fino a quando sono stati raccolti i dati** («Copia online di sola lettura · dati raccolti fino al …»). Se la copia non viene aggiornata da più di un giorno e mezzo, o se le fonti non rispondono da tre giorni, la fascia diventa gialla con un avviso.
 
 Consiglio: sul telefono, aprire l'indirizzo e scegliere «Aggiungi a schermata Home» per averla come un'app.
@@ -61,6 +62,7 @@ A **read-only online copy** of Paladex's market pages, to open on the phone when
 * Address: <https://paladex-pg-mobile.netlify.app> (Netlify project "paladex-pg-mobile").
 * It is **private**: it opens only after logging in with the owner's Netlify account. Nobody else can see it.
 * It **refreshes itself every morning** (the new copy is ready around 6:30 am Italian time, 7:30 am in summer time): GitHub collects the data from the same official sources as the computer, prepares the copy and publishes it. The computer is not needed.
+* It also shows the **corrections** made on the computers (README, "Correzioni e secondo computer"), with "corrected by … on …": every morning, after the collection, the copy reads them from the `paladex-corrections` branch. Notes and the words written to the AI are not in the copy.
 * A strip at the top of every page says **up to when the data was collected** ("Read-only online copy · data collected up to …"). If the copy has not been refreshed for more than a day and a half, or the sources have not answered for three days, the strip turns amber with a warning.
 
 Tip: on the phone, open the address and choose "Add to Home Screen" to use it like an app.

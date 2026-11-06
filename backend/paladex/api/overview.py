@@ -60,6 +60,7 @@ from ..models import (
     utcnow,
 )
 from ..reference.varieties import LABELS as VARIETY_LABELS
+from ..services.corrections import briefs_by_id
 from .common import demo_clause, freshness, iso, show_demo, source_brief
 from .memo import cached
 from .meta import PRICE_TYPE_LABELS
@@ -517,7 +518,10 @@ def series_changes(s: PriceSeries) -> dict:
 
 def _series_sort_key(s: PriceSeries, today: date) -> tuple:
     recent = s.latest_start >= today - timedelta(days=PRICE_HISTORY_DAYS // 2)
-    rel = s.latest.reliability if s.latest else None
+    # A value corrected by a person (reliability 'user') keeps its series' place: ranked by the
+    # reliability of the source's own rows, so a correction never swaps the tile for another series.
+    rel = next((p.reliability for p in reversed(s.points) if p.reliability != "user"),
+               s.latest.reliability if s.latest else None)
     return (not recent, _rank(VARIETY_PRIORITY, s.variety), _rank(RELIABILITY_PRIORITY, rel),
             -s.latest_start.toordinal(), -s.n_points)
 
@@ -565,13 +569,70 @@ def series_label(ctx: Ctx, s: PriceSeries) -> str:
     return f"{series_base_label(ctx, s)} ({hint})" if hint else series_base_label(ctx, s)
 
 
-def _tile(ctx: Ctx, s: PriceSeries) -> dict:
+def _corrections_of(ctx: Ctx, model, rows) -> dict[int, dict]:
+    """{row id: "corrected by ..."} for the rows corrected by a person (shared rows are detached and
+    carry no `extra`: one query by primary key, none when no row is corrected)."""
+    ids = [r.id for r in rows if r is not None and r.reliability == "user"]
+    return briefs_by_id(ctx.db, model, ids) if ids else {}
+
+
+def _source_periods(ctx: Ctx) -> dict[int, set[str]]:
+    """Periods ('2026-08', '2026-Q3', '2026') for which each source has price rows, from the loaded
+    series (recent history only: see `_tile_comparisons`)."""
+    got = getattr(ctx, "_src_periods", None)
+    if got is None:
+        got = defaultdict(set)
+        for x in ctx.price_series():
+            for p in x.points:
+                d = p.period_start + timedelta(days=3) if p.frequency == "W" else p.period_start
+                if p.frequency == "A":
+                    got[x.source_id].add(str(d.year))
+                elif p.frequency == "Q":
+                    got[x.source_id].add(f"{d.year}-Q{(d.month - 1) // 3 + 1}")
+                else:
+                    got[x.source_id].add(f"{d.year}-{d.month:02d}")
+        ctx._src_periods = got  # type: ignore[attr-defined]
+    return got
+
+
+def _tile_comparisons(ctx: Ctx, s: PriceSeries, ch: dict) -> dict:
+    """What the simple view says when the month-before or year-before figure is missing: the newest
+    earlier figure of the SAME series and product (with its own date, never called "a month ago"),
+    and, for each missing period, whether the source published anything for it at all (False: a gap
+    in the source, e.g. no USDA report for that month; None: not known)."""
+    last = s.latest
+    earlier = next((p for p in reversed(same_product(s.points[:-1], last)) if p.price_per_kg), None)
+    out: dict[str, Any] = {
+        "earlier_period_label": earlier.period_label if earlier else None,
+        "earlier_pct": pct_change(last.price_per_kg, earlier.price_per_kg) if earlier else None,
+        "mom_missing": None, "yoy_missing": None,
+    }
+    f = last.frequency
+    if f not in ("M", "Q", "A"):
+        return out                     # weekly or daily quotes: compared within tolerance, no gap label
+    step = {"M": relativedelta(months=1), "Q": relativedelta(months=3), "A": relativedelta(years=1)}[f]
+    known_from = ctx.today - timedelta(days=PRICE_BULK_DAYS)
+    periods = _source_periods(ctx).get(s.source_id, set())
+
+    def missing(d: date) -> dict:
+        label = str(d.year) if f == "A" else f"{d.year}-Q{(d.month - 1) // 3 + 1}" if f == "Q" else f"{d.year}-{d.month:02d}"
+        return {"period_label": label, "source_has_period": (label in periods) if d >= known_from else None}
+
+    if ch["mom_pct"] is None and f != "A":
+        out["mom_missing"] = missing(last.period_start - step)
+    if ch["yoy_pct"] is None:
+        out["yoy_missing"] = missing(last.period_start - relativedelta(years=1))
+    return out
+
+
+def _tile(ctx: Ctx, s: PriceSeries, corrections: dict[int, dict] | None = None) -> dict:
     last = s.latest
     ch = series_changes(s)
     spark = [{"period_label": p.period_label, "value": round(p.price_per_kg, 4)}
              for p in same_product(s.points, last)[-SPARK_POINTS:]]
     return {
         "id": "|".join("" if k is None else str(k) for k in s.key),
+        "row_id": last.id,          # the stored row shown (what a person can correct, POST /api/corrections)
         "label": series_label(ctx, s),
         "label_hint": ctx.label_hint(s),
         "origin_iso3": s.origin_iso3, "origin_label": last.origin_label, "variety": s.variety,
@@ -584,6 +645,7 @@ def _tile(ctx: Ctx, s: PriceSeries) -> dict:
         "unit": last.unit, "fx_date": iso(last.fx_date),
         "change_basis": "native_per_kg",
         **ch,
+        **_tile_comparisons(ctx, s, ch),
         "spark": spark,
         "freshness": ctx.obs_freshness(last),
         # provenance
@@ -592,6 +654,7 @@ def _tile(ctx: Ctx, s: PriceSeries) -> dict:
         "period_label": last.period_label, "period_start": iso(last.period_start),
         "period_end": iso(last.period_end), "frequency": last.frequency,
         "data_status": last.data_status, "reliability": last.reliability, "is_demo": last.is_demo,
+        "correction": (corrections or {}).get(last.id),
         "link": _prices_link(s),
     }
 
@@ -605,7 +668,8 @@ def _prices_link(s: PriceSeries) -> str:
 
 def block_prices(ctx: Ctx) -> dict:
     chosen = select_tiles(ctx.price_series(), ctx.today)
-    tiles = [_tile(ctx, s) for s in chosen]
+    corrections = _corrections_of(ctx, PriceObservation, [s.latest for s in chosen])
+    tiles = [_tile(ctx, s, corrections) for s in chosen]
     types = sorted({t["price_type"] for t in tiles})
     return {
         "items": tiles,
@@ -672,6 +736,7 @@ def _aggregate(ctx: Ctx, rows: list, key_attr: str, period: date, prev: date, ba
             old_has.add(k)
     if not cur:
         return None
+    corrections = _corrections_of(ctx, TradeFlowObservation, [r for a in cur.values() for r in a["rows"]])
     items = []
     for k, a in cur.items():
         kg = a["kg"] if a["has_kg"] else None
@@ -684,6 +749,8 @@ def _aggregate(ctx: Ctx, rows: list, key_attr: str, period: date, prev: date, ba
             "partners_count": len(a["partners"]) if basis != "world_rows" else None,
             "is_demo": any(r.is_demo for r in a["rows"]),
             "data_status": a["rows"][0].data_status,
+            # includes a value corrected by a person: who, when, why, the official value of that row
+            "correction": next((corrections[r.id] for r in a["rows"] if r.id in corrections), None),
             "link": f"/paesi/{k}",
         })
     items.sort(key=lambda i: (i["net_weight_kg"] is None, -(i["net_weight_kg"] or 0), -(i["usd_value"] or 0)))
@@ -759,7 +826,7 @@ def _period_label_for(rows: list, start: date) -> str | None:
 def block_trade(ctx: Ctx) -> dict:
     ta = trade_analysis(ctx)
     out: dict[str, Any] = {"available": False, "frequency": ta["freq"], "importers": None, "exporters": None,
-                           "providers": ctx.providers("trade"), "link": "/commercio"}
+                           "ytd": None, "providers": ctx.providers("trade"), "link": "/commercio"}
     if ta["freq"] is None:
         out.update(updated_at=None, sources=[])
         return out
@@ -793,12 +860,34 @@ def block_trade(ctx: Ctx) -> dict:
                               reporters_count=len({r.reporter_iso3 for r in src_rows if r.period_start == period}))
                 out["exporters"] = mirror
     blocks = [b for b in (out["importers"], out["exporters"]) if b]
-    out["available"] = bool(blocks)
-    out["updated_at"] = _max(b["updated_at"] for b in blocks)
+    out["ytd"] = _trade_ytd(ctx)
+    ytd_rows = [r for side in (out["ytd"] or {}).values() for r in side["rows"]]
+    out["available"] = bool(blocks) or bool(ytd_rows)
+    out["updated_at"] = _max([b["updated_at"] for b in blocks] + [r["collected_at"] for r in ytd_rows])
     out["latest_published_at"] = _max(b["published_at"] for b in blocks)
     out["sources"] = ctx.sources_used(used_sources, _newest_refs(
         (r.source_id, r.published_at or r.period_end, r.frequency) for r in rows if r.source_id in used_sources))
     return out
+
+
+def _trade_ytd(ctx: Ctx) -> dict | None:
+    """The year so far from the monthly customs data, ahead of the annual ranking (ytd.py): each
+    country with its own source and months against THE SAME months of the year before; rows are
+    listed side by side, never added up or compared across sources."""
+    from .trade import Ctx as TradeCtx
+    from .ytd import leaders_ytd
+
+    tctx = TradeCtx(ctx.db, today=ctx.today)
+    out = {}
+    for flow, key in (("import", "importers"), ("export", "exporters")):
+        side = leaders_ytd(tctx, flow)
+        if side is None:
+            continue
+        for r in side["rows"]:
+            r["name"] = ctx.country(r["iso3"])
+            r["link"] = f"/paesi/{r['iso3']}"
+        out[key] = side
+    return out or None
 
 
 def _trade_freshness(ctx: Ctx, rows: list, period: date) -> dict:
@@ -991,6 +1080,10 @@ def _briefing_prices(ctx: Ctx) -> list[dict]:
             "price", text, source=ctx.brief(s.source_id), date_=last.published_at, period_label=last.period_label,
             url=last.source_url, link=_prices_link(s), is_demo=last.is_demo, data_status=last.data_status,
             change_pct=ch["mom_pct"], price_type=s.price_type, origin_iso3=s.origin_iso3,
+            # the figures of the sentence, for the interface's simple view (frontend lib/plain.ts)
+            market_iso3=s.market_iso3, variety=s.variety, color_grade=s.color_grade, terms=last.terms,
+            value_per_kg=round(last.price_per_kg, 4), currency=last.currency,
+            prev_period_label=ch["mom_period_label"],
         ))
     return out
 
@@ -1047,7 +1140,10 @@ def _briefing_trade(ctx: Ctx) -> list[dict]:
                            pct=fmt_pct(ch, ctx.lang), prev=_vs_period(p.period_label, ctx.lang))
         out.append(_bullet("trade", text, source=ctx.brief(r.source_id), date_=r.published_at,
                            period_label=r.period_label, url=r.source_url, link="/commercio", is_demo=r.is_demo,
-                           data_status=r.data_status, change_pct=ch))
+                           data_status=r.data_status, change_pct=ch,
+                           # the figures of the sentence, for the interface's simple view
+                           flow=r.flow, reporter_iso3=r.reporter_iso3, partner_iso3=r.partner_iso3,
+                           net_weight_kg=r.net_weight_kg, prev_period_label=p.period_label))
     return out
 
 

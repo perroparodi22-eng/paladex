@@ -18,6 +18,9 @@ import { api, ApiError } from '@/lib/api'
 import { fmtAgo, fmtNumber } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import type { SourceInfo } from '@/lib/types'
+import { useView } from '@/lib/view'
+import { Details } from '@/components/simple/Details'
+import { SimpleNewsItem } from '@/components/simple/SimpleNews'
 
 const PAGE_SIZE = 20
 
@@ -34,6 +37,7 @@ function ActivePill({ children, onRemove, label }: { children: ReactNode; onRemo
 
 export default function News() {
   const { t, lang } = useI18n()
+  const { simple } = useView()
   const { country } = useLabels()
   const langName = useLangName()
   const qc = useQueryClient()
@@ -185,12 +189,30 @@ export default function News() {
 
   const refreshing = list.isFetching && !list.isFetchingNextPage
 
-  return (
-    <div className="space-y-5">
-      {header}
-      <NewsFilters state={state} facets={first.facets} update={f.update} toggle={f.toggle} />
+  const filters = <NewsFilters state={state} facets={first.facets} update={f.update} toggle={f.toggle} />
+  const facetsAside = (
+    <aside className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-1">
+      <TopicsFacet facets={first.facets} state={state} toggle={(k) => f.toggle('topics', k)} />
+      <CountriesFacet facets={first.facets} state={state} toggle={(k) => f.toggle('countries', k)} />
+      <LanguagesFacet facets={first.facets} state={state} toggle={(k) => f.toggle('langs', k)} />
+      {newsSources.length > 0 && <SourcesRail sources={newsSources} facets={first.facets} state={state} toggle={(k) => f.toggle('sources', k)} />}
+    </aside>
+  )
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+  return (
+    <div className="space-y-5" data-view={simple ? 'simple' : undefined}>
+      {header}
+      {simple ? (
+        // Simple view (lib/view.tsx): the list first; search, filters and counts one click away.
+        <Details bare className="!mt-0" label={t('simple.news.filters')} hideLabel={t('simple.news.filtersHide')}>
+          <div className="space-y-5">
+            {filters}
+            <div className="grid items-start gap-5 md:grid-cols-2 [&_aside]:contents">{facetsAside}</div>
+          </div>
+        </Details>
+      ) : filters}
+
+      <div className={clsx('grid items-start gap-6', !simple && 'xl:grid-cols-[minmax(0,1fr)_340px]')}>
         <div className="min-w-0 space-y-3">
           {/* results line */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -217,7 +239,7 @@ export default function News() {
                 onShowHidden={() => f.update({ relevantOnly: false })} onReset={f.reset} />
             ) : (
               <div className="divide-y divide-line-soft">
-                {items.map((it) => (
+                {items.map((it) => simple ? <SimpleNewsItem key={it.id} item={it} /> : (
                   <NewsCard key={it.id} item={it} actions={{
                     ...baseActions,
                     translating: translatingIds.has(it.id),
@@ -252,12 +274,7 @@ export default function News() {
           )}
         </div>
 
-        <aside className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-1">
-          <TopicsFacet facets={first.facets} state={state} toggle={(k) => f.toggle('topics', k)} />
-          <CountriesFacet facets={first.facets} state={state} toggle={(k) => f.toggle('countries', k)} />
-          <LanguagesFacet facets={first.facets} state={state} toggle={(k) => f.toggle('langs', k)} />
-          {newsSources.length > 0 && <SourcesRail sources={newsSources} facets={first.facets} state={state} toggle={(k) => f.toggle('sources', k)} />}
-        </aside>
+        {!simple && facetsAside}
       </div>
     </div>
   )

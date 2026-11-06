@@ -69,6 +69,7 @@ const it = {
   'badge.forecast': 'Previsione IA · incerta',
   'badge.aiText': 'Testo IA',
   'badge.provisional': 'Provvisorio',
+  'badge.corrected': 'Corretto a mano',
   'badge.industry': 'Fonte di settore',
   'badge.analysisNote': 'Interpretazione dell\'IA basata sui fatti citati: non è un dato.',
   'badge.forecastNote': 'Tendenze possibili secondo l\'IA, senza numeri: molto incerte.',
@@ -80,6 +81,7 @@ const it = {
   'cite.period': 'Periodo {p}',
   'cite.noSource': 'Fonte non indicata',
   'cite.private': 'Inserito da voi',
+  'cite.corrected': 'valore della fonte: {v}',
 
   // side panels
   'ai.on': 'Intelligenza artificiale attiva',
@@ -201,6 +203,7 @@ const en: typeof it = {
   'badge.forecast': 'AI outlook · uncertain',
   'badge.aiText': 'AI text',
   'badge.provisional': 'Provisional',
+  'badge.corrected': 'Corrected by hand',
   'badge.industry': 'Industry source',
   'badge.analysisNote': 'The AI\'s interpretation of the cited facts: not a data point.',
   'badge.forecastNote': 'Possible tendencies according to the AI, without numbers: highly uncertain.',
@@ -211,6 +214,7 @@ const en: typeof it = {
   'cite.period': 'Period {p}',
   'cite.noSource': 'Source not given',
   'cite.private': 'Entered by you',
+  'cite.corrected': 'source value: {v}',
 
   'ai.on': 'Artificial intelligence on',
   'ai.onText': 'Answers are written by the AI ({provider} · {model}) using only the retrieved data. Every number is checked against the cited data: sentences that fail the check are removed.',

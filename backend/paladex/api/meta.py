@@ -110,6 +110,9 @@ def _source_counts(db: Session) -> dict[int, dict]:
     from ..models_companies import CompanyRecord
 
     add(CompanyRecord, "companies")
+    from ..models_findings import WebFinding
+
+    add(WebFinding, "findings")
     fx_n = db.scalar(select(func.count(FxRate.id)))
     fx_src = db.scalars(select(Source).where(Source.key == "ecb_fx")).first()
     if fx_src is not None and fx_n:

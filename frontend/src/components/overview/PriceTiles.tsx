@@ -3,6 +3,7 @@ import { Info } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Line, LineChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { DemoBadge, FreshnessBadge, StatusBadge } from '@/components/ui'
+import { CorrectionBadge } from '@/components/corrections/CorrectionBadge'
 import { useI18n } from '@/i18n'
 import { fmtAgo, fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
@@ -93,6 +94,7 @@ function Tile({ tile, showType, twoLineDetail }: { tile: PriceTile; showType: bo
       <div className="mt-1.5 border-t border-line-soft pt-1.5 text-[0.75rem] text-muted">
         <div className="truncate"><span className="num text-charcoal-soft">{fmtPeriod(tile.period_label, lang)}</span> · {publisher}</div>
         <div className="mt-1 flex flex-wrap items-center gap-1">
+          {tile.correction && <CorrectionBadge c={tile.correction} compact />}
           <FreshnessBadge status={tile.freshness.status} ageDays={tile.freshness.age_days} />
           {!tile.is_demo && !['published', 'live'].includes(tile.data_status) && <StatusBadge status={tile.data_status} />}
         </div>

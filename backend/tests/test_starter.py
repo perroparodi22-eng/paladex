@@ -33,6 +33,7 @@ from paladex.models import (
     utcnow,
 )
 from paladex.models_companies import CompanyRecord, record_company
+from paladex.models_findings import WebFinding, record_finding
 from paladex.services import ingest, starter
 
 COLLECTED = datetime(2026, 11, 4, 20, 35, 12)
@@ -94,7 +95,15 @@ def cloud_db(db, tmp_path):
                       measure_kind="exact_value", value=15_571_168.32, currency="USD", value_basis="FOB",
                       period_start=date(2025, 1, 1), period_end=date(2025, 12, 31), period_label="2025", frequency="A",
                       published_at=date(2026, 11, 5), data_status="published", reliability="official")
-        for model in (PriceObservation, TradeFlowObservation, ProductionStat, CompanyRecord):
+        # A non-official web finding, verified on its page by Paladex (shipped with its provenance).
+        record_finding(s, source_id=sid["web_findings"], series_key="ARG|production|2026|t|abc",
+                       country_iso3="ARG", metric="production", period_label="2026", period_start=date(2026, 1, 1),
+                       period_end=date(2026, 12, 31), value=75_000.0, unit="t", value_as_published="75,000 metric tons",
+                       status="forecast", kind="usda_fas", is_official=True, publisher="USDA FAS",
+                       source_url="https://apps.fas.usda.gov/x.pdf", quote="Post forecasts 2026 production at 75,000 metric tons",
+                       verified_at=COLLECTED, verification={"ok": True}, raw_document_id=raw.id,
+                       extra={"found_by": "seed"})
+        for model in (PriceObservation, TradeFlowObservation, ProductionStat, CompanyRecord, WebFinding):
             for row in s.scalars(select(model)):
                 row.collected_at = COLLECTED
                 row.last_seen_at = COLLECTED
@@ -143,6 +152,7 @@ def test_snapshot_ships_only_data_never_private_rows(built):
     assert meta["counts"]["price_observations"] == 3          # A rev1 + rev2, B; not the demo row
     assert meta["counts"]["trade_flows"] == 1 and meta["counts"]["production_stats"] == 1
     assert meta["counts"]["company_records"] == 1
+    assert meta["counts"]["web_findings"] == 1
     assert meta["data_collected_until"] == "2026-11-04T20:35:12"
     assert json.loads(starter.meta_path(out).read_text())["sha256"] == meta["sha256"]
     import lzma
@@ -190,6 +200,11 @@ def test_import_keeps_provenance_history_and_local_data_wins(db, built):
     uy = db.scalars(select(Source).where(Source.key == "uy_sie_honey_exporters")).one()
     assert (company.company_name, company.value, company.source_id) == ("NECTARBEE S.A.", 15_571_168.32, uy.id)
     assert company.collected_at == COLLECTED and company.is_current
+    finding = db.scalars(select(WebFinding)).one()
+    wf_src = db.scalars(select(Source).where(Source.key == "web_findings")).one()
+    assert (finding.value_as_published, finding.source_id, finding.verified_at) == ("75,000 metric tons", wf_src.id, COLLECTED)
+    assert finding.quote.startswith("Post forecasts") and finding.verification == {"ok": True} and finding.is_current
+    assert finding.raw_document_id is None                       # the archived excerpt stays on the other machine
     news = {n.canonical_url: n for n in db.scalars(select(NewsArticle))}
     assert news["https://n/2"].duplicate_of_id == news["https://n/1"].id
 

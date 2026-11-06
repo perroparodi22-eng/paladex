@@ -7,6 +7,8 @@
   seed-demo / purge-demo   add or remove clearly-labelled demonstration data
   starter-import        merge the real starter data shipped in starter/ (serve does it automatically)
   starter-build --from DB [--out FILE]   (developers) build the starter data from a real database
+  corrections-sync      exchange corrections with the owner's other computers now (git branch paladex-corrections)
+  corrections-apply --from-git   only read and apply the corrections of that branch (the phone copy's job)
 """
 from __future__ import annotations
 
@@ -34,6 +36,10 @@ def main(argv: list[str] | None = None) -> int:
     sb = sub.add_parser("starter-build")
     sb.add_argument("--from", dest="src", required=True)
     sb.add_argument("--out")
+    sub.add_parser("corrections-sync")
+    ca = sub.add_parser("corrections-apply")
+    ca.add_argument("--from-git", dest="from_git", action="store_true", required=True,
+                    help="read the paladex-corrections branch of the repository's origin (never writes to it)")
     args = p.parse_args(argv)
 
     from .config import get_settings
@@ -114,6 +120,12 @@ def main(argv: list[str] | None = None) -> int:
         res = _import_starter_data(verbose=True)
         if res is None:
             print("Nothing to import (no starter data shipped, or this version is already merged).")
+    elif args.cmd in ("corrections-sync", "corrections-apply"):
+        from .services import corrections_sync
+
+        res = corrections_sync.sync_now(push=args.cmd == "corrections-sync", trigger="cli")
+        print(json.dumps(res, ensure_ascii=False, default=str))
+        return 0 if res.get("ok") or (res.get("error") or {}).get("code") == "disabled" else 1
     elif args.cmd == "purge-demo":
         from .api.common import set_setting
         from .services.demo import purge_demo

@@ -56,6 +56,14 @@ Per provare l'interfaccia prima che arrivino i dati reali, nella pagina **Fonti 
 
 Paladex si aggiorna da solo: a ogni avvio con **Avvia Paladex** scarica l'ultima versione (servono il programma `git` e una cartella scaricata con `git`) e, se servono, le librerie nuove. Se non c'è connessione o qualcosa non va, parte semplicemente la versione attuale. I dati (`data/`) e le chiavi (`.env`) non vengono mai toccati; i nuovi dati iniziali inclusi in una versione si aggiungono solo dove mancano. Per disattivare l'aggiornamento automatico: creare nella cartella un file vuoto chiamato `.no-auto-update`. Aggiornamento manuale: `git pull` nella cartella `paladex`.
 
+### Correzioni e secondo computer
+
+Quando un dato è sbagliato (per esempio un prezzo), lo si scrive a parole nel riquadro **«Segnala o correggi»**: «il prezzo del miele argentino di settembre non è 3,20 ma 3,40». L'intelligenza artificiale capisce di quale dato si tratta e propone «valore attuale → nuovo valore» scegliendo solo tra i dati veri presenti in Paladex; nulla cambia finché non si preme **Conferma**. Da quel momento il valore corretto compare ovunque con la scritta «corretto da *nome* il *data*»; il valore ufficiale della fonte resta nello storico e un clic su **Annulla** lo ripristina. Si può anche solo segnalare un dato come dubbio (apre una segnalazione nella pagina Fonti e qualità dati) o lasciare una nota su un paese. Le offerte dei fornitori non vanno qui: Paladex le riconosce e rimanda alla pagina riservata **Offerte**, senza inviarle all'IA. Se più tardi la fonte pubblica un valore diverso, vale quello della fonte e un avviso lo segnala; se ripubblica lo stesso valore di prima, la correzione resta. Senza chiave IA si usa un semplice modulo (dato, valore, motivo).
+
+**Il computer del papà (o un secondo computer)** si installa esattamente come quello del titolare: Python, poi la cartella `paladex` **scaricata con `git`** (`git clone` del repository GitHub di Paladex) usando un account GitHub autorizzato a **scrivere** nel repository (la prima volta Windows/Mac chiede di accedere a GitHub e ricorda l'accesso), poi **Avvia Paladex**. La chiave dell'IA si incolla sullo schermo (pagina **Assistente** → «Servizio IA e chiave»); il nome che appare sulle correzioni si sceglie nella stessa finestra delle correzioni (oppure `PALADEX_USER_NAME=Mario` nel file `.env`).
+
+**Che cosa viaggia e che cosa no.** Ogni correzione, segnalazione o nota diventa un piccolo file nel ramo `paladex-corrections` dello stesso repository GitHub (nessun servizio nuovo, nessuna password nuova): Paladex lo invia subito dopo la conferma e legge quelli degli altri computer all'avvio e ogni 15 minuti, poi anche la copia per il telefono li applica ogni mattina. Viaggiano solo: chi ha corretto, quando, il dato corretto, il valore ufficiale e quello nuovo, il motivo e le parole scritte. **Non lasciano mai il computer:** le offerte dei fornitori, le chiavi (`.env`), il database (`data/`), gli avvisi e le domande all'assistente. Senza internet o senza accesso a GitHub le correzioni restano sul computer («da inviare») e partono da sole appena possibile. Se un altro computer ha già un valore ufficiale diverso, la correzione non viene applicata lì ma mostrata come «in conflitto», da verificare. **Lo scambio è spento finché non lo si accende**, una volta, su ogni computer che deve scambiare le correzioni (interruttore «Scambia le correzioni con gli altri computer», oppure `PALADEX_CORRECTIONS_SYNC=true` nel file `.env`): così una copia di prova o una seconda cartella non pubblica mai niente da sola. Da spento, le correzioni restano su questo computer.
+
 ### Backup
 
 Tutti i dati si trovano nella cartella `data/` e le chiavi nel file `.env`. Per fare una copia di sicurezza, chiudere Paladex e copiare la cartella `data/` e il file `.env`.
@@ -88,6 +96,8 @@ python -m paladex sources                   # status of every source
 python -m paladex seed-demo | purge-demo    # clearly-labelled demo data on/off
 python -m paladex starter-import            # merge the shipped real starter data (serve does it)
 python -m paladex starter-build --from /path/to/paladex.sqlite3   # (developers) rebuild starter/
+python -m paladex corrections-sync          # exchange corrections with the other computers now (git branch paladex-corrections)
+python -m paladex corrections-apply --from-git   # only read and apply them (the phone copy does this)
 python -m paladex serve --no-browser
 ```
 

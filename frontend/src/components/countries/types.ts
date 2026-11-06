@@ -3,6 +3,7 @@ import type { Freshness, SourceBrief } from '@/lib/types'
 import type {
   CountryTotal, FlowsResponse, Provider, SourceUsed, TradeFigures, TradeProv, TradeSeries,
 } from '@/components/trade/types'
+import type { YtdSection } from '@/components/trade/ytd'
 
 export type MapMetric = 'exports' | 'imports' | 'production' | 'news'
 
@@ -58,6 +59,8 @@ export interface ProductionPoint extends TradeProv {
 export interface ProductionSeries {
   source: SourceBrief | null; unit: string; frequency: string; points: ProductionPoint[]
   latest: ProductionPoint; is_demo: boolean; freshness: Freshness | null
+  /** next year of the series and when its source says it comes out (FAOSTAT: year Y in December Y+1) */
+  next_release?: { year: number; expected: string; overdue: boolean } | null
 }
 
 export interface ProductionMetric { metric: string; series: ProductionSeries[] }
@@ -75,6 +78,8 @@ export interface TradeFlowSection {
   discrepancies: { period_label: string; diff_pct: number; values: { source: SourceBrief | null; net_weight_kg: number }[] }[]
   partners: FlowsResponse | null
   mirror: { declared_flow: string; rows: MirrorRow[]; count: number } | null
+  /** the year so far from monthly data, ahead of the full years (absent in older answers) */
+  ytd?: YtdSection
 }
 
 export interface PriceRow extends TradeProv {

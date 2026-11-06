@@ -1,5 +1,6 @@
 // Response of GET /api/overview (backend/paladex/api/overview.py). Page-specific types.
-import type { Freshness, FreshnessStatus, SourceBrief } from '@/lib/types'
+import type { CorrectionInfo, Freshness, FreshnessStatus, SourceBrief } from '@/lib/types'
+import type { YtdLeaders } from '@/components/trade/ytd'
 
 export interface Provider { key: string; name: string; publisher: string | null; enabled: boolean; last_run_status: string | null }
 
@@ -81,6 +82,15 @@ export interface PriceTile {
   mom_period_label: string | null
   yoy_pct: number | null
   yoy_period_label: string | null
+  /** the stored row shown (what a person can correct) and its correction by a person, if any */
+  row_id?: number | null
+  correction?: CorrectionInfo | null
+  /** the newest earlier figure of the same series and product, when the month/year before is missing */
+  earlier_pct?: number | null
+  earlier_period_label?: string | null
+  /** the missing comparison period; `source_has_period` false = the source published nothing then */
+  mom_missing?: { period_label: string; source_has_period: boolean | null } | null
+  yoy_missing?: { period_label: string; source_has_period: boolean | null } | null
   spark: { period_label: string; value: number }[]
   freshness: ItemFreshness
   source: SourceBrief | null
@@ -206,6 +216,8 @@ export interface TradeBlock {
   frequency: 'A' | 'M' | null
   importers: TradeSide | null
   exporters: TradeSide | null
+  /** the year so far from monthly customs data, ahead of the annual ranking (absent in older answers) */
+  ytd?: { importers?: YtdLeaders; exporters?: YtdLeaders } | null
   updated_at: string | null
   latest_published_at?: string | null
   sources: SourceWithFreshness[]

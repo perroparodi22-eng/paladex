@@ -24,6 +24,7 @@ from paladex import config
 from paladex.collectors import usda
 from paladex.collectors.base import CollectorError, redact_url
 from paladex.collectors.usda import (
+    MmnDocument,
     NotAHoneyReport,
     ace_origin,
     chars_to_words,
@@ -40,6 +41,7 @@ from paladex.collectors.usda import (
     parse_gats_release_dates,
     parse_honey_report_lines,
     parse_honey_report_pdf,
+    parse_mmn_filerepo,
     parse_nass_rows,
     parse_price_token,
     pdf_to_lines,
@@ -301,6 +303,7 @@ JUNE_2025_FIRST = "real_fvmhoney_2025-06-30_first_p1-2.pdf"
 JUNE_2025_CORRECTED = "real_fvmhoney_2025-06-30_corrected_p1-2.pdf"
 APRIL_2025_IMAGES = "real_fvmhoney_2025-04-30_p1.pdf"
 TOMATO = "real_esmis_misfiled_tomato_2025-05-15_p1.pdf"
+MAY_2026_IMPORTS = "real_fvmhoney_2026-05-29_p1-9-10.pdf"       # MyMarketNews copy
 
 
 def test_real_two_column_page_is_split_and_compressed_glyphs_read():
@@ -441,6 +444,19 @@ def test_real_misfiled_esmis_file_is_not_a_honey_report():
 # =============================================================================================
 # National Honey Report - state machine on text layouts (edge cases)
 # =============================================================================================
+
+
+def test_real_import_table_without_title_is_skipped_not_filed_under_the_table_above():
+    """The May 29, 2026 issue prints an import table without its title (original p.10, here p.3). Its rows
+    used to be filed under the HTS 0409000065 table above it (Ukraine $2.33/kg over the page-9 figure of
+    $7.88/kg); the HTS code is unknown, so they are skipped."""
+    parse = real(MAY_2026_IMPORTS)
+    assert parse.issue_date == date(2026, 5, 29) and parse.market_month == (2026, 4)
+    assert {(r.hts_code, r.page, r.year, r.month) for r in parse.imports} == {("0409000065", 2, 2026, 4)}
+    assert len(parse.imports) == 86
+    assert [(r.kilograms, r.value) for r in parse.imports if r.origin_iso3 == "UKR"] == [(12366, 97431)]
+    assert [w[:110] for w in parse.warnings if "without a title" in w] == [
+        "p.3: import table without a title (after 'Natural Honey, Not For Retail Sale, Amber or Darker (HTS Cod') - its"]
 
 
 def test_text_layout_floral_source_and_organic_carry_down_the_colour_column():
@@ -632,10 +648,57 @@ def esmis_listing(dates=tuple(ESMIS_FILES)) -> bytes:
     return json.dumps(payload).encode()
 
 
+MMN_FILES_BASE = "https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/2901/"
+MMN_PAGE0 = r"^https://mymarketnews\.ams\.usda\.gov/filerepo/reports\?field_slug_id_value=2901$"
+MMN_PAGE1 = r"^https://mymarketnews\.ams\.usda\.gov/filerepo/reports\?field_slug_id_value=2901&page=1$"
+OCTOBER_2025_CORRECTED = "real_fvmhoney_2025-10-31_corrected_p1-2-10.pdf"
+SEPTEMBER_2026 = "real_fvmhoney_2026-09-30_p1-2-11.pdf"
+# MyMarketNews listing date -> (document URL as in the REAL listing, fixture served: page subsets of the
+# issue; the December 2024 and March 2025 subsets were cut from the ESMIS copy of the same issue)
+MMN_FILES = {
+    "2024-12-26": (MMN_FILES_BASE + "2024-12-26/1182116/ams_2901_00062.pdf", DECEMBER_2024),
+    "2025-03-28": (MMN_FILES_BASE + "2025-03-28/1232225/ams_2901_00065.pdf", MARCH_2025),
+    "2025-05-15": (MMN_FILES_BASE + "2025-05-15/1244645/ams_2901_00067.pdf", TOMATO),     # also misfiled here
+    "2025-11-12": (MMN_FILES_BASE + "2025-11-12/1285160/ams_2901_00078.pdf", OCTOBER_2025_CORRECTED),
+    "2026-09-30": (MMN_FILES_BASE + "2026-09-30/1355143/ams_2901_00094.pdf", SEPTEMBER_2026),
+    # a re-upload of the September 2026 issue: the very same file (checked live, sha256 d6e043d4...)
+    "2026-10-23": (MMN_FILES_BASE + "2026-10-23/1360720/ams_2901_00095_01.pdf", SEPTEMBER_2026),
+    "2026-10-30": (MMN_FILES_BASE + "2026-10-30/1362397/ams_2901_00096.pdf", OCTOBER_2026),
+}
+# issues on file from ESMIS (March 2025) or the AMS URL (October 2026) are never requested from MyMarketNews
+MMN_NOT_ELSEWHERE = tuple(d for d in MMN_FILES if d not in ("2025-03-28", "2026-10-30"))
+
+
+def mmn_listing(dates: tuple[str, ...] | None = tuple(MMN_FILES), next_page: bool = True) -> bytes:
+    """The real MyMarketNews listing (page 0: 50 documents, 2023-07-26 .. 2026-10-30), restricted to
+    the rows of `dates` (None: all) and, without `next_page`, to a single page."""
+    text = fx("real_mmn_filerepo_2901_page0.html").decode()
+    if dates is not None:
+        def keep(m: re.Match) -> str:
+            found = re.search(r"/files/2901/(\d{4}-\d{2}-\d{2})/", m.group(0))
+            return m.group(0) if found is None or found.group(1) in dates else ""
+        text = re.sub(r"<tr>.*?</tr>", keep, text, flags=re.S)
+    if not next_page:
+        text = re.sub(r'<nav class="pager".*?</nav>', "", text, flags=re.S)
+    return text.encode()
+
+
+def mmn_routes(dates=MMN_NOT_ELSEWHERE, *, files=True, **override) -> dict:
+    """Listing pages 0 (filtered to MMN_FILES) and 1 (real), plus the documents of `dates`."""
+    routes = {MMN_PAGE0: (200, mmn_listing(), "text/html; charset=UTF-8"),
+              MMN_PAGE1: (200, fx("real_mmn_filerepo_2901_page1.html"), "text/html; charset=UTF-8")}
+    if files:
+        routes.update({MMN_FILES[d][0]: (200, fx(MMN_FILES[d][1]), "application/pdf") for d in dates})
+    routes.update(override)
+    return {k: v for k, v in routes.items() if v is not None}
+
+
 def honey_routes(**override):
     routes = {
         usda.ESMIS_FVMHONEY_URL: (200, esmis_listing(), "application/json"),
         usda.AMS_LATEST_URL: (200, fx(OCTOBER_2026), "application/pdf"),
+        # the MyMarketNews listing reduced to the issue the AMS URL serves: nothing to fill from it
+        MMN_PAGE0: (200, mmn_listing(dates=("2026-10-30",), next_page=False), "text/html; charset=UTF-8"),
     }
     for url, name in ESMIS_FILES.values():
         routes[url] = (200, fx(name), "application/pdf")
@@ -841,6 +904,214 @@ def test_esmis_retry_wait_does_not_hold_the_database_write_lock(run_with_routes,
         usda.ESMIS_FVMHONEY_URL: (200, b'{"results": []}', "application/json")}))
     assert res["status"] == "partial", res
     assert waits == [True] * usda.ESMIS_EMPTY_RETRIES
+
+
+# =============================================================================================
+# National Honey Report - MyMarketNews file repository (issues ESMIS no longer files)
+# =============================================================================================
+
+
+def test_parse_mmn_filerepo_real_listing():
+    """The real listing: 50 rows a page, newest first, links relative to /filerepo/reports."""
+    docs, more = parse_mmn_filerepo(fx("real_mmn_filerepo_2901_page0.html").decode(),
+                                    base_url=usda.MMN_FILEREPO_URL + "?field_slug_id_value=2901")
+    assert more is True and len(docs) == 50 == len({d.url for d in docs})
+    assert docs[0] == MmnDocument(date(2026, 10, 30), 1362397, MMN_FILES["2026-10-30"][0])
+    assert docs[-1].report_date == date(2023, 7, 26) and docs[-1].url.endswith("/1027770/ams_2901_00045_01.pdf")
+    assert {url for url, _ in MMN_FILES.values()} <= {d.url for d in docs}
+    assert [d.report_date for d in docs] == sorted((d.report_date for d in docs), reverse=True)
+    older, more = parse_mmn_filerepo(fx("real_mmn_filerepo_2901_page1.html").decode(), page=1)
+    assert more is True and len(older) == 50                      # the pager links to page 3 (page=2)
+    assert (older[0].report_date, older[-1].report_date) == (date(2023, 6, 27), date(2019, 7, 29))
+    # only PDF links of slug 2901 count; absolute links too; no pager link past this page
+    snippet = ('<a href="https://mymarketnews.ams.usda.gov/filerepo/sites/default/files/2901/2018-02-26/686229/'
+               'FV20180226MHONEY.PDF">x</a><a href="sites/default/files/3357/2026-10-30/1/ams_3357_00001.pdf">y</a>'
+               '<a href="?field_slug_id_value=2901&amp;page=0">1</a>')
+    docs, more = parse_mmn_filerepo(snippet)
+    assert [(d.report_date, d.node_id) for d in docs] == [(date(2018, 2, 26), 686229)] and more is False
+    assert parse_mmn_filerepo("<html>maintenance</html>") == ([], False)
+
+
+def test_months_back_and_gap_text():
+    assert usda.months_back(2026, 1, 1) == (2025, 12) and usda.months_back(2026, 9, 23) == (2024, 10)
+    assert usda._months_text(["2026-02", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-04"]) == \
+        "2025-09..2026-02, 2026-04 (7 months)"
+
+
+ESMIS_MARCH_ONLY = {usda.ESMIS_FVMHONEY_URL: (200, esmis_listing(("2025-03-28",)), "application/json")}
+
+
+def test_honey_report_fills_the_esmis_gap_from_mymarketnews(run_with_routes, session_factory):
+    """ESMIS lists only the March 2025 issue, the AMS URL serves October 2026: the issues in between
+    come from MyMarketNews (real listing rows, real issues), once each, through the same parser."""
+    res = run_with_routes("usda_honey_report", {**honey_routes(**ESMIS_MARCH_ONLY, **{MMN_PAGE0: None}),
+                                                **mmn_routes()})
+    assert res["status"] == "partial", res
+    warnings = "\n".join(res["warnings"])
+    assert "not processed" not in warnings and "unavailable" not in warnings, warnings   # nothing on file re-fetched
+    assert (f"MyMarketNews document {MMN_FILES['2025-05-15'][0]} is listed under slug 2901 but not a National "
+            "Honey Report (page 1 starts with 'TOMATO  FAX  REPORT'); ignored") in warnings
+    assert ("No issue on file for market month(s) 2024-10, 2024-12..2025-01, 2025-03..2025-08, 2025-10..2026-07 "
+            "(19 months)") in warnings
+    with session_factory() as s:
+        src = one(s, Source, Source.key == "usda_honey_report")
+        reports = {r.report_key: r for r in s.scalars(select(Report).where(Report.source_id == src.id))}
+        assert {k: (r.period_label, r.published_at.isoformat()) for k, r in reports.items()} == {
+            "2024-12-26": ("2024-11", "2024-12-26"), "2025-03-28": ("2025-02", "2025-03-28"),
+            "2025-11-12": ("2025-09", "2025-10-31"),        # listed Nov 12 (after the shutdown), printed Oct 31
+            "2026-09-30": ("2026-08", "2026-09-30"), "2026-10-30": ("2026-09", "2026-10-30")}
+        assert reports["2025-11-12"].title == "National Honey Report – October 31, 2025 (corrected copy)"
+        assert reports["2025-11-12"].url == MMN_FILES["2025-11-12"][0] and reports["2025-11-12"].raw_document_id
+        assert reports["2025-03-28"].url == ESMIS_FILES["2025-03-28"][0]        # ESMIS's copy kept, not doubled
+        state = s.get(AppSetting, "collector_state:usda_honey_report").value
+        assert MMN_FILES["2025-05-15"][0] in state["not_fvmhoney"]
+        assert state["mmn"]["files"] == {
+            MMN_FILES["2024-12-26"][0]: "stored as report 2024-12-26",
+            MMN_FILES["2025-11-12"][0]: "stored as report 2025-11-12",
+            MMN_FILES["2026-09-30"][0]: "stored as report 2026-09-30",
+            MMN_FILES["2026-10-23"][0]: "same file as report 2026-09-30",
+        }
+        assert len(state["mmn"]["missing"]) == 19 and state["mmn"]["checked"] == date.today().isoformat()
+
+        P = PriceObservation
+        current = P.is_current.is_(True)
+        oct25 = s.scalars(select(P).where(P.raw_document_id == reports["2025-11-12"].raw_document_id)).all()
+        assert len(oct25) == 62 + 9     # 50 beekeeper + 12 importer prices, 9 ACE unit values (Uruguay: no value)
+        assert {(p.published_at, p.source_url, p.is_current) for p in oct25} == {
+            (date(2025, 10, 31), MMN_FILES["2025-11-12"][0], True)}
+        assert {(p.period_label, p.extra["corrected_copy"]) for p in oct25 if p.price_type != "import_unit_value"} \
+            == {("2025-09", True)}
+        arg = one(s, P, P.period_label == "2025-09", P.origin_iso3 == "ARG", P.price_type == "wholesale_bulk",
+                  P.color_grade == "white")
+        assert (arg.price_low, arg.price_high, arg.price_value, arg.unit) == (1.46, 1.49, 1.475, "lb")
+        avocado = one(s, P, P.period_label == "2025-09", P.variety_raw == "Avocado")
+        assert (avocado.origin_label, avocado.price_type, avocado.price_value) == ("California", "producer", 2.00)
+        ace = one(s, P, P.price_type == "import_unit_value", P.origin_iso3 == "IND", P.period_label == "2025-09")
+        assert ace.price_value == round(7787355 / 4036106, 4) and ace.extra["hts_code"] == "0409000045"
+        sep26 = s.scalars(select(P).where(current, P.raw_document_id == reports["2026-09-30"].raw_document_id)).all()
+        assert len(sep26) == 66 + 11 and {p.published_at for p in sep26} == {date(2026, 9, 30)}
+        assert count(s, P, current, P.period_label == "2026-08", P.price_type != "import_unit_value") == 66
+        dec = s.scalars(select(P).where(current, P.raw_document_id == reports["2024-12-26"].raw_document_id)).all()
+        assert dec and {p.source_url for p in dec} == {MMN_FILES["2024-12-26"][0]}
+        georgia = one(s, P, P.period_label == "2024-11", P.origin_label == "Georgia")   # printed "GEORIGA"
+        assert georgia.extra["label_as_printed"] == "GEORIGA"
+        # the March 2025 issue exactly once, although MyMarketNews lists it as well
+        assert count(s, P, P.published_at == date(2025, 3, 28)) == 33 + 12
+        n = (count(s, P), count(s, Report), count(s, RawDocument))
+
+    # same day again: MyMarketNews is not asked twice a day (its routes are gone: a request would fail)
+    res2 = run_with_routes("usda_honey_report", honey_routes(**ESMIS_MARCH_ONLY, **{MMN_PAGE0: None}))
+    assert res2["status"] == "no_change", res2
+    with session_factory() as s:
+        assert (count(s, PriceObservation), count(s, Report), count(s, RawDocument)) == n
+
+
+def test_mymarketnews_reupload_of_a_stored_issue_is_not_stored_twice(run_with_routes, session_factory):
+    """A re-upload whose bytes differ (here: a trailing PDF comment) is recognised by the issue date
+    printed in it; a corrected copy would be stored (and supersede), a plain copy is not."""
+    routes = {
+        **honey_routes(**ESMIS_MARCH_ONLY, **{MMN_PAGE0: None}),
+        **mmn_routes(dates=("2026-09-30",), **{
+            MMN_PAGE0: (200, mmn_listing(("2026-09-30", "2026-10-23", "2026-10-30"), next_page=False), "text/html"),
+            MMN_FILES["2026-10-23"][0]: (200, fx(SEPTEMBER_2026) + b"\n% re-uploaded\n", "application/pdf")})}
+    res = run_with_routes("usda_honey_report", routes)
+    assert (f"MyMarketNews document {MMN_FILES['2026-10-23'][0]} is the issue of 2026-09-30, already on file "
+            "(report 2026-09-30); not stored twice") in res["warnings"]
+    with session_factory() as s:
+        assert sorted(r.report_key for r in s.scalars(select(Report))) == ["2025-03-28", "2026-09-30", "2026-10-30"]
+        files = s.get(AppSetting, "collector_state:usda_honey_report").value["mmn"]["files"]
+        assert files[MMN_FILES["2026-10-23"][0]] == "duplicate of report 2026-09-30"
+        assert count(s, PriceObservation, PriceObservation.published_at == date(2026, 9, 30)) == 66 + 11
+        n = (count(s, PriceObservation), count(s, Report), count(s, RawDocument))
+
+    # a forced run re-reads every listed document and re-stores the stored ones: nothing doubles
+    res = run_with_routes("usda_honey_report", routes, force=True)
+    assert res["status"] in ("partial", "success"), res
+    with session_factory() as s:
+        assert (count(s, PriceObservation), count(s, Report), count(s, RawDocument)) == n
+        files = s.get(AppSetting, "collector_state:usda_honey_report").value["mmn"]["files"]
+        assert files[MMN_FILES["2026-09-30"][0]] == "stored as report 2026-09-30"
+
+
+def _set_mmn_state(session_factory, **values) -> None:
+    with session_factory() as s:
+        row = s.get(AppSetting, "collector_state:usda_honey_report")
+        state = json.loads(json.dumps(row.value))
+        state.setdefault("mmn", {}).update(values)
+        row.value = state
+        s.commit()
+
+
+def test_mymarketnews_is_read_only_while_a_hole_is_new_or_once_a_month(run_with_routes, session_factory):
+    without_mmn = honey_routes(**ESMIS_MARCH_ONLY, **{MMN_PAGE0: None})
+    assert run_with_routes("usda_honey_report", {**without_mmn, **mmn_routes()})["status"] == "partial"
+    yesterday = date.fromordinal(date.today().toordinal() - 1).isoformat()
+
+    # next day, same hole, looked up yesterday: the listing is not read (a request would fail: no route)
+    _set_mmn_state(session_factory, attempted=yesterday)
+    res = run_with_routes("usda_honey_report", without_mmn)
+    assert res["status"] == "no_change", res
+
+    # a month later the same hole is looked up again: the listing only, every listed file is known
+    month_ago = date.fromordinal(date.today().toordinal() - usda.MMN_RECHECK_DAYS).isoformat()
+    _set_mmn_state(session_factory, attempted=yesterday, checked=month_ago)
+    res = run_with_routes("usda_honey_report", {**without_mmn, **mmn_routes(files=False)})
+    warnings = "\n".join(res["warnings"])
+    assert "No issue on file for market month(s)" in warnings and "not processed" not in warnings, warnings
+    with session_factory() as s:
+        state = s.get(AppSetting, "collector_state:usda_honey_report").value
+        assert state["mmn"]["checked"] == state["mmn"]["attempted"] == date.today().isoformat()
+
+    # a new hole (the newest issue is lost: the AMS URL moved on unseen) is looked up the next day
+    _set_mmn_state(session_factory, attempted=yesterday, missing=["2024-10"])
+    res = run_with_routes("usda_honey_report", {**without_mmn, **mmn_routes(files=False)})
+    assert any("No issue on file for market month(s)" in w for w in res["warnings"]), res
+
+
+def test_mymarketnews_is_not_read_when_no_month_is_missing(run_with_routes, monkeypatch, session_factory):
+    monkeypatch.setattr(usda, "MMN_GAP_MONTHS", 1)          # only the newest market month is checked
+    routes = honey_routes(**{MMN_PAGE0: None})
+    res = run_with_routes("usda_honey_report", routes)
+    assert not [w for w in res["warnings"] if "MyMarketNews" in w or "No issue on file" in w], res["warnings"]
+    with session_factory() as s:
+        assert "mmn" not in s.get(AppSetting, "collector_state:usda_honey_report").value
+
+
+def test_mymarketnews_unreachable_keeps_the_gap_and_says_so(db, monkeypatch, session_factory):
+    """The host accepts the connection and closes it without an answer (seen from the development
+    network): the run goes on with ESMIS and the AMS issue, reports the months still missing, and
+    does not try again before the next day."""
+    from paladex.collectors import base, runner
+    from paladex.collectors.runner import run_collector
+
+    monkeypatch.setattr(base.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(runner, "is_online", lambda *a, **k: True)
+
+    def run() -> tuple[dict, respx.MockRouter]:
+        with respx.mock(assert_all_called=False) as mock:
+            mock.get(url__regex=MMN_PAGE0).mock(
+                side_effect=httpx.RemoteProtocolError("Server disconnected without sending a response."))
+            for url, (status, body, ctype) in honey_routes(**{MMN_PAGE0: None}).items():
+                mock.get(url__startswith=url).mock(return_value=httpx.Response(
+                    status, content=body, headers={"content-type": ctype}))
+            mock.route().mock(side_effect=httpx.ConnectError("blocked in tests"))
+            with httpx.Client(follow_redirects=True) as client:
+                return run_collector("usda_honey_report", trigger="test", client=client), mock
+
+    res, mock = run()
+    assert res["status"] == "partial", res
+    gap = [w for w in res["warnings"] if w.startswith("MyMarketNews archive unavailable")]
+    assert gap == [("MyMarketNews archive unavailable (mymarketnews.ams.usda.gov: RemoteProtocolError Server "
+                    "disconnected without sending a response.); market months still without an issue: "
+                    "2024-10..2025-01, 2025-04, 2025-07..2026-08 (19 months)")], res["warnings"]
+    with session_factory() as s:
+        assert sorted(r.report_key for r in s.scalars(select(Report))) == [
+            "2025-03-28", "2025-04-30", "2025-07-01", "2025-07-02", "2026-10-30"]
+        assert s.get(AppSetting, "collector_state:usda_honey_report").value["mmn"] == {
+            "attempted": date.today().isoformat()}
+    res2, mock2 = run()
+    assert res2["status"] == "no_change", res2
+    assert not any("mymarketnews" in str(c.request.url) for c in mock2.calls)
 
 
 # =============================================================================================

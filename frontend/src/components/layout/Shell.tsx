@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
 import {
-  Archive, BarChart3, Bell, Bot, Building2, CloudSun, Database, FileText, Globe2, LayoutDashboard,
-  Menu, Newspaper, RefreshCw, Scale, Search, Ship, WifiOff, X,
+  Archive, BarChart3, Bell, Bot, Building2, ChevronDown, CloudSun, Database, FileText, Globe2, LayoutDashboard,
+  Menu, MoreHorizontal, Newspaper, RefreshCw, Scale, Search, Ship, WifiOff, X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -11,9 +11,11 @@ import { api } from '@/lib/api'
 import { fmtAgo } from '@/lib/format'
 import { isMirror } from '@/lib/mirror'
 import type { CollectState, SourceInfo } from '@/lib/types'
+import { useView } from '@/lib/view'
 import { FirstRunBanner } from './FirstRunBanner'
 import { MirrorStrip, mirrorHidesRoute, NotInCopy } from './MirrorStrip'
 import { AlertBell } from '@/components/alerts/AlertBell'
+import { ViewSwitch } from '@/components/simple/ViewSwitch'
 
 interface NavItem { to: string; key: string; icon: ReactNode; end?: boolean }
 
@@ -46,8 +48,65 @@ const NAV: { section: string; items: NavItem[] }[] = [
   },
 ]
 
+/** Simple view: the main entries, in this order; every other entry goes under "Altro". */
+export const SIMPLE_MAIN_ROUTES = ['/', '/prezzi', '/paesi', '/notizie', '/offerte']
+
+const routeActive = (pathname: string, item: NavItem) =>
+  item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`)
+
+function NavItemLink({ item }: { item: NavItem }) {
+  const { t } = useI18n()
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      className={({ isActive }) =>
+        clsx(
+          'flex items-center gap-3 px-5 py-2.5 text-[0.95rem] border-l-[3px] transition-colors',
+          isActive ? 'bg-forest-800 border-gold text-ivory' : 'border-transparent text-forest-100/85 hover:bg-forest-800/60 hover:text-ivory',
+        )
+      }
+    >
+      <span className="opacity-90">{item.icon}</span>
+      <span>{t(item.key)}</span>
+    </NavLink>
+  )
+}
+
+/** Simple view menu: the five main entries in larger type, then "Altro" (closed unless the page
+ * shown is one of its entries). */
+function SimpleNav() {
+  const { t } = useI18n()
+  const { pathname } = useLocation()
+  const all = NAV.flatMap((g) => g.items).filter((i) => !mirrorHidesRoute(i.to))
+  const main = SIMPLE_MAIN_ROUTES.map((to) => all.find((i) => i.to === to)).filter((i): i is NavItem => Boolean(i))
+  const rest = all.filter((i) => !SIMPLE_MAIN_ROUTES.includes(i.to))
+  const restActive = rest.some((i) => routeActive(pathname, i))
+  const [moreOpen, setMoreOpen] = useState(restActive)
+  useEffect(() => { if (restActive) setMoreOpen(true) }, [restActive])
+  return (
+    <nav className="flex-1 overflow-y-auto py-3" data-menu="simple">
+      <div className="mb-3 [&_a]:py-3 [&_a]:text-[1.05rem]">
+        {main.map((item) => <NavItemLink key={item.to} item={item} />)}
+      </div>
+      {rest.length > 0 && (
+        <div className="border-t border-forest-700/60 pt-2">
+          <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen} aria-controls="menu-more"
+            className="flex w-full items-center gap-3 px-5 py-2.5 text-left text-[0.95rem] text-forest-100/85 hover:bg-forest-800/60 hover:text-ivory border-l-[3px] border-transparent">
+            <span className="opacity-90"><MoreHorizontal size={19} /></span>
+            <span className="flex-1">{t('simple.menu.more')}</span>
+            <ChevronDown size={16} className={clsx('transition-transform', moreOpen && 'rotate-180')} aria-hidden />
+          </button>
+          {moreOpen && <div id="menu-more">{rest.map((item) => <NavItemLink key={item.to} item={item} />)}</div>}
+        </div>
+      )}
+    </nav>
+  )
+}
+
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n()
+  const { simple } = useView()
   // Phones: when the menu opens, keyboard focus moves into it (onto its close button). Deferred: the
   // menu's visibility transition still reads "hidden" at its first instant, which would ignore focus().
   const closeButton = useRef<HTMLButtonElement>(null)
@@ -85,29 +144,16 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
         </div>
         <div className="mt-2 text-[0.68rem] text-forest-300 tracking-wide">{t('app.heritage')}</div>
       </div>
-      <nav className="flex-1 overflow-y-auto py-3">
-        {groups.map((group) => (
-          <div key={group.section} className="mb-3">
-            <div className="px-5 py-1.5 text-[0.66rem] uppercase tracking-[0.18em] text-forest-300/80">{t(group.section)}</div>
-            {group.items.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  clsx(
-                    'flex items-center gap-3 px-5 py-2.5 text-[0.95rem] border-l-[3px] transition-colors',
-                    isActive ? 'bg-forest-800 border-gold text-ivory' : 'border-transparent text-forest-100/85 hover:bg-forest-800/60 hover:text-ivory',
-                  )
-                }
-              >
-                <span className="opacity-90">{item.icon}</span>
-                <span>{t(item.key)}</span>
-              </NavLink>
-            ))}
-          </div>
-        ))}
-      </nav>
+      {simple ? <SimpleNav /> : (
+        <nav className="flex-1 overflow-y-auto py-3">
+          {groups.map((group) => (
+            <div key={group.section} className="mb-3">
+              <div className="px-5 py-1.5 text-[0.66rem] uppercase tracking-[0.18em] text-forest-300/80">{t(group.section)}</div>
+              {group.items.map((item) => <NavItemLink key={item.to} item={item} />)}
+            </div>
+          ))}
+        </nav>
+      )}
       <LanguageSwitch />
     </aside>
   )
@@ -215,6 +261,9 @@ function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean })
           </form>
         )}
         <div className="flex items-center gap-2 sm:gap-4 ml-auto">
+          {/* "Vista: Semplice | Completa": in the bar from tablet width up, and on the phone copy (its
+              bar has room); on a computer's narrow window it sits just under the bar (Shell). */}
+          <ViewSwitch className={mirror ? undefined : 'max-sm:hidden'} />
           {!online && (
             <span className="flex items-center gap-1.5 text-sm text-warn" title={t('top.offline')}><WifiOff size={16} /> <span className="hidden sm:inline">{t('top.offline')}</span></span>
           )}
@@ -277,6 +326,11 @@ export function Shell({ children }: { children: ReactNode }) {
       {menuOpen && <div className="md:hidden fixed inset-0 z-[1090] bg-forest-950/50" onClick={closeMenu} aria-hidden />}
       <div className="flex-1 min-w-0 flex flex-col">
         <TopBar onMenu={openMenu} menuOpen={menuOpen} />
+        {!isMirror() && (
+          <div className="sm:hidden flex justify-end border-b border-line-soft bg-paper px-4 py-2">
+            <ViewSwitch label="always" />
+          </div>
+        )}
         <main className="flex-1 px-4 py-5 md:px-8 md:py-7 max-w-[1600px] w-full min-w-0">
           {mirrorHidesRoute(location.pathname) ? <NotInCopy /> : children}
         </main>

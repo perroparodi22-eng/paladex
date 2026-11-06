@@ -9,6 +9,16 @@
 
 So historical observations are never overwritten, and a revision by the publisher is
 visible as such.
+
+When the current row of a series is a person's correction (reliability ``user``, written by
+services/corrections.py with `add_revision`), a re-read of the source is compared with the OFFICIAL
+values the correction replaced (``extra.correction.official_hash``), not with the corrected ones:
+
+* the same official values         -> "unchanged": the correction stays current; the official
+                                      revision's `last_seen_at` is bumped (it is still published)
+* other values (the source moved)  -> "revised": the source's new value becomes current over the
+                                      correction, the correction event is marked
+                                      `superseded_by_source` and a notice is raised
 """
 from __future__ import annotations
 
@@ -63,18 +73,81 @@ def _current_rows(session: Session, model: type, source_id: int, series_key: str
     return [r for r in rows if r.source_id == source_id and r.is_current and bool(r.is_demo) == bool(is_demo)]
 
 
+def correction_of(row) -> dict | None:
+    """The `extra.correction` record of a row written for a person's correction, else None."""
+    if row is None or getattr(row, "reliability", None) != "user":
+        return None
+    extra = row.extra if isinstance(row.extra, dict) else None
+    corr = extra.get("correction") if extra else None
+    return corr if isinstance(corr, dict) and corr.get("event_id") else None
+
+
+def current_row(session: Session, model: type, source_id: int, series_key: str, is_demo: bool = False):
+    """The current row of a series (the newest revision if, abnormally, several are current)."""
+    rows = _current_rows(session, model, source_id, series_key, is_demo)
+    return max(rows, key=lambda r: (r.revision or 1, r.id)) if rows else None
+
+
+def add_revision(session: Session, model: type, current, **fields):
+    """Insert a new current revision of `current`'s series with the given column values (used by
+    services/corrections.py for a person's correction and for undoing it). `current` is kept, with
+    `is_current` cleared, exactly as when the source revises a figure."""
+    if model not in VALUE_FIELDS:
+        raise TypeError(f"Unsupported observation model {model!r}")
+    now = utcnow()
+    fields.setdefault("collected_at", now)
+    row = model(source_id=current.source_id, series_key=current.series_key, value_hash=value_hash(model, fields),
+                is_demo=current.is_demo, last_seen_at=now, **fields)
+    current.is_current = False
+    row.revision = (current.revision or 1) + 1
+    row.supersedes_id = current.id
+    session.add(row)
+    session.flush()
+    return row
+
+
+def _fill_late_metadata(row, fields: dict) -> None:
+    # Late metadata (e.g. publication date discovered later) may be filled, never changed.
+    for k in ("published_at", "source_url", "raw_document_id"):
+        if getattr(row, k) is None and fields.get(k) is not None:
+            setattr(row, k, fields[k])
+
+
+def _record_over_correction(session: Session, model: type, current, corr: dict, vh: str,
+                            fields: dict) -> tuple[Outcome, object]:
+    """`record()` when the current row is a person's correction (see the module docstring)."""
+    now = utcnow()
+    if vh == corr.get("official_hash"):
+        official = session.get(model, corr["official_row_id"]) if corr.get("official_row_id") else None
+        if official is not None:
+            official.last_seen_at = now
+            _fill_late_metadata(official, fields)
+        return "unchanged", current
+    row = model(source_id=current.source_id, series_key=current.series_key, value_hash=vh, is_demo=current.is_demo,
+                collected_at=now, last_seen_at=now, **fields)
+    current.is_current = False
+    row.revision = (current.revision or 1) + 1
+    row.supersedes_id = current.id
+    session.add(row)
+    session.flush()
+    from .corrections import on_source_superseded
+
+    on_source_superseded(session, model, current, row, corr)
+    return "revised", row
+
+
 def record(session: Session, model: type, *, source_id: int, series_key: str, is_demo: bool = False, **fields) -> tuple[Outcome, object]:
     if model not in VALUE_FIELDS:
         raise TypeError(f"Unsupported observation model {model!r}")
     vh = value_hash(model, fields)
     current = next(iter(_current_rows(session, model, source_id, series_key, is_demo)), None)
+    corr = correction_of(current)
+    if corr is not None:
+        return _record_over_correction(session, model, current, corr, vh, fields)
     now = utcnow()
     if current is not None and current.value_hash == vh:
         current.last_seen_at = now
-        # Late metadata (e.g. publication date discovered later) may be filled, never changed.
-        for k in ("published_at", "source_url", "raw_document_id"):
-            if getattr(current, k) is None and fields.get(k) is not None:
-                setattr(current, k, fields[k])
+        _fill_late_metadata(current, fields)
         return "unchanged", current
 
     row = model(
@@ -112,6 +185,12 @@ def retire(session: Session, model: type, *, source_id: int, series_key: str, is
         row.is_current = False
     if rows:
         session.flush()
+        corrected = [(r, c) for r in rows if (c := correction_of(r)) is not None]
+        if corrected:
+            from .corrections import on_source_withdrawn
+
+            for r, c in corrected:
+                on_source_withdrawn(session, model, r, c)
     return len(rows)
 
 

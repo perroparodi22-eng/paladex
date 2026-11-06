@@ -1,4 +1,5 @@
 // Responses of /api/trade/* (backend/paladex/api/trade.py). Also reused by the country profile.
+import type { CorrectionBrief } from '@/components/corrections/types'
 import type { Freshness, SourceBrief } from '@/lib/types'
 
 export type TradeFlow = 'import' | 'export'
@@ -30,6 +31,10 @@ export interface TradeProv {
   data_status: string | null
   reliability: string | null
   is_demo: boolean
+  /** a value corrected by a person among the rows of this figure (services/corrections.py) */
+  correction?: CorrectionBrief | null
+  /** the stored row when the figure is exactly one row: what a person can correct */
+  row_id?: number | null
 }
 
 export interface TradeFigures {

@@ -10,6 +10,7 @@ import { useI18n } from '@/i18n'
 import { fmtPct } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import { countryName } from './parts'
+import { ProfileYtd } from './ProfileYtd'
 import type { CountryProfile, TradeFlowSection } from './types'
 
 export function ProfileTrade({ p }: { p: CountryProfile }) {
@@ -20,6 +21,7 @@ export function ProfileTrade({ p }: { p: CountryProfile }) {
   const [flow, setFlow] = useState<TradeFlow>(has(exp) || !has(imp) ? 'export' : 'import')
   const s = flow === 'export' ? exp : imp
   const anyDemo = s.series.some((x) => x.is_demo) || Boolean(s.mirror?.rows.some((r) => r.is_demo)) || Boolean(s.partners?.is_demo)
+    || Boolean(s.ytd?.own?.is_demo) || Boolean(s.ytd?.mirror?.rows.some((r) => r.is_demo))
   return (
     <Panel
       title={t('countries.trade.title')}
@@ -48,6 +50,9 @@ function FlowView({ p, s, flow }: { p: CountryProfile; s: TradeFlowSection; flow
   const providers = (flow === 'import' ? p.trade.providers_import : undefined) ?? p.trade.providers
   return (
     <div className="flex flex-col gap-6">
+      {/* the freshest period first: the year so far from monthly data, then the full years */}
+      <ProfileYtd s={s.ytd} flow={flow} name={name} today={p.today} />
+      {s.ytd && s.available && <div className="eyebrow -mb-4">{t('countries.ytd.fullYears')}</div>}
       {!s.available ? (
         <DataMissing compact what={t('countries.trade.noDeclared')} providers={providers} fallback={t('countries.trade.fallback')} />
       ) : (

@@ -272,6 +272,60 @@ def test_latest_changes_respect_gaps_and_staleness(api, db, sources):
     assert q["freq"] == "Q" and q["latest"]["n_points"] >= 1
 
 
+def test_latest_names_the_missing_comparison_and_the_source_gap(api, db, sources):
+    # USDA, Nov 2026: no report between Sep 2025 and Aug 2026. Each month is stored with its own
+    # series_key (the month in it); the comparison follows the figure's identity instead: same
+    # source, type, origin, variety, colour grade, market and terms.
+    usda, onm = sources
+    terms = "bulk honey, paid to importers, duty paid, containers included"
+    add_price(db, usda, period=_ym(1), value=3.9, color="white", terms=terms)
+    add_price(db, usda, period=_ym(14), value=3.3, color="white", terms=terms)            # newest earlier report
+    add_price(db, usda, period=_ym(14), value=9.9, color="white", terms="other terms")    # never mixed in
+    add_price(db, onm, period=_ym(2), value=5.0, origin="ITA", market="ITA", currency="EUR")   # another source
+    add_price(db, usda, period=_ym(1), value=2.2, origin="UKR", variety="sunflower")
+    db.commit()
+
+    rows = api.get("/api/prices/latest?price_type=wholesale_bulk&origin=ARG&origin=UKR").json()["rows"]
+    arg = next(r for r in rows if r["origin_iso3"] == "ARG" and r["terms"] == terms)
+    assert arg["previous"] is None and arg["year_ago"] is None
+    assert arg["missing"]["previous"] == {"period_label": _ym(2), "source_has_period": False}
+    assert arg["missing"]["year_ago"] == {"period_label": _ym(13), "source_has_period": False}
+    assert arg["earlier"]["period_label"] == _ym(14) and arg["earlier"]["value"] == pytest.approx(3.3)
+    assert arg["change_earlier_pct"] == pytest.approx(18.18, abs=0.01)
+    assert next(r for r in rows if r["origin_iso3"] == "UKR")["earlier"] is None
+
+    # the source did publish the month before (for another origin), just not this figure
+    add_price(db, usda, period=_ym(2), value=2.0, origin="BRA", variety="clover")
+    db.commit()
+    ukr = api.get("/api/prices/latest?price_type=wholesale_bulk&origin=UKR").json()["rows"][0]
+    assert ukr["missing"]["previous"] == {"period_label": _ym(2), "source_has_period": True}
+
+    # an exact comparison leaves nothing missing
+    add_price(db, usda, period=_ym(2), value=3.8, color="white", terms=terms)
+    add_price(db, usda, period=_ym(13), value=3.0, color="white", terms=terms)
+    db.commit()
+    arg = next(r for r in api.get("/api/prices/latest?price_type=wholesale_bulk&origin=ARG").json()["rows"] if r["terms"] == terms)
+    assert arg["missing"] == {"previous": None, "year_ago": None}
+    assert arg["previous"]["period_label"] == _ym(2) and arg["earlier"]["period_label"] == _ym(2)
+
+
+def test_a_point_of_one_stored_row_names_it_for_corrections(api, db, sources):
+    # The interface offers "Segnala o correggi" on a figure that is one stored row (POST
+    # /api/corrections needs its id); an average of several quotations names none.
+    usda, _ = sources
+    one = add_price(db, usda, period=_ym(1), value=3.0)
+    add_price(db, usda, period=_ym(1), value=2.0, origin="UKR", variety="sunflower")
+    add_price(db, usda, period=_ym(1), value=2.4, origin="UKR", variety="sunflower", terms="second quote")
+    db.commit()
+    rows = {(r["origin_iso3"], r["terms"]): r for r in api.get("/api/prices/latest?price_type=wholesale_bulk").json()["rows"]}
+    assert rows[("ARG", None)]["latest"]["row_id"] == one.id
+    weekly = add_price(db, usda, period="2026-W40", value=2.0, origin="BRA", freq="W")
+    add_price(db, usda, period="2026-W41", value=2.2, origin="BRA", freq="W")
+    db.commit()
+    bra = next(r for r in api.get("/api/prices/latest?price_type=wholesale_bulk&origin=BRA").json()["rows"])
+    assert bra["latest"]["row_id"] is None and weekly.id       # a month of two weekly quotes
+
+
 def test_compare_uses_each_series_latest_point_in_window(api, db, sources):
     usda, _ = sources
     add_price(db, usda, period="2026-10", value=3.0)

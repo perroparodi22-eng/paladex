@@ -2,12 +2,27 @@
 import { useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { DemoBadge, FreshnessBadge, Panel, Segmented, SourceLine, StatusBadge } from '@/components/ui'
+import { RowCorrection } from '@/components/corrections/FixButton'
 import { AXIS_TICK, AXIS_TICK_MONO, DataMissing, GRID_STROKE, SERIES_COLORS } from '@/components/trade/bits'
 import { useI18n } from '@/i18n'
 import { fmtDate, fmtNumber, fmtProdUnit } from '@/lib/format'
-import type { CountryProfile, ProductionMetric, ProductionPoint } from './types'
+import { fmtMonthLong } from '@/components/trade/ytd'
+import type { CountryProfile, ProductionMetric, ProductionPoint, ProductionSeries } from './types'
 
 const TABLE_ROWS = 8
+
+/** "ultimo anno FAO (il 2025 è previsto a dicembre 2026)": the newest year of a series whose source
+ * publishes on a known calendar is the latest available, not an old figure. */
+export function useNextRelease() {
+  const { t, lang } = useI18n()
+  return (s: Pick<ProductionSeries, 'next_release' | 'source'>): string | null => {
+    const n = s.next_release
+    if (!n) return null
+    const fao = s.source?.key === 'faostat'
+    const key = `countries.prod.${fao ? 'nextReleaseFao' : 'nextRelease'}${n.overdue ? 'Late' : ''}`
+    return t(key, { n: n.year, m: fmtMonthLong(n.expected, lang) })
+  }
+}
 
 export function ProfileProduction({ data }: { data: CountryProfile['production'] }) {
   const { t } = useI18n()
@@ -42,6 +57,7 @@ type Row = { label: string } & Record<string, number | ProductionPoint | string 
 
 function MetricView({ m, title }: { m: ProductionMetric; title: string }) {
   const { t, lang } = useI18n()
+  const nextRelease = useNextRelease()
   const keys = m.series.map((s, i) => `${s.source?.key ?? 's'}|${s.unit}|${i}`)
   const units = Array.from(new Set(m.series.map((s) => s.unit)))
   // Different units are never put on one axis: chart the first unit, list everything in the table.
@@ -117,8 +133,9 @@ function MetricView({ m, title }: { m: ProductionMetric; title: string }) {
           {m.series.map((s, i) => (
             <div key={keys[i]} className="flex flex-wrap items-center gap-2">
               {m.series.length > 1 && <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }} />}
-              <SourceLine p={{ source: s.source, published_at: s.latest.published_at, source_url: s.latest.source_url, is_demo: s.is_demo }} />
+              <SourceLine p={{ source: s.source, published_at: s.latest.published_at, source_url: s.latest.source_url, is_demo: s.is_demo, correction: s.latest.correction }} />
               {s.freshness && <FreshnessBadge status={s.freshness.status} ageDays={s.freshness.age_days} />}
+              {nextRelease(s) && <span className="text-[0.8rem] text-muted">· {nextRelease(s)}</span>}
             </div>
           ))}
           {m.series.length > 1 && <div className="text-[0.8rem] text-muted">{t('countries.prod.oneSource')}</div>}
@@ -142,7 +159,14 @@ function MetricView({ m, title }: { m: ProductionMetric; title: string }) {
                 <td className="py-1.5 px-2 num text-right whitespace-nowrap" title={p.flag_raw ? t('countries.prod.flag', { f: p.flag_raw }) : undefined}>
                   {fmtNumber(p.value, lang, digits(p.value))} <span className="text-muted text-[0.8em]">{fmtProdUnit(p.unit, lang)}</span>
                 </td>
-                <td className="py-1.5 px-2"><StatusBadge status={p.data_status ?? 'published'} /></td>
+                <td className="py-1.5 px-2">
+                  <StatusBadge status={p.data_status ?? 'published'} />
+                  <span className="ml-2"><RowCorrection correction={p.correction} figure={p.row_id && !p.is_demo ? {
+                    table: 'production_stats', row_id: p.row_id, value: p.value, unit: p.unit, currency: null,
+                    label: `${title} · ${p.period_label} · ${s.source?.publisher || s.source?.name || ''}`,
+                    period_label: p.period_label,
+                  } : null} /></span>
+                </td>
                 {m.series.length > 1 && (
                   <td className="py-1.5 px-2 text-[0.82rem] text-muted" title={s.source?.publisher || s.source?.name}>
                     {/* max-width does not apply to a table cell itself, only to a block inside it */}

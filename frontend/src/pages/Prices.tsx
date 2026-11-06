@@ -18,8 +18,29 @@ import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { isMirrorMissing } from '@/lib/mirror'
 import { useLabels } from '@/lib/meta'
+import { useView } from '@/lib/view'
+import { Details } from '@/components/simple/Details'
+import { SimplePrices } from '@/components/simple/SimplePrices'
 
 export default function Prices() {
+  const { t } = useI18n()
+  const { simple } = useView()
+  if (!simple) return <FullPrices />
+  // Simple view (lib/view.tsx): short tables first; the full page, filters included, one click away.
+  return (
+    <div>
+      <PageHeader eyebrow={t('prices.eyebrow')} title={t('prices.title')} subtitle={t('simple.pt.subtitle')} />
+      <SimplePrices details={
+        <Details label={t('simple.pt.details')} hint={t('simple.pt.detailsHint')}>
+          <FullPrices embedded />
+        </Details>
+      } />
+    </div>
+  )
+}
+
+/** The full page; `embedded` (inside the simple view's details) leaves out the page title. */
+function FullPrices({ embedded = false }: { embedded?: boolean }) {
   const { t, lang } = useI18n()
   const { country, variety, priceType } = useLabels()
   const { state, update, reset, apiFilters, from, hasDimFilters } = usePriceFilters()
@@ -110,7 +131,7 @@ export default function Prices() {
 
   return (
     <div>
-      <PageHeader
+      {!embedded && <PageHeader
         eyebrow={t('prices.eyebrow')}
         title={t('prices.title')}
         subtitle={t('prices.subtitle')}
@@ -127,7 +148,7 @@ export default function Prices() {
             </div>
           </div>
         ) : undefined}
-      />
+      />}
 
       <FilterBar facets={hasType ? facets.data : undefined} typeCounts={typeCounts} state={state} update={update} reset={reset} hasDimFilters={hasDimFilters} />
 

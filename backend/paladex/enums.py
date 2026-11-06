@@ -104,6 +104,7 @@ class QualityIssueType(StrEnum):
     DISCREPANCY = "discrepancy"      # two sources disagree for the same thing
     PARSE_WARNING = "parse_warning"
     COLLECTION_FAILED = "collection_failed"
+    USER_FLAG = "user_flag"          # a person marked a figure as doubtful (services/corrections.py)
 
 
 class Severity(StrEnum):

@@ -2,11 +2,12 @@
 // - the headline tiles showed an estimate (FAOSTAT flag E, Comtrade estimate) as a plain figure, and
 //   the production tile picked the first source even when another had published a newer year;
 // - the curated harvest season was English in the Italian page ("Apr–Sep");
-// - the map legend read "0 – 0" for the smallest class and "2,4K" (not Italian) for thousands;
+// - the map legend read "0 – 0" for the smallest class and "2,4K" (not Italian) for thousands (the
+//   classes are now fixed tonnages, map tests in countries-map.test.tsx);
 // - USDA colour grades were shown as raw English keys ("light amber") in the price table.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { fmtBound } from '@/components/countries/metrics'
+import { fmtClassRange } from '@/components/countries/metrics'
 import { harvestSeason } from '@/components/countries/ProfileSections'
 import type { CountryProfile } from '@/components/countries/types'
 import { KpiRow } from '@/pages/CountryDetail'
@@ -76,14 +77,18 @@ test('the harvest season is written in Italian on the Italian page', () => {
   assert.equal(harvestSeason('Apr–Sep', 'en'), 'Apr–Sep')
 })
 
-test('map legend bounds: small volumes keep decimals, Italian thousands read "mila"', () => {
-  assert.equal(fmtBound(0.09, 'exports', 'it'), '0,09')
-  assert.equal(fmtBound(2.37, 'exports', 'it'), '2,4')
-  assert.equal(fmtBound(60.5, 'exports', 'it'), '61')
-  assert.equal(fmtBound(2364.84, 'exports', 'it'), '2,4 mila')
-  assert.equal(fmtBound(175521.3, 'exports', 'it'), '175,5 mila')
-  assert.doesNotMatch(fmtBound(2364.84, 'exports', 'it'), /K/)
-  assert.equal(fmtBound(12, 'news', 'it'), '12')
+test('map legend: fixed classes read as contiguous ranges with Italian grouping (never "K" or "mila")', () => {
+  assert.equal(fmtClassRange(null, 100, 'exports', 'it'), '< 100 t')
+  assert.equal(fmtClassRange(100, 1000, 'exports', 'it'), '100 – 1.000 t')
+  assert.equal(fmtClassRange(1000, 5000, 'exports', 'it'), '1.000 – 5.000 t')
+  assert.equal(fmtClassRange(50000, null, 'exports', 'it'), '≥ 50.000 t')
+  assert.equal(fmtClassRange(50000, 100000, 'production', 'it'), '50.000 – 100.000 t')
+  assert.equal(fmtClassRange(50000, null, 'imports', 'en'), '≥ 50,000 t')
+  assert.doesNotMatch(fmtClassRange(1000, 5000, 'exports', 'it'), /K|mila/)
+  // news: whole articles
+  assert.equal(fmtClassRange(null, 2, 'news', 'it'), '1')
+  assert.equal(fmtClassRange(2, 4, 'news', 'it'), '2 – 3')
+  assert.equal(fmtClassRange(21, null, 'news', 'it'), '≥ 21')
 })
 
 test('one news article is singular in the headline tile', () => {

@@ -43,6 +43,7 @@ from ..models import (
     TradeFlowObservation,
 )
 from ..reference.countries import PRIORITY_ISO3
+from ..services.corrections import row_correction
 from .common import demo_clause, iso, source_brief, sources_by_id
 
 router = APIRouter(prefix="/archive", tags=["archive"])
@@ -444,6 +445,7 @@ def production_history(
                 "change_pct": _pct(r.value, prev) if freq == "A" else None,
                 "data_status": r.data_status, "published_at": iso(r.published_at), "collected_at": iso(r.collected_at),
                 "source_url": r.source_url, "is_demo": r.is_demo, "revision": r.revision,
+                "correction": row_correction(r),
             })
             prev_by_year[y] = r.value
         src = srcs.get(sid)
@@ -574,7 +576,11 @@ def _revision_entry(r, kind: str) -> dict:
     base = {"id": r.id, "revision": r.revision, "is_current": r.is_current, "supersedes_id": r.supersedes_id,
             "published_at": iso(r.published_at), "collected_at": iso(r.collected_at),
             "last_seen_at": iso(r.last_seen_at), "data_status": r.data_status, "source_url": r.source_url,
-            "is_demo": r.is_demo}
+            "is_demo": r.is_demo, "reliability": r.reliability,
+            # a revision written for a person's correction ("corrected by ..."), or the official values
+            # restored when it was undone
+            "correction": row_correction(r),
+            "reverted_correction": (r.extra or {}).get("reverted_correction") if isinstance(r.extra, dict) else None}
     if kind == "price":
         return {**base, "value": r.price_value, "low": r.price_low, "high": r.price_high, "currency": r.currency,
                 "unit": r.unit, "volume_kg": r.volume_kg}
