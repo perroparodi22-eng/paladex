@@ -165,8 +165,15 @@ jobs:
           EOF
           python -c "import sqlite3, os; c = sqlite3.connect(os.path.join(os.environ['PALADEX_DATA_DIR'], 'paladex.sqlite3')); c.execute('PRAGMA wal_checkpoint(TRUNCATE)'); c.close()"
 
+      # Existence check by the shell: hashFiles() on the database (300+ MB) exceeded the runner's
+      # 120 s limit on 7 Nov 2026 and failed the whole job before the copy was built.
+      - name: Is there a database to keep?
+        id: db
+        if: always()
+        run: if [ -f ci-data/paladex.sqlite3 ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; fi
+
       - name: Keep the database for the next run
-        if: always() && hashFiles('ci-data/paladex.sqlite3') != ''
+        if: always() && steps.db.outputs.exists == 'true'
         uses: actions/cache/save@v5
         with:
           path: ci-data
