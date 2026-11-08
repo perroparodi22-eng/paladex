@@ -131,14 +131,15 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
 
 ## 6. Open items (in rough priority order)
 
-1. **Phone copy refresh**: confirm the first run after the hashFiles fix publishes (deploy live, 0 failed
-   requests, `{"report_links": N, "served": N}` in the build step).
-2. **USDA National Honey Report gap Sep 2025 - Aug 2026**: the 12 issues exist in the official
-   MyMarketNews file repository (`mymarketnews.ams.usda.gov/filerepo/reports?field_slug_id_value=2901`);
-   the collector reads it automatically (right away when a month is missing, then at most daily), but
-   the host timed out from the dev network and from GitHub on 6 Nov, so the starter and the phone copy
-   still lack those months. Check whether the owner's PC filled them; if not, look for another official
-   route. Never use the Internet Archive as the stored source.
+1. **Phone copy refresh: verified working on 8 Nov.** Manual run 10 (00:15-00:43 UTC) after both workflow
+   fixes: collection 11.6 min (67 sources: 4 success, 4 partial, 40 no change, 3 failed: aduana.cl 403,
+   TAXUD HTTP 500 on the Commission's side, dgft.gov.in 403), cache saved, 1,751 pages, 0 failed requests,
+   0 JavaScript errors, saved USDA report served, deploy live. Keep an eye on the scheduled runs.
+2. **USDA gap Sep 2025 - Aug 2026: filled in the phone copy** (run 10 read every issue from 31 Oct 2025 to
+   30 Sep 2026 from the MyMarketNews file repository). The shipped starter data still lacks those months
+   (rebuild it from a database that has them at the next starter rebuild); the owner's PC fetches them
+   by itself. GDELT news: rate-limited on GitHub ("one request every 5 seconds", a few searches postponed
+   per run) and refused from the dev network since 4 Nov; worth a look if the news section thins out.
 3. **Father's PC setup** (not done yet): Python + clone of this private repository with a GitHub
    account that has access, start Paladex, set the author name ("Firmi come… cambia" -> "Papà"), paste an
    AI key (optional; without it the box works as a form), and switch on the exchange on BOTH computers.
