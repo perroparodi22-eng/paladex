@@ -168,12 +168,12 @@ jobs:
       # Existence check by the shell: hashFiles() on the database (300+ MB) exceeded the runner's
       # 120 s limit on 7 Nov 2026 and failed the whole job before the copy was built.
       - name: Is there a database to keep?
-        id: db
+        id: keepdb
         if: always()
         run: if [ -f ci-data/paladex.sqlite3 ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; fi
 
       - name: Keep the database for the next run
-        if: always() && steps.db.outputs.exists == 'true'
+        if: always() && steps.keepdb.outputs.exists == 'true'
         uses: actions/cache/save@v5
         with:
           path: ci-data

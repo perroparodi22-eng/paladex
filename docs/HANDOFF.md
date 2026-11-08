@@ -93,8 +93,9 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   this file on purpose; ask the owner if a local run needs them.
 - **7 Nov failure (fixed in this handoff's commit):** the cache-save step's condition
   `hashFiles('ci-data/paladex.sqlite3')` hashed the 300+ MB database and exceeded the runner's 120 s
-  limit, failing the job before the copy was built. Replaced by a shell existence check. **Verify the
-  next run** (scheduled or manual) publishes.
+  limit, failing the job before the copy was built. Replaced by a shell existence check (step id
+  `keepdb`; the first version reused the id `db` and made the file invalid until fixed on 8 Nov).
+  **Verify the next run** (scheduled or manual) publishes.
 - `scripts/mirror/prepare_db.py` keeps only listed tables (`KEEP`); a new table is private until added
   there (web_findings was added on 6 Nov).
 
@@ -172,5 +173,6 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
 - The container can restart mid-work (background agents stop; resume them by id) and the account has a
   5-hour usage limit (agents stop with HTTP 429; resume after the reset).
 - GitHub scheduled runs can start hours late; `hashFiles()` on big files can time out.
+- Validate workflow edits with actionlint (`pip install actionlint-py`, then `actionlint -shellcheck= .github/workflows/mirror.yml`), not only a YAML parser: on 8 Nov a duplicate step id (`db`) made GitHub reject the whole file (instant "failed" runs on every push, emails to the owner, no daily run) although it parsed as YAML.
 - Check a figure's history before trusting a comparison: the empty "a month ago" column revealed the
   USDA gap.
