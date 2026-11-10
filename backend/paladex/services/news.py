@@ -389,6 +389,15 @@ _GATE_STRONG = _words([
     r"bienenvolker\w*", r"ruches?", r"bee colon\w*", r"colonie di api", r"colonias de abejas",
     r"colony collapse", r"royal jelly", r"pappa reale", r"jalea real", r"propoli\w*",
     r"miere", r"mierii", r"mierea",                       # Romanian: honey (apicultor* is matched by apicult*)
+    # More European languages (folded; ł and ø have no accent to strip, so both spellings are given).
+    # Words that mean something else in another language are in _GATE_UNFOLDED / _GATE_LANGUAGE_ONLY.
+    r"miod(?!rag)\w*", r"pszczo[lł]\w*", r"pszczel\w*",   # Polish (not the name "Miodrag")
+    r"bijenhoud\w*", r"bijenvolk\w*",                     # Dutch (imker* is above)
+    r"honung\w*", r"biodl\w*",                            # Swedish
+    r"honning\w*", r"biavl\w*", r"bir[oø]kt\w*",          # Danish, Norwegian
+    r"hunaja\w*", r"mehilai\w*",                          # Finnish
+    r"medus", r"medaus", r"bitinink\w*", r"biskopib\w*", r"biskopj\w*",   # Latvian, Lithuanian (not "biskop": bishop)
+    r"mesinik\w*", r"mesindus\w*",                        # Estonian
     r"(?:hs|nc|cn|code|codice|partida|heading|voce|subheading)[\s.]*(?:code[\s.]*)?0409\w*",
 ])
 # Non-Latin scripts / languages without spaces (GDELT queries in ZH, UK, RU, VI, SR).
@@ -402,16 +411,28 @@ _GATE_STRONG_RAW = re.compile(
     # (not медов*: "медовий місяць" is a honeymoon)
     r"(?<!\w)(?:мед|меду|меда|медом|бджіл\w*|бджол\w*|пасічн\w*|пасік\w*|пчел\w*|пасек\w*|пасеч\w*)(?!\w)|"
     r"(?<!\w)(?:mat ong|nuoi ong)(?!\w)|"                 # Vietnamese (accents folded): honey, beekeeping
-    r"(?<!\w)(?:pcel\w*|izvoz meda|meda)(?!\w)"          # Serbian/Croatian (folded): bee*, honey export
+    r"(?<!\w)(?:pcel\w*|izvoz meda|meda)(?!\w)|"         # Serbian/Croatian (folded): bee*, honey export
+    r"(?<!\w)(?:μελι|μελιου|μελια|μελισσ\w*)(?!\w)"      # Greek (accents folded): honey, bee*, beekeep*
 )
 # Hungarian: "méz" (honey) differs from "mez" (a sports jersey) only by its accent, and folded
 # "mezo..." is "field / agriculture", so Hungarian is matched on the unfolded, lower-cased text:
 # méz, mézet, akácméz, mézpiac, mézexport..., méhész (beekeeper), méhészet, méhcsalád (colony).
-_GATE_HU_RAW = re.compile(r"(?<!\w)(?:\w*méz(?!ga)\w*|méhész\w*|méhcsalád\w*)(?!\w)")
-# Serbian / Croatian / Bosnian Latin "med" (honey) is "medical" elsewhere: the bare word (and its
-# cases) only in items of those languages; "meda" and "izvoz meda" above cover the rest.
-_GATE_MED_SR = _words([r"med", r"medu", r"medom"])
-_SOUTH_SLAVIC = ("sr", "hr", "bs", "sh")
+# Czech / Slovak "včel*" and Slovenian "čebel*" (bee, beekeeper) are matched with their caron for the
+# same reason: folded "cebel" is the start of Turkish "Cebelitarık" (Gibraltar).
+_GATE_HU_RAW = re.compile(r"(?<!\w)(?:\w*méz(?!ga)\w*|méhész\w*|méhcsalád\w*|včel\w*|čebel\w*)(?!\w)")
+# Words that are honey in one language and something else in another: counted only in items of
+# their own language (the feed's or the item's declared language).
+#   "med" (Serbian, Croatian, Bosnian, Slovenian, Czech, Slovak) is "medical" elsewhere; "meda" and
+#       "izvoz meda" above cover the rest;
+#   "honing" (Dutch) is English "honing a skill";
+#   "pasieka" (Polish: apiary) collides with Lithuanian "pasiekė" (reached);
+#   "mjaltë" (Albanian) with Icelandic "mjaltir" (milking).
+_GATE_LANGUAGE_ONLY: list[tuple[tuple[str, ...], re.Pattern]] = [
+    (("sr", "hr", "bs", "sh", "sl", "cs", "sk"), _words([r"med", r"medu", r"medom", r"medem", r"medy"])),
+    (("nl",), _words([r"honing\w*"])),
+    (("pl",), _words([r"pasiek\w*", r"pasiecz\w*"])),
+    (("sq",), _words([r"mjalt\w*", r"bletar\w*", r"blet[eë]t?"])),
+]
 # Portuguese "mel" is a name elsewhere (Mel Gibson): bare "mel" only in Portuguese items,
 # otherwise only in unmistakable Portuguese phrases.
 _GATE_MEL_PT = _words([r"mel"])
@@ -435,8 +456,9 @@ def honey_terms(text: str, language: str | None = None) -> list[str]:
     mel = _GATE_MEL_PT if (language or "").startswith("pt") else _GATE_MEL_PHRASES
     found += [m.group(0) for m in mel.finditer(t)]
     found += [m.group(0) for m in _GATE_HU_RAW.finditer(unicodedata.normalize("NFC", text or "").lower())]
-    if (language or "")[:2] in _SOUTH_SLAVIC:
-        found += [m.group(0) for m in _GATE_MED_SR.finditer(t)]
+    for languages, rx in _GATE_LANGUAGE_ONLY:
+        if (language or "")[:2] in languages:
+            found += [m.group(0) for m in rx.finditer(t)]
     if found and all(f == "miele" for f in found) and _APPLIANCE.search(t):
         return []  # Miele (the appliance maker), not miele (honey)
     if not found:
@@ -468,7 +490,13 @@ TOPICS: dict[str, dict] = {
                   r"цін[аиуіо]\w*", r"цен[аыуеоя]\w*", r"подорожча\w*", r"подорожа\w*", r"подешев\w*",
                   r"cen[aeiu] med[au]", r"otkupn\w* cen\w*", r"gia (?:ban |xuat khau )?mat ong",
                   # Romanian / Hungarian (folded): the price of honey, purchase price
-                  r"pretul", r"preturi\w*", r"mezar\w*", r"felvasarlasi ar\w*"],
+                  r"pretul", r"preturi\w*", r"mezar\w*", r"felvasarlasi ar\w*",
+                  # Polish, Czech / Slovak, Dutch, Nordic, Finnish, Greek, Bulgarian, Lithuanian. Bare
+                  # "cena" is dinner in Spanish and "pris" is "taken" in French: phrases or inflected forms only
+                  r"cen[ayeę] miodu", r"cen[ay] skupu", r"skup\w* miodu", r"cen[ayu] medu", r"vykupn\w* cen\w*",
+                  r"honingprij\w*", r"prijzen", r"priser", r"priset", r"prisen", r"honungspris\w*", r"honningpris\w*",
+                  r"hinta", r"hinnat", r"hintoj\w*", r"hunajan hint\w*", r"τιμη", r"τιμες", r"τιμων",
+                  r"цени\w*", r"изкупн\w* цен\w*", r"kain[aosu]\w*", r"cijen\w*"],
         "raw": [(r"\d\s*(?:€|eur|euros?|usd|us\$|\$|dollars?|dolares|cents?|centavos|pesos|reais|r\$)?\s*"
                  r"(?:/|per|al|el|por|pro|a)\s*(?:kg|kilo\w*|chilo\w*|lbs?|libbr\w*|libras?|pound|tonn?e?s?\b|"
                  r"tonnellat\w*|tonelad\w*)"),
@@ -498,7 +526,12 @@ TOPICS: dict[str, dict] = {
                   r"извоз\w*", r"увоз\w*", r"izvoz\w*", r"uvoz\w*", r"xuat khau", r"nhap khau",
                   # Romanian / Hungarian (folded)
                   r"exporturi\w*", r"importuri\w*", r"mezexport\w*", r"mezimport\w*", r"importmez\w*",
-                  r"kivitel\w*", r"behozatal\w*"],
+                  r"kivitel\w*", r"behozatal\w*",
+                  # Polish / Baltic / Nordic "eksport*", inflected "import*", Czech / Slovak dovoz / vývoz,
+                  # Dutch invoer / uitvoer, Finnish tuonti / vienti, Greek, Bulgarian износ / внос
+                  r"eksport\w*", r"importu", r"importem", r"importowan\w*", r"importen", r"dovoz\w*", r"vyvoz\w*",
+                  r"invoer\w*", r"uitvoer\w*", r"tuonti\w*", r"vienti\w*", r"tuontihunaj\w*",
+                  r"εξαγωγ\w*", r"εισαγωγ\w*", r"износ\w*", r"внос\w*"],
         "raw": [r"出口|进口|進口|贸易|貿易"],
     },
     "adulteration": {
@@ -728,6 +761,8 @@ _CJK_COUNTRIES: dict[str, str] = {
 _CASE_SENSITIVE = {"turkey": "Turkey", "chile": "Chile", "polish": "Polish"}
 # Phrases removed before country matching (food, US states, idioms).
 _COUNTRY_EXCLUSIONS = _words([
+    # Republika Srpska is part of Bosnia and Herzegovina, not Serbia ("pčelari u Srpskoj")
+    r"republi\w+ srpsk\w+", r"(?:u|iz) srpsk(?:oj|e)", r"републи\w+ српск\w+", r"(?:у|из) српск(?:ој|е)",
     r"new mexico", r"french (?:toast|fries|dressing|press)", r"greek yog(?:h)?urts?", r"yogurt greco",
     r"(?:honey[- ]?)?(?:glazed|roast(?:ed)?|smoked|ground|thanksgiving) turkey",
     r"turkey (?:breast|sandwich\w*|recipe\w*|dinner|meatballs?|burgers?)",

@@ -35,6 +35,7 @@ def test_country_feeds_are_registered_one_or_two_per_country(db):
         assert len(f.key) <= 60 and len(f.name) <= 200 and f.name_en
         per_country[f.country] = per_country.get(f.country, 0) + 1
     assert all(1 <= n <= 3 for n in per_country.values()), per_country
+    assert len(COUNTRY_FEEDS) == 76 and len(per_country) == 51
     # the origins the importer watches and its own markets are covered
     assert {"ARG", "UKR", "BRA", "MEX", "URY", "HUN", "ROU", "SRB", "CHN", "VNM", "IND", "TUR", "ITA", "ESP"} <= set(per_country)
     src = _news_source(db, "news_ar_infocampo_miel")
@@ -260,3 +261,54 @@ def test_search_does_not_glue_letters_across_characters_it_cannot_read():
 
     assert _fold("è€ñ") == "e n" and _fold("Türkiye") == "turkiye" and _fold("Côte d’Ivoire") == "cote d ivoire"
     assert _fold("  Miele  d'acacia ") == "miele d acacia"
+
+
+# ---------------------------------------------------------------------------
+# All of Europe (second part of the round)
+# ---------------------------------------------------------------------------
+
+
+def test_every_european_country_has_one_or_two_news_feeds():
+    from paladex.collectors.news_feeds import COUNTRY_FEEDS
+    from paladex.reference.countries import countries
+
+    europe = {c["iso3"] for c in countries() if c.get("region") == "Europe"}
+    per_country: dict[str, int] = {}
+    for f in COUNTRY_FEEDS:
+        per_country[f.country] = per_country.get(f.country, 0) + 1
+    assert len(europe) == 39 and not europe - set(per_country), sorted(europe - set(per_country))
+    assert all(1 <= per_country[c] <= 3 for c in europe)
+
+
+def test_honey_gate_reads_the_other_european_languages():
+    honey = [("Ceny miodu w skupie spadają, pszczelarze alarmują", "pl", "prices"),
+             ("Polska pasieka w kryzysie", "pl", None),
+             ("Včelaři hlásí slabou snůšku, ceny medu porostou", "cs", "prices"),
+             ("Slovenskí včelári: dovoz lacného medu ničí trh", "sk", "trade"),
+             ("Čebelarji: letina medu letos slaba", "sl", None),
+             ("Nederlandse imkers: honing uit China overspoelt de markt", "nl", None),
+             ("Svensk honung: biodlare larmar om fusk", "sv", None),
+             ("Dansk honning under pres fra billig import", "da", "trade"),
+             ("Birøktere frykter import av billig honning", "no", "trade"),
+             ("Hunajan tuonti kasvoi, mehiläishoitajat huolissaan", "fi", "trade"),
+             ("Lietuvos bitininkai: medaus kainos krenta", "lt", "prices"),
+             ("Latvijas biškopji: medus imports aug", "lv", "trade"),
+             ("Eesti mesinikud: mee hind langeb", "et", None),
+             ("Εξαγωγές μελιού: οι μελισσοκόμοι ζητούν ελέγχους", "el", "trade"),
+             ("Износът на български мед расте, цените падат", "bg", "trade"),
+             ("Çmimi i mjaltit rritet", "sq", None),
+             ("Cijena meda raste, pčelari zadovoljni", "hr", "prices")]
+    for title, lang, topic in honey:
+        a = ns.analyse(title, language=lang)
+        assert a.is_honey, title
+        assert topic is None or topic in a.topics, (title, a.topics)
+    # the same letters in another language are not honey
+    for title, lang in [("Elektros kaina Lietuvoje pirmadienį pasieks aukščiausią lygį", "lt"),   # Polish "pasieka"
+                        ("Noregur er mjaltaþjónaland Norðurlanda, sjálfvirkar mjaltir", "is"),      # Albanian "mjaltë"
+                        ("Honing your negotiation skills", "en"),                                    # Dutch "honing"
+                        ("Cebelitarık Boğazı'nda tatbikat", "tr"),                                   # Slovenian "čebel*"
+                        ("Miodrag Kostić kupuje fabriku", "sr"), ("Biskop Anders besöker Uppsala", "sv"),
+                        ("Medusa attack hits hospital", "en"), ("Tre mesi di pioggia", "it"),
+                        ("La cena de Navidad", "es"), ("Τα μέλη της επιτροπής συναντήθηκαν", "el"),
+                        ("Il a pris la décision", "fr"), ("Med school rankings 2026", "en")]:
+        assert not ns.is_honey_related(title, language=lang), title
