@@ -369,6 +369,10 @@ COMEX_REPULL_MONTHS = 3                    # recent months are revised: re-pulle
 COMEX_RATE_LIMIT_RETRIES = 8
 COMEX_RATE_LIMIT_DELAY_S = 15.0
 COMEX_RATE_LIMIT_MAX_DELAY_S = 120.0
+# Seen from the owner's PC on 10 Nov 2026: a query sent right after the small look-up requests of
+# the same run was answered "limit exceeded, try again in 10 seconds", and one sent 12 seconds after
+# the previous request was answered at once. So the run pauses before its one query.
+COMEX_PAUSE_BEFORE_QUERY_S = 12.0
 
 # Candidate names (the server's own spelling, discovered at startup, wins).
 _COMEX_NCM_FILTER = ("ncm",)
@@ -790,8 +794,10 @@ class BrComexStatCollector(Collector):
                   "state of production. The latest months are revised: the trailing three months are "
                   "pulled again at every release and each change is kept as a revision. Export unit "
                   "values are derived (FOB / net kg), not market quotations.")
-    # One cheap freshness request a day; the data are pulled only when a new release appears.
-    schedule = {"trigger": "cron", "hour": 9, "minute": 40}
+    # One cheap freshness request four times a day; the data are pulled only when a new release
+    # appears. Once a day was too few chances: when the API's rate limit refused that one attempt
+    # (5, 6 and 10 Nov 2026 on the owner's PC) the new month waited a whole day, three times over.
+    schedule = {"trigger": "cron", "hour": "3,9,15,21", "minute": 40}
 
     def collect(self, ctx: CollectContext) -> None:
         state = _load_state(ctx)
@@ -846,6 +852,7 @@ class BrComexStatCollector(Collector):
         """POST the query with backoff on rate-limit answers. Returns (content, raw_id, unchanged).
         Only a usable answer is archived."""
         delay = COMEX_RATE_LIMIT_DELAY_S
+        time.sleep(COMEX_PAUSE_BEFORE_QUERY_S)
         for attempt in range(COMEX_RATE_LIMIT_RETRIES + 1):
             # retries=0: the backoff below is the only one (the generic quick retries of ctx.fetch
             # would only add requests inside the window the API is refusing).

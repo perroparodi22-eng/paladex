@@ -130,6 +130,31 @@ class RunCounters:
         self.newest_period_start = self.committed_newest_period_start
 
 
+# A home router's name service can fail for a few seconds at a time, and the operating system then
+# keeps answering "not found" from memory for about 5 seconds (seen on the owner's PC on 10 Nov
+# 2026: ten sources failed in one round with "getaddrinfo failed" while the connection worked;
+# each host answered again within 5-10 seconds). A failed look-up is therefore tried again after a
+# pause longer than that memory, a few times, before the source is reported unreachable.
+DNS_RETRIES = 4
+DNS_RETRY_WAIT_S = 6.0
+_DNS_ERROR_TEXT = ("getaddrinfo failed", "name or service not known", "temporary failure in name resolution",
+                   "nodename nor servname provided", "no address associated with hostname")
+
+
+def is_dns_failure(exc: BaseException) -> bool:
+    """True when a connection error is a failed name look-up (nothing was sent to the host)."""
+    import socket
+
+    seen = 0
+    cur: BaseException | None = exc
+    while cur is not None and seen < 6:
+        if isinstance(cur, socket.gaierror) or any(t in str(cur).lower() for t in _DNS_ERROR_TEXT):
+            return True
+        cur = cur.__cause__ or cur.__context__
+        seen += 1
+    return False
+
+
 class CollectContext:
     """Everything a collector needs: db session, polite HTTP, provenance-aware writers."""
 
@@ -181,11 +206,20 @@ class CollectContext:
             if wait > 0:
                 time.sleep(wait)
         attempt = 0
+        dns_failures = 0
         while True:
             attempt += 1
             try:
                 resp = self.client.request(method, url, params=params, headers=headers, json=json_body)
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+                if is_dns_failure(exc) and dns_failures < DNS_RETRIES:
+                    # The host's address could not be looked up: no request was sent, so this does
+                    # not count against `retries` (also for callers that pass retries=0 to protect
+                    # a rate limit). See DNS_RETRIES.
+                    dns_failures += 1
+                    attempt -= 1
+                    time.sleep(DNS_RETRY_WAIT_S)
+                    continue
                 if attempt > retries:
                     raise Offline(f"Cannot reach {host}: {exc}") from exc
                 time.sleep(2 * attempt)

@@ -55,7 +55,7 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
    then in a worktree (`git worktree add` once, then `git fetch <repo> $SHA && git reset --hard $SHA &&
    git clean -qfd -e frontend/node_modules`; symlink `frontend/node_modules` from the main checkout).
 2. Backend: `cd backend && PALADEX_ENV_FILE=/nonexistent .venv/bin/python -m pytest -x -q -o addopts=""`
-   (1,803 tests on 10 Nov; 6-9 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
+   (1,808 tests on 10 Nov; 6-9 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
    `-q` default. Tests set `PALADEX_CORRECTIONS_SYNC=false` themselves.
 3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (170 tests), `npx vite build`.
 4. The built `frontend/dist` IS committed (the owner's PC has no Node): copy the build from the clean
@@ -173,6 +173,19 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   his address without his yes). Does nothing when an AI provider is configured (the AI translates and
   replaces machine translations). Tests switch it off (`conftest.py`); `test_title_translate.py` mocks it.
   English titles are not produced (the allowance goes to Italian, the default language).
+- **China, India, Vietnam news = Google News searches (10 Nov, owner's explicit request: "use normal Google"):**
+  `GOOGLE_COUNTRY_FEEDS` in `collectors/news_feeds.py`, keys `news_google_*`, ON by default (the generic
+  `news_gn_*` searches stay opt-in). English searches keep only items whose own text names the country;
+  the Vietnamese and Chinese ones tag the country. First real run: India 4, Vietnam 13, China 12 articles.
+  Article links are Google redirect links (never resolved by the app); in a browser without Google
+  cookies the first visit shows Google's consent page.
+- **Brazil exports (Comex Stat) and failed name look-ups (10 Nov):** the owner's router fails DNS look-ups
+  for seconds at a time (Windows then answers "not found" from memory for ~5 s): ten sources failed in one
+  round with "getaddrinfo failed". `CollectContext.fetch` now retries a failed look-up 4 times, 6 s apart,
+  without counting it against `retries`. Comex Stat itself answered 429 to a query sent right after the
+  run's look-up requests and 200 twelve seconds later: the run pauses 12 s before its query and is
+  scheduled 4 times a day instead of once. Verified live: 41 new rows on a copy of the owner's database.
+  Still broken and not touched: ISMEA (the page no longer has a table; data stuck at June 2026).
 - **Most important news:** `services.news.importance` = relevance score + 3 per further outlet (max 3)
   - 1.5 per day of age. `/api/news?sort=top&days=30` (window counted by the server, so the phone copy
   can answer it) feeds "Le più importanti" at the top of Notizie (5 stories, hidden while filters are

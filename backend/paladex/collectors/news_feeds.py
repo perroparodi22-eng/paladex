@@ -84,6 +84,11 @@ class FeedSpec:
     # National honey-sector feed: its items are tagged with `country` even when the text does not
     # name it (an Argentine farm paper writes "la miel", not "la miel argentina").
     home_tag: bool = False
+    # A worldwide search about one country: only the items whose own text names `country` are kept
+    # (a search engine also returns stories that merely mention the country somewhere in the article).
+    require_country: bool = False
+    # Google News searches are opt-in (see _GN_TERMS); True for the ones the owner asked for.
+    on_by_default: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -106,11 +111,15 @@ _EDITIONS = {
     "es-ES": ("es", "ES", "ES:es", "spagnolo, edizione Spagna"),
     "pt-BR": ("pt-BR", "BR", "BR:pt-419", "portoghese, edizione Brasile"),
     "de": ("de", "DE", "DE:de", "tedesco"),
+    "en-IN": ("en-IN", "IN", "IN:en", "inglese, edizione India"),
+    "vi": ("vi", "VN", "VN:vi", "vietnamita"),
+    "zh": ("zh-CN", "CN", "CN:zh-Hans", "cinese"),
 }
 _EDITIONS_EN = {
     "en": "English, US edition", "en-GB": "English, UK edition", "it": "Italian",
     "es-AR": "Spanish, Argentina edition", "es-ES": "Spanish, Spain edition",
     "pt-BR": "Portuguese, Brazil edition", "de": "German",
+    "en-IN": "English, India edition", "vi": "Vietnamese", "zh": "Chinese",
 }
 
 
@@ -131,7 +140,8 @@ def google_news_url(query: str, edition: str, *, window: str = "7d") -> str:
     return f"https://news.google.com/rss/search?q={quote_plus(q)}&hl={hl}&gl={gl}&ceid={ceid}"
 
 
-def _gn(key: str, label: str, query: str, edition: str, *, max_age: int = 5, label_en: str = "") -> FeedSpec:
+def _gn(key: str, label: str, query: str, edition: str, *, max_age: int | None = 5, label_en: str = "",
+        window: str = "7d") -> FeedSpec:
     hl, gl, ceid, ed_label = _EDITIONS[edition]
     exclude = _GN_EXCLUDE.get(edition.split("-")[0])
     if exclude:
@@ -141,7 +151,7 @@ def _gn(key: str, label: str, query: str, edition: str, *, max_age: int = 5, lab
         name=f"Google News · {label} ({ed_label})",
         name_en=f"Google News · {label_en} ({_EDITIONS_EN[edition]})" if label_en else "",
         publisher="Google News (aggregatore)",
-        url=google_news_url(query, edition),
+        url=google_news_url(query, edition, window=window),
         language=edition.split("-")[0],
         reliability=Reliability.AGGREGATOR,
         country=None,
@@ -622,6 +632,61 @@ FEEDS += COUNTRY_FEEDS
 
 
 # ---------------------------------------------------------------------------
+# China, India, Vietnam: Google News searches (owner's request, 10 Nov 2026)
+# ---------------------------------------------------------------------------
+#
+# Three of the origins that matter most had no honey news: their trade press has no honey feed and
+# the general business feeds above (ECNS, BusinessLine, VietnamPlus) carried no honey item. The
+# owner asked to use "normal Google" for them and to keep it updating. So, unlike the generic Google
+# News searches at the top of this file (opt-in), these five are ON by default:
+#   * an English search per country, whole year, kept only when the headline itself names the
+#     country (`require_country`): Google also returns stories that mention it in passing;
+#   * a search in Vietnamese and one in Chinese (last 90 days), tagged with the country
+#     (`home_tag`): the national press does not name its own country.
+# Google's note on its feeds (personal, non-commercial readers) is shown on the Fonti page for
+# these too, where each can be switched off. Headline and link only; the link opens the article
+# through Google News.
+_GN_NOISE = '-"honey trap" -"honey-trap" -"honey pot" -scrap -"market size" -site:oec.world'
+_GN_OWNER_NOTE = ("Attivata su richiesta del titolare (10 nov 2026) per avere notizie di Cina, India e Vietnam; "
+                  "si può spegnere da questa pagina. ")
+
+
+def _gn_country(key: str, country: str, label: str, label_en: str, query: str, edition: str, *,
+                window: str, native: bool) -> FeedSpec:
+    import dataclasses
+
+    spec = _gn(key, label, query, edition, max_age=None, label_en=label_en, window=window)
+    months = "dell'ultimo anno" if window == "1y" else "degli ultimi 90 giorni"
+    months_en = "from the last year" if window == "1y" else "from the last 90 days"
+    return dataclasses.replace(
+        spec, key=f"news_google_{key}", country=country, home_tag=native, require_country=not native,
+        on_by_default=True, max_entry_age_days=DEFAULT_MAX_ENTRY_AGE_DAYS,
+        expected_update=f"Ricerca su Google controllata ogni 3 ore (articoli {months})",
+        expected_update_en=f"Google News search checked every 3 hours (articles {months_en})",
+        terms_note=_GN_OWNER_NOTE + _GN_TERMS.replace("DISATTIVATO DI DEFAULT: ", ""),
+    )
+
+
+GOOGLE_COUNTRY_FEEDS: list[FeedSpec] = [
+    _gn_country("in_honey", "IND", "miele in India (export, prezzi)", "honey in India (exports, prices)",
+                'intitle:honey (India OR Indian OR APEDA) (export OR exports OR price OR prices OR "anti-dumping" '
+                f'OR adulteration OR beekeepers OR production) {_GN_NOISE}', "en-IN", window="1y", native=False),
+    _gn_country("vn_honey", "VNM", "miele in Vietnam (export, dazi)", "honey in Vietnam (exports, duties)",
+                'intitle:honey (Vietnam OR Vietnamese) (export OR exports OR price OR prices OR "anti-dumping" '
+                f'OR tariff OR tariffs OR beekeepers OR production) {_GN_NOISE}', "en", window="1y", native=False),
+    _gn_country("vn_mat_ong", "VNM", "miele in Vietnam, stampa vietnamita", "honey in Vietnam, Vietnamese press",
+                '"mật ong" (xuất khẩu OR "giá mật ong" OR "chống bán phá giá" OR "sản lượng" OR "người nuôi ong")',
+                "vi", window="90d", native=True),
+    _gn_country("cn_honey", "CHN", "miele in Cina (export, prezzi)", "honey in China (exports, prices)",
+                'intitle:honey (China OR Chinese) (export OR exports OR imports OR production OR price OR prices '
+                f'OR adulteration OR tariff OR beekeepers) {_GN_NOISE}', "en", window="1y", native=False),
+    _gn_country("cn_fengmi", "CHN", "miele in Cina, stampa cinese", "honey in China, Chinese press",
+                "蜂蜜 (出口 OR 价格 OR 产量 OR 蜂农 OR 养蜂)", "zh", window="90d", native=True),
+]
+FEEDS += GOOGLE_COUNTRY_FEEDS
+
+
+# ---------------------------------------------------------------------------
 # Parsing (pure functions)
 # ---------------------------------------------------------------------------
 
@@ -801,6 +866,10 @@ class FeedCollector(Collector):
             if item["published_at"] is not None and item["published_at"] < oldest:
                 ctx.counters.count("filtered")  # archive item, not news
                 continue
+            if spec.require_country and spec.country not in news_service.tag_countries(
+                    f"{news_service.strip_html(item['title'])}\n{news_service.strip_html(item.get('snippet') or '')}"):
+                ctx.counters.count("filtered")  # the search matched, but the item is not about the country
+                continue
             try:
                 ctx.add_news(**item, home_country=home)
                 ctx.checkpoint()
@@ -837,7 +906,7 @@ def _make_collector(spec: FeedSpec, index: int) -> type[FeedCollector]:
         "terms_note": spec.terms_note,
         "schedule": _schedule(index),
         # Google News RSS is offered for personal, non-commercial use: opt-in from the Fonti page.
-        "default_enabled": spec.family != "google_news",
+        "default_enabled": spec.family != "google_news" or spec.on_by_default,
         "feed": property(lambda self, _s=spec: _s),
     }
     name = "NewsFeed_" + re.sub(r"\W", "_", spec.key)
