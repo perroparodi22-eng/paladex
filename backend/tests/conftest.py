@@ -32,6 +32,8 @@ def db(tmp_path, monkeypatch):
     # Corrections are never exchanged with the real repository's origin from a test (test_corrections.py
     # turns it on against a temporary bare repository).
     monkeypatch.setenv("PALADEX_CORRECTIONS_SYNC", "false")
+    # No test asks the translation service for headlines (test_title_translate.py mocks it).
+    monkeypatch.setenv("PALADEX_TITLE_TRANSLATION", "false")
     for k in ("PALADEX_COMTRADE_API_KEY", "PALADEX_USDA_MMN_API_KEY", "PALADEX_USDA_NASS_API_KEY",
               "PALADEX_ANTHROPIC_API_KEY", "PALADEX_OPENAI_API_KEY"):
         monkeypatch.delenv(k, raising=False)

@@ -2,7 +2,7 @@
 // the explicit list of what is NOT available.
 import { ArrowRight, BookOpen, CircleSlash, ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { AiBadge, Badge, DemoBadge, Note, Panel, StatusBadge } from '@/components/ui'
+import { AiBadge, Badge, DemoBadge, Note, Panel, StatusBadge, TranslatedBadge } from '@/components/ui'
 import { colorLabel } from '@/components/prices/utils'
 import { DataMissing, useProviderText } from '@/components/trade/bits'
 import { pickLang, useI18n } from '@/i18n'
@@ -122,7 +122,7 @@ function NewsLine({ n, strong = false }: { n: CountryProfile['news']['items'][nu
       </a>
       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8rem] text-muted">
         {n.is_demo && <DemoBadge />}
-        {isAi && <AiBadge />}
+        {isAi && <TranslatedBadge model={n.ai_model} />}
         <span className="text-charcoal-soft">{n.publisher || n.source?.publisher || n.source?.name}</span>
         {n.published_at && <span>· {fmtDate(n.published_at, lang)}</span>}
         {n.language && !sameLang && <span className="uppercase">· {n.language.slice(0, 2)}</span>}

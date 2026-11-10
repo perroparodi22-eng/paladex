@@ -21,6 +21,8 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   the map, totals or comparisons.
 - Links must open a page a person can read (`frontend/src/lib/links.ts`: machine-only addresses open
   the same publisher's own page; the exact address stays in the link's description).
+- Privacy (headline translation): the public headlines of foreign-language news go to MyMemory when no AI key
+  is set; nothing else does. Keep it that way: never excerpts with the owner's notes, never questions.
 - Privacy: supplier quotes never leave the computer (except anonymised "Offerta A/B/C" to the AI when
   the question is about offers); the company name is never sent to external sites or the AI;
   `.env` and `data/` are git-ignored; never commit keys. User-Agent: "Paladex/0.1 (internal research tool)".
@@ -53,9 +55,9 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
    then in a worktree (`git worktree add` once, then `git fetch <repo> $SHA && git reset --hard $SHA &&
    git clean -qfd -e frontend/node_modules`; symlink `frontend/node_modules` from the main checkout).
 2. Backend: `cd backend && PALADEX_ENV_FILE=/nonexistent .venv/bin/python -m pytest -x -q -o addopts=""`
-   (1,797 tests on 10 Nov; ~6 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
+   (1,803 tests on 10 Nov; 6-9 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
    `-q` default. Tests set `PALADEX_CORRECTIONS_SYNC=false` themselves.
-3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (169 tests), `npx vite build`.
+3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (170 tests), `npx vite build`.
 4. The built `frontend/dist` IS committed (the owner's PC has no Node): copy the build from the clean
    worktree into `frontend/dist` and commit it.
 5. New or changed collectors: run them for real into a scratch data dir
@@ -162,6 +164,15 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   Before adding a language, run its real feeds through `analyse` and read what passed. First real run: 28 of 28 feeds answered, about 140 honey articles stored
   (the database had 29). GDELT stays registered but has refused every request since 5 Nov, on the PC
   and on GitHub: the RSS feeds are what fills the news now.
+- **Headline translation without an AI key (10 Nov):** `services/title_translate.py` fills `title_it` with a
+  machine translation from MyMemory (free, no key; only the headline is sent), run after each collection
+  (`collectors/runner.py`), labelled "Traduzione automatica" (`ai_model = "mymemory"`, `display.title_by =
+  "machine"`, `MtBadge` / `TranslatedBadge` in `components/ui`). About 55 headlines a day per computer
+  (5,000 characters), unreadable languages and relevant articles first; ten times more with
+  `PALADEX_TITLE_TRANSLATION_EMAIL` (the owner was asked whether to set one: not answered yet, never set
+  his address without his yes). Does nothing when an AI provider is configured (the AI translates and
+  replaces machine translations). Tests switch it off (`conftest.py`); `test_title_translate.py` mocks it.
+  English titles are not produced (the allowance goes to Italian, the default language).
 - **Most important news:** `services.news.importance` = relevance score + 3 per further outlet (max 3)
   - 1.5 per day of age. `/api/news?sort=top&days=30` (window counted by the server, so the phone copy
   can answer it) feeds "Le più importanti" at the top of Notizie (5 stories, hidden while filters are

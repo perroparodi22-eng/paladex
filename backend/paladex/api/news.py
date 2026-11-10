@@ -21,6 +21,7 @@ from ..db import get_db
 from ..models import NewsArticle, Source, utcnow
 from ..reference.countries import country_name
 from ..services import news as news_service
+from ..services import title_translate
 from .common import demo_clause, iso, show_demo, source_brief
 
 router = APIRouter(tags=["news"])
@@ -143,6 +144,9 @@ def _display(a: NewsArticle, lang: str) -> dict:
     return {
         "title": title,
         "title_is_ai": title_is_ai,
+        # who translated the headline shown: an AI provider, or the keyless machine translation
+        # (services/title_translate.py), labelled differently on screen
+        "title_by": None if not title_is_ai else ("machine" if title_translate.is_machine(a.ai_model) else "ai"),
         "needs_translation": not same_lang and not ai_title,
         "summary": summary,
         "summary_is_ai": bool(summary),

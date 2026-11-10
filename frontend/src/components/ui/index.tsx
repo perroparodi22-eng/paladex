@@ -1,7 +1,7 @@
 // Design-system primitives. Keep pages consistent: Panel, PageHeader, Badge, StatTile,
 // SourceLine (provenance), FreshnessBadge, EmptyState, Loading/Error, Select, Segmented.
 import clsx from 'clsx'
-import { AlertTriangle, ExternalLink, Info, Loader2, Sparkles } from 'lucide-react'
+import { AlertTriangle, ExternalLink, Info, Languages, Loader2, Sparkles } from 'lucide-react'
 import type { ReactNode, SelectHTMLAttributes } from 'react'
 import { useI18n } from '@/i18n'
 import { fmtAgo, fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
@@ -82,6 +82,27 @@ export function AiBadge({ label }: { label?: string }) {
       <Sparkles size={11} /> {label ?? t('ui.ai')}
     </Badge>
   )
+}
+
+/** True when a stored translation came from the keyless machine translation (backend
+ *  services/title_translate.py stores "mymemory" as the model), not from an AI provider. */
+export function isMachineTranslation(model: string | null | undefined): boolean {
+  return (model ?? '').startsWith('mymemory')
+}
+
+/** A headline translated by a machine: always said, never passed off as the publisher's words. */
+export function MtBadge({ label }: { label?: string }) {
+  const { t } = useI18n()
+  return (
+    <Badge tone="outline" title={t('ui.mtTip')}>
+      <Languages size={11} /> {label ?? t('ui.mt')}
+    </Badge>
+  )
+}
+
+/** The right label for a translated headline: machine translation or AI. */
+export function TranslatedBadge({ model, by, label }: { model?: string | null; by?: 'machine' | 'ai' | null; label?: string }) {
+  return by === 'machine' || (by == null && isMachineTranslation(model)) ? <MtBadge /> : <AiBadge label={label} />
 }
 
 /** Data-status badge: published / provisional / estimate / forecast / AI / demo. */

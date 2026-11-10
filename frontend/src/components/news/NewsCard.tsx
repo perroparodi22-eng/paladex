@@ -3,7 +3,7 @@
 import clsx from 'clsx'
 import { ChevronDown, ExternalLink, Languages, Loader2 } from 'lucide-react'
 import { useState } from 'react'
-import { AiBadge, DemoBadge, ReliabilityBadge } from '@/components/ui'
+import { AiBadge, DemoBadge, MtBadge, ReliabilityBadge } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { ApiError } from '@/lib/api'
 import { fmtAgo } from '@/lib/format'
@@ -153,8 +153,9 @@ export function NewsCard({ item, actions }: { item: NewsItem; actions: CardActio
             </a>
           </h3>
           {d.title_is_ai && (
-            <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[0.86rem] text-muted" title={t('news.card.aiTitleTip', { model: aiModel })}>
-              <AiBadge label={t('news.card.aiTitle')} />
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[0.86rem] text-muted"
+              title={d.title_by === 'machine' ? t('ui.mtTip') : t('news.card.aiTitleTip', { model: aiModel })}>
+              {d.title_by === 'machine' ? <MtBadge /> : <AiBadge label={t('news.card.aiTitle')} />}
               <span>
                 {t('news.card.original', { lang: langName(item.language) })}:{' '}
                 <span className="italic text-charcoal-soft" lang={item.language ?? undefined}>{item.title}</span>

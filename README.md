@@ -42,6 +42,8 @@ I dati si aggiornano da soli mentre l'applicazione è aperta, e all'avvio se l'u
 
 Facoltativo: per leggere il prezzo minimo all'export del miele indiano (avvisi DGFT scansionati) installare il programma gratuito **Tesseract OCR** (Windows: installer «UB Mannheim», nella cartella che propone; Mac: `brew install tesseract`).
 
+**Titoli delle notizie in altre lingue.** Senza chiave IA, i titoli in serbo, ucraino, ungherese, polacco e nelle altre lingue vengono tradotti in italiano da un traduttore automatico gratuito (MyMemory) e mostrati con la scritta **«Traduzione automatica»**; il titolo originale resta visibile accanto o passando il mouse. Viene inviato solo il titolo della notizia (un testo pubblico), mai dati dell'azienda. Il servizio gratuito traduce circa 55 titoli al giorno per computer, a partire dai più importanti: per averne circa 550 al giorno basta scrivere un indirizzo e-mail di contatto in `PALADEX_TITLE_TRANSLATION_EMAIL` nel file `.env`; per spegnerlo, `PALADEX_TITLE_TRANSLATION=false`. Con una chiave IA la traduzione (e il riassunto) li fa l'IA.
+
 Senza chiavi l'applicazione funziona comunque: le fonti che le richiedono vengono saltate (o usate in versione ridotta) e la pagina Fonti lo segnala.
 
 **Il modo più semplice per inserire una chiave:** pagina **Fonti e qualità dati** → la fonte che chiede la chiave → incollarla nel riquadro «Hai già la chiave? Incollala qui» → **Salva la chiave**. Paladex la salva nel file `.env` di questo computer e scarica subito i dati di quella fonte.

@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { AiBadge, DemoBadge, EmptyState, ErrorBlock, Loading, Note, Panel } from '@/components/ui'
+import { DemoBadge, EmptyState, ErrorBlock, Loading, Note, Panel, TranslatedBadge } from '@/components/ui'
 import { PRIORITY_COUNTRIES } from '@/components/news/NewsFilters'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
@@ -45,7 +45,7 @@ export function NewsList({ d }: { d: NewsArchiveResponse }) {
               <ExternalLink size={13} className="inline ml-1 align-[-1px] text-muted" />
             </a>
             {shown?.title_is_ai && (
-              <div className="text-sm text-muted mt-0.5 flex flex-wrap items-center gap-1.5"><AiBadge /> <span className="break-words">{a.title}</span></div>
+              <div className="text-sm text-muted mt-0.5 flex flex-wrap items-center gap-1.5"><TranslatedBadge by={shown.title_by} /> <span className="break-words">{a.title}</span></div>
             )}
           </li>
         )

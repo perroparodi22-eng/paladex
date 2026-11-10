@@ -13,6 +13,8 @@ export interface DisplayBlock {
   title: string
   /** The title shown is an AI translation: show <AiBadge> and the original title. */
   title_is_ai: boolean
+  /** Who translated it: an AI provider or the keyless machine translation (labelled differently). */
+  title_by?: 'machine' | 'ai' | null
   /** Article in another language without an AI title yet ("Traduci" when AI is configured). */
   needs_translation: boolean
   /** AI summary in this language. */
