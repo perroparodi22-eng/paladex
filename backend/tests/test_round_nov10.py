@@ -244,6 +244,17 @@ def test_two_rows_of_one_month_are_averaged_in_the_tile_and_its_changes(api, db)
     assert [p["period_label"] for p in tile["spark"]] == sorted({p["period_label"] for p in tile["spark"]})
     assert tile["earlier_period_label"] != tile["period_label"]
 
+    # 11 Nov 2026: the averaged figure can be fixed by a person. The tile names the rows behind it and
+    # the same value written on each of them is the value the tile then shows.
+    assert len(tile["row_ids"]) == 2
+    for row_id in tile["row_ids"]:
+        r = api.post("/api/corrections", json={"kind": "value_correction", "value": 2.5, "unit": "kg", "currency": "USD",
+                                               "target": {"table": "price_observations", "row_id": row_id}})
+        assert r.status_code == 201, r.text
+    fixed = next(t for t in get(api, "/api/overview?lang=it")["prices"]["items"] if t["origin_iso3"] == "IND")
+    assert fixed["price_per_kg"] == 2.5 and fixed["correction"]["official_value"] in (2.36, 2.44)
+    assert len(fixed["row_ids"]) == 2 and set(fixed["row_ids"]).isdisjoint(tile["row_ids"])     # new revisions
+
 
 # ---------------------------------------------------------------------------
 # Small ones

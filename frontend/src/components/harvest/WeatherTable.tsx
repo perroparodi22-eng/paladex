@@ -45,7 +45,7 @@ export function WeatherTable({ data, country, signal, selected, onSignal, onSele
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-[0.92rem]">
             <thead>
-              <tr className="border-b border-line bg-paper text-left text-[0.7rem] uppercase tracking-wider text-muted">
+              <tr className="border-b border-line text-left text-[0.82rem] text-muted">
                 <th className="sticky left-0 z-[1] bg-paper py-2 pl-4 pr-2 font-medium sm:pl-5">{t('harvest.table.region')}</th>
                 <th className="py-2 px-2 font-medium">{t('harvest.table.flowering')}</th>
                 {months.map((m) => <th key={m} className="py-2 px-2 font-medium whitespace-nowrap">{fmtPeriod(m, lang)}</th>)}

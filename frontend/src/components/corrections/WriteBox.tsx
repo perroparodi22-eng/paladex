@@ -58,6 +58,7 @@ export function WriteBox({ compact = false }: { compact?: boolean }) {
   const [values, setValues] = useState<Record<number, string>>({})
   const [done, setDone] = useState<CorrectionEvent | null>(null)
   const [plain, setPlain] = useState(false)
+  const [noteOpen, setNoteOpen] = useState(false)
   const ids = useId()
   if (isMirror()) return null
   const aiOn = Boolean(meta?.flags.llm_enabled) && !plain
@@ -107,10 +108,9 @@ export function WriteBox({ compact = false }: { compact?: boolean }) {
           )}
         </form>
       ) : (
-        <div className="space-y-3">
-          <p className="text-[0.98rem] leading-snug text-charcoal-soft">{t('corrections.box.noAi')}</p>
-          <NoteForm onDone={setDone} />
-        </div>
+        // without an AI key a number is fixed by tapping it; what is left here is the note on a country
+        noteOpen ? <NoteForm onDone={setDone} />
+          : <button type="button" className="link text-[1rem]" onClick={() => setNoteOpen(true)} data-note-open>{t('corrections.quick.noteOpen')}</button>
       )}
 
       {answer && (

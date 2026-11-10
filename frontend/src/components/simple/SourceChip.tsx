@@ -58,12 +58,12 @@ export function SourceChip({ p, actions, defaultOpen = false, className, figure 
           aria-controls={id}
           title={t('simple.chip.open')}
           className={clsx(
-            'inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-[3px] text-left text-[0.84rem] leading-snug transition-colors',
-            open ? 'border-forest-700 bg-forest-50 text-forest-900' : 'border-line bg-paper text-charcoal-soft hover:border-forest-300 hover:bg-forest-50',
+            'inline-flex max-w-full items-center gap-1 rounded-md py-[2px] text-left text-[0.84rem] leading-snug transition-colors',
+            open ? 'text-forest-900' : 'text-muted hover:text-forest-900',
           )}
         >
           <span className="min-w-0 break-words">
-            {t('simple.chip.source')}: <span className="font-medium">{short}</span>{period ? <> · <span className="tabular-nums">{period}</span></> : null}
+            {t('simple.chip.source')}: <span className="font-medium text-charcoal-soft">{short}</span>{period ? <> · <span className="tabular-nums">{period}</span></> : null}
           </span>
           <ChevronDown size={14} className={clsx('shrink-0 transition-transform', open && 'rotate-180')} aria-hidden />
         </button>

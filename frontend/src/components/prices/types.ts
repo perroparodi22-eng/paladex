@@ -37,6 +37,8 @@ export interface PricePoint {
   is_demo: boolean
   /** the stored row of a point made of exactly one row (what a person can correct); null for an average */
   row_id?: number | null
+  /** the few stored rows of one period averaged into this point (fixing it fixes each) */
+  row_ids?: number[] | null
   correction?: CorrectionInfo | null
 }
 

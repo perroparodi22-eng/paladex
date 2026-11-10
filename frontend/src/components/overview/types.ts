@@ -84,6 +84,7 @@ export interface PriceTile {
   yoy_period_label: string | null
   /** the stored row shown (what a person can correct) and its correction by a person, if any */
   row_id?: number | null
+  row_ids?: number[] | null
   correction?: CorrectionInfo | null
   /** the newest earlier figure of the same series and product, when the month/year before is missing */
   earlier_pct?: number | null

@@ -24,8 +24,9 @@ export default {
         sans: ['Inter', 'system-ui', 'Segoe UI', 'Arial', 'sans-serif'],
         mono: ['"IBM Plex Mono"', 'Consolas', 'monospace'],
       },
-      borderRadius: { DEFAULT: '3px', sm: '2px', md: '4px' },
-      boxShadow: { panel: '0 1px 0 rgba(31,33,32,0.04)' },
+      // Simpler look (owner's request, 11 Nov 2026): rounder corners, a soft shadow instead of hard lines.
+      borderRadius: { DEFAULT: '8px', sm: '6px', md: '8px', lg: '12px' },
+      boxShadow: { panel: '0 1px 2px rgba(31,33,32,0.05), 0 4px 14px rgba(31,33,32,0.04)' },
     },
   },
   plugins: [],

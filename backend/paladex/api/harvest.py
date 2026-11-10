@@ -156,6 +156,7 @@ def _prod_point(r: ProductionStat) -> dict:
         "flag_raw": r.flag_raw, "notes": r.notes, "source_url": r.source_url, "published_at": iso(r.published_at),
         "collected_at": iso(r.collected_at), "data_status": r.data_status, "is_demo": r.is_demo,
         "correction": row_correction(r),      # "corrected by ..." (services/corrections.py), else None
+        "row_id": r.id,                        # the stored row: what a person fixes by tapping the number
     }
 
 

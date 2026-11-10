@@ -35,7 +35,7 @@ export default {
     'gap.figure': 'nessun dato per {p}',
 
     // Panoramica
-    'overview.tagline': 'Il mercato del miele in breve. Sotto ogni numero, «Fonte» dice da dove viene: toccala per i dettagli.',
+    'overview.tagline': 'Il mercato del miele in breve. Se un numero è sbagliato, toccalo e scrivi quello giusto.',
     'overview.fullHint': 'Tutte le tabelle, tutti i paesi e lo stato di ogni fonte sono nella vista completa.',
     'status.wrong': 'Attenzione: {list}. Alcuni numeri potrebbero non essere i più recenti.',
     'status.toSources': 'Vedi Fonti',
@@ -154,7 +154,7 @@ export default {
     'gap.source': 'no data from the source for {p}',
     'gap.figure': 'no figure for {p}',
 
-    'overview.tagline': 'The honey market at a glance. Under every number, “Source” says where it comes from: tap it for the details.',
+    'overview.tagline': 'The honey market at a glance. If a number is wrong, tap it and type the right one.',
     'overview.fullHint': 'Every table, every country and the status of each source are in the full view.',
     'status.wrong': 'Note: {list}. Some numbers may not be the latest.',
     'status.toSources': 'See Sources',

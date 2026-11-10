@@ -81,7 +81,7 @@ function FlowView({ p, s, flow }: { p: CountryProfile; s: TradeFlowSection; flow
                 <div className="relative overflow-x-auto">
                 <table className="w-full min-w-[20rem] text-[0.92rem]">
                   <thead>
-                    <tr className="border-b border-line bg-paper text-left text-[0.7rem] uppercase tracking-wider text-muted">
+                    <tr className="border-b border-line text-left text-[0.82rem] text-muted">
                       <th className="py-1.5 px-2 font-medium">{flow === 'export' ? t('trade.flows.col.destination') : t('trade.flows.col.origin')}</th>
                       <th className="py-1.5 px-2 font-medium text-right">t</th>
                       <th className="py-1.5 px-2 font-medium w-[34%]">{t('trade.flows.col.share')}</th>
@@ -133,7 +133,7 @@ function FlowView({ p, s, flow }: { p: CountryProfile; s: TradeFlowSection; flow
           <div className="relative overflow-x-auto mt-2">
           <table className="w-full min-w-[20rem] text-[0.92rem]">
             <thead>
-              <tr className="border-b border-line text-left text-[0.7rem] uppercase tracking-wider text-muted">
+              <tr className="border-b border-line text-left text-[0.82rem] text-muted">
                 <th className="py-1.5 px-2 font-medium">{t('countries.trade.col.declaredBy')}</th>
                 <th className="py-1.5 px-2 font-medium">{t('countries.trade.col.year')}</th>
                 <th className="py-1.5 px-2 font-medium text-right">t</th>

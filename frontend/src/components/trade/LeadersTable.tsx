@@ -1,4 +1,5 @@
 // Leading exporters / importers for one year: volume, value, unit value, y/y, provenance per row.
+import { FixValue } from '@/components/corrections/QuickFix'
 import clsx from 'clsx'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -92,7 +93,7 @@ export function LeadersTable({ flow, data, isLoading, error, refetch, basis, onB
               <col className="w-[5.4rem]" />
             </colgroup>
             <thead>
-              <tr className="border-b border-line bg-paper text-left text-[0.7rem] uppercase tracking-wider text-muted">
+              <tr className="border-b border-line text-left text-[0.82rem] text-muted">
                 <th className="py-2 pl-5 font-medium">{t('trade.leaders.col.rank')}</th>
                 <th className="py-2 px-2 font-medium">{t('trade.leaders.col.country')}</th>
                 <th className={clsx('py-2 px-2 font-medium text-right', metric === 'volume' && 'text-charcoal')}>{t('trade.leaders.col.tonnes')}</th>
@@ -151,7 +152,15 @@ function Row({ r, max, metric, mirror }: { r: LeaderRow; max: number; metric: Tr
         </div>
         <ShareBar pct={(mag / max) * 100} className="mt-1 max-w-[200px]" />
       </td>
-      <td className="py-2 px-2 num text-right text-charcoal align-top pt-[0.5rem]">{fmtT(r.net_weight_kg, lang)}</td>
+      <td className="py-2 px-2 num text-right text-charcoal align-top pt-[0.5rem]">
+        <FixValue correction={r.correction} figure={r.row_id && !r.is_demo && r.net_weight_kg !== null ? {
+          table: 'trade_flows', row_id: r.row_id, value: r.net_weight_kg, unit: 'kg', currency: null, field: 'net_weight_kg',
+          label: `${nameOf(r, lang, country)} · ${r.period_label ?? ''} · ${r.source?.publisher || r.source?.name || ''}`,
+          country_iso3: r.iso3, period_label: r.period_label,
+        } : null}>
+          <span>{fmtT(r.net_weight_kg, lang)}</span>
+        </FixValue>
+      </td>
       <td className="py-2 px-2 num text-right text-charcoal-soft align-top pt-[0.5rem]"
         title={r.value !== null && r.currency ? `${fmtNumber(r.value, lang, 0)} ${r.currency}${r.value_basis ? ` (${r.value_basis})` : ''}` : undefined}>
         {fmtUsdM(r.usd_value, lang)}

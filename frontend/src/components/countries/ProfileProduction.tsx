@@ -2,7 +2,8 @@
 import { useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { DemoBadge, FreshnessBadge, Panel, Segmented, SourceLine, StatusBadge } from '@/components/ui'
-import { RowCorrection } from '@/components/corrections/FixButton'
+import { CorrectionBadge } from '@/components/corrections/CorrectionBadge'
+import { FixValue } from '@/components/corrections/QuickFix'
 import { AXIS_TICK, AXIS_TICK_MONO, DataMissing, GRID_STROKE, SERIES_COLORS } from '@/components/trade/bits'
 import { useI18n } from '@/i18n'
 import { fmtDate, fmtNumber, fmtProdUnit } from '@/lib/format'
@@ -145,7 +146,7 @@ function MetricView({ m, title }: { m: ProductionMetric; title: string }) {
       <div className="min-w-0 overflow-x-auto">
         <table className="w-full text-[0.92rem]">
           <thead>
-            <tr className="border-b border-line bg-paper text-left text-[0.7rem] uppercase tracking-wider text-muted">
+            <tr className="border-b border-line text-left text-[0.82rem] text-muted">
               <th className="py-2 px-2 font-medium">{t('countries.prod.col.year')}</th>
               <th className="py-2 px-2 font-medium text-right">{t('countries.prod.col.value')}</th>
               <th className="py-2 px-2 font-medium">{t('countries.prod.col.status')}</th>
@@ -157,15 +158,17 @@ function MetricView({ m, title }: { m: ProductionMetric; title: string }) {
               <tr key={`${keys[i]}-${p.period_label}`} className="border-b border-line-soft last:border-0">
                 <td className="py-1.5 px-2 num">{p.period_label}</td>
                 <td className="py-1.5 px-2 num text-right whitespace-nowrap" title={p.flag_raw ? t('countries.prod.flag', { f: p.flag_raw }) : undefined}>
-                  {fmtNumber(p.value, lang, digits(p.value))} <span className="text-muted text-[0.8em]">{fmtProdUnit(p.unit, lang)}</span>
-                </td>
-                <td className="py-1.5 px-2">
-                  <StatusBadge status={p.data_status ?? 'published'} />
-                  <span className="ml-2"><RowCorrection correction={p.correction} figure={p.row_id && !p.is_demo ? {
+                  <FixValue correction={p.correction} figure={p.row_id && !p.is_demo ? {
                     table: 'production_stats', row_id: p.row_id, value: p.value, unit: p.unit, currency: null,
                     label: `${title} · ${p.period_label} · ${s.source?.publisher || s.source?.name || ''}`,
                     period_label: p.period_label,
-                  } : null} /></span>
+                  } : null}>
+                    <span>{fmtNumber(p.value, lang, digits(p.value))} <span className="text-muted text-[0.8em]">{fmtProdUnit(p.unit, lang)}</span></span>
+                  </FixValue>
+                </td>
+                <td className="py-1.5 px-2">
+                  <StatusBadge status={p.data_status ?? 'published'} />
+                  {p.correction && <span className="ml-2 inline-block align-middle"><CorrectionBadge c={p.correction} compact /></span>}
                 </td>
                 {m.series.length > 1 && (
                   <td className="py-1.5 px-2 text-[0.82rem] text-muted" title={s.source?.publisher || s.source?.name}>

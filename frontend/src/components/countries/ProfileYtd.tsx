@@ -45,7 +45,7 @@ function OwnFigure({ f, flow }: { f: YtdFigure; flow: TradeFlow }) {
       <div className="mt-2 grid gap-x-8 gap-y-3 sm:grid-cols-3">
         <div className="min-w-0">
           <div className="eyebrow">{t('countries.ytd.volume')}</div>
-          <div className="num text-[1.5rem] leading-tight text-charcoal">
+          <div className="num whitespace-nowrap text-[1.25rem] leading-tight text-charcoal">
             {fmtT(f.net_weight_kg, lang)}<span className="text-muted text-[0.6em] ml-1">t</span>
             <BasisMarks summedPartners={f.summed_from_partners} partners={f.partners_count} />
           </div>
@@ -58,7 +58,7 @@ function OwnFigure({ f, flow }: { f: YtdFigure; flow: TradeFlow }) {
         </div>
         <div className="min-w-0">
           <div className="eyebrow">{t('countries.ytd.value')}</div>
-          <div className="num text-[1.5rem] leading-tight text-charcoal">{fmtUsd(f.usd_value, lang)}</div>
+          <div className="num whitespace-nowrap text-[1.25rem] leading-tight text-charcoal">{fmtUsd(f.usd_value, lang)}</div>
           {prev && (
             <div className="text-[0.85rem] text-muted">
               <YoY pct={f.change_value_pct} /> {t('countries.ytd.vs', { p: vs })}
@@ -68,7 +68,7 @@ function OwnFigure({ f, flow }: { f: YtdFigure; flow: TradeFlow }) {
         </div>
         <div className="min-w-0">
           <div className="eyebrow">{t('trade.leaders.col.uv')}</div>
-          <div className="num text-[1.5rem] leading-tight text-charcoal">{fmtUv(f.unit_value_usd_per_kg, lang)}</div>
+          <div className="num whitespace-nowrap text-[1.25rem] leading-tight text-charcoal">{fmtUv(f.unit_value_usd_per_kg, lang)}</div>
           {prev && f.unit_value_usd_per_kg !== null && (
             <div className="text-[0.85rem] text-muted"><YoY pct={f.change_unit_value_pct} /> {t('countries.ytd.vs', { p: vs })}</div>
           )}
@@ -106,7 +106,7 @@ function MirrorTable({ s, flow, name }: { s: NonNullable<YtdSection['mirror']>; 
       <div className="relative overflow-x-auto mt-2">
         <table className="w-full min-w-[24rem] text-[0.92rem]">
           <thead>
-            <tr className="border-b border-line text-left text-[0.7rem] uppercase tracking-wider text-muted">
+            <tr className="border-b border-line text-left text-[0.82rem] text-muted">
               <th className="py-1.5 px-2 font-medium">{t('countries.trade.col.declaredBy')}</th>
               <th className="py-1.5 px-2 font-medium">{t('countries.ytd.col.months')}</th>
               <th className="py-1.5 px-2 font-medium text-right">t</th>

@@ -141,6 +141,7 @@ def test_production_latest_year_change_and_status(api, db):
     assert set(by) == {"ARG", "USA", "KEN"}
     arg = by["ARG"]["series"][0]
     assert arg["latest"]["year"] == 2024 and arg["latest"]["value"] == 69297.65
+    assert isinstance(arg["latest"]["row_id"], int) and arg["latest"]["correction"] is None   # what a person fixes by tapping
     assert arg["latest"]["data_status"] == "estimate" and arg["latest"]["flag_raw"] == "E"
     assert arg["previous"]["year"] == 2023 and arg["change_pct"] == round(100 * (69297.65 - 69701.22) / 69701.22, 1)
     assert arg["source"]["key"] == "faostat" and arg["reliability"] == "official" and arg["latest"]["source_url"]

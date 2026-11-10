@@ -427,6 +427,8 @@ def _combine(items: list[dict], label: str, start: date, end: date, expected: in
         # the stored row behind a point made of exactly one row (what a person can correct, POST
         # /api/corrections); None for an average of several quotations
         "row_id": next(iter(ids)) if len(ids) == 1 else None,
+        # the few rows of one period averaged into this point: fixing the figure fixes each of them
+        "row_ids": sorted(i for i in ids if i) if 1 < len(ids) <= 6 and None not in ids and len(labels_of(items)) == 1 else None,
         "period_label": label,
         "period_start": start.isoformat(),
         "period_end": end.isoformat(),
@@ -452,6 +454,11 @@ def _combine(items: list[dict], label: str, start: date, end: date, expected: in
         # why and the official value. Only present then (most points have none).
         **({"correction": corr} if (corr := newest_brief(i.get("correction") for i in items)) else {}),
     }
+
+
+def labels_of(items: list[dict]) -> set:
+    """The stored periods among `items` (one = the rows are quotations of the same period)."""
+    return {i.get("period_label") for i in items}
 
 
 def _row_item(r: PriceObservation, currency: Currency, briefs: dict[int, dict] | None = None) -> dict:

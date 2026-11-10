@@ -57,7 +57,7 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
 2. Backend: `cd backend && PALADEX_ENV_FILE=/nonexistent .venv/bin/python -m pytest -x -q -o addopts=""`
    (1,818 tests on 10 Nov; 6-9 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
    `-q` default. Tests set `PALADEX_CORRECTIONS_SYNC=false` themselves.
-3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (170 tests), `npx vite build`.
+3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (174 tests), `npx vite build`.
 4. The built `frontend/dist` IS committed (the owner's PC has no Node): copy the build from the clean
    worktree into `frontend/dist` and commit it.
 5. New or changed collectors: run them for real into a scratch data dir
@@ -130,6 +130,24 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   72 verified figures, 27 countries); each stored only if the quoted sentence and number are found on
   the cited page (`services/web_verify.py`). Optional weekly AI web search, off by default
   (`services/findings_ai.py`, Anthropic web search tool, ~$1/month at the default cap).
+- **Fixing a number = tap it and type the right one (11 Nov, owner: "not like a comment, like fixing the
+  price to the real one", "for everything"):** `components/corrections/QuickFix.tsx`. `FixValue` wraps a
+  number (small pencil) and opens `QuickFixDialog`: one input prefilled with the number as shown, Save /
+  Enter, no reason asked. The value is typed in the unit on screen (`FigureRef.shown`, e.g. EUR/kg for a
+  USD/lb row; big weights in tonnes) and `services.corrections.normalize` converts it. `parseTyped` reads
+  Italian numbers ("69.298" = 69298 for tonnes, "1.775" = 1,775 for a price: the reading closer to the
+  current value wins); a change of more than 5 times asks once. "Rimetti il numero della fonte" in the
+  same window. A price averaged from a few rows of one period (two USDA lines of a month) is fixed by
+  writing the value on each row (`row_ids` on overview tiles and `/prices/latest` points, max 6).
+  Wired: simple and full Panoramica, Prezzi (simple, latest and records tables), country page (KPI
+  tiles, production table), Commercio leaders (tonnes), Raccolti production table. NOT fixable by tap:
+  sums of several rows (year-to-date figures, "12 m" totals, mirror data), trade values in USD, charts,
+  the Archivio. The old drawer (flag a doubt / note) is one small link away in the window; without an
+  AI key "Scrivi a Paladex" only offers the note on a country.
+- **Simpler look (11 Nov, owner: "more simplistic, easier to view"):** one place, `tailwind.config.js` and
+  `styles/index.css`: rounder corners, soft card shadow, labels and table headers in normal letters (no
+  spaced capitals), numbers in the text font (`.num` is no longer monospace), badges as small pills,
+  the "Fonte" chip as a quiet line of text. Keep new components on these classes.
 - **Corrections** by the owner's father (backend `services/corrections*.py`, `api/corrections.py`; UI
   `frontend/src/components/corrections/`): correct / flag / note; the AI only proposes, nothing changes
   before "Conferma"; new revision, official value kept, undo; exchange between computers through the
@@ -217,7 +235,8 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
    - USDA parser skips some rows (Nov 2025 "Dakota" rows outside the beekeeper table; "INDIAIA" May
      2026; "CanoLight Amber" Oct/Dec 2025, Jul-Aug 2026) - warned, not guessed.
    - Correction candidates keep USDA colour grades in English ("light amber") in the Italian UI.
-   - Commercio page shows correction badges but has no "Segnala o correggi" buttons.
+   - (done 11 Nov) Commercio: the leaders' tonnes are fixed by tapping them. Still without a tap-to-fix:
+     sums (year-to-date, "12 m"), trade values, the flows table, the Archivio.
    - (fixed 10 Nov) Panoramica vs Prezzi: the tile took ONE of two USDA rows of the same month by row
      id, so its figure and month-on-month change disagreed with Prezzi (India: -16,4% shown, -8,4%
      real). Rows of one series, product and period are now averaged (`overview.AveragedPoint`,
