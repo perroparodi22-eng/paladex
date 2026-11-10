@@ -35,7 +35,7 @@ def test_country_feeds_are_registered_one_or_two_per_country(db):
         assert len(f.key) <= 60 and len(f.name) <= 200 and f.name_en
         per_country[f.country] = per_country.get(f.country, 0) + 1
     assert all(1 <= n <= 3 for n in per_country.values()), per_country
-    assert len(COUNTRY_FEEDS) == 76 and len(per_country) == 51
+    assert len(COUNTRY_FEEDS) == 91 and len(per_country) == 57
     # the origins the importer watches and its own markets are covered
     assert {"ARG", "UKR", "BRA", "MEX", "URY", "HUN", "ROU", "SRB", "CHN", "VNM", "IND", "TUR", "ITA", "ESP"} <= set(per_country)
     src = _news_source(db, "news_ar_infocampo_miel")
@@ -278,6 +278,9 @@ def test_every_european_country_has_one_or_two_news_feeds():
         per_country[f.country] = per_country.get(f.country, 0) + 1
     assert len(europe) == 39 and not europe - set(per_country), sorted(europe - set(per_country))
     assert all(1 <= per_country[c] <= 3 for c in europe)
+    south_america = {c["iso3"] for c in countries() if c.get("region") == "South America"}
+    assert len(south_america) == 10 and not south_america - set(per_country)
+    assert all(1 <= per_country[c] <= 2 for c in south_america)
 
 
 def test_honey_gate_reads_the_other_european_languages():
