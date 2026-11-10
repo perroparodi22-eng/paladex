@@ -120,6 +120,8 @@ export interface CountryProfile {
     available: boolean; items: NewsItem[]; count_30d: number; days: number; link: string; providers: Provider[]
     /** The one or two trade stories that matter most (exports, imports, prices, duties). */
     highlights?: NewsItem[]; highlight_days?: number
+    /** date of the newest article shown (the panel says so when it is old) */
+    latest_at?: string | null
   }
   regulations: { available: boolean; items: RegulationRow[]; providers: Provider[] }
   context: {

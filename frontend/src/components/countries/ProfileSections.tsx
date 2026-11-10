@@ -8,6 +8,7 @@ import { DataMissing, useProviderText } from '@/components/trade/bits'
 import { pickLang, useI18n } from '@/i18n'
 import { fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
+import type { Lang } from '@/lib/types'
 import { countryName } from './parts'
 import type { CountryProfile, MissingItem, PriceRow } from './types'
 import { isMappedUrl, pageUrl } from '@/lib/links'
@@ -135,9 +136,22 @@ function NewsLine({ n, strong = false }: { n: CountryProfile['news']['items'][nu
 /** News about the country. First the one or two trade stories that matter most (exports, imports,
  *  prices, duties: chosen by the backend, `news.highlights`), then the latest articles. `compact`
  *  (simple view) shows the highlights only, or the two latest when there is no trade story. */
+/** Days after which the newest article is no longer "recent news" and the panel says its date. */
+const OLD_NEWS_DAYS = 120
+
+/** "luglio 2022" when the newest article is older than OLD_NEWS_DAYS, else null. */
+export function oldNewsMonth(latestAt: string | null | undefined, today: string | null | undefined, lang: Lang): string | null {
+  if (!latestAt) return null
+  const now = today ? new Date(`${today.slice(0, 10)}T12:00:00Z`) : new Date()
+  const then = new Date(`${latestAt.slice(0, 10)}T12:00:00Z`)
+  if (Number.isNaN(then.getTime()) || (now.getTime() - then.getTime()) / 86_400_000 <= OLD_NEWS_DAYS) return null
+  return fmtDate(latestAt.slice(0, 10), lang, { month: 'long', year: 'numeric' })
+}
+
 export function ProfileNews({ p, compact = false, className }: { p: CountryProfile; compact?: boolean; className?: string }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const d = p.news
+  const oldMonth = oldNewsMonth(d.latest_at, p.today, lang)
   const top = d.highlights ?? []
   const topIds = new Set(top.map((n) => n.id))
   const rest = d.items.filter((n) => !topIds.has(n.id))
@@ -155,6 +169,10 @@ export function ProfileNews({ p, compact = false, className }: { p: CountryProfi
         <DataMissing compact providers={d.providers} fallback={t('countries.news.fallback')} what={t('countries.missing.news')} />
       ) : (
         <div className="-my-2">
+          {/* never old news shown as current: when the newest article is months or years old, say so first */}
+          {oldMonth && (
+            <div className="pb-1 pt-2" data-country-news-old><Note>{t('countries.news.old', { m: oldMonth })}</Note></div>
+          )}
           {top.length > 0 && (
             <div data-country-news-top>
               <div className="eyebrow pt-2">{t('countries.news.top')}</div>

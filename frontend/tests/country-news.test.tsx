@@ -74,3 +74,18 @@ test('a change that rounds to zero has no sign', () => {
   assert.equal(fmtPct(-0.06, 'it'), '−0,1%')
   assert.equal(fmtPct(-12.34, 'en'), '−12.3%')
 })
+
+test('old news is never shown as current: the panel says the month of the newest article', () => {
+  const OLD = item({ id: 20, title: 'La miel de Colombia cumple altos estándares internacionales', language: 'es', published_at: '2022-07-12T14:00:00' })
+  const old = profile({ highlights: [OLD], items: [OLD], latest_at: '2022-07-12T14:00:00' })
+  ;(old as { today: string }).today = '2026-11-10'
+  const s = text(render(<ProfileNews compact p={old} />))
+  assert.match(s, /Nessuna notizia recente sul miele di questo paese: la più recente trovata è di luglio 2022\./)
+  assert.match(s, /La miel de Colombia/)
+  assert.match(s, /12 lug 2022/)
+  assert.match(text(render(<ProfileNews p={old} />, { lang: 'en' })), /the latest one found is from July 2022\./)
+  // recent news carries no such note
+  const fresh = profile({ highlights: [TOP], items: [TOP], latest_at: '2026-10-20T08:00:00' })
+  ;(fresh as { today: string }).today = '2026-11-10'
+  assert.doesNotMatch(text(render(<ProfileNews p={fresh} />)), /Nessuna notizia recente/)
+})

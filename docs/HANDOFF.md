@@ -53,9 +53,9 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
    then in a worktree (`git worktree add` once, then `git fetch <repo> $SHA && git reset --hard $SHA &&
    git clean -qfd -e frontend/node_modules`; symlink `frontend/node_modules` from the main checkout).
 2. Backend: `cd backend && PALADEX_ENV_FILE=/nonexistent .venv/bin/python -m pytest -x -q -o addopts=""`
-   (1,790 tests on 10 Nov; ~6 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
+   (1,793 tests on 10 Nov; ~6 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
    `-q` default. Tests set `PALADEX_CORRECTIONS_SYNC=false` themselves.
-3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (168 tests), `npx vite build`.
+3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (169 tests), `npx vite build`.
 4. The built `frontend/dist` IS committed (the owner's PC has no Node): copy the build from the clean
    worktree into `frontend/dist` and commit it.
 5. New or changed collectors: run them for real into a scratch data dir
@@ -141,9 +141,13 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   India EIC register + DGFT, Spain MAPA, Hungary KSH, Bulgaria MZH, Greece ELSTAT, tariffs (EU TARIC via
   UK XI, US HTS), regulations (Federal Register, EUR-Lex, RASFF, MAPA BR, SENASA AR), NASA POWER weather,
   news (GDELT, trade-press RSS; Google News feeds off by default for licence reasons), web findings.
-- **News per country (10 Nov):** 91 country feeds for 57 countries, all 39 European and all 10 South
-  American countries included (third batch: 15 feeds; next regions not done: Central America &
-  Caribbean, Asia, Middle East, Africa)
+- **News per country (10 Nov):** 93 country feeds for 57 countries, all 39 European and all 10 South
+  American countries included (third batch; next regions not done: Central America & Caribbean,
+  Asia, Middle East, Africa). South American honey feeds are `archive` feeds (entries up to 10
+  years old are stored): the owner asked that every country there shows its latest honey article
+  even when it is old. The page then says the month of that article (`news.latest_at`, note after
+  120 days) and `news.highlights` falls back to the newest trade stories of any age. Five feeds
+  that were live for a few hours are retired by `reference/seed.py` (`RETIRED_SOURCES`).
   (first batch: 28 feeds, 20 countries; second batch the same day: 48 feeds for the 31 European
   countries still missing, see the comment above the list for the sites that refused) (`COUNTRY_FEEDS` in
   `collectors/news_feeds.py`, table row in docs/DATA_SOURCES.md): the publisher's honey tag feed, its

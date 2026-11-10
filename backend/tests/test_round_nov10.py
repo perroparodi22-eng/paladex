@@ -35,7 +35,7 @@ def test_country_feeds_are_registered_one_or_two_per_country(db):
         assert len(f.key) <= 60 and len(f.name) <= 200 and f.name_en
         per_country[f.country] = per_country.get(f.country, 0) + 1
     assert all(1 <= n <= 3 for n in per_country.values()), per_country
-    assert len(COUNTRY_FEEDS) == 91 and len(per_country) == 57
+    assert len(COUNTRY_FEEDS) == 93 and len(per_country) == 57
     # the origins the importer watches and its own markets are covered
     assert {"ARG", "UKR", "BRA", "MEX", "URY", "HUN", "ROU", "SRB", "CHN", "VNM", "IND", "TUR", "ITA", "ESP"} <= set(per_country)
     src = _news_source(db, "news_ar_infocampo_miel")
@@ -280,7 +280,11 @@ def test_every_european_country_has_one_or_two_news_feeds():
     assert all(1 <= per_country[c] <= 3 for c in europe)
     south_america = {c["iso3"] for c in countries() if c.get("region") == "South America"}
     assert len(south_america) == 10 and not south_america - set(per_country)
-    assert all(1 <= per_country[c] <= 2 for c in south_america)
+    assert all(1 <= per_country[c] <= 3 for c in south_america)
+    # South America: the honey feeds keep older articles, so a country page always has its latest one
+    from paladex.collectors.news_feeds import ARCHIVE_ENTRY_AGE_DAYS
+    old = {f.country for f in COUNTRY_FEEDS if f.max_entry_age_days == ARCHIVE_ENTRY_AGE_DAYS}
+    assert old == south_america
 
 
 def test_honey_gate_reads_the_other_european_languages():
@@ -315,3 +319,66 @@ def test_honey_gate_reads_the_other_european_languages():
                         ("La cena de Navidad", "es"), ("Τα μέλη της επιτροπής συναντήθηκαν", "el"),
                         ("Il a pris la décision", "fr"), ("Med school rankings 2026", "en")]:
         assert not ns.is_honey_related(title, language=lang), title
+
+
+# ---------------------------------------------------------------------------
+# South America: the latest article a country has, however old, with its date
+# ---------------------------------------------------------------------------
+
+
+def test_an_archive_feed_keeps_old_articles_and_a_normal_feed_does_not(db, run_with_routes):
+    from paladex.collectors.news_feeds import feed_spec
+
+    def rss(link_prefix: str) -> tuple:
+        body = f"""<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>t</title>
+        <item><title>La miel de Colombia cumple altos estándares internacionales</title>
+          <link>{link_prefix}/miel-estandares</link><pubDate>Tue, 12 Jul 2022 14:00:00 +0000</pubDate></item>
+        </channel></rss>"""
+        return 200, body.encode("utf-8"), "application/rss+xml"
+
+    old = feed_spec("news_co_elcampesino_apicultura")
+    normal = feed_spec("news_es_agropopular_miel")
+    assert old.max_entry_age_days == 3650 and normal.max_entry_age_days == 365
+    res = run_with_routes(old.key, {old.url: rss("https://co.example")})
+    assert res["new"] == 1
+    res = run_with_routes(normal.key, {normal.url: rss("https://es.example")})
+    assert res["new"] == 0          # a 2022 article is not news for a feed that publishes every week
+
+
+def test_country_page_shows_the_latest_trade_story_however_old(api, db):
+    src = _news_source(db, "news_co_elcampesino_apicultura")
+    old_trade = _article(db, src, "https://co.example/exporta", "Colombia exporta miel a Europa por primera vez",
+                         900, language="es", home_country="COL")
+    older_trade = _article(db, src, "https://co.example/precio", "Sube el precio de la miel en Colombia", 1500,
+                           language="es", home_country="COL")
+    old_bees = _article(db, src, "https://co.example/abejas", "Las colmenas de abejas han aumentado un 53%", 700,
+                        language="es", home_country="COL")
+    db.commit()
+    news = get(api, "/api/countries/COL")["news"]
+    assert [n["id"] for n in news["highlights"]] == [old_trade.id, older_trade.id]      # newest first, no time limit
+    assert news["count_30d"] == 0 and [n["id"] for n in news["items"]][0] == old_bees.id
+    assert news["latest_at"][:10] == old_bees.published_at.date().isoformat()
+    # as soon as there is a trade story of the last year, only the period's stories lead
+    fresh = _article(db, src, "https://co.example/nuevo", "Exportaciones de miel colombiana crecen 30%", 10,
+                     language="es", home_country="COL")
+    db.commit()
+    news = get(api, "/api/countries/COL")["news"]
+    assert [n["id"] for n in news["highlights"]] == [fresh.id] and news["latest_at"][:10] == fresh.published_at.date().isoformat()
+
+
+def test_replaced_feeds_are_removed_when_never_used_and_switched_off_otherwise(db):
+    from paladex.models import NewsArticle
+    from paladex.reference.seed import RETIRED_SOURCES, seed_reference_data
+
+    unused = Source(key="news_py_ip", name="x", publisher="x", kind="rss", reliability="official", category="news")
+    used = Source(key="news_co_agronegocios", name="y", publisher="y", kind="rss", reliability="trade_press", category="news")
+    db.add_all([unused, used])
+    db.flush()
+    a, _ = ns.ingest_article(db, used, url="https://co.example/x", title="Miel: exportaciones en alza",
+                             published_at=utcnow() - timedelta(days=2))
+    db.commit()
+    seed_reference_data(db)
+    db.commit()
+    keys = {s.key: s for s in db.scalars(select(Source).where(Source.key.in_(RETIRED_SOURCES)))}
+    assert set(keys) == {"news_co_agronegocios"} and keys["news_co_agronegocios"].enabled is False
+    assert db.get(NewsArticle, a.id) is not None
