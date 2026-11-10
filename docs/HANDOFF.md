@@ -55,7 +55,7 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
    then in a worktree (`git worktree add` once, then `git fetch <repo> $SHA && git reset --hard $SHA &&
    git clean -qfd -e frontend/node_modules`; symlink `frontend/node_modules` from the main checkout).
 2. Backend: `cd backend && PALADEX_ENV_FILE=/nonexistent .venv/bin/python -m pytest -x -q -o addopts=""`
-   (1,808 tests on 10 Nov; 6-9 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
+   (1,818 tests on 10 Nov; 6-9 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
    `-q` default. Tests set `PALADEX_CORRECTIONS_SYNC=false` themselves.
 3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (170 tests), `npx vite build`.
 4. The built `frontend/dist` IS committed (the owner's PC has no Node): copy the build from the clean
