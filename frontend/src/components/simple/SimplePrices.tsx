@@ -1,6 +1,8 @@
 // /prezzi, simple view: first a short table per price type (one series per main origin: latest price,
 // a month before, a year before, the trend, each row with its source chip), then a chart of those
 // origins; every filter and long table stays under "Mostra dettagli" (the full page).
+import { FixValue } from '@/components/corrections/QuickFix'
+import type { FigureRef } from '@/components/corrections/types'
 import { useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
@@ -77,15 +79,22 @@ function PriceRowView({ r, ccy }: { r: LatestRow; ccy: Ccy }) {
   const o = r.latest.original
   const technical = [priceType(r.price_type), variety(r.variety), color, r.terms,
     o ? `${fmtNumber(o.value, lang, 2)} ${o.currency}/${o.unit}` : null].filter(Boolean).join(' · ')
+  const rowId = r.latest.row_id ?? r.latest.row_ids?.[0]
+  const figure: FigureRef | null = rowId && o ? {
+    table: 'price_observations', row_id: rowId, row_ids: r.latest.row_ids, value: o.value, unit: o.unit, currency: o.currency,
+    label: `${r.origin_iso3 ? country(r.origin_iso3) : r.origin_label} · ${[plainWhere(r, lang, country), what].filter(Boolean).join(' · ')} · ${fmtPeriod(r.period_label, lang)}`,
+    country_iso3: r.origin_iso3, period_label: r.period_label,
+    shown: r.latest.value !== null ? { value: r.latest.value, unit: 'kg', currency: ccy } : null,
+  } : null
   return (
     <li className="grid grid-cols-2 gap-x-4 gap-y-1.5 border-b border-line-soft py-3.5 last:border-0 sm:grid-cols-[minmax(0,1.9fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] sm:items-baseline"
       data-simple-price={r.origin_iso3 ?? ''}>
       <div className="col-span-2 min-w-0 sm:order-1 sm:col-span-1">
         <div className="text-[1.12rem] font-semibold leading-snug text-charcoal">{r.origin_iso3 ? country(r.origin_iso3) : r.origin_label}</div>
-        <div className="text-[0.95rem] leading-snug text-charcoal-soft">{[plainWhere(r, lang, country), what].filter(Boolean).join(' · ')}</div>
+        <div className="text-[0.9rem] leading-snug text-muted">{[plainWhere(r, lang, country), what].filter(Boolean).join(' · ')}</div>
       </div>
       <Cell label={t('simple.pt.latest')} className="sm:order-2" hideLabel>
-        <Money v={r.latest.value} ccy={ccy} big />
+        <FixValue figure={figure} correction={r.latest.correction ?? null}><Money v={r.latest.value} ccy={ccy} big /></FixValue>
         <div className="tabular-nums text-[0.88rem] text-muted">{fmtPeriod(r.period_label, lang)}</div>
       </Cell>
       <div className="text-right sm:order-5 sm:text-left">
@@ -114,11 +123,7 @@ function PriceRowView({ r, ccy }: { r: LatestRow; ccy: Ccy }) {
         note: [r.latest.value === null ? t('simple.pt.noFx') : null, monthly ? null : t('simple.pt.annual'),
           r.latest.row_id ? null : t('simple.pt.average')].filter(Boolean).join(' ') || null,
         correction: r.latest.correction ?? null,
-      }} figure={r.latest.row_id && o ? {
-        table: 'price_observations', row_id: r.latest.row_id, value: o.value, unit: o.unit, currency: o.currency,
-        label: `${r.origin_iso3 ? country(r.origin_iso3) : r.origin_label} · ${[plainWhere(r, lang, country), what].filter(Boolean).join(' · ')} · ${fmtPeriod(r.period_label, lang)}`,
-        country_iso3: r.origin_iso3, period_label: r.period_label,
-      } : null} />
+      }} figure={figure} />
     </li>
   )
 }
@@ -144,7 +149,7 @@ function TypeTable({ type, ccy }: { type: string; ccy: Ccy }) {
             <p className="py-3 text-[1rem] text-muted">{t('simple.pt.noneCurrent')}</p>
           ) : (
             <>
-              <div className="mt-2 hidden grid-cols-[minmax(0,1.9fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-x-4 border-b border-line pb-1.5 text-[0.78rem] uppercase tracking-wider text-muted sm:grid">
+              <div className="mt-2 hidden grid-cols-[minmax(0,1.9fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-x-4 border-b border-line pb-1.5 text-[0.84rem] text-muted sm:grid">
                 <span>{t('simple.pt.origin')}</span><span>{t('simple.pt.latest')}</span><span>{t('simple.pt.monthAgo')}</span>
                 <span>{t('simple.pt.yearAgo')}</span><span>{t('simple.pt.trend')}</span>
               </div>

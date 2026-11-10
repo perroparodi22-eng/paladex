@@ -20,7 +20,8 @@ import { fmtNumber } from '@/lib/format'
 import { isMirrorMissing } from '@/lib/mirror'
 import { useView } from '@/lib/view'
 import { CorrectionBadge } from '@/components/corrections/CorrectionBadge'
-import { RowCorrection } from '@/components/corrections/FixButton'
+import { FixValue } from '@/components/corrections/QuickFix'
+import type { FigureRef } from '@/components/corrections/types'
 import { CountryNotes } from '@/components/corrections/CorrectionsPanel'
 import { Details } from '@/components/simple/Details'
 import { CountryYtdPanel } from '@/components/simple/SimpleCountry'
@@ -205,21 +206,22 @@ export function KpiRow({ p }: { p: CountryProfile }) {
       )
     }
     if (l) {
+      const figure: FigureRef | null = l.row_id && !l.is_demo && l.net_weight_kg !== null ? {
+        table: 'trade_flows', row_id: l.row_id, value: l.net_weight_kg, unit: 'kg', currency: null, field: 'net_weight_kg',
+        label: `${label} · ${countryName(p.country, lang)} · ${l.year}`, country_iso3: p.country.iso3, period_label: String(l.year),
+      } : null
       return (
         <StatTile
           label={label}
           value={l.net_weight_kg === null && l.usd_value !== null ? fmtUsd(l.usd_value, lang)
-            : <>{fmtT(l.net_weight_kg, lang)}<span className="text-muted text-[0.6em] ml-1">t</span></>}
+            : <FixValue figure={figure} correction={l.correction}><span>{fmtT(l.net_weight_kg, lang)}<span className="text-muted text-[0.6em] ml-1">t</span></span></FixValue>}
           sub={<YearSub year={`${l.year}${l.summed_from_partners ? ' · Σ' : ''}`} status={l.data_status} />}
           delta={l.net_weight_kg === null ? null : l.yoy_volume_pct}
           deltaLabel={l.prev ? `vs ${l.prev.year}` : undefined}
           demo={l.is_demo}
           footer={<>
             <span className="text-[0.78rem] text-muted">{t('prov.source')}: {l.source?.publisher || l.source?.name}</span>
-            <div className="mt-1"><RowCorrection correction={l.correction} figure={l.row_id && !l.is_demo && l.net_weight_kg !== null ? {
-              table: 'trade_flows', row_id: l.row_id, value: l.net_weight_kg, unit: 'kg', currency: null, field: 'net_weight_kg',
-              label: `${label} · ${countryName(p.country, lang)} · ${l.year}`, country_iso3: p.country.iso3, period_label: String(l.year),
-            } : null} /></div>
+            {l.correction && <CorrectionBadge c={l.correction} compact className="mt-1" />}
           </>}
         />
       )
@@ -239,7 +241,11 @@ export function KpiRow({ p }: { p: CountryProfile }) {
       {prod && prodSeries ? (
         <StatTile
           label={t('countries.kpi.production')}
-          value={<>{fmtNumber(prod.value, lang, 0)}<span className="text-muted text-[0.6em] ml-1">{prod.unit}</span></>}
+          value={<FixValue correction={prod.correction} figure={prod.row_id && !prod.is_demo ? {
+            table: 'production_stats', row_id: prod.row_id, value: prod.value, unit: prod.unit, currency: null,
+            label: `${t('countries.kpi.production')} · ${countryName(p.country, lang)} · ${prod.period_label}`,
+            country_iso3: p.country.iso3, period_label: prod.period_label,
+          } : null}><span>{fmtNumber(prod.value, lang, 0)}<span className="text-muted text-[0.6em] ml-1">{prod.unit}</span></span></FixValue>}
           sub={<>
             <YearSub year={prod.period_label ?? '—'} status={prod.data_status} />
             {prodNote && <div className="text-[0.78rem] leading-snug">{prodNote}</div>}
@@ -247,11 +253,7 @@ export function KpiRow({ p }: { p: CountryProfile }) {
           demo={prod.is_demo}
           footer={<>
             <span className="text-[0.78rem] text-muted">{t('prov.source')}: {prodSeries.source?.publisher || prodSeries.source?.name}</span>
-            <div className="mt-1"><RowCorrection correction={prod.correction} figure={prod.row_id && !prod.is_demo ? {
-              table: 'production_stats', row_id: prod.row_id, value: prod.value, unit: prod.unit, currency: null,
-              label: `${t('countries.kpi.production')} · ${countryName(p.country, lang)} · ${prod.period_label}`,
-              country_iso3: p.country.iso3, period_label: prod.period_label,
-            } : null} /></div>
+            {prod.correction && <CorrectionBadge c={prod.correction} compact className="mt-1" />}
           </>}
         />
       ) : (

@@ -167,7 +167,7 @@ function FlowsTable({ d, partner, onPartner, flow }: { d: FlowsResponse; partner
       <div className="relative overflow-x-auto">
       <table className="w-full min-w-[22rem] text-[0.93rem]">
         <thead>
-          <tr className="border-b border-line bg-paper text-left text-[0.72rem] uppercase tracking-wider text-muted">
+          <tr className="border-b border-line text-left text-[0.82rem] text-muted">
             <th className="py-2 pl-2 pr-1 font-medium w-7">#</th>
             <th className="py-2 px-2 font-medium">{flow === 'import' ? t('trade.flows.col.origin') : t('trade.flows.col.destination')}</th>
             <th className="py-2 px-2 font-medium text-right">t</th>

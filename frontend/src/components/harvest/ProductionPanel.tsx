@@ -8,6 +8,7 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 import type { ProductionMetric, ProductionPoint } from '@/components/countries/types'
 import { AXIS_TICK, AXIS_TICK_MONO, DataMissing, GRID_STROKE, SourcesFooter, YoY } from '@/components/trade/bits'
 import { Badge, DemoBadge, ErrorBlock, FreshnessBadge, Loading, Panel, Segmented, SourceLine } from '@/components/ui'
+import { FixValue } from '@/components/corrections/QuickFix'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtDate, fmtNumber, fmtProdUnit } from '@/lib/format'
@@ -58,7 +59,7 @@ export function ProductionTable({ data, selected, onSelect, scope, onScope }: {
       <div className={clsx('overflow-x-auto', scope === 'all' && 'max-h-[560px] overflow-y-auto')}>
         <table className="w-full min-w-[470px] text-[0.9rem]">
           <thead className="sticky top-0 z-[1]">
-            <tr className="border-b border-line bg-paper text-left text-[0.68rem] uppercase tracking-wider text-muted">
+            <tr className="border-b border-line text-left text-[0.82rem] text-muted">
               <th className="py-2 px-2 font-medium">{t('harvest.prod.col.country')}</th>
               <th className="py-2 px-2 font-medium">{t('harvest.prod.col.year')}</th>
               <th className="py-2 px-2 font-medium text-right">{t('harvest.prod.col.value')}</th>
@@ -95,7 +96,12 @@ function ProdRow({ c, selected, onSelect, mainSource }: {
       </td>
       <td className="py-1.5 px-2 num">{v?.period_label ?? '—'}</td>
       <td className="py-1.5 px-2 num text-right whitespace-nowrap">
-        {v ? fmtProd(v, lang, t('harvest.prod.unitT')) : '—'}
+        {v ? (
+          <FixValue correction={v.correction} figure={v.row_id && !v.is_demo ? {
+            table: 'production_stats', row_id: v.row_id, value: v.value, unit: v.unit, currency: null,
+            label: `${name} · ${v.period_label} · ${s?.source?.publisher || s?.source?.name || ''}`, country_iso3: c.iso3, period_label: v.period_label,
+          } : null}><span>{fmtProd(v, lang, t('harvest.prod.unitT'))}</span></FixValue>
+        ) : '—'}
         {v?.source_url && (
           <a href={pageUrl(v.source_url) ?? undefined} target="_blank" rel="noreferrer" className="ml-1 inline-block align-[-1px] text-forest-700"
             title={`${t('prov.original')} · ${s?.source?.name ?? ''}`} aria-label={t('prov.original')}>

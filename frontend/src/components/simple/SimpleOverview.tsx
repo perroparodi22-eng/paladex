@@ -20,6 +20,8 @@ import { inPeriod, ofPct, perKg, plainPriceLabel, plainText, plainVariety, short
 import type { Lang } from '@/lib/types'
 import { useView } from '@/lib/view'
 import { isMirror } from '@/lib/mirror'
+import { FixValue } from '@/components/corrections/QuickFix'
+import type { FigureRef } from '@/components/corrections/types'
 import { WriteBox } from '@/components/corrections/WriteBox'
 import { SourceChip } from './SourceChip'
 import { isOldPeriod, monthName, Trend, useGapNote } from './bits'
@@ -106,17 +108,27 @@ function PriceRow({ tile, old }: { tile: PriceTile; old: boolean }) {
   const gap = tile.mom_pct == null ? gapNote(tile.mom_missing, tile.yoy_pct == null ? tile.yoy_missing : null) : null
   const technical = [priceType(tile.price_type), variety(tile.variety), color, tile.terms,
     `${fmtNumber(tile.price_value, lang, 2)} ${tile.currency}/${tile.unit}`].filter(Boolean).join(' · ')
+  // the stored row behind this price: tapping the number opens "type the right one" (in the unit shown)
+  const rowId = tile.row_id ?? tile.row_ids?.[0]
+  const figure: FigureRef | null = rowId ? {
+    table: 'price_observations', row_id: rowId, row_ids: tile.row_ids, value: tile.price_value, unit: tile.unit, currency: tile.currency,
+    label: `${origin} · ${plainPriceLabel(tile, lang, country)}${what ? ` · ${what}` : ''} · ${fmtPeriod(tile.period_label, lang)}`,
+    country_iso3: tile.origin_iso3, period_label: tile.period_label,
+    shown: value !== null && value !== undefined ? { value, unit: 'kg', currency: cur } : null,
+  } : null
   return (
     <li className="border-b border-line-soft py-3.5 last:border-0" data-price-row={tile.origin_iso3 ?? ''}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[1.15rem] font-semibold leading-snug text-charcoal">{origin}</div>
-          <div className="text-[0.95rem] leading-snug text-charcoal-soft">
+          <div className="text-[0.9rem] leading-snug text-muted">
             {plainPriceLabel(tile, lang, country)}{what && <> · {what}</>}
           </div>
         </div>
         <div className={clsx('shrink-0 whitespace-nowrap text-right tabular-nums font-semibold text-[1.5rem] leading-none', old ? 'text-muted' : 'text-charcoal')}>
-          {fmtNumber(value, lang, 2)} <span className="text-[0.85rem]">{perKg(cur)}</span>
+          <FixValue figure={figure} correction={tile.correction}>
+            <span>{fmtNumber(value, lang, 2)} <span className="text-[0.85rem]">{perKg(cur)}</span></span>
+          </FixValue>
         </div>
       </div>
       {!old && (
@@ -137,11 +149,7 @@ function PriceRow({ tile, old }: { tile: PriceTile; old: boolean }) {
           changeIn ? t('simple.prices.changeBasis', { cur: changeIn }) : null,
         ].filter(Boolean).join(' ') || null,
         correction: tile.correction,
-      }} figure={tile.row_id ? {
-        table: 'price_observations', row_id: tile.row_id, value: tile.price_value, unit: tile.unit, currency: tile.currency,
-        label: `${origin} · ${plainPriceLabel(tile, lang, country)}${what ? ` · ${what}` : ''} · ${fmtPeriod(tile.period_label, lang)}`,
-        country_iso3: tile.origin_iso3, period_label: tile.period_label,
-      } : null} />
+      }} figure={figure} />
     </li>
   )
 }

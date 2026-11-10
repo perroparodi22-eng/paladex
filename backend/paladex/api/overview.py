@@ -290,6 +290,10 @@ def _mean_of(values) -> float | None:
     return sum(vals) / len(vals) if vals else None
 
 
+# A figure averaged from more rows than this is not offered for fixing in one tap.
+MAX_FIX_ROWS = 6
+
+
 class AveragedPoint:
     """Several stored rows of ONE series, product and period, shown as one figure: their simple
     average, as the Prezzi page shows it (prices._combine). The USDA report lists two lines for some
@@ -689,6 +693,8 @@ def _tile(ctx: Ctx, s: PriceSeries, corrections: dict[int, dict] | None = None) 
         # figure is the average of several rows of the period (`averaged_rows`)
         "row_id": last.id,
         "averaged_rows": len(last.rows) if isinstance(last, AveragedPoint) else None,
+        # the rows averaged (few): a person who fixes the figure fixes each of them (11 Nov 2026)
+        "row_ids": [r.id for r in last.rows] if isinstance(last, AveragedPoint) and len(last.rows) <= MAX_FIX_ROWS else None,
         "label": series_label(ctx, s),
         "label_hint": ctx.label_hint(s),
         "origin_iso3": s.origin_iso3, "origin_label": last.origin_label, "variety": s.variety,

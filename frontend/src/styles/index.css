@@ -25,11 +25,16 @@
 }
 
 @layer components {
-  .panel { @apply bg-white border border-line rounded-sm; }
-  .panel-head { @apply flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-line-soft; }
-  .panel-title { @apply font-serif text-lg font-semibold text-charcoal; }
-  .eyebrow { @apply text-[0.72rem] uppercase tracking-[0.14em] text-muted font-medium; }
-  .num { @apply font-mono tabular-nums; }
+  /* Simpler look (owner's request, 11 Nov 2026): cards with soft corners and a light shadow, small
+     labels in normal letters instead of spaced capitals, numbers in the text font (the typewriter
+     font made every figure look like a code). */
+  .panel { @apply bg-white border border-line-soft rounded-lg shadow-panel; }
+  .panel-head { @apply flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b border-line-soft; }
+  .panel-title { @apply font-serif text-[1.2rem] font-semibold text-charcoal; }
+  .eyebrow { @apply text-[0.82rem] text-muted font-medium; }
+  .num { @apply font-sans tabular-nums; }
+  /* A number a person can fix by tapping it (components/corrections/QuickFix.tsx). */
+  .fix-value { @apply -mx-1.5 -my-0.5 inline-flex cursor-pointer items-baseline rounded-md px-1.5 py-0.5 text-left transition-colors hover:bg-gold-pale/70 focus-visible:bg-gold-pale/70; }
   .btn { @apply inline-flex items-center gap-2 px-4 py-2 rounded-sm text-[0.95rem] font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
   .btn-primary { @apply btn bg-forest-800 text-ivory border-forest-800 hover:bg-forest-700; }
   .btn-secondary { @apply btn bg-white text-charcoal border-line hover:border-forest-600 hover:text-forest-800; }
@@ -37,9 +42,9 @@
   .field { @apply w-full bg-white border border-line rounded-sm px-3 py-2 text-[0.95rem] focus:border-forest-600 focus:outline-none; }
   .label { @apply block text-sm font-medium text-charcoal-soft mb-1; }
   .table-clean { @apply w-full text-[0.95rem]; }
-  .table-clean th { @apply text-left font-medium text-muted text-[0.78rem] uppercase tracking-wider px-3 py-2 border-b border-line bg-paper; }
+  .table-clean th { @apply text-left font-medium text-muted text-[0.84rem] px-3 py-2.5 border-b border-line; }
   .table-clean td { @apply px-3 py-2.5 border-b border-line-soft align-top; }
-  .table-clean tbody tr:hover { @apply bg-ivory/50; }
+  .table-clean tbody tr:hover { @apply bg-paper; }
   .link { @apply text-forest-700 underline decoration-gold/50 underline-offset-2 hover:decoration-gold; }
 }
 

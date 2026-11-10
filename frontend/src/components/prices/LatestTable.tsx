@@ -8,6 +8,8 @@ import { fmtDate } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import { Change, DocLink, ScrollHint, Swatch, useOverflows } from './bits'
 import { RowCorrection } from '@/components/corrections/FixButton'
+import { FixValue } from '@/components/corrections/QuickFix'
+import type { FigureRef } from '@/components/corrections/types'
 import type { LatestRow, MassUnit } from './types'
 import { colorLabel, fmtPeriodLabel, fmtPrice, toUnit, unitLabel } from './utils'
 
@@ -139,15 +141,18 @@ export function LatestTable({ rows, unit, colorOf, toggle }: {
               const yoy = <Change pct={r.change_yoy_pct} cmp={r.year_ago} expectedLabel={shiftLabel(r.period_label, r.freq, -(PERIODS_PER_YEAR[r.freq] ?? 12))} unit={unit} unitText={unitLabel(r.currency, unit)} />
               const source = <span className="text-charcoal-soft">{r.source?.publisher || r.source?.name}</span>
               const published = <span className="block text-muted num text-[0.8rem]" title={t('prov.published')}>{r.published_at ? fmtDate(r.published_at, lang) : '—'}</span>
+              const rowId = p.row_id ?? p.row_ids?.[0]
+              const figure: FigureRef | null = rowId && orig ? {
+                table: 'price_observations', row_id: rowId, row_ids: p.row_ids, value: orig.value, unit: orig.unit, currency: orig.currency,
+                label: `${r.origin_iso3 ? country(r.origin_iso3) : r.origin_label ?? ''} · ${variety(r.variety)}${r.color_grade ? ` · ${colorLabel(r.color_grade, t)}` : ''} · ${fmtPeriodLabel(r.period_label, lang)}`,
+                country_iso3: r.origin_iso3, period_label: r.period_label,
+                shown: p.value !== null ? { value: toUnit(p.value, unit), unit, currency: r.currency } : null,
+              } : null
               const badges = (
                 <>
                   <FreshnessBadge status={r.freshness.status} ageDays={r.freshness.age_days} />
                   {r.data_status !== 'published' && <StatusBadge status={r.data_status} />}
-                  <RowCorrection correction={p.correction} figure={p.row_id && orig ? {
-                    table: 'price_observations', row_id: p.row_id, value: orig.value, unit: orig.unit, currency: orig.currency,
-                    label: `${r.origin_iso3 ? country(r.origin_iso3) : r.origin_label ?? ''} · ${variety(r.variety)}${r.color_grade ? ` · ${colorLabel(r.color_grade, t)}` : ''} · ${fmtPeriodLabel(r.period_label, lang)}`,
-                    country_iso3: r.origin_iso3, period_label: r.period_label,
-                  } : null} />
+                  <RowCorrection correction={p.correction} figure={figure} />
                 </>
               )
               return (
@@ -172,7 +177,7 @@ export function LatestTable({ rows, unit, colorOf, toggle }: {
                       <span className="text-muted" title={orig ? t('prices.latest.fxMissing', { v: `${fmtPrice(orig.value, lang)} ${orig.currency}/${orig.unit}` }) : undefined}>—</span>
                     ) : (
                       <span title={orig ? `${t('prices.chart.as_published')}: ${fmtPrice(orig.value, lang)} ${orig.currency}/${orig.unit}` : undefined}>
-                        <span className="num text-[1.05rem] text-charcoal">{fmtPrice(toUnit(p.value, unit), lang)}</span>
+                        <FixValue figure={figure} correction={p.correction}><span className="num text-[1.05rem] text-charcoal">{fmtPrice(toUnit(p.value, unit), lang)}</span></FixValue>
                         {p.low !== null && p.high !== null && (
                           <span className="num block text-[0.75rem] text-muted">{fmtPrice(toUnit(p.low, unit), lang)}–{fmtPrice(toUnit(p.high, unit), lang)}</span>
                         )}

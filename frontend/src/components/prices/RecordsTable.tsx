@@ -10,6 +10,8 @@ import { fmtAgo, fmtDate, fmtNumber } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import { isMirror } from '@/lib/mirror'
 import { RowCorrection } from '@/components/corrections/FixButton'
+import { FixValue } from '@/components/corrections/QuickFix'
+import type { FigureRef } from '@/components/corrections/types'
 import { DocLink, ScrollHint, useOverflows } from './bits'
 import type { Ccy, MassUnit, ObservationsResponse } from './types'
 import { colorLabel, fmtPeriodLabel, fmtPrice, rowValuePerKg, toUnit, unitLabel } from './utils'
@@ -103,16 +105,17 @@ export function RecordsTable({ filters, from, ccy, unit }: {
             <tbody>
               {d.rows.map((r) => {
                 const conv = rowValuePerKg(r, ccy)
+                const figure: FigureRef | null = r.is_demo ? null : {
+                  table: 'price_observations', row_id: r.id, value: r.price_value, unit: r.unit, currency: r.currency,
+                  label: `${r.origin_iso3 ? country(r.origin_iso3) : r.origin_label ?? ''} · ${variety(r.variety)}${r.color_grade ? ` · ${colorLabel(r.color_grade, t)}` : ''} · ${fmtPeriodLabel(r.period_label, lang)}`,
+                  country_iso3: r.origin_iso3, period_label: r.period_label,
+                }
                 const status = (
                   <>
                     <StatusBadge status={r.data_status} />
                     {r.revision > 1 && <span className="ml-1.5 text-[0.72rem] text-muted">{t('prices.rec.revision', { n: r.revision })}</span>}
                     <span className="mt-1 block">
-                      <RowCorrection correction={r.correction} figure={r.is_demo ? null : {
-                        table: 'price_observations', row_id: r.id, value: r.price_value, unit: r.unit, currency: r.currency,
-                        label: `${r.origin_iso3 ? country(r.origin_iso3) : r.origin_label ?? ''} · ${variety(r.variety)}${r.color_grade ? ` · ${colorLabel(r.color_grade, t)}` : ''} · ${fmtPeriodLabel(r.period_label, lang)}`,
-                        country_iso3: r.origin_iso3, period_label: r.period_label,
-                      }} />
+                      <RowCorrection correction={r.correction} figure={figure} />
                     </span>
                   </>
                 )
@@ -128,11 +131,13 @@ export function RecordsTable({ filters, from, ccy, unit }: {
                     </td>
                     {anyColour && <td className={clsx(FULL, 'whitespace-nowrap text-charcoal-soft')}>{r.color_grade ? colorLabel(r.color_grade, t) : '—'}</td>}
                     <td className="text-right whitespace-nowrap" title={r.terms ?? undefined}>
-                      <span className="num">
-                        {r.price_low !== null && r.price_high !== null && r.price_low !== r.price_high
-                          ? `${fmtPrice(r.price_low, lang)}–${fmtPrice(r.price_high, lang)}`
-                          : fmtPrice(r.price_value, lang)}
-                      </span>
+                      <FixValue figure={figure} correction={r.correction}>
+                        <span className="num">
+                          {r.price_low !== null && r.price_high !== null && r.price_low !== r.price_high
+                            ? `${fmtPrice(r.price_low, lang)}–${fmtPrice(r.price_high, lang)}`
+                            : fmtPrice(r.price_value, lang)}
+                        </span>
+                      </FixValue>
                       <span className="text-muted text-[0.8rem] max-xl:block"> {r.currency}/{r.unit}</span>
                     </td>
                     <td className="text-right num whitespace-nowrap" title={r.fx_date ? `FX ${fmtDate(r.fx_date, lang)}` : undefined}>

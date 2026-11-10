@@ -1,3 +1,4 @@
+import type { CorrectionBrief } from '@/components/corrections/types'
 // Types of /api/harvest/* (backend/paladex/api/harvest.py).
 import type { ProductionMetric } from '@/components/countries/types'
 import type { Provider, SourceUsed } from '@/components/trade/types'
@@ -123,6 +124,9 @@ export interface ProductionValue {
   period_label: string; year: number; value: number; unit: string; flag_raw: string | null; notes: string | null
   source_url: string | null; published_at: string | null; collected_at: string | null
   data_status: string; is_demo: boolean
+  /** the stored row (what a person can fix) and its correction by a person, if any */
+  row_id?: number | null
+  correction?: CorrectionBrief | null
 }
 
 export interface ProductionRowSeries {

@@ -34,6 +34,12 @@ export interface FigureRef {
   field?: 'net_weight_kg' | 'value' | null
   country_iso3?: string | null
   period_label?: string | null
+  /** the figure as shown on screen when that differs from the stored row (EUR/kg for a USD/lb price):
+   * what the person types is read in this unit and currency, and the backend converts it */
+  shown?: { value: number | null; unit: string | null; currency: string | null } | null
+  /** a figure that is the average of a few stored rows of one period (two USDA lines of the same
+   * month): fixing it fixes each of them; `row_id` is then the first */
+  row_ids?: number[] | null
 }
 
 export interface CorrectionEvent {

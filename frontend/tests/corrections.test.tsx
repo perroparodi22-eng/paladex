@@ -12,6 +12,7 @@ import { errorText } from '@/components/corrections/api'
 import { CorrectionBadge } from '@/components/corrections/CorrectionBadge'
 import { CorrectionsList, CountryNotes } from '@/components/corrections/CorrectionsPanel'
 import { FigureForm } from '@/components/corrections/FigureDialog'
+import { editBasis, FixValue, inputText, parseTyped, QuickFixForm } from '@/components/corrections/QuickFix'
 import { fmtFigureValue, typedNumber } from '@/components/corrections/format'
 import { CandidateView, SyncStatus, SyncSwitch } from '@/components/corrections/parts'
 import type { Candidate, CorrectionBrief, CorrectionEvent, FigureRef } from '@/components/corrections/types'
@@ -74,18 +75,18 @@ test('the source chip carries the badge and, opened, "Segnala o correggi"; never
   const p = { source: USDA, period_label: '2026-09', data_status: 'user_entered', correction: BRIEF }
   const closed = text(show(<SourceChip p={p} figure={FIGURE} />))
   assert.match(closed, /Fonte: USDA · set 2026 Corretto da Papà il 6 nov 2026/)
-  assert.doesNotMatch(closed, /Inserito|Segnala o correggi/)          // no duplicate "user entered" badge
+  assert.doesNotMatch(closed, /Inserito|Correggi/)          // no duplicate "user entered" badge
   const open = text(show(<SourceChip p={p} figure={FIGURE} defaultOpen />))
-  assert.match(open, /Segnala o correggi/)
-  assert.doesNotMatch(text(show(<SourceChip p={{ source: USDA, period_label: '2026-09' }} defaultOpen />)), /Segnala o correggi/)  // no stored row: no action
+  assert.match(open, /Inserito dall'utente Correggi/)
+  assert.doesNotMatch(text(show(<SourceChip p={{ source: USDA, period_label: '2026-09' }} defaultOpen />)), /Correggi/)  // no stored row: no action
   const copy = mirror(() => text(show(<SourceChip p={p} figure={FIGURE} defaultOpen />)))
   assert.match(copy, /Corretto da Papà/)
-  assert.doesNotMatch(copy, /Segnala o correggi/)
+  assert.doesNotMatch(copy, /Correggi/)
 })
 
 test('full view: the provenance line shows the badge and "Segnala o correggi" next to it', () => {
   const out = text(show(<SourceLine p={{ source: USDA, published_at: '2026-10-30', correction: BRIEF }} figure={FIGURE} />))
-  assert.match(out, /Fonte: USDA Agricultural Marketing Service \(AMS\) · Pubblicato 30 ott 2026 Segnala o correggi Corretto da Papà il 6 nov 2026/)
+  assert.match(out, /Fonte: USDA Agricultural Marketing Service \(AMS\) · Pubblicato 30 ott 2026 Correggi Corretto da Papà il 6 nov 2026/)
   assert.doesNotMatch(text(show(<SourceLine p={{ source: USDA }} />)), /Segnala|Corretto/)
 })
 
@@ -131,8 +132,9 @@ test('"Scrivi a Paladex": words with an AI key; without one, how to correct from
   assert.match(ai, /data-write-box="ai"/)
   assert.match(text(ai), /Invia Nulla cambia finché non premi «Conferma»\. Firmi come: Papà cambia Sincronizzazione: 1 correzione in attesa di invio Sincronizza ora/)
   const plain = text(show(<WriteBox />, { qc: qcWith(false) }))
-  assert.match(plain, /L’assistente IA non è configurato\. Per correggere un numero tocca «Fonte» sotto quel numero e poi «Segnala o correggi»/)
-  assert.match(plain, /Paese .*Nota .*Salva la nota/)
+  // without a key a number is fixed by tapping it: only the note on a country is left here, one tap away
+  assert.match(plain, /^Lascia una nota su un paese Firmi come: Papà/)
+  assert.doesNotMatch(plain, /Salva la nota/)
   assert.equal(mirror(() => show(<WriteBox />, { qc: qcWith(true) })), '')
   assert.match(text(show(<WriteBox />, { qc: qcWith(true), lang: 'en' })), /Send Nothing changes until you press “Confirm”/)
 })
@@ -140,7 +142,7 @@ test('"Scrivi a Paladex": words with an AI key; without one, how to correct from
 test('the simple Panoramica has the box as a fifth card (not in the phone copy)', () => {
   const qc = qcWith(false)
   const out = text(show(<SimpleOverview d={overview as unknown as OverviewData} />, { qc }))
-  assert.match(out, /Notizie .* Scrivi a Paladex Hai visto un numero sbagliato o vuoi lasciare una nota\?/)
+  assert.match(out, /Notizie .* Scrivi a Paladex Un numero è sbagliato\? Toccalo e scrivi quello giusto\./)
   assert.doesNotMatch(mirror(() => text(show(<SimpleOverview d={overview as unknown as OverviewData} />, { qc }))), /Scrivi a Paladex/)
 })
 
@@ -233,4 +235,59 @@ test('the exchange with the other computers is a switch, off by default, saying 
   const st = text(show(<SyncStatus compact />, { qc: qcWith(false, [[['corrections', 'sync'], { enabled: false, reason: 'disabled', reason_message_it: 'Scambio delle correzioni spento su questo computer.', pending: 0 }]]) }))
   assert.match(st, /Sincronizzazione: Scambio delle correzioni spento su questo computer\. Impostazioni/)
   assert.match(text(show(<SyncSwitch />, { lang: 'en', qc: qcWith(false, [[['corrections', 'settings'], { author: 'Papà', sync_enabled: false }]]) })), /Exchange corrections with the other computers/)
+})
+
+// --- 11 Nov 2026: fixing a number in place (owner: "not like a comment, like fixing the price") ----------
+test('a typed number is read as an Italian reads it, and an ambiguous one by what the figure is', () => {
+  assert.equal(parseTyped('3,5', 'it'), 3.5)
+  assert.equal(parseTyped('3.5', 'it'), 3.5)                      // people also type a point
+  assert.equal(parseTyped('69.298', 'it', 69298), 69298)           // tonnes: sixty-nine thousand
+  assert.equal(parseTyped('1.775', 'it', 1.775), 1.775)            // a price of one dollar seventy-seven
+  assert.equal(parseTyped('3.420', 'it', 3.42), 3.42)
+  assert.equal(parseTyped('69.298', 'it'), 69298)                  // nothing to compare with: the Italian reading
+  assert.equal(parseTyped('1.234.567,8', 'it'), 1234567.8)
+  assert.equal(parseTyped('1,234.5', 'en'), 1234.5)
+  assert.equal(parseTyped('69,298', 'en', 69298), 69298)
+  assert.equal(parseTyped(' 3,50 € ', 'it'), 3.5)
+  for (const bad of ['', 'circa 3', '3,4,5', '-2', '1.2.3,4,5']) assert.equal(parseTyped(bad, 'it'), null, bad)
+})
+
+test('the box opens with the number as shown: euros per kilo on screen, tonnes for big weights', () => {
+  assert.deepEqual(editBasis(FIGURE), { value: 1.775, unit: 'lb', currency: 'USD' })
+  assert.deepEqual(editBasis({ ...FIGURE, shown: { value: 3.4183, unit: 'kg', currency: 'EUR' } }), { value: 3.42, unit: 'kg', currency: 'EUR' })
+  assert.deepEqual(editBasis({ ...FIGURE, table: 'trade_flows', value: 93811000, unit: 'kg', currency: null }), { value: 93811, unit: 't', currency: null })
+  assert.equal(inputText(1.775, 'it'), '1,775')
+  assert.equal(inputText(3.42, 'it'), '3,42')
+  assert.equal(inputText(69298, 'it'), '69.298')
+  assert.equal(parseTyped(inputText(69298, 'it'), 'it', 69298), 69298)
+  assert.equal(inputText(null, 'it'), '')
+})
+
+test('fixing a number: one box with the number, Save, and the source\'s number one tap away', () => {
+  const html = show(<QuickFixForm figure={{ ...FIGURE, shown: { value: 3.42, unit: 'kg', currency: 'EUR' } }} onCancel={() => {}} onMore={() => {}} />)
+  const s = text(html)
+  assert.match(s, /^Argentina · prezzo all'ingrosso \(fusti\) negli USA · millefiori, bianco · set 2026 Scrivi il numero giusto €\/kg Adesso: 3,42 €\/kg Salva Annulla/)
+  assert.match(html, /value="3,42"/)
+  assert.match(html, /<button type="submit"[^>]*disabled/)          // nothing to save until the number changes
+  assert.doesNotMatch(html, /<textarea/)                            // no reason to write, no comment
+  assert.match(s, /Il numero della fonte resta salvato/)
+  assert.match(s, /Firmi come: Papà cambia Non sai il numero giusto\? Segnala un dubbio$/)
+  const fixed = text(show(<QuickFixForm figure={FIGURE} correction={BRIEF} />))
+  assert.match(fixed, /Corretto da Papà il 6 nov 2026\. La fonte dice 2,04 \$\/lb\. Rimetti il numero della fonte/)
+  assert.match(text(show(<QuickFixForm figure={FIGURE} />, { lang: 'en' })), /Type the right number \$\/lb Now: 1.775 \$\/lb Save/)
+})
+
+test('the number itself is the button; in the phone copy, or without a stored row, it is just the number', () => {
+  const html = show(<FixValue figure={FIGURE}><span>3,42 €/kg</span></FixValue>)
+  assert.match(html, /<button type="button" title="Tocca per correggere questo numero" data-fix-value="2604"/)
+  assert.match(text(html), /^3,42 €\/kg Tocca per correggere questo numero$/)
+  assert.equal(show(<FixValue figure={null}><span>3,42</span></FixValue>), '<span>3,42</span>')
+  assert.equal(mirror(() => show(<FixValue figure={FIGURE}><span>3,42</span></FixValue>)), '<span>3,42</span>')
+  // every price of the simple Panoramica can be fixed by tapping it
+  const d = structuredClone(overview) as unknown as OverviewData
+  d.prices.items.forEach((x, i) => { if (i === 0) { x.row_id = null; x.row_ids = [901, 902] } else x.row_id = 100 + i })   // the first: an average of two rows
+  const home = show(<SimpleOverview d={d} />, { qc: qcWith(false) })
+  assert.match(home, /data-fix-value="901"/)
+  assert.match(home, /data-fix-value="101"/)
+  assert.doesNotMatch(mirror(() => show(<SimpleOverview d={d} />, { qc: qcWith(false) })), /data-fix-value=/)
 })

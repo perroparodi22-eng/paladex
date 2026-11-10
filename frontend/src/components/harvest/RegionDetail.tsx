@@ -84,7 +84,7 @@ export function RegionBody({ r }: { r: HarvestRegion & { months: RegionMonth[] }
         <div className="-mx-5 overflow-x-auto px-5">
           <table className="w-full min-w-[360px] text-[0.88rem]">
             <thead>
-              <tr className="border-b border-line bg-paper text-left text-[0.68rem] uppercase tracking-wider text-muted">
+              <tr className="border-b border-line text-left text-[0.82rem] text-muted">
                 <th className="py-1.5 px-2 font-medium">{t('harvest.detail.month')}</th>
                 <th className="py-1.5 px-2 font-medium text-right">{t('harvest.detail.tempAnom')}</th>
                 <th className="py-1.5 px-2 font-medium text-right">{t('harvest.detail.rainPct')}</th>

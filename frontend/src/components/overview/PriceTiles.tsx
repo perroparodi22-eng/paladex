@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Line, LineChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { DemoBadge, FreshnessBadge, StatusBadge } from '@/components/ui'
 import { CorrectionBadge } from '@/components/corrections/CorrectionBadge'
+import { FixValue } from '@/components/corrections/QuickFix'
 import { useI18n } from '@/i18n'
 import { fmtAgo, fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
@@ -78,7 +79,13 @@ function Tile({ tile, showType, twoLineDetail }: { tile: PriceTile; showType: bo
         {showType && <div className="truncate text-[0.72rem] uppercase tracking-wide text-gold-dark">{priceType(tile.price_type)}</div>}
       </div>
       <div className="mt-2 flex items-baseline gap-1">
-        <span className="num text-[1.6rem] leading-none text-charcoal">{fmtNumber(mainVal, lang, 2)}</span>
+        <FixValue correction={tile.correction} figure={(tile.row_id ?? tile.row_ids?.[0]) && !tile.is_demo ? {
+          table: 'price_observations', row_id: (tile.row_id ?? tile.row_ids?.[0])!, row_ids: tile.row_ids, value: tile.price_value, unit: tile.unit, currency: tile.currency,
+          label: `${origin} · ${detail} · ${fmtPeriod(tile.period_label, lang)}`, country_iso3: tile.origin_iso3, period_label: tile.period_label,
+          shown: mainVal !== null && mainVal !== undefined ? { value: mainVal, unit: 'kg', currency: mainCur } : null,
+        } : null}>
+          <span className="num text-[1.6rem] leading-none text-charcoal">{fmtNumber(mainVal, lang, 2)}</span>
+        </FixValue>
         <span className="text-[0.74rem] text-muted">{mainCur}{t('overview.prices.perKg')}</span>
       </div>
       <div className="num mt-0.5 text-[0.8rem] text-muted">
