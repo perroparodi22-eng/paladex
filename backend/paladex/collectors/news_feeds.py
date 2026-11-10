@@ -60,6 +60,7 @@ from .base import CollectContext, Collector, CollectorError
 
 FEED_ACCEPT = "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.9, */*;q=0.5"
 DEFAULT_MAX_ENTRY_AGE_DAYS = 365   # older items in a feed (archives) are skipped
+ARCHIVE_ENTRY_AGE_DAYS = 3650      # feeds marked `archive`: the latest honey articles, up to ten years old
 
 
 @dataclass(frozen=True)
@@ -279,6 +280,15 @@ FEEDS: list[FeedSpec] = [
 # real feed; sites that answered with an anti-bot page or HTTP 403 were left out (among them
 # Canal Rural, Agroklub, SPOS, Fermer.bg, Agro24, RNZ, The Western Producer, Euractiv).
 # Items carry the feed's country as a tag (`home_tag`).
+#
+# All of Europe (the 39 countries of the reference region "Europe") was added the same way on
+# 10 Nov 2026: the national beekeepers' association or a beekeeping portal where its feed answered,
+# otherwise a national farm or business paper filtered by the honey gate. Left out because they
+# answered with an anti-bot page or HTTP 403: Agriland search and That's Farming (Ireland), Boerderij
+# and Foodlog (Netherlands), Zemědělec search (Czechia), the Slovak beekeepers' union, Agroklub
+# (Croatia), Agrotim (North Macedonia), Monitor (Albania), Sinor (Bulgaria), Times of Malta,
+# in-cyprus, Luxemburger Wort, Agroinvestor (Russia); VILT (Belgium) answers with 1,665 items per
+# request and was left out as too heavy.
 
 _KINDS = {
     # kind -> (Italian, English) description of what is read
@@ -286,6 +296,7 @@ _KINDS = {
     "search": ("Articoli del sito che citano il miele (feed RSS di ricerca dell'editore)",
                "The site's articles mentioning honey (publisher's search RSS feed)"),
     "association": ("Notizie dell'associazione di settore (feed RSS)", "News of the sector association (RSS feed)"),
+    "sector": ("Portale di apicoltura (feed RSS dell'editore)", "Beekeeping portal (publisher's RSS feed)"),
     "general": ("Feed generale: si conservano solo gli articoli che parlano di miele o apicoltura",
                 "General feed: only the articles about honey or beekeeping are kept"),
 }
@@ -293,7 +304,11 @@ _KINDS = {
 
 def _country(key: str, country: str, publisher: str, url: str, homepage: str, language: str, *, kind: str,
              label_it: str, label_en: str, reliability: Reliability = Reliability.TRADE_PRESS,
-             publisher_en: str | None = None) -> FeedSpec:
+             publisher_en: str | None = None, archive: bool = False) -> FeedSpec:
+    """`archive`: keep the feed's older entries too (ARCHIVE_ENTRY_AGE_DAYS instead of one year). For
+    the honey feeds of countries where honey is written about once in a long while (South America,
+    owner's request of 10 Nov 2026): the country page then shows the latest article it has, with
+    its date, instead of nothing."""
     it, en = _KINDS[kind]
     rare = kind == "general"
     return FeedSpec(
@@ -308,6 +323,7 @@ def _country(key: str, country: str, publisher: str, url: str, homepage: str, la
                             else "Checked every 3 hours; new honey articles whenever the publisher posts them"),
         terms_note=f"{it}. Si leggono titolo, estratto e link; il testo completo resta sul sito dell'editore.",
         verified="verified", home_tag=True,
+        max_entry_age_days=ARCHIVE_ENTRY_AGE_DAYS if archive else DEFAULT_MAX_ENTRY_AGE_DAYS,
     )
 
 
@@ -315,13 +331,13 @@ _IND = Reliability.INDUSTRY
 COUNTRY_FEEDS: list[FeedSpec] = [
     # --- South America ------------------------------------------------------------------
     _country("ar_infocampo_miel", "ARG", "Infocampo", "https://www.infocampo.com.ar/tag/miel/feed/",
-             "https://www.infocampo.com.ar/tag/miel/", "es", kind="tag",
+             "https://www.infocampo.com.ar/tag/miel/", "es", kind="tag", archive=True,
              label_it="miele (Argentina)", label_en="honey (Argentina)"),
     _country("ar_bichos_miel", "ARG", "Bichos de Campo", "https://bichosdecampo.com/tag/miel/feed/",
-             "https://bichosdecampo.com/tag/miel/", "es", kind="tag",
+             "https://bichosdecampo.com/tag/miel/", "es", kind="tag", archive=True,
              label_it="miele (Argentina)", label_en="honey (Argentina)"),
     _country("uy_todoelcampo_miel", "URY", "Todo El Campo", "https://www.todoelcampo.com.uy/?s=miel&feed=rss2",
-             "https://www.todoelcampo.com.uy/?s=miel", "es", kind="search",
+             "https://www.todoelcampo.com.uy/?s=miel", "es", kind="search", archive=True,
              label_it="miele (Uruguay)", label_en="honey (Uruguay)"),
     _country("br_g1_agro", "BRA", "G1 Agronegócios (Globo)",
              "https://g1.globo.com/dynamo/economia/agronegocios/rss2.xml",
@@ -329,7 +345,7 @@ COUNTRY_FEEDS: list[FeedSpec] = [
              label_it="agroalimentare (Brasile, filtrato: solo miele)",
              label_en="agribusiness (Brazil, filtered: honey only)"),
     _country("cl_portalagro_miel", "CHL", "Portal Agro Chile", "https://www.portalagrochile.cl/tag/miel/feed/",
-             "https://www.portalagrochile.cl/tag/miel/", "es", kind="tag",
+             "https://www.portalagrochile.cl/tag/miel/", "es", kind="tag", archive=True,
              label_it="miele (Cile)", label_en="honey (Chile)"),
     _country("mx_imagenagro_miel", "MEX", "Imagen Agropecuaria",
              "https://imagenagropecuaria.com/?s=miel&feed=rss2", "https://imagenagropecuaria.com/?s=miel", "es",
@@ -408,6 +424,199 @@ COUNTRY_FEEDS: list[FeedSpec] = [
     _country("cn_ecns", "CHN", "ECNS (China News Service)", "http://www.ecns.cn/rss/rss.xml",
              "http://www.ecns.cn/", "en", kind="general",
              label_it="notizie (Cina, filtrato: solo miele)", label_en="news (China, filtered: honey only)"),
+    # --- The rest of South America (10 Nov 2026): all 10 countries of the region ------------------
+    # Left out (anti-bot page or HTTP 403): Productiva C&M and the ministry (Paraguay), El Impulso,
+    # Últimas Noticias, Efecto Cocuyo (Venezuela), La Hora and El Comercio's search (Ecuador), CNA
+    # (Brazil), LR21 and the Sociedad Apícola Uruguaya (Uruguay), Las2orillas (Colombia).
+    _country("br_sebrae_mel", "BRA", "Agência Sebrae de Notícias", "https://agenciasebrae.com.br/tag/mel/feed/",
+             "https://agenciasebrae.com.br/tag/mel/", "pt", kind="tag", archive=True, reliability=_IND,
+             label_it="miele (Brasile)", label_en="honey (Brazil)"),
+    _country("cl_portalagro_apicultura", "CHL", "Portal Agro Chile",
+             "https://www.portalagrochile.cl/tag/apicultura/feed/", "https://www.portalagrochile.cl/tag/apicultura/",
+             "es", kind="tag", archive=True, label_it="apicoltura (Cile)", label_en="beekeeping (Chile)"),
+    _country("uy_todoelcampo_apicultura", "URY", "Todo El Campo",
+             "https://www.todoelcampo.com.uy/?s=apicultura&feed=rss2", "https://www.todoelcampo.com.uy/?s=apicultura",
+             "es", kind="search", archive=True, label_it="apicoltura (Uruguay)", label_en="beekeeping (Uruguay)"),
+    # Colombia, Paraguay, Venezuela: honey is rarely in the news. Regional papers' beekeeping searches
+    # and the state agencies' are read, and older articles are kept (`archive`), so the country page
+    # shows the latest one it has, with its date.
+    _country("co_lanacion_apicultura", "COL", "La Nación (Huila)", "https://www.lanacion.com.co/?s=apicultura&feed=rss2",
+             "https://www.lanacion.com.co/?s=apicultura", "es", kind="search", archive=True,
+             label_it="apicoltura (Colombia)", label_en="beekeeping (Colombia)", publisher_en='"La Nación" (Huila)'),
+    _country("co_boyaca7dias_apicultura", "COL", "Boyacá Sie7e Días",
+             "https://boyaca7dias.com.co/?s=apicultura&feed=rss2", "https://boyaca7dias.com.co/?s=apicultura", "es",
+             kind="search", archive=True, label_it="apicoltura (Colombia)", label_en="beekeeping (Colombia)"),
+    _country("co_elcampesino_apicultura", "COL", "El Campesino", "https://www.elcampesino.co/tag/apicultura/feed/",
+             "https://www.elcampesino.co/tag/apicultura/", "es", kind="tag", archive=True,
+             label_it="apicoltura (Colombia)", label_en="beekeeping (Colombia)"),
+    _country("pe_inforegion_miel", "PER", "Inforegión", "https://www.inforegion.pe/?s=miel&feed=rss2",
+             "https://www.inforegion.pe/?s=miel", "es", kind="search", archive=True, label_it="miele (Perù)", label_en="honey (Peru)"),
+    _country("pe_agroperu_miel", "PER", "Agro Perú Informa", "https://www.agroperu.pe/?s=miel&feed=rss2",
+             "https://www.agroperu.pe/?s=miel", "es", kind="search", archive=True, label_it="miele (Perù)", label_en="honey (Peru)"),
+    _country("ec_cronica_miel", "ECU", "Crónica (Loja)", "https://cronica.com.ec/?s=miel&feed=rss2",
+             "https://cronica.com.ec/?s=miel", "es", kind="search", archive=True, label_it="miele (Ecuador)", label_en="honey (Ecuador)"),
+    _country("ec_elnorte_miel", "ECU", "El Norte", "https://www.elnorte.ec/?s=miel&feed=rss2",
+             "https://www.elnorte.ec/?s=miel", "es", kind="search", archive=True, label_it="miele (Ecuador)", label_en="honey (Ecuador)"),
+    _country("bo_abi_miel", "BOL", "ABI – Agencia Boliviana de Información", "https://abi.bo/?s=miel&feed=rss2",
+             "https://abi.bo/?s=miel", "es", kind="search", archive=True, reliability=Reliability.OFFICIAL,
+             label_it="miele (Bolivia)", label_en="honey (Bolivia)"),
+    _country("bo_publiagro_miel", "BOL", "PubliAgro", "https://publiagro.com.bo/?s=miel&feed=rss2",
+             "https://publiagro.com.bo/?s=miel", "es", kind="search", archive=True, label_it="miele (Bolivia)", label_en="honey (Bolivia)"),
+    _country("py_ip_apicultura", "PRY", "Agencia IP (Agencia de Información Paraguaya)",
+             "https://www.ip.gov.py/ip/?s=apicultura&feed=rss2", "https://www.ip.gov.py/ip/?s=apicultura", "es",
+             kind="search", archive=True, reliability=Reliability.OFFICIAL,
+             label_it="apicoltura (Paraguay)", label_en="beekeeping (Paraguay)"),
+    _country("py_mades_miel", "PRY", "MADES – Ministerio del Ambiente y Desarrollo Sostenible",
+             "https://www.mades.gov.py/?s=miel&feed=rss2", "https://www.mades.gov.py/?s=miel", "es", kind="search", archive=True,
+             reliability=Reliability.OFFICIAL, label_it="miele (Paraguay)", label_en="honey (Paraguay)"),
+    _country("ve_barquisimeto_apicultura", "VEN", "Noticias Barquisimeto",
+             "https://www.noticiasbarquisimeto.com/?s=apicultura&feed=rss2",
+             "https://www.noticiasbarquisimeto.com/?s=apicultura", "es", kind="search", archive=True,
+             label_it="apicoltura (Venezuela)", label_en="beekeeping (Venezuela)"),
+    _country("ve_lanacionweb_apicultura", "VEN", "La Nación (Táchira)",
+             "https://lanacionweb.com/?s=apicultura&feed=rss2", "https://lanacionweb.com/?s=apicultura", "es",
+             kind="search", archive=True, label_it="apicoltura (Venezuela)", label_en="beekeeping (Venezuela)",
+             publisher_en='"La Nación" (Táchira)'),
+    _country("ve_fedeagro", "VEN", "Fedeagro", "https://fedeagro.org/feed/", "https://fedeagro.org/", "es",
+             kind="general", reliability=_IND, label_it="agricoltura (Venezuela, filtrato: solo miele)",
+             label_en="farming (Venezuela, filtered: honey only)"),
+    # --- The rest of Europe (10 Nov 2026) -------------------------------------------------------
+    _country("gb_scottish_beekeepers", "GBR", "Scottish Beekeepers' Association",
+             "https://www.scottishbeekeepers.org.uk/feed", "https://www.scottishbeekeepers.org.uk/", "en",
+             kind="association", reliability=_IND, label_it="notizie (Regno Unito)", label_en="news (United Kingdom)"),
+    _country("gb_farmersguardian", "GBR", "Farmers Guardian", "https://www.farmersguardian.com/feeds/rss",
+             "https://www.farmersguardian.com/", "en", kind="general",
+             label_it="agricoltura (Regno Unito, filtrato: solo miele)",
+             label_en="farming (United Kingdom, filtered: honey only)"),
+    _country("ie_fibka", "IRL", "Federation of Irish Beekeepers' Associations", "https://irishbeekeeping.ie/feed/",
+             "https://irishbeekeeping.ie/", "en", kind="association", reliability=_IND,
+             label_it="notizie (Irlanda)", label_en="news (Ireland)"),
+    _country("ie_agriland", "IRL", "Agriland", "https://www.agriland.ie/feed/", "https://www.agriland.ie/", "en",
+             kind="general", label_it="agricoltura (Irlanda, filtrato: solo miele)",
+             label_en="farming (Ireland, filtered: honey only)"),
+    _country("pt_fnap", "PRT", "FNAP – Federação Nacional dos Apicultores de Portugal", "https://fnap.pt/feed/",
+             "https://fnap.pt/", "pt", kind="association", reliability=_IND,
+             label_it="notizie (Portogallo)", label_en="news (Portugal)"),
+    _country("pt_cap", "PRT", "CAP – Confederação dos Agricultores de Portugal", "https://www.cap.pt/feed",
+             "https://www.cap.pt/", "pt", kind="general", reliability=_IND,
+             label_it="agricoltura (Portogallo, filtrato: solo miele)",
+             label_en="farming (Portugal, filtered: honey only)"),
+    _country("nl_nbv", "NLD", "Nederlandse Bijenhoudersvereniging (NBV)", "https://www.bijenhouders.nl/feed/",
+             "https://www.bijenhouders.nl/", "nl", kind="association", reliability=_IND,
+             label_it="notizie (Paesi Bassi)", label_en="news (Netherlands)"),
+    _country("nl_bijenstichting", "NLD", "Bijenstichting", "https://www.bijenstichting.nl/feed/",
+             "https://www.bijenstichting.nl/", "nl", kind="association", reliability=_IND,
+             label_it="notizie (Paesi Bassi)", label_en="news (Netherlands)"),
+    _country("be_sillonbelge", "BEL", "Le Sillon Belge", "https://www.sillonbelge.be/rss.xml",
+             "https://www.sillonbelge.be/", "fr", kind="general",
+             label_it="agricoltura (Belgio, filtrato: solo miele)", label_en="farming (Belgium, filtered: honey only)"),
+    _country("be_landbouwleven", "BEL", "Landbouwleven", "https://www.landbouwleven.be/rss.xml",
+             "https://www.landbouwleven.be/", "nl", kind="general",
+             label_it="agricoltura (Belgio, filtrato: solo miele)", label_en="farming (Belgium, filtered: honey only)"),
+    _country("lu_fual", "LUX", "FUAL – Fédération des Unions d'Apiculteurs du Grand-Duché de Luxembourg",
+             "https://www.apis.lu/rss", "https://www.apis.lu/", "de", kind="association", reliability=_IND,
+             label_it="notizie (Lussemburgo)", label_en="news (Luxembourg)"),
+    _country("at_imkereizentrum", "AUT", "OÖ Imkereizentrum (Landesverband für Bienenzucht Oberösterreich)",
+             "https://www.imkereizentrum.at/feed/", "https://www.imkereizentrum.at/", "de", kind="association",
+             reliability=_IND, label_it="notizie (Austria)", label_en="news (Austria)"),
+    _country("at_blickinsland_honig", "AUT", "Blick ins Land", "https://www.blickinsland.at/?s=honig&feed=rss2",
+             "https://www.blickinsland.at/?s=honig", "de", kind="search",
+             label_it="miele (Austria)", label_en="honey (Austria)"),
+    _country("ch_bienen", "CHE", "BienenSchweiz", "https://www.bienen.ch/feed/", "https://www.bienen.ch/", "de",
+             kind="association", reliability=_IND, label_it="notizie (Svizzera)", label_en="news (Switzerland)"),
+    _country("ch_bienenzeitung", "CHE", "Schweizerische Bienen-Zeitung", "https://www.bienenzeitung.ch/feed/",
+             "https://www.bienenzeitung.ch/", "de", kind="sector",
+             label_it="notizie (Svizzera)", label_en="news (Switzerland)"),
+    _country("pl_portalpszczelarski", "POL", "Portal Pszczelarski", "https://www.portalpszczelarski.pl/rss",
+             "https://www.portalpszczelarski.pl/", "pl", kind="sector",
+             label_it="notizie (Polonia)", label_en="news (Poland)"),
+    _country("pl_agronews_miod", "POL", "AgroNews", "https://agronews.com.pl/?s=mi%C3%B3d&feed=rss2",
+             "https://agronews.com.pl/?s=mi%C3%B3d", "pl", kind="search",
+             label_it="miele (Polonia)", label_en="honey (Poland)"),
+    _country("cz_agroportal24h", "CZE", "Agroportal24h", "https://www.agroportal24h.cz/rss",
+             "https://www.agroportal24h.cz/", "cs", kind="general",
+             label_it="agricoltura (Cechia, filtrato: solo miele)", label_en="farming (Czechia, filtered: honey only)"),
+    _country("cz_zemedelec", "CZE", "Zemědělec", "https://zemedelec.cz/feed/", "https://zemedelec.cz/", "cs",
+             kind="general", label_it="agricoltura (Cechia, filtrato: solo miele)",
+             label_en="farming (Czechia, filtered: honey only)"),
+    _country("sk_polnoinfo", "SVK", "Poľnoinfo", "https://polnoinfo.sk/feed/", "https://polnoinfo.sk/", "sk",
+             kind="general", label_it="agricoltura (Slovacchia, filtrato: solo miele)",
+             label_en="farming (Slovakia, filtered: honey only)"),
+    _country("sk_rno", "SVK", "Roľnícke noviny", "https://rno.sk/feed/", "https://rno.sk/", "sk", kind="general",
+             label_it="agricoltura (Slovacchia, filtrato: solo miele)",
+             label_en="farming (Slovakia, filtered: honey only)"),
+    _country("si_czs", "SVN", "Čebelarska zveza Slovenije", "https://www.czs.si/feed/", "https://www.czs.si/", "sl",
+             kind="association", reliability=_IND, label_it="notizie (Slovenia)", label_en="news (Slovenia)"),
+    _country("hr_pcelarstvo", "HRV", "Pčelarstvo.hr", "https://www.pcelarstvo.hr/feed/",
+             "https://www.pcelarstvo.hr/", "hr", kind="sector", label_it="notizie (Croazia)", label_en="news (Croatia)"),
+    _country("hr_savjetodavna_med", "HRV", "Savjetodavna služba (Ministarstvo poljoprivrede)",
+             "https://www.savjetodavna.hr/?s=med&feed=rss2", "https://www.savjetodavna.hr/?s=med", "hr",
+             kind="search", reliability=Reliability.OFFICIAL, label_it="miele (Croazia)", label_en="honey (Croatia)"),
+    _country("ba_capital_med", "BIH", "Capital.ba", "https://www.capital.ba/tag/med/feed/",
+             "https://www.capital.ba/tag/med/", "bs", kind="tag",
+             label_it="miele (Bosnia ed Erzegovina)", label_en="honey (Bosnia and Herzegovina)"),
+    _country("ba_agroportal_med", "BIH", "Agroportal.ba", "https://agroportal.ba/?s=med&feed=rss2",
+             "https://agroportal.ba/?s=med", "bs", kind="search",
+             label_it="miele (Bosnia ed Erzegovina)", label_en="honey (Bosnia and Herzegovina)"),
+    _country("me_pcelarstvo", "MNE", "Savez pčelarskih organizacija Crne Gore", "https://www.pcelarstvo.me/feed/",
+             "https://www.pcelarstvo.me/", "sr", kind="association", reliability=_IND,
+             label_it="notizie (Montenegro)", label_en="news (Montenegro)"),
+    _country("mk_pari", "MKD", "Pari", "https://www.pari.com.mk/feed/", "https://www.pari.com.mk/", "mk",
+             kind="general", label_it="economia (Macedonia del Nord, filtrato: solo miele)",
+             label_en="business (North Macedonia, filtered: honey only)"),
+    _country("al_agroweb_mjalte", "ALB", "AgroWeb", "https://agroweb.org/?s=mjalt&feed=rss2",
+             "https://agroweb.org/?s=mjalt", "sq", kind="search", label_it="miele (Albania)", label_en="honey (Albania)"),
+    _country("gr_omse", "GRC", "ΟΜΣΕ – Federation of Greek Beekeepers' Associations", "https://www.omse.gr/feed/",
+             "https://www.omse.gr/", "el", kind="association", reliability=_IND,
+             label_it="notizie (Grecia)", label_en="news (Greece)"),
+    _country("gr_agronews", "GRC", "Agronews.gr", "https://www.agronews.gr/rss", "https://www.agronews.gr/", "el",
+             kind="general", label_it="agricoltura (Grecia, filtrato: solo miele)",
+             label_en="farming (Greece, filtered: honey only)"),
+    _country("bg_agrozona", "BGR", "Agrozona", "https://agrozona.bg/feed/", "https://agrozona.bg/", "bg",
+             kind="general", label_it="agricoltura (Bulgaria, filtrato: solo miele)",
+             label_en="farming (Bulgaria, filtered: honey only)"),
+    _country("bg_agrotv", "BGR", "Agro TV", "https://agrotv.bg/feed/", "https://agrotv.bg/", "bg", kind="general",
+             label_it="agricoltura (Bulgaria, filtrato: solo miele)", label_en="farming (Bulgaria, filtered: honey only)"),
+    _country("md_agrobiznes_miere", "MDA", "AgroBiznes Moldova", "https://agrobiznes.md/?s=miere&feed=rss2",
+             "https://agrobiznes.md/?s=miere", "ro", kind="search", label_it="miele (Moldavia)", label_en="honey (Moldova)"),
+    _country("by_belta", "BLR", "BelTA", "https://belta.by/rss", "https://belta.by/", "ru", kind="general",
+             label_it="notizie (Bielorussia, filtrato: solo miele)", label_en="news (Belarus, filtered: honey only)"),
+    _country("ru_interfax", "RUS", "Interfax", "https://www.interfax.ru/rss.asp", "https://www.interfax.ru/", "ru",
+             kind="general", label_it="notizie (Russia, filtrato: solo miele)",
+             label_en="news (Russia, filtered: honey only)"),
+    _country("lt_delfi_agro", "LTU", "Delfi Agro", "https://www.delfi.lt/rss/feeds/agro.xml",
+             "https://www.delfi.lt/agro/", "lt", kind="general",
+             label_it="agricoltura (Lituania, filtrato: solo miele)", label_en="farming (Lithuania, filtered: honey only)"),
+    _country("lv_la", "LVA", "Latvijas Avīze", "https://www.la.lv/feed", "https://www.la.lv/", "lv", kind="general",
+             label_it="notizie (Lettonia, filtrato: solo miele)", label_en="news (Latvia, filtered: honey only)"),
+    _country("ee_mesinike_liit", "EST", "Eesti Mesinike Liit", "https://www.mesinikeliit.ee/feed/",
+             "https://www.mesinikeliit.ee/", "et", kind="association", reliability=_IND,
+             label_it="notizie (Estonia)", label_en="news (Estonia)"),
+    _country("ee_pollumajandus", "EST", "Põllumajandus.ee", "https://www.pollumajandus.ee/rss",
+             "https://www.pollumajandus.ee/", "et", kind="general",
+             label_it="agricoltura (Estonia, filtrato: solo miele)", label_en="farming (Estonia, filtered: honey only)"),
+    _country("fi_maaseuduntulevaisuus", "FIN", "Maaseudun Tulevaisuus", "https://www.maaseuduntulevaisuus.fi/rss",
+             "https://www.maaseuduntulevaisuus.fi/", "fi", kind="general",
+             label_it="agricoltura (Finlandia, filtrato: solo miele)", label_en="farming (Finland, filtered: honey only)"),
+    _country("fi_kaytannonmaamies", "FIN", "Käytännön Maamies", "https://www.kaytannonmaamies.fi/feed/",
+             "https://www.kaytannonmaamies.fi/", "fi", kind="general",
+             label_it="agricoltura (Finlandia, filtrato: solo miele)", label_en="farming (Finland, filtered: honey only)"),
+    _country("se_biodlarna", "SWE", "Sveriges Biodlares Riksförbund", "https://www.biodlarna.se/feed/",
+             "https://www.biodlarna.se/", "sv", kind="association", reliability=_IND,
+             label_it="notizie (Svezia)", label_en="news (Sweden)"),
+    _country("se_biodlingsforetagarna", "SWE", "Biodlingsföretagarna", "https://www.biodlingsforetagarna.se/feed/",
+             "https://www.biodlingsforetagarna.se/", "sv", kind="association", reliability=_IND,
+             label_it="notizie (Svezia)", label_en="news (Sweden)"),
+    _country("no_e24", "NOR", "E24", "https://e24.no/rss2/", "https://e24.no/", "no", kind="general",
+             label_it="economia (Norvegia, filtrato: solo miele)", label_en="business (Norway, filtered: honey only)"),
+    _country("dk_landbrugsavisen", "DNK", "LandbrugsAvisen", "https://landbrugsavisen.dk/rss.xml",
+             "https://landbrugsavisen.dk/", "da", kind="general",
+             label_it="agricoltura (Danimarca, filtrato: solo miele)", label_en="farming (Denmark, filtered: honey only)"),
+    _country("cy_cyprusmail", "CYP", "Cyprus Mail", "https://cyprus-mail.com/feed", "https://cyprus-mail.com/", "en",
+             kind="general", label_it="notizie (Cipro, filtrato: solo miele)",
+             label_en="news (Cyprus, filtered: honey only)"),
+    _country("mt_newsbook_honey", "MLT", "Newsbook Malta", "https://newsbook.com.mt/en/?s=honey&feed=rss2",
+             "https://newsbook.com.mt/en/?s=honey", "en", kind="search", label_it="miele (Malta)", label_en="honey (Malta)"),
 ]
 FEEDS += COUNTRY_FEEDS
 
@@ -573,7 +782,10 @@ class FeedCollector(Collector):
     def collect(self, ctx: CollectContext) -> None:
         spec = self.feed
         doc = ctx.fetch(spec.url, headers={"Accept": FEED_ACCEPT}, title=spec.name)
-        if doc.unchanged and not ctx.force:
+        # An archive feed is read again even when its file has not changed: its older entries were
+        # skipped while it was an ordinary feed, and re-reading costs a few look-ups (known links are
+        # counted as unchanged).
+        if doc.unchanged and not ctx.force and spec.max_entry_age_days <= DEFAULT_MAX_ENTRY_AGE_DAYS:
             return
         items, warnings = parse_feed(doc.content, spec)
         for w in warnings[:5]:

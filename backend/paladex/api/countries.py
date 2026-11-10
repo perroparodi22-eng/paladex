@@ -364,13 +364,22 @@ def news_highlights(ctx: Ctx, iso3: str) -> list[dict]:
     A = NewsArticle
     now = utcnow()
     since = now - timedelta(days=NEWS_HIGHLIGHT_DAYS)
-    rows = ctx.db.scalars(
-        select(A).where(demo_clause(A, ctx.db), A.duplicate_of_id.is_(None), _news_when() >= since,
-                        A.relevance_score >= NEWS_HIGHLIGHT_MIN_RELEVANCE, _json_contains(A.countries, iso3)))
-    picked = [a for a in rows
-              if iso3 in (a.countries or []) and set(a.topics or []) & set(news_service.TRADE_TOPICS)]
+    base = (demo_clause(A, ctx.db), A.duplicate_of_id.is_(None),
+            A.relevance_score >= NEWS_HIGHLIGHT_MIN_RELEVANCE, _json_contains(A.countries, iso3))
+
+    def trade(rows) -> list[NewsArticle]:
+        return [a for a in rows
+                if iso3 in (a.countries or []) and set(a.topics or []) & set(news_service.TRADE_TOPICS)]
+
+    picked = trade(ctx.db.scalars(select(A).where(*base, _news_when() >= since)))
     picked.sort(key=lambda a: (-news_service.importance(a.relevance_score, a.duplicate_count,
                                                          a.published_at or a.collected_at, now), -a.id))
+    if not picked:
+        # Nothing in the period (a country whose honey trade is rarely written about): the latest
+        # trade stories we hold, however old. Each line shows its own date, and the page says when
+        # the newest article is not recent (`news.latest_at`).
+        picked = trade(ctx.db.scalars(select(A).where(*base).order_by(_news_when().desc(), A.id.desc())
+                                      .limit(NEWS_LIMIT * 4)))
     chosen: list[NewsArticle] = []
     for a in picked:
         when = a.published_at or a.collected_at
@@ -407,8 +416,11 @@ def news_section(ctx: Ctx, iso3: str) -> dict:
                                       _json_contains(A.countries, iso3)))
         if iso3 in (c or [])
     )
+    dates = [d for d in (i["published_at"] or i["collected_at"] for i in items + highlights) if d]
     return {"available": bool(items), "items": items, "count_30d": count_30d, "days": NEWS_DAYS,
             "highlights": highlights, "highlight_days": NEWS_HIGHLIGHT_DAYS,
+            # date of the newest article shown: the page says so when it is old ("latest news: July 2022")
+            "latest_at": max(dates) if dates else None,
             "link": f"/notizie?country={iso3}", "providers": ctx.providers("news", country=iso3)}
 
 
