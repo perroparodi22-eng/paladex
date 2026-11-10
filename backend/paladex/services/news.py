@@ -358,9 +358,11 @@ def _unfolded(patterns: list[str]) -> re.Pattern | None:
 
 # Phrases that contain honey words but are not about honey (removed before the gate).
 _GATE_EXCLUSIONS = _words([
-    r"yo yo honey singh", r"honey singh", r"honey badgers?", r"honey ?traps?", r"honey boo boo",
+    r"yo yo honey singh", r"honey singh", r"honey badgers?", r"honey[ -]?trap\w*", r"honey boo boo",
     r"honey bunch(?:es)?(?: of oats)?", r"honey nut(?: cheerios)?", r"honey irani", r"honey rose",
-    r"honey bunny", r"honey blonde", r"honey locusts?", r"honey crisp", r"honey ?pots?", r"honey ?moon\w*",
+    r"honey bunny", r"honey blonde", r"honey locusts?", r"honey crisp", r"honey[ -]?pots?", r"honey ?moon\w*",
+    # a fruit, a grade of brass scrap and a crypto token (Google News searches, Nov 2026)
+    r"honey pomelos?", r"honey ?dew melons?", r"brass honey(?: scrap)?", r"honey (?:brass|scrap)", r"honey price \(hny",
     r"(?:land of )?milk (?:and|&) honey", r"honey,? i shrunk", r"american honey (?:queen|movie|film)",
     r"mel gibson", r"mel b", r"mel brooks", r"mel tucker", r"mel robbins",
     r"royal honey", r"honey packets? (?:with|containing) (?:sildenafil|tadalafil)",
@@ -372,7 +374,9 @@ _GATE_EXCLUSIONS = _words([
 # Item-level vetoes: male-enhancement "honey" sachets with hidden drugs (FDA warnings). Removing
 # the phrase is not enough because the item still says "honey" elsewhere.
 _GATE_VETO = _words([r"sildenafil", r"tadalafil", r"male enhancement", r"(?:sexual|libido) enhanc\w*",
-                     r"vip honey", r"royal honey"])
+                     r"vip honey", r"royal honey",
+                     # market-research advertising ("Honey Market Size, Share, Analysis ... 2034") and a crypto token
+                     r"market size,? (?:share|growth|trends?)", r"cagr", r"hny/usd"])
 # An item whose only honey word is "miele" and that talks about appliances is about Miele the brand.
 _APPLIANCE = _words([r"lavatric\w*", r"lavastovigl\w*", r"elettrodomestic\w*", r"asciugatric\w*",
                      r"aspirapolver\w*", r"dishwashers?", r"washing machines?", r"dryers?", r"appliances?",
@@ -448,7 +452,7 @@ _BEE_CONTEXT = _words([r"bees?", r"api", r"ape", r"abejas?", r"abelhas?", r"bien
 def honey_terms(text: str, language: str | None = None) -> list[str]:
     """Honey/beekeeping terms found in `text` (folded matching). Empty list = not about honey."""
     t = fold(_MED_ABBR.sub(" ", unicodedata.normalize("NFC", text or "")))
-    if _GATE_VETO.search(t):
+    if _GATE_VETO.search(t) or "市场规模" in t or "市場規模" in t:      # Chinese: "market size" report advertising
         return []
     t = _GATE_EXCLUSIONS.sub(" ", t)
     found = [m.group(0) for m in _GATE_STRONG.finditer(t)]
@@ -488,7 +492,7 @@ TOPICS: dict[str, dict] = {
                   r"cents? (?:a|per) pound", r"valor(?:es)? (?:de|por) (?:la )?(?:miel|tonelada|kilo)",
                   # Ukrainian / Russian / Serbian (Cyrillic + Latin) / Vietnamese
                   r"цін[аиуіо]\w*", r"цен[аыуеоя]\w*", r"подорожча\w*", r"подорожа\w*", r"подешев\w*",
-                  r"cen[aeiu] med[au]", r"otkupn\w* cen\w*", r"gia (?:ban |xuat khau )?mat ong",
+                  r"cen[aeiu] med[au]", r"otkupn\w* cen\w*", r"gia (?:ban |xuat khau )?mat ong", r"tang gia", r"giam gia",
                   # Romanian / Hungarian (folded): the price of honey, purchase price
                   r"pretul", r"preturi\w*", r"mezar\w*", r"felvasarlasi ar\w*",
                   # Polish, Czech / Slovak, Dutch, Nordic, Finnish, Greek, Bulgarian, Lithuanian. Bare
@@ -691,7 +695,9 @@ _EXTRA_COUNTRY_KEYWORDS: dict[str, list[str]] = {
     "UKR": ["ucraini", "ucraina", "ucrania", "ucraniano", "ucraniana", "ukrainische", "ukrainischen",
             "ukrainischer"],
     "VNM": ["vietnamita", "vietnamiti", "vietnamesischen", "vietnamesischer"],
-    "IND": ["indien", "indische", "indischen", "indischer"],
+    "IND": ["indien", "indische", "indischen", "indischer",
+            # India's export agencies and honey states, named in headlines instead of the country
+            "apeda", "dgft", "assam", "tripura", "meghalaya"],
     "MEX": ["mexicano", "mexicana", "mexicanos", "messicano", "messicana", "mexiko"],
     "USA": ["estados unidos", "ee.uu.", "ee. uu.", "eeuu", "eua", "statunitense", "statunitensi", "u.s.a.",
             "vereinigte staaten", "american honey producers", "us-amerikanisch", "us-amerikanische",

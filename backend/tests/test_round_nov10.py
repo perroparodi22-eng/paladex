@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import pytest
 from sqlalchemy import select
 
 from paladex.collectors.base import month_bounds
@@ -382,3 +383,105 @@ def test_replaced_feeds_are_removed_when_never_used_and_switched_off_otherwise(d
     keys = {s.key: s for s in db.scalars(select(Source).where(Source.key.in_(RETIRED_SOURCES)))}
     assert set(keys) == {"news_co_agronegocios"} and keys["news_co_agronegocios"].enabled is False
     assert db.get(NewsArticle, a.id) is not None
+
+
+# ---------------------------------------------------------------------------
+# China, India, Vietnam through Google News; Brazil's exports; failed name look-ups
+# ---------------------------------------------------------------------------
+
+
+def test_google_searches_for_china_india_vietnam_are_on_and_the_generic_ones_stay_opt_in(db):
+    from paladex.collectors.news_feeds import GOOGLE_COUNTRY_FEEDS
+
+    assert {f.country for f in GOOGLE_COUNTRY_FEEDS} == {"CHN", "IND", "VNM"}
+    rows = {s.key: s for s in db.scalars(select(Source).where(Source.category == "news"))}
+    for f in GOOGLE_COUNTRY_FEEDS:
+        assert rows[f.key].enabled is True and rows[f.key].country_iso3 == f.country
+        assert f.url.startswith("https://news.google.com/rss/search?q=") and "when%3A" in f.url
+        assert f.home_tag != f.require_country and "titolare" in f.terms_note and f.name_en
+    assert all(s.enabled is False for k, s in rows.items() if k.startswith("news_gn_"))
+
+
+def test_a_country_search_keeps_only_the_items_that_name_the_country(db, run_with_routes):
+    from paladex.collectors.news_feeds import feed_spec
+    from paladex.models import NewsArticle
+
+    def item(title, outlet, n):
+        when = (utcnow() - timedelta(days=n)).strftime("%a, %d %b %Y %H:%M:%S GMT")
+        return (f"<item><title>{title} - {outlet}</title><link>https://news.google.com/rss/articles/CBM{n}x</link>"
+                f"<pubDate>{when}</pubDate><source url=\"https://o{n}.example\">{outlet}</source></item>")
+
+    spec = feed_spec("news_google_in_honey")
+    body = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><rss version=\"2.0\"><channel><title>g</title>"
+            + item("DGFT extends India honey minimum export price until December", "India Briefing", 3)
+            + item("APEDA facilitates export of honey from Assam to US", "NuFFooDS", 5)
+            + item("Honey sector wants questionable imports stopped", "The Western Producer", 7)      # Canada
+            + item("India: Brass honey scrap prices rise week on week", "BigMint", 2)                    # a metal grade
+            + item("Honey Market Size, Share, Analysis, Industry Trends, 2034 for India", "Reports Inc", 4)
+            + item("Indian honey exports hit a record in 2015", "Old Paper", 900)                       # too old
+            + "</channel></rss>").encode("utf-8")
+    res = run_with_routes(spec.key, {spec.url: (200, body, "application/rss+xml")})
+    assert res["new"] == 2, res
+    titles = {a.title: a for a in db.scalars(select(NewsArticle))}
+    assert set(titles) == {"DGFT extends India honey minimum export price until December",
+                           "APEDA facilitates export of honey from Assam to US"}
+    assert all("IND" in a.countries for a in titles.values())
+    assert titles["APEDA facilitates export of honey from Assam to US"].publisher == "NuFFooDS"
+
+    # the Vietnamese-language search tags its own country, which the national press does not name
+    vn = feed_spec("news_google_vn_mat_ong")
+    body = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><rss version=\"2.0\"><channel><title>g</title>"
+            + item("Mật ong tăng giá, nghề nuôi ong tái khởi sắc", "Báo Công Thương", 1) + "</channel></rss>").encode("utf-8")
+    assert run_with_routes(vn.key, {vn.url: (200, body, "application/rss+xml")})["new"] == 1
+    a = db.scalars(select(NewsArticle).where(NewsArticle.language == "vi")).one()
+    assert a.countries == ["VNM"] and "prices" in (a.topics or [])
+
+
+def test_not_honey_a_spy_a_fruit_a_metal_a_token_and_report_adverts():
+    for title in ("Who is Alice Huang? The Chinese spy who honey-trapped Nvidia CEO", "A honey-pot scandal in Beijing",
+                  "China's Honey Pomelo Exports Surge in 2025", "India: Brass honey scrap prices rise w-o-w",
+                  "Honey Price (HNY/USD) Today | Live Price, Market Cap & Chart",
+                  "Honey Market Size, Share, Analysis, Industry Trends, 2034", "蜂蜜市场规模、份额、分析、行业趋势，2034 年"):
+        assert not ns.is_honey_related(title, language="en"), title
+    assert ns.is_honey_related("Honey exports: The hunt for India's sweet spot", language="en")
+    assert ns.tag_countries("APEDA facilitates export of honey from Assam to US") == ["IND", "USA"]
+
+
+def test_a_failed_name_lookup_is_tried_again_without_counting_as_a_request(db, monkeypatch):
+    import socket
+
+    import httpx
+
+    from paladex.collectors import base
+
+    waits: list[float] = []
+    monkeypatch.setattr(base.time, "sleep", lambda s: waits.append(s))
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] <= 3:
+            raise httpx.ConnectError("[Errno 11004] getaddrinfo failed") from socket.gaierror(11004, "getaddrinfo failed")
+        return httpx.Response(200, content=b"ok")
+
+    src = db.scalars(select(Source).where(Source.key == "br_comexstat")).one()
+    ctx = base.CollectContext(db, src, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    doc = ctx.fetch("https://api.example.org/x", retries=0, store=False)      # retries=0: a rate-limited API
+    assert doc.status_code == 200 and calls["n"] == 4 and waits == [base.DNS_RETRY_WAIT_S] * 3
+    # the look-up never works: reported unreachable after the patient retries, not for ever
+    calls["n"], waits[:] = -100, []
+    with pytest.raises(base.Offline):
+        ctx.fetch("https://api.example.org/y", retries=0, store=False)
+    assert waits.count(base.DNS_RETRY_WAIT_S) == base.DNS_RETRIES
+    # a refused connection is not a name look-up: no extra patience
+    assert base.is_dns_failure(httpx.ConnectError("[Errno 11001] getaddrinfo failed"))
+    assert not base.is_dns_failure(httpx.ConnectError("[WinError 10061] connection refused"))
+
+
+def test_brazil_export_source_gets_several_attempts_a_day_and_pauses_before_its_query():
+    from paladex.collectors import trade_official as to
+    from paladex.collectors.registry import get_collector
+
+    c = get_collector("br_comexstat")
+    assert c.schedule == {"trigger": "cron", "hour": "3,9,15,21", "minute": 40}
+    assert to.COMEX_PAUSE_BEFORE_QUERY_S >= 10
