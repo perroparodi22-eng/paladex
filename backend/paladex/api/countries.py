@@ -35,6 +35,7 @@ from ..models import (
     utcnow,
 )
 from ..reference.countries import PRIORITY_ISO3
+from ..services import news as news_service
 from ..services.corrections import row_correction
 from .common import demo_clause, iso
 from .findings import country_block as web_findings_block   # non-official web findings: own block, never mixed
@@ -60,6 +61,9 @@ router = APIRouter(prefix="/countries", tags=["countries"])
 
 NEWS_DAYS = 30
 NEWS_LIMIT = 8
+NEWS_HIGHLIGHTS = 2               # "one or two per country": the trade news that matter most
+NEWS_HIGHLIGHT_DAYS = 365         # trade stories about one country are months apart (each shows its date)
+NEWS_HIGHLIGHT_MIN_RELEVANCE = 35  # services.news.relevance_level: "medium" or higher
 REG_LIMIT = 10
 PRICE_ROWS_PER_TYPE = 10
 TOP_PARTNERS = 8
@@ -340,6 +344,46 @@ def price_providers(ctx: Ctx, iso3: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
+def _news_item(ctx: Ctx, a: NewsArticle) -> dict:
+    return {
+        "id": a.id, "title": a.title, "title_it": a.title_it, "title_en": a.title_en, "language": a.language,
+        "publisher": a.publisher, "url": a.url, "published_at": iso(a.published_at), "collected_at": iso(a.collected_at),
+        "snippet": a.snippet, "summary_it": a.summary_it, "summary_en": a.summary_en, "ai_model": a.ai_model,
+        "relevance_score": a.relevance_score, "duplicate_count": a.duplicate_count, "topics": a.topics or [],
+        # what the article is about, in words: a headline in Ukrainian or Hungarian is still placed
+        "topic_labels": {lng: [news_service.TOPICS[k][lng] for k in (a.topics or []) if k in news_service.TOPICS]
+                         for lng in ("it", "en")},
+        "source": ctx.brief(a.source_id), "is_demo": a.is_demo,
+    }
+
+
+def news_highlights(ctx: Ctx, iso3: str) -> list[dict]:
+    """The one or two news items that matter most for this country's honey trade: articles of the
+    last NEWS_HIGHLIGHT_DAYS days tagged with the country AND a trade topic (exports and imports,
+    prices, duties, import restrictions), ranked by `services.news.importance`."""
+    A = NewsArticle
+    now = utcnow()
+    since = now - timedelta(days=NEWS_HIGHLIGHT_DAYS)
+    rows = ctx.db.scalars(
+        select(A).where(demo_clause(A, ctx.db), A.duplicate_of_id.is_(None), _news_when() >= since,
+                        A.relevance_score >= NEWS_HIGHLIGHT_MIN_RELEVANCE, _json_contains(A.countries, iso3)))
+    picked = [a for a in rows
+              if iso3 in (a.countries or []) and set(a.topics or []) & set(news_service.TRADE_TOPICS)]
+    picked.sort(key=lambda a: (-news_service.importance(a.relevance_score, a.duplicate_count,
+                                                         a.published_at or a.collected_at, now), -a.id))
+    chosen: list[NewsArticle] = []
+    for a in picked:
+        when = a.published_at or a.collected_at
+        # two outlets on the same story are one highlight: the second line is for another story
+        if any(news_service.same_story(a.title_norm or "", when, c.title_norm or "", c.published_at or c.collected_at)
+               for c in chosen):
+            continue
+        chosen.append(a)
+        if len(chosen) >= NEWS_HIGHLIGHTS:
+            break
+    return [_news_item(ctx, a) for a in chosen]
+
+
 def news_section(ctx: Ctx, iso3: str) -> dict:
     A = NewsArticle
     q = (select(A).where(demo_clause(A, ctx.db), A.duplicate_of_id.is_(None), _json_contains(A.countries, iso3))
@@ -352,15 +396,10 @@ def news_section(ctx: Ctx, iso3: str) -> dict:
         if key in seen:
             continue
         seen.add(key)
-        items.append({
-            "id": a.id, "title": a.title, "title_it": a.title_it, "title_en": a.title_en, "language": a.language,
-            "publisher": a.publisher, "url": a.url, "published_at": iso(a.published_at), "collected_at": iso(a.collected_at),
-            "snippet": a.snippet, "summary_it": a.summary_it, "summary_en": a.summary_en, "ai_model": a.ai_model,
-            "relevance_score": a.relevance_score, "duplicate_count": a.duplicate_count, "topics": a.topics or [],
-            "source": ctx.brief(a.source_id), "is_demo": a.is_demo,
-        })
+        items.append(_news_item(ctx, a))
         if len(items) >= NEWS_LIMIT:
             break
+    highlights = news_highlights(ctx, iso3)
     since = _news_since()
     count_30d = sum(
         1 for c in ctx.db.scalars(
@@ -369,6 +408,7 @@ def news_section(ctx: Ctx, iso3: str) -> dict:
         if iso3 in (c or [])
     )
     return {"available": bool(items), "items": items, "count_30d": count_30d, "days": NEWS_DAYS,
+            "highlights": highlights, "highlight_days": NEWS_HIGHLIGHT_DAYS,
             "link": f"/notizie?country={iso3}", "providers": ctx.providers("news", country=iso3)}
 
 

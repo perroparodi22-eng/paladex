@@ -602,18 +602,26 @@ def sources_used(ctx: Ctx, rows: Iterable[dict]) -> list[dict]:
         s = r.get("source")
         if not s:
             continue
-        ref = r.get("published_at") or r.get("period_end")
+        pub = r.get("published_at")
+        ref = pub or r.get("period_end")
         ref_d = date.fromisoformat(ref[:10]) if ref else None
+        pub_d = date.fromisoformat(pub[:10]) if pub else None
         cur = seen.get(s["key"])
         if cur is None or (ref_d and (cur["_ref"] is None or ref_d > cur["_ref"])):
             sid = ctx.source_id(s["key"])
-            seen[s["key"]] = {**s, "_ref": ref_d, "_freq": r.get("frequency"), "_sid": sid}
+            seen[s["key"]] = {**s, "_ref": ref_d, "_freq": r.get("frequency"), "_sid": sid,
+                              "_pub": cur["_pub"] if cur else None}
+        cur = seen[s["key"]]
+        if pub_d and (cur["_pub"] is None or pub_d > cur["_pub"]):
+            cur["_pub"] = pub_d
     out = []
     for s in seen.values():
         f = ctx.freshness_for(s["_sid"], s["_ref"], s["_freq"]) if s["_sid"] else None
         src = ctx.source(s["_sid"])
         out.append({k: v for k, v in s.items() if not k.startswith("_")} | {
-            "freshness": f, "latest_published_at": iso(s["_ref"]),
+            # a real publication date only: the end of the period (the freshness fallback) is not
+            # the day the figure was published, and was shown as "published on 31 Dec"
+            "freshness": f, "latest_published_at": iso(s["_pub"]),
             "expected_update": src.expected_update if src else None,
             "expected_update_en": src.expected_update_en if src else None,
         })
@@ -1052,10 +1060,22 @@ def build_series(ctx: Ctx, reporter: str, flow: str, partner: str = "WLD", freq:
         p = cell["p"]
         return p, total_mode, p.partners
 
+    # A source that publishes the reporter's monthly total (a World row) sometimes releases its
+    # newest month with a few partners only (Eurostat: the extra-EU partners first). The sum of
+    # those partners is not the month's total: such a month is left out and listed, exactly as
+    # the year-to-date does (ytd.Months.counted). Sources that never publish a total (Comex Stat,
+    # Chile) keep their partner sums.
+    monthly_total_sources = {sid for (sid, f, _), cell in cells.items() if f == "M" and "w" in cell}
+    excluded_months: list[dict] = []
     per_source: dict[int, dict[str, dict]] = defaultdict(lambda: {"A": {}, "M": {}})
     for (sid, f, ps), cell in cells.items():
+        if total_mode and f == "M" and "w" not in cell and sid in monthly_total_sources:
+            excluded_months.append({"source": ctx.brief(sid), "month": f"{ps.year}-{ps.month:02d}",
+                                    "reason": "no_total", "partners_count": cell["p"].partners})
+            continue
         agg, summed, n_partners = pick(cell)
         per_source[sid][f][ps] = (agg, summed, n_partners)
+    excluded_months.sort(key=lambda e: (e["month"], e["source"]["key"] if e["source"] else ""))
 
     series, excluded = [], []
     for sid, by_freq in per_source.items():
@@ -1121,6 +1141,8 @@ def build_series(ctx: Ctx, reporter: str, flow: str, partner: str = "WLD", freq:
         "total_scope": total_scope(reporter) if total_mode else None,
         "reporter_names": ctx.names(reporter), "partner_names": ctx.names(partner),
         "available": bool(series), "series": series, "excluded_partial": excluded,
+        # months published without the reporter's total (partial data), never shown as a total
+        "excluded_months": excluded_months,
         "discrepancies": discrepancies, "providers": ctx.providers(),
     }
 

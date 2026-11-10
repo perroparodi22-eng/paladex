@@ -94,6 +94,8 @@ export interface NewsItem {
   publisher: string | null; url: string; published_at: string | null; collected_at: string | null
   snippet: string | null; summary_it: string | null; summary_en: string | null; ai_model: string | null
   relevance_score: number; duplicate_count: number; topics: string[]; source: SourceBrief | null; is_demo: boolean
+  /** topic names in both languages (what a headline in another language is about) */
+  topic_labels?: { it: string[]; en: string[] }
 }
 
 export interface RegulationRow {
@@ -114,7 +116,11 @@ export interface CountryProfile {
   production: { available: boolean; metrics: ProductionMetric[]; providers: Provider[] }
   trade: { import: TradeFlowSection; export: TradeFlowSection; providers: Provider[]; providers_import?: Provider[] }
   prices: { available: boolean; groups: { price_type: string; rows: PriceRow[]; count: number; latest_period_label: string | null; link: string }[]; providers: Provider[] }
-  news: { available: boolean; items: NewsItem[]; count_30d: number; days: number; link: string; providers: Provider[] }
+  news: {
+    available: boolean; items: NewsItem[]; count_30d: number; days: number; link: string; providers: Provider[]
+    /** The one or two trade stories that matter most (exports, imports, prices, duties). */
+    highlights?: NewsItem[]; highlight_days?: number
+  }
   regulations: { available: boolean; items: RegulationRow[]; providers: Provider[] }
   context: {
     available: boolean; label_it: string; label_en: string; is_collected_data: false; varieties: string[]

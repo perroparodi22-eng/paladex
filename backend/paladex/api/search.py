@@ -63,7 +63,10 @@ _COUNTRY_BY_ISO3 = {c["iso3"]: c for c in _COUNTRIES}
 
 def _fold(s: str) -> str:
     """lower-case, strip accents, keep letters/digits/spaces."""
-    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii").lower()
+    s = "".join(ch for ch in unicodedata.normalize("NFKD", s) if not unicodedata.combining(ch))
+    # a character with no ASCII form becomes a space (like punctuation): deleting it glued its
+    # neighbours together ("è€ñ" became the word "en" and matched hundreds of unrelated rows)
+    s = s.encode("ascii", "replace").decode("ascii").lower()
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", " ", s)).strip()
 
 

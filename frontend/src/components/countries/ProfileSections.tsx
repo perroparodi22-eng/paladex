@@ -103,36 +103,75 @@ function PriceLine({ r }: { r: PriceRow }) {
 // News & regulations
 // ---------------------------------------------------------------------------
 
-export function ProfileNews({ p }: { p: CountryProfile }) {
+/** One news line: headline (AI translation when one exists, labelled), outlet, date, language. */
+function NewsLine({ n, strong = false }: { n: CountryProfile['news']['items'][number]; strong?: boolean }) {
   const { t, lang } = useI18n()
+  const sameLang = Boolean(n.language) && n.language!.slice(0, 2) === lang
+  const translated = sameLang ? null : (lang === 'it' ? n.title_it : n.title_en)
+  const isAi = Boolean(translated) && translated!.trim() !== n.title.trim()
+  const topics = (n.topic_labels?.[lang] ?? []).slice(0, 2)
+  return (
+    <li className="py-2.5" data-country-news={n.id}>
+      <a href={pageUrl(n.url) ?? undefined} target="_blank" rel="noreferrer"
+        title={isAi ? n.title : undefined} lang={isAi ? lang : n.language ?? undefined}
+        className={strong
+          ? 'font-serif text-[1.08rem] font-semibold leading-snug text-charcoal hover:text-forest-800 hover:underline decoration-gold/50 underline-offset-2'
+          : 'text-[0.97rem] leading-snug text-charcoal hover:text-forest-800 hover:underline decoration-gold/50 underline-offset-2'}>
+        {translated || n.title}
+      </a>
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8rem] text-muted">
+        {n.is_demo && <DemoBadge />}
+        {isAi && <AiBadge />}
+        <span className="text-charcoal-soft">{n.publisher || n.source?.publisher || n.source?.name}</span>
+        {n.published_at && <span>· {fmtDate(n.published_at, lang)}</span>}
+        {n.language && !sameLang && <span className="uppercase">· {n.language.slice(0, 2)}</span>}
+        {topics.length > 0 && <span className="text-forest-800">· {topics.join(', ')}</span>}
+        {n.duplicate_count > 0 && <span>· {n.duplicate_count === 1 ? t('countries.news.duplicatesOne') : t('countries.news.duplicates', { n: n.duplicate_count })}</span>}
+      </div>
+    </li>
+  )
+}
+
+/** News about the country. First the one or two trade stories that matter most (exports, imports,
+ *  prices, duties: chosen by the backend, `news.highlights`), then the latest articles. `compact`
+ *  (simple view) shows the highlights only, or the two latest when there is no trade story. */
+export function ProfileNews({ p, compact = false, className }: { p: CountryProfile; compact?: boolean; className?: string }) {
+  const { t } = useI18n()
   const d = p.news
+  const top = d.highlights ?? []
+  const topIds = new Set(top.map((n) => n.id))
+  const rest = d.items.filter((n) => !topIds.has(n.id))
+  const latest = compact ? (top.length ? [] : rest.slice(0, 2)) : rest
+  if (compact && !d.available) return null
   return (
     <Panel
       title={t('countries.news.title')}
       eyebrow={d.count_30d ? t('countries.news.count', { n: d.count_30d }) : t('countries.news.eyebrow')}
-      className="min-w-0"
+      className={className ?? 'min-w-0'}
       actions={d.items.some((i) => i.is_demo) ? <DemoBadge /> : undefined}
       footer={<Link to={d.link} className="link">{t('countries.news.all')} →</Link>}
     >
       {!d.available ? (
         <DataMissing compact providers={d.providers} fallback={t('countries.news.fallback')} what={t('countries.missing.news')} />
       ) : (
-        <ul className="flex flex-col divide-y divide-line-soft -my-2">
-          {d.items.map((n) => (
-            <li key={n.id} className="py-2.5">
-              <a href={pageUrl(n.url) ?? undefined} target="_blank" rel="noreferrer" className="text-[0.97rem] leading-snug text-charcoal hover:text-forest-800 hover:underline decoration-gold/50 underline-offset-2">
-                {n.title}
-              </a>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8rem] text-muted">
-                {n.is_demo && <DemoBadge />}
-                <span className="text-charcoal-soft">{n.publisher || n.source?.publisher || n.source?.name}</span>
-                {n.published_at && <span>· {fmtDate(n.published_at, lang)}</span>}
-                {n.language && n.language.slice(0, 2) !== lang && <span className="uppercase">· {n.language.slice(0, 2)}</span>}
-                {n.duplicate_count > 0 && <span>· {n.duplicate_count === 1 ? t('countries.news.duplicatesOne') : t('countries.news.duplicates', { n: n.duplicate_count })}</span>}
-              </div>
-            </li>
-          ))}
-        </ul>
+        <div className="-my-2">
+          {top.length > 0 && (
+            <div data-country-news-top>
+              <div className="eyebrow pt-2">{t('countries.news.top')}</div>
+              <ul className="flex flex-col divide-y divide-line-soft">
+                {top.map((n) => <NewsLine key={n.id} n={n} strong />)}
+              </ul>
+            </div>
+          )}
+          {latest.length > 0 && (
+            <div className={top.length > 0 ? 'mt-1 border-t border-line pt-1' : undefined}>
+              {top.length > 0 && <div className="eyebrow pt-2">{t('countries.news.latest')}</div>}
+              <ul className="flex flex-col divide-y divide-line-soft">
+                {latest.map((n) => <NewsLine key={n.id} n={n} />)}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
     </Panel>
   )

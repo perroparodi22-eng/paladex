@@ -123,6 +123,14 @@ def create_app(start_scheduler: bool = True) -> FastAPI:
     app.add_middleware(LocalOnlyGuard, extra_hosts=(get_settings().host,))
     app.include_router(build_router())
 
+    @app.exception_handler(OverflowError)
+    async def number_too_large(request, exc: OverflowError):
+        # A page number or record id beyond SQLite's 64-bit integers (?page=9223372036854775808)
+        # is a bad request, not a server fault. Any other overflow is still an error.
+        if "SQLite INTEGER" not in str(exc):
+            raise exc
+        return JSONResponse({"detail": "Numero troppo grande / Number too large"}, status_code=422)
+
     dist = get_settings().frontend_dist
     if (dist / "index.html").exists():
         if (dist / "assets").exists():

@@ -8,6 +8,7 @@ import { DocLink } from '@/components/prices/bits'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtCompact, fmtDate, fmtNumber, fmtTonnes } from '@/lib/format'
+import { fmtMonthLong } from '@/components/trade/ytd'
 import { useLabels } from '@/lib/meta'
 import { ChangeCell } from './PriceArchive'
 import { useTradeSelection } from './state'
@@ -177,6 +178,9 @@ export function TradeArchive() {
             )}
             {d.excluded_partial.length > 0 && (
               <Note>{t('archive.t.excluded', { list: d.excluded_partial.map((x) => t(x.months_count === 1 ? 'archive.t.excludedItemOne' : 'archive.t.excludedItem', { y: x.period_label, n: x.months_count })).join(', ') })}</Note>
+            )}
+            {(d.excluded_months?.length ?? 0) > 0 && (
+              <Note>{t('trade.series.excludedMonths', { m: [...new Set(d.excluded_months!.map((e) => fmtMonthLong(e.month, lang)))].join(', ') })}</Note>
             )}
             {d.discrepancies.map((x) => (
               <Note key={x.period_label} tone="warn">{t('archive.t.discrepancy', { p: x.period_label, d: `${fmtNumber(x.diff_pct, lang, 1)}%` })}</Note>

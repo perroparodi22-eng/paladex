@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..db import get_db
-from ..models import NewsArticle, Source
+from ..models import NewsArticle, Source, utcnow
 from ..reference.countries import country_name
 from ..services import news as news_service
 from .common import demo_clause, iso, show_demo, source_brief
@@ -26,6 +26,9 @@ from .common import demo_clause, iso, show_demo, source_brief
 router = APIRouter(tags=["news"])
 
 MAX_PAGE_SIZE = 100
+MAX_PAGE = 100_000            # far beyond any real list; a larger number overflowed SQLite's integer (HTTP 500)
+
+TOP_CANDIDATES = 2000         # sort=top ranks at most this many articles (the highest-scored of the period)
 _CODE = re.compile(r"^[A-Z0-9_]{2,8}$")
 _LANG = re.compile(r"^[a-z]{2,3}$")
 
@@ -306,19 +309,44 @@ def list_news(
     lang: str | None = Query(None, description="article language(s), e.g. 'it' or 'en,it'"),
     min_relevance: int = Query(0, ge=0, le=100),
     include_duplicates: bool = Query(False),
-    sort: str = Query("date", pattern="^(date|relevance)$"),
-    page: int = Query(1, ge=1),
+    sort: str = Query("date", pattern="^(date|relevance|top)$",
+                      description="date (newest first), relevance (score), or top: the most important of the "
+                                  "period — score, plus a little for each further outlet that carried the "
+                                  "story, minus a little for each day of age"),
+    days: int | None = Query(None, ge=1, le=366, description="only the last N days (counted by the server, so "
+                                                             "the request does not change from day to day)"),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int = Query(20, ge=1, le=MAX_PAGE_SIZE),
     db: Session = Depends(get_db),
 ):
     f = Filters(db, q, country, topic, source, from_, to, lang, min_relevance, include_duplicates)
     N = NewsArticle
+    now = utcnow()
     conds = f.all()
+    if days:
+        conds.append(_when() >= now - timedelta(days=days))
     total = db.scalar(select(func.count()).select_from(N).where(*conds)) or 0
-    order = ([N.relevance_score.desc(), _when().desc(), N.id.desc()] if sort == "relevance"
-             else [_when().desc(), N.id.desc()])
-    rows = list(db.scalars(select(N).where(*conds).order_by(*order)
-                           .offset((page - 1) * page_size).limit(page_size)))
+    if sort == "top":
+        # ranked in Python: the candidates are one period's relevant articles (hundreds at most)
+        ranked = db.execute(select(N.id, N.relevance_score, N.duplicate_count, _when(), N.title_norm).where(*conds)
+                            .order_by(N.relevance_score.desc(), _when().desc(), N.id.desc()).limit(TOP_CANDIDATES)).all()
+        ranked.sort(key=lambda r: (-news_service.importance(r[1], r[2], r[3], now), -r[0]))
+        # one line per story: a second outlet's differently worded article on the same story is
+        # passed over (it stays in the full list and in `total`)
+        distinct: list = []
+        for r in ranked:
+            if len(distinct) >= page * page_size:
+                break
+            if not any(news_service.same_story(r[4] or "", r[3], d[4] or "", d[3]) for d in distinct):
+                distinct.append(r)
+        ids = [r[0] for r in distinct[(page - 1) * page_size: page * page_size]]
+        by_id = {a.id: a for a in db.scalars(select(N).where(N.id.in_(ids)))} if ids else {}
+        rows = [by_id[i] for i in ids if i in by_id]
+    else:
+        order = ([N.relevance_score.desc(), _when().desc(), N.id.desc()] if sort == "relevance"
+                 else [_when().desc(), N.id.desc()])
+        rows = list(db.scalars(select(N).where(*conds).order_by(*order)
+                               .offset((page - 1) * page_size).limit(page_size)))
     sources = _sources(db)
     dups = _duplicates_of(db, [a.id for a in rows if a.duplicate_of_id is None and a.duplicate_count])
     originals = {}
@@ -337,6 +365,7 @@ def list_news(
         "page_size": page_size,
         "pages": (total + page_size - 1) // page_size if total else 0,
         "sort": sort,
+        "days": days,
         "filters": f.echo(),
         "facets": _facets(db, f, sources),
         "llm_enabled": get_settings().llm_enabled(),

@@ -3,7 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { Plus, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useUnreadCount } from '@/components/alerts/AlertBell'
 import { EventFeed, type FeedFilters } from '@/components/alerts/EventFeed'
 import { RuleEditor } from '@/components/alerts/RuleEditor'
@@ -29,6 +29,13 @@ export default function Alerts() {
     }),
     placeholderData: keepPreviousData,
   })
+  // After alerts on the last page are marked as read (filter "to read"), that page no longer
+  // exists: go back to the last page that does instead of showing an empty list without a pager.
+  const lastPage = events.data && !events.isPlaceholderData && events.data.items.length === 0 && filters.page > 1
+    ? Math.max(1, events.data.pages) : null
+  useEffect(() => {
+    if (lastPage !== null && lastPage < filters.page) setFilters((f) => ({ ...f, page: lastPage }))
+  }, [lastPage, filters.page])
   const count = useUnreadCount()
   const options = useQuery({
     queryKey: ['alerts', 'options'], queryFn: () => api.get<OptionsResponse>('/alerts/options'),

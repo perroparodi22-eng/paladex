@@ -94,7 +94,9 @@ export interface NewsListResponse {
   page: number
   page_size: number
   pages: number
-  sort: 'date' | 'relevance'
+  sort: 'date' | 'relevance' | 'top'
+  /** only the last N days, counted by the server (sort=top) */
+  days?: number | null
   filters: {
     q: string | null; country: string[]; topic: string[]; source: string[]
     from: string | null; to: string | null; lang: string[]; min_relevance: number; include_duplicates: boolean

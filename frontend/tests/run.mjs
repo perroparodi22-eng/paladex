@@ -1,6 +1,10 @@
 // Frontend regression tests: `npm test` (no extra dependencies).
 // Each tests/**/*.test.ts(x) file is loaded through Vite's SSR pipeline (same aliases, JSX and
 // import.meta.glob handling as the app) and uses Node's built-in `node:test` runner.
+// One time zone on every machine: dates are shown in local time, so a fixture stamped 23:19 UTC
+// read "4 Nov" on the build server and "5 Nov" on a computer in Italy.
+process.env.TZ = 'UTC'
+
 import { readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { after } from 'node:test'

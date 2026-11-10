@@ -69,6 +69,14 @@ const RULES: Rule[] = [
       return d ? `https://www.fao.org/faostat/en/#data/${d[1]}` : 'https://www.fao.org/faostat/en/#data'
     },
   },
+  // FAOSTAT data service (needs a login token) -> the FAOSTAT domain page of the same data.
+  {
+    re: /^https:\/\/faostatservices\.fao\.org\/api\/v1\/[a-z]{2}\/data\/([A-Z]{2,4})\b/,
+    to: (m) => `https://www.fao.org/faostat/en/#data/${m[1]}`,
+  },
+  { re: /^https:\/\/faostatservices\.fao\.org\//, to: () => 'https://www.fao.org/faostat/en/#data' },
+  // USDA FAS GATS data service (needs an API key) -> the GATS query page of USDA FAS.
+  { re: /^https:\/\/api\.fas\.usda\.gov\/api\/gats\//, to: () => 'https://apps.fas.usda.gov/gats/default.aspx' },
   // India, Export Inspection Council: the register's data service -> the register page.
   { re: /^https:\/\/eicindia\.gov\.in\/api\//, to: () => 'https://eicindia.gov.in/offerings/commodity-wise-facilities?tab=animal' },
   // Mexico, SIAP: the query service of the year-end close -> the year-end close page.

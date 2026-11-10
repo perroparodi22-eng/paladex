@@ -3,12 +3,13 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { ArrowRight, Loader2, X } from 'lucide-react'
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { NewsCard, type CardActions } from '@/components/news/NewsCard'
 import { FilteredEmpty, NoNewsYet } from '@/components/news/NewsEmpty'
 import { NewsFilters } from '@/components/news/NewsFilters'
 import { CountriesFacet, LanguagesFacet, SourcesRail, TopicsFacet } from '@/components/news/NewsRail'
+import { TopNews } from '@/components/news/TopNews'
 import { useLangName, utc } from '@/components/news/bits'
 import type { NewsDetail, NewsItem, NewsListResponse } from '@/components/news/types'
 import { useNewsFilters } from '@/components/news/useNewsFilters'
@@ -51,7 +52,12 @@ export default function News() {
     getNextPageParam: (last) => (last.page < last.pages ? last.page + 1 : undefined),
     placeholderData: keepPreviousData,
   })
-  const first = list.data?.pages[0]
+  // When a filtered request fails (on the phone copy: a combination of filters that was not
+  // captured), the last good answer keeps the search box, the filters and the pills on screen
+  // with the error inline, so the filter that caused it can be removed.
+  const lastGood = useRef<NewsListResponse>()
+  if (list.data?.pages[0]) lastGood.current = list.data.pages[0]
+  const first = list.data?.pages[0] ?? (list.error ? lastGood.current : undefined)
 
   // With "Solo rilevanti per Parodi" on, count what the switch hides (same filters, any relevance).
   const allParams = useMemo(() => ({ ...f.apiParams, min_relevance: undefined, sort: undefined }), [f.apiParams])
@@ -158,7 +164,10 @@ export default function News() {
             <button type="button" className="btn-secondary" onClick={f.reset}>{t('news.f.reset')}</button>
           </div>
         ) : (
-          <ErrorBlock error={list.error} onRetry={() => list.refetch()} />
+          <>
+            <ErrorBlock error={list.error} onRetry={() => list.refetch()} />
+            {f.hasFilters && <button type="button" className="btn-secondary" onClick={f.reset}>{t('news.f.reset')}</button>}
+          </>
         )}
       </div>
     )
@@ -188,6 +197,7 @@ export default function News() {
   if (periodActive) pills.push(<ActivePill key="p" label={t('news.f.remove', { x: t(`news.f.period.${state.period}`) })} onRemove={() => f.update({ period: 'all' })}>{t(`news.f.period.${state.period}`)}</ActivePill>)
 
   const refreshing = list.isFetching && !list.isFetchingNextPage
+  const failed = Boolean(list.error) && !list.data
 
   const filters = <NewsFilters state={state} facets={first.facets} update={f.update} toggle={f.toggle} />
   const facetsAside = (
@@ -212,14 +222,20 @@ export default function News() {
         </Details>
       ) : filters}
 
+      {/* The few stories that matter most, before the full list (hidden while the list is being narrowed). */}
+      {!f.hasFilters && <TopNews />}
+
       <div className={clsx('grid items-start gap-6', !simple && 'xl:grid-cols-[minmax(0,1fr)_340px]')}>
         <div className="min-w-0 space-y-3">
           {/* results line */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <h2 className="font-serif text-[1.25rem] font-semibold text-charcoal">
-              {first.total === 1 ? t('news.results.count1') : t('news.results.count', { n: fmtNumber(first.total, lang) })}
-              {state.relevantOnly && <span className="ml-1.5 font-sans text-[0.95rem] font-normal text-muted">{t(first.total === 1 ? 'news.results.relevantOnly1' : 'news.results.relevantOnly')}</span>}
-            </h2>
+            {/* after a failed request `first` is the last good answer: its count belongs to other filters */}
+            {!failed && (
+              <h2 className="font-serif text-[1.25rem] font-semibold text-charcoal">
+                {first.total === 1 ? t('news.results.count1') : t('news.results.count', { n: fmtNumber(first.total, lang) })}
+                {state.relevantOnly && <span className="ml-1.5 font-sans text-[0.95rem] font-normal text-muted">{t(first.total === 1 ? 'news.results.relevantOnly1' : 'news.results.relevantOnly')}</span>}
+              </h2>
+            )}
             {pills.length > 0 && <div className="flex flex-wrap items-center gap-1.5">{pills}</div>}
             {f.hasFilters && (
               <button type="button" className="text-[0.88rem] text-forest-700 underline decoration-gold/50 underline-offset-2 hover:decoration-gold" onClick={f.reset}>
@@ -233,7 +249,7 @@ export default function News() {
 
           {list.error && <ErrorBlock error={list.error} onRetry={() => list.refetch()} />}
 
-          <section className={clsx('panel transition-opacity', refreshing && 'opacity-70')}>
+          <section className={clsx('panel transition-opacity', refreshing && 'opacity-70', failed && 'hidden')}>
             {items.length === 0 ? (
               <FilteredEmpty relevantOnly={state.relevantOnly} hidden={hidden} hasFilters={f.hasFilters}
                 onShowHidden={() => f.update({ relevantOnly: false })} onReset={f.reset} />

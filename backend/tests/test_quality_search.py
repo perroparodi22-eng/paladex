@@ -527,9 +527,13 @@ def test_safe_raw_path(tmp_path):
     (base / "a" / "f.pdf").write_bytes(b"x")
     outside = tmp_path / "outside"
     outside.mkdir()
-    os.symlink(outside, base / "link")
+    try:
+        os.symlink(outside, base / "link")
+        linked = ("link/f.pdf",)
+    except OSError:          # Windows without the "create symbolic links" right: the link case cannot be built
+        linked = ()
     assert safe_raw_path(base, "a/f.pdf") == (base / "a" / "f.pdf").resolve()
-    for bad in ("../x", "a/../../x", "/etc/passwd", "", None, "a/\x00.pdf", ".", "link/f.pdf"):
+    for bad in ("../x", "a/../../x", "/etc/passwd", "", None, "a/\x00.pdf", ".", *linked):
         assert safe_raw_path(base, bad) is None, bad
     assert isinstance(safe_raw_path(base, "a/new.pdf"), Path)   # may not exist yet: caller checks is_file()
 

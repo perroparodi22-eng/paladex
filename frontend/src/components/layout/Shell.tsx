@@ -5,7 +5,7 @@ import {
   Menu, MoreHorizontal, Newspaper, RefreshCw, Scale, Search, Ship, WifiOff, X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtAgo } from '@/lib/format'
@@ -313,6 +313,12 @@ export function Shell({ children }: { children: ReactNode }) {
   }
   const location = useLocation()
   useEffect(() => setMenuOpen(false), [location.key])
+  // A link to another page opens it at the top (a page already in memory used to open at the
+  // previous page's scroll position). Back / forward keep the browser's own remembered position.
+  const navType = useNavigationType()
+  useEffect(() => {
+    if (navType !== 'POP' && !location.hash) window.scrollTo(0, 0)
+  }, [location.pathname])   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!menuOpen) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMenu() }

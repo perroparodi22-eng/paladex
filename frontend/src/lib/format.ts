@@ -35,7 +35,9 @@ export function fmtPct(v: number | null | undefined, lang: Lang, digits = 1, sig
   if (v === null || v === undefined || Number.isNaN(v)) return '—'
   const s = fmtNumber(Math.abs(v), lang, digits)
   if (!signed) return `${s}%`
-  return `${v > 0 ? '+' : v < 0 ? '−' : ''}${s}%`
+  // a change that rounds to zero is shown as "0,0%", not "+0,0%" or "−0,0%"
+  const zero = Math.abs(v) < 0.5 / 10 ** digits
+  return `${zero ? '' : v > 0 ? '+' : '−'}${s}%`
 }
 
 /** Parse backend timestamps. Date-only values ("2026-10-15") are calendar dates (shown as-is);

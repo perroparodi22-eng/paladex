@@ -6,6 +6,7 @@ from plain words with a mocked AI, and shown as `correction` in the API answers.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import uuid
@@ -581,7 +582,11 @@ def test_no_network_or_credentials_keeps_events_pending(computers, tmp_path):
         st = cs.status(s)
         assert st["pending"] == 1 and st["error"]["code"] == res["error"]["code"] and st["enabled"]
     # not a git checkout at all
-    shutil.rmtree(repo / ".git")
+    def _writable(func, path, _exc):     # git's object files are read-only: on Windows they cannot be deleted as is
+        os.chmod(path, 0o700)
+        func(path)
+
+    shutil.rmtree(repo / ".git", onerror=_writable)
     res = cs.sync_now()
     assert not res["ok"] and res["error"]["code"] == "not_a_checkout"
     with use("pc1")() as s:

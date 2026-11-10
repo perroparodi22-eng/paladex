@@ -1,4 +1,4 @@
-# Handoff for the next working session (state on 8 Nov 2026)
+# Handoff for the next working session (state on 10 Nov 2026)
 
 Read this first, then README.md, docs/ARCHITECTURE.md, docs/DATA_SOURCES.md, docs/DEVELOPING.md and
 docs/PHONE_ACCESS.md. Everything below is either in the repository or explained here; nothing from the
@@ -36,10 +36,11 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
 - After each finished round, the owner has approved merging into `main` (PRs #2-#8, merge method
   "merge"); scheduled workflows run from `main`. After a merge: `git fetch origin main && git checkout
   -B claude/laughing-hopper-xd5urh origin/main && git push -u origin claude/laughing-hopper-xd5urh`.
-- Commit trailers (exact):
-  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and
-  `Claude-Session: https://claude.ai/code/session_01GUBbpqasDs1fVteNsyDhSH` (a new session gets its
-  own URL from its system reminder). No model identifiers in repository files.
+- Commit trailers: the `Co-Authored-By:` line the session's own system reminder gives (10 Nov, desktop
+  session: `Co-Authored-By: Claude <noreply@anthropic.com>`), plus `Claude-Session: <url>` when the
+  session has one (cloud sessions do). No model identifiers in repository files.
+- On the owner's Windows PC the session uses `gh` (logged in as the owner) instead of the GitHub MCP
+  tools: `gh run list --workflow mirror.yml`, `gh run view --job <id> --log`, `gh pr create`, `gh pr merge --merge`.
 - GitHub from the cloud session: use the GitHub MCP tools (PRs, merge, Actions runs and logs). Branch
   deletion is refused for the session (HTTP 403); ask the owner to do it on github.com.
 - The repository has many unrelated branches of other projects (render-*, v2-*, v21-*, v3-*, pc-upload,
@@ -52,9 +53,9 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
    then in a worktree (`git worktree add` once, then `git fetch <repo> $SHA && git reset --hard $SHA &&
    git clean -qfd -e frontend/node_modules`; symlink `frontend/node_modules` from the main checkout).
 2. Backend: `cd backend && PALADEX_ENV_FILE=/nonexistent .venv/bin/python -m pytest -x -q -o addopts=""`
-   (1,595 tests on 8 Nov; ~5 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
+   (1,662 tests on 10 Nov; ~6 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
    `-q` default. Tests set `PALADEX_CORRECTIONS_SYNC=false` themselves.
-3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (164 tests), `npx vite build`.
+3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (168 tests), `npx vite build`.
 4. The built `frontend/dist` IS committed (the owner's PC has no Node): copy the build from the clean
    worktree into `frontend/dist` and commit it.
 5. New or changed collectors: run them for real into a scratch data dir
@@ -98,8 +99,20 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   **Verify the next run** (scheduled or manual) publishes.
 - `scripts/mirror/prepare_db.py` keeps only listed tables (`KEEP`); a new table is private until added
   there (web_findings was added on 6 Nov).
+- **9 and 10 Nov failures = Netlify credits used up, not a bug.** The copy was built and checked, then
+  Netlify refused the deploy: HTTP 403 "Account credit usage exceeded - new deploys are blocked until
+  credits are added". Only the owner can fix it (add credits on app.netlify.com -> Billing, or wait for
+  the billing period to renew); the balance is not visible from here. Since 10 Nov the Publish step
+  recognises that answer and ends the run with a **warning** (run summary: "NOT published: the Netlify
+  account has used up its credits") instead of a failed run and an e-mail every morning; any other
+  Netlify error still fails the run. The phone keeps showing the last published copy (8 Nov 00:43 UTC)
+  with its own date. Several deploys were made on 5-8 Nov while the copy was being set up; if credits stay tight, ask the owner whether to
+  publish less often (the cron line) rather than deciding for him.
+- **8 Nov scheduled run:** GitHub "lost communication with the runner" 45 minutes into the build step
+  (normally 12 minutes); no log survived, so the cause is unknown and it has not happened again. The
+  build step now has `timeout-minutes: 40`, so a stuck build ends with its log.
 
-## 5. What exists (state on 8 Nov 2026, main = this commit's merge)
+## 5. What exists (state on 10 Nov 2026)
 
 - Sections: Panoramica, Prezzi, Notizie, Paesi (world map + country pages), Commercio, Aziende,
   Raccolti e produzione, Normative e dazi, Offerte fornitori, Avvisi, Archivio, Assistente IA,
@@ -128,13 +141,31 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   India EIC register + DGFT, Spain MAPA, Hungary KSH, Bulgaria MZH, Greece ELSTAT, tariffs (EU TARIC via
   UK XI, US HTS), regulations (Federal Register, EUR-Lex, RASFF, MAPA BR, SENASA AR), NASA POWER weather,
   news (GDELT, trade-press RSS; Google News feeds off by default for licence reasons), web findings.
+- **News per country (10 Nov):** 28 country feeds for 21 countries (`COUNTRY_FEEDS` in
+  `collectors/news_feeds.py`, table row in docs/DATA_SOURCES.md): the publisher's honey tag feed, its
+  search feed for "honey", or a sector association's feed; a general farm/business feed filtered by the
+  honey gate where nothing better exists (Brazil, India, Vietnam, China, Turkey). Items carry the feed's
+  country (`home_tag` -> `home_country` in `services.news.analyse`). The honey gate now also reads
+  Hungarian (unfolded "méz", never "mez"/"mező"), Romanian ("miere") and Serbian/Croatian bare "med"
+  (those languages only). First real run: 28 of 28 feeds answered, about 140 honey articles stored
+  (the database had 29). GDELT stays registered but has refused every request since 5 Nov, on the PC
+  and on GitHub: the RSS feeds are what fills the news now.
+- **Most important news:** `services.news.importance` = relevance score + 3 per further outlet (max 3)
+  - 1.5 per day of age. `/api/news?sort=top&days=30` (window counted by the server, so the phone copy
+  can answer it) feeds "Le più importanti" at the top of Notizie (5 stories, hidden while filters are
+  on; `components/news/TopNews.tsx`). Country pages: `news.highlights` = the one or two stories of the
+  last 365 days tagged with the country AND a trade topic (trade, prices, tariffs, import
+  restrictions), shown first in "Notizie recenti" and, in the simple view, as their own panel. Two
+  outlets on one story count once in these short lists (`services.news.same_story`).
 
 ## 6. Open items (in rough priority order)
 
-1. **Phone copy refresh: verified working on 8 Nov.** Manual run 10 (00:15-00:43 UTC) after both workflow
-   fixes: collection 11.6 min (67 sources: 4 success, 4 partial, 40 no change, 3 failed: aduana.cl 403,
-   TAXUD HTTP 500 on the Commission's side, dgft.gov.in 403), cache saved, 1,751 pages, 0 failed requests,
-   0 JavaScript errors, saved USDA report served, deploy live. Keep an eye on the scheduled runs.
+1. **Phone copy: blocked by Netlify credits since 9 Nov** (section 4). Nothing to fix in the code; the
+   owner must add credits or wait for the renewal, then the next run publishes by itself (or trigger
+   one). The workflow change that stops the daily failure e-mails only takes effect once it is on
+   `main` (scheduled workflows run from `main`). After the first successful run, check that the crawl
+   still reports 0 failed requests with the new news requests (`/news?sort=top&days=30...`) and that
+   the 28 new feeds collect from GitHub's network.
 2. **USDA gap Sep 2025 - Aug 2026: filled in the phone copy** (run 10 read every issue from 31 Oct 2025 to
    30 Sep 2026 from the MyMarketNews file repository). The shipped starter data still lacks those months
    (rebuild it from a database that has them at the next starter rebuild); the owner's PC fetches them
@@ -151,8 +182,15 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
      2026; "CanoLight Amber" Oct/Dec 2025, Jul-Aug 2026) - warned, not guessed.
    - Correction candidates keep USDA colour grades in English ("light amber") in the Italian UI.
    - Commercio page shows correction badges but has no "Segnala o correggi" buttons.
-   - Panoramica (single latest USDA report) vs Prezzi (month average) can differ slightly (3,40 vs
-     3,42 €/kg): both correct, maybe worth a label.
+   - (fixed 10 Nov) Panoramica vs Prezzi: the tile took ONE of two USDA rows of the same month by row
+     id, so its figure and month-on-month change disagreed with Prezzi (India: -16,4% shown, -8,4%
+     real). Rows of one series, product and period are now averaged (`overview.AveragedPoint`,
+     `averaged_rows` on the tile, `row_id` null).
+   - From the 10 Nov review, not done: `trade.Candidate.complete/uses_world` could count a year as
+     complete from 11 World months + 12 partner months (read from the code, not reproduced);
+     `/api/trade/flows` top-level freshness is source-level; `POST /api/quotes` accepts currencies
+     without an ECB rate; headlines stay in their own language without an AI key (the country lines
+     now say the topic in words).
    - `docs/research/usda.json` still calls the MyMarketNews document URL pattern unverified.
    - Bulgarian bulletin's sales-price table (e.g. 4.92 BGN/kg to processors, 2025) not stored yet.
    - FranceAgriMer 2025 observatory is an image-only PDF (needs OCR to integrate).
@@ -177,3 +215,13 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
 - Validate workflow edits with actionlint (`pip install actionlint-py`, then `actionlint -shellcheck= .github/workflows/mirror.yml`), not only a YAML parser: on 8 Nov a duplicate step id (`db`) made GitHub reject the whole file (instant "failed" runs on every push, emails to the owner, no daily run) although it parsed as YAML.
 - Check a figure's history before trusting a comparison: the empty "a month ago" column revealed the
   USDA gap.
+- 10 Nov review (two read-only helpers, backend by API probing on a database copy, frontend by code
+  reading) found real bugs the 1,595 tests did not: a month Eurostat published with 6 partners and no
+  total was charted as Italy's total (-87% alert), a source line showed a period end as "published
+  on", page numbers beyond 64 bits answered HTTP 500, a failed filter on Notizie removed the filters.
+  All fixed with tests in `backend/tests/test_round_nov10.py` and `frontend/tests/country-news.test.tsx`.
+  A review against real data is worth repeating after each large round.
+- The owner's Windows PC: the app's own `.venv` has no pytest (make a separate venv outside the
+  repository); two tests failed only on Windows (symlink right, read-only git objects) and now pass;
+  the frontend tests are pinned to UTC (`tests/run.mjs`) because a fixture stamped 23:19 UTC is the
+  next day in Italy. Never touch `data/` there: it is the owner's real database (copy it read-only).

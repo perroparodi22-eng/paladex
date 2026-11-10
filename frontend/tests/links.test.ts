@@ -28,6 +28,8 @@ const MAPPED: [string, string][] = [
     'https://ec.europa.eu/eurostat/web/international-trade-in-goods/database'],
   ['https://bulks-faostat.fao.org/production/Production_Crops_Livestock_E_All_Data_(Normalized).zip', 'https://www.fao.org/faostat/en/#data/QCL'],
   ['https://bulks-faostat.fao.org/production/Prices_E_All_Data_(Normalized).zip', 'https://www.fao.org/faostat/en/#data/PP'],
+  ['https://faostatservices.fao.org/api/v1/en/data/QCL?area=106&item=1182', 'https://www.fao.org/faostat/en/#data/QCL'],
+  ['https://api.fas.usda.gov/api/gats/censusImports/partnerCode/AR/year/2026/month/08', 'https://apps.fas.usda.gov/gats/default.aspx'],
   ['https://bulks-faostat.fao.org/production/Trade_CropsLivestock_E_All_Data_(Normalized).zip', 'https://www.fao.org/faostat/en/#data/TCL'],
   ['https://eicindia.gov.in/api/facilities', 'https://eicindia.gov.in/offerings/commodity-wise-facilities?tab=animal'],
   ['https://nube.agricultura.gob.mx/cierre_pecuario/?xajax=reporte2&xajaxargs%5B%5D=2025', 'https://nube.agricultura.gob.mx/cierre_pecuario/'],
