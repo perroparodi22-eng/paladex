@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
     llm_max_articles_per_run: int = 40
+    # Italian headlines for news in other languages when no AI provider is configured: a free machine
+    # translation service that needs no key (services/title_translate.py). Only the headline is sent.
+    # The optional e-mail is the service's "contact in case of troubles" and raises its daily
+    # allowance from 5,000 to 50,000 characters; it is never sent unless written here.
+    title_translation: bool = True
+    title_translation_email: str | None = None
     # "Other sources (non-official)": weekly AI web search for recent figures (services/findings_ai.py).
     # Off by default; the Sources page switch (app setting) overrides this value. Anthropic only.
     web_findings_ai: bool = False

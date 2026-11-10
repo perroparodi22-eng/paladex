@@ -6,7 +6,7 @@ import clsx from 'clsx'
 import { ArrowRight, ExternalLink, Loader2, PenLine, WifiOff } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { AiBadge, DemoBadge } from '@/components/ui'
+import { AiBadge, DemoBadge, TranslatedBadge } from '@/components/ui'
 import type {
   BriefingBlock, BriefingBullet, NewsBlock, OverviewData, PriceTile, PricesBlock, QualityBlock, StatusBlock, TradeBlock,
 } from '@/components/overview/types'
@@ -386,7 +386,7 @@ function NewsCard({ block }: { block: NewsBlock }) {
                 </span>
                 <span aria-hidden>·</span>
                 <span>{fmtDate(n.published_at ?? n.collected_at, lang, { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                {(n.title_is_ai || n.summary_is_ai) && <AiBadge />}
+                {n.summary_is_ai ? <AiBadge /> : n.title_is_ai && <TranslatedBadge model={n.ai_model} />}
                 <a href={pageUrl(n.url) ?? undefined} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-1">
                   {t('simple.news.read')} <ExternalLink size={13} />
                 </a>

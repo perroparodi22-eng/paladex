@@ -89,3 +89,18 @@ test('old news is never shown as current: the panel says the month of the newest
   ;(fresh as { today: string }).today = '2026-11-10'
   assert.doesNotMatch(text(render(<ProfileNews p={fresh} />)), /Nessuna notizia recente/)
 })
+
+test('a machine-translated headline is labelled as such, not as AI, with the original one hover away', () => {
+  const MT = item({ id: 30, title: 'Извоз српског меда у Кину подиже откупну цену за 50 одсто', language: 'sr',
+    title_it: "L'esportazione di miele serbo in Cina aumenta il prezzo di acquisto del 50%", ai_model: 'mymemory' })
+  const AI = item({ id: 31, title: 'Цена меда расте', language: 'sr', title_it: 'Il prezzo del miele sale', ai_model: 'anthropic:claude' })
+  const html = render(<ProfileNews p={profile({ highlights: [MT], items: [MT, AI] })} />)
+  const s = text(html)
+  assert.match(s, /L'esportazione di miele serbo in Cina aumenta il prezzo di acquisto del 50% Traduzione automatica/)
+  assert.match(html, /title="Извоз српског меда у Кину подиже откупну цену за 50 одсто"/)
+  assert.match(s, /Il prezzo del miele sale IA /)
+  // in English there is no translation: the original headline, no label
+  const en = text(render(<ProfileNews p={profile({ highlights: [MT], items: [MT] })} />, { lang: 'en' }))
+  assert.match(en, /Извоз српског меда/)
+  assert.doesNotMatch(en, /Machine translation/)
+})

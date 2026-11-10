@@ -262,6 +262,15 @@ def post_collection_hooks() -> None:
         pass
     except Exception:  # pragma: no cover
         log.exception("AI news enrichment failed")
+    # Without an AI provider: Italian headlines by machine translation (labelled as such), within
+    # the free service's daily allowance. Same place and reason as above: it waits on a web service.
+    try:
+        from ..services import title_translate
+
+        with session_scope() as session:
+            title_translate.translate_pending(session)
+    except Exception:  # pragma: no cover
+        log.exception("headline translation failed")
     from ..api import memo
 
     memo.warm_in_background()      # in the server: rebuild the shared aggregates for the new data

@@ -6,7 +6,7 @@
 // read-only online copy can answer it.
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
-import { AiBadge, DemoBadge, Panel } from '@/components/ui'
+import { DemoBadge, Panel, TranslatedBadge } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { api } from '@/lib/api'
 import { fmtAgo } from '@/lib/format'
@@ -52,6 +52,7 @@ export function TopNews() {
               <span className="num w-6 shrink-0 pt-0.5 text-right text-[1.05rem] font-semibold text-gold" aria-hidden>{i + 1}</span>
               <div className="min-w-0">
                 <a href={pageUrl(it.url) ?? undefined} target="_blank" rel="noreferrer"
+                  title={d.title_is_ai ? it.title : undefined}
                   lang={d.title_is_ai ? lang : it.language ?? undefined}
                   className="font-serif text-[1.12rem] font-semibold leading-snug text-charcoal decoration-gold/60 underline-offset-[3px] hover:text-forest-800 hover:underline">
                   {d.title} <ExternalLink size={13} className="mb-0.5 inline text-muted" aria-hidden />
@@ -61,7 +62,7 @@ export function TopNews() {
                   <span className="font-medium text-charcoal-soft">{outlet}</span>
                   <span aria-hidden>·</span>
                   <time dateTime={utc(it.published_at ?? it.collected_at) ?? undefined}>{when}</time>
-                  {d.title_is_ai && <AiBadge />}
+                  {d.title_is_ai && <TranslatedBadge by={d.title_by} model={it.ai_model} />}
                   {it.duplicate_count > 0 && (
                     <span>· {it.duplicate_count === 1 ? t('news.top.outlets1') : t('news.top.outlets', { n: it.duplicate_count })}</span>
                   )}

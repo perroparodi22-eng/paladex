@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import { AlertOctagon, AlertTriangle, Bell, ExternalLink, Info, Newspaper } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AiBadge, Badge, DemoBadge, FreshnessBadge } from '@/components/ui'
+import { AiBadge, Badge, DemoBadge, FreshnessBadge, TranslatedBadge } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { fmtAgo, fmtDate, fmtPeriod } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
@@ -90,7 +90,7 @@ function NewsRow({ n }: { n: NewsItem }) {
             <span className="font-medium text-charcoal-soft">{n.publisher || n.source?.name}</span>
             <span>· {fmtDate(n.published_at || n.collected_at, lang, { day: '2-digit', month: 'short' })}</span>
             {n.countries.slice(0, 3).map((c) => <span key={c} className="rounded-sm bg-forest-50 px-1 text-[0.7rem] text-forest-800">{country(c)}</span>)}
-            {(n.title_is_ai || n.summary_is_ai) && <AiBadge />}
+            {n.summary_is_ai ? <AiBadge /> : n.title_is_ai && <TranslatedBadge model={n.ai_model} />}
             {n.is_demo && <DemoBadge />}
             <ExternalLink size={11} className="opacity-60" />
           </div>
