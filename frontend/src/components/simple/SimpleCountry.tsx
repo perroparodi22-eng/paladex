@@ -7,9 +7,10 @@ import { useI18n } from '@/i18n'
 
 export function CountryYtdPanel({ p, name }: { p: CountryProfile; name: string }) {
   const { t } = useI18n()
-  const year = Number(p.today?.slice(0, 4)) || new Date().getFullYear()
   const exp = p.trade.export.ytd
   const imp = p.trade.import.ytd
+  // the year the figures belong to (in January the newest monthly data are still last year's)
+  const year = exp?.own?.year ?? imp?.own?.year ?? (Number(p.today?.slice(0, 4)) || new Date().getFullYear())
   if (!exp && !imp) return null
   return (
     <Panel title={t('simple.country.ytdTitle', { y: year })} eyebrow={t('simple.country.ytdEyebrow')} className="mb-5">

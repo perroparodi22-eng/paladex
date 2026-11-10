@@ -388,6 +388,7 @@ _GATE_STRONG = _words([
     r"colmenas?", r"mielato", r"melata", r"manuka", r"varroa\w*", r"imker\w*", r"bienenvolk\w*",
     r"bienenvolker\w*", r"ruches?", r"bee colon\w*", r"colonie di api", r"colonias de abejas",
     r"colony collapse", r"royal jelly", r"pappa reale", r"jalea real", r"propoli\w*",
+    r"miere", r"mierii", r"mierea",                       # Romanian: honey (apicultor* is matched by apicult*)
     r"(?:hs|nc|cn|code|codice|partida|heading|voce|subheading)[\s.]*(?:code[\s.]*)?0409\w*",
 ])
 # Non-Latin scripts / languages without spaces (GDELT queries in ZH, UK, RU, VI, SR).
@@ -403,6 +404,14 @@ _GATE_STRONG_RAW = re.compile(
     r"(?<!\w)(?:mat ong|nuoi ong)(?!\w)|"                 # Vietnamese (accents folded): honey, beekeeping
     r"(?<!\w)(?:pcel\w*|izvoz meda|meda)(?!\w)"          # Serbian/Croatian (folded): bee*, honey export
 )
+# Hungarian: "méz" (honey) differs from "mez" (a sports jersey) only by its accent, and folded
+# "mezo..." is "field / agriculture", so Hungarian is matched on the unfolded, lower-cased text:
+# méz, mézet, akácméz, mézpiac, mézexport..., méhész (beekeeper), méhészet, méhcsalád (colony).
+_GATE_HU_RAW = re.compile(r"(?<!\w)(?:\w*méz(?!ga)\w*|méhész\w*|méhcsalád\w*)(?!\w)")
+# Serbian / Croatian / Bosnian Latin "med" (honey) is "medical" elsewhere: the bare word (and its
+# cases) only in items of those languages; "meda" and "izvoz meda" above cover the rest.
+_GATE_MED_SR = _words([r"med", r"medu", r"medom"])
+_SOUTH_SLAVIC = ("sr", "hr", "bs", "sh")
 # Portuguese "mel" is a name elsewhere (Mel Gibson): bare "mel" only in Portuguese items,
 # otherwise only in unmistakable Portuguese phrases.
 _GATE_MEL_PT = _words([r"mel"])
@@ -425,6 +434,9 @@ def honey_terms(text: str, language: str | None = None) -> list[str]:
     found += [m.group(0) for m in _GATE_STRONG_RAW.finditer(t)]
     mel = _GATE_MEL_PT if (language or "").startswith("pt") else _GATE_MEL_PHRASES
     found += [m.group(0) for m in mel.finditer(t)]
+    found += [m.group(0) for m in _GATE_HU_RAW.finditer(unicodedata.normalize("NFC", text or "").lower())]
+    if (language or "")[:2] in _SOUTH_SLAVIC:
+        found += [m.group(0) for m in _GATE_MED_SR.finditer(t)]
     if found and all(f == "miele" for f in found) and _APPLIANCE.search(t):
         return []  # Miele (the appliance maker), not miele (honey)
     if not found:
@@ -454,7 +466,9 @@ TOPICS: dict[str, dict] = {
                   r"cents? (?:a|per) pound", r"valor(?:es)? (?:de|por) (?:la )?(?:miel|tonelada|kilo)",
                   # Ukrainian / Russian / Serbian (Cyrillic + Latin) / Vietnamese
                   r"цін[аиуіо]\w*", r"цен[аыуеоя]\w*", r"подорожча\w*", r"подорожа\w*", r"подешев\w*",
-                  r"cen[aeiu] med[au]", r"otkupn\w* cen\w*", r"gia (?:ban |xuat khau )?mat ong"],
+                  r"cen[aeiu] med[au]", r"otkupn\w* cen\w*", r"gia (?:ban |xuat khau )?mat ong",
+                  # Romanian / Hungarian (folded): the price of honey, purchase price
+                  r"pretul", r"preturi\w*", r"mezar\w*", r"felvasarlasi ar\w*"],
         "raw": [(r"\d\s*(?:€|eur|euros?|usd|us\$|\$|dollars?|dolares|cents?|centavos|pesos|reais|r\$)?\s*"
                  r"(?:/|per|al|el|por|pro|a)\s*(?:kg|kilo\w*|chilo\w*|lbs?|libbr\w*|libras?|pound|tonn?e?s?\b|"
                  r"tonnellat\w*|tonelad\w*)"),
@@ -481,7 +495,10 @@ TOPICS: dict[str, dict] = {
                   r"embarques?", r"ausfuhr\w*", r"einfuhr\w*", r"aussenhandel", r"bulk", r"customs",
                   r"dogan\w*", r"aduan\w*", r"fob", r"cif", r"trade data", r"balanza comercial",
                   r"експорт\w*", r"экспорт\w*", r"імпорт\w*", r"импорт\w*", r"митн\w*", r"таможен\w*",
-                  r"извоз\w*", r"увоз\w*", r"izvoz\w*", r"uvoz\w*", r"xuat khau", r"nhap khau"],
+                  r"извоз\w*", r"увоз\w*", r"izvoz\w*", r"uvoz\w*", r"xuat khau", r"nhap khau",
+                  # Romanian / Hungarian (folded)
+                  r"exporturi\w*", r"importuri\w*", r"mezexport\w*", r"mezimport\w*", r"importmez\w*",
+                  r"kivitel\w*", r"behozatal\w*"],
         "raw": [r"出口|进口|進口|贸易|貿易"],
     },
     "adulteration": {
@@ -602,7 +619,10 @@ _PENALTIES: dict[str, tuple[re.Pattern, int]] = {
                        r"face masks?", r"weight loss", r"dimagr\w*", r"adelgaz\w*", r"sleep", r"sonno", r"immun\w*",
                        r"wellness", r"benessere", r"diet", r"dieta", r"superfoods?", r"antioxidants?",
                        r"antiossidant\w*", r"hangover", r"wounds?", r"ferite", r"heridas", r"beauty", r"bellezza",
-                       r"belleza", r"cosmetic\w*", r"nutritionists?", r"doctors? (?:say|explain)", r"medic[oi]"]), 30),
+                       r"belleza", r"cosmetic\w*", r"nutritionists?", r"doctors? (?:say|explain)", r"medic[oi]",
+                       # diseases honey is said to help with (a Brazilian "honey against stomach cancer"
+                       # story ranked among the most important news)
+                       r"cancer", r"cancro", r"gastrit\w*", r"ulceras?", r"ulcers?", r"tumou?r\w*", r"diabet\w*"]), 30),
     "local": (_words([r"backyard", r"hobby\w*", r"schools?", r"students?", r"kids", r"children", r"bambini",
                       r"ninos", r"scuol[ae]", r"escuelas?", r"festivals?", r"sagra", r"county fair", r"state fair",
                       r"museums?", r"museo", r"swarm removal", r"rooftops?", r"gardens?", r"gardening",
@@ -849,11 +869,17 @@ class Analysis:
 
 
 def analyse(title: str, snippet: str | None = None, *, language: str | None = None,
-            reliability: str | None = None) -> Analysis:
-    """Gate + tags + relevance for a headline/excerpt pair (pure function)."""
+            reliability: str | None = None, home_country: str | None = None) -> Analysis:
+    """Gate + tags + relevance for a headline/excerpt pair (pure function).
+
+    `home_country` (ISO3): the country a national honey-sector feed writes about. Its items
+    rarely name their own country ("la miel", "el sector apícola"), so the feed's country is
+    added to the tags, after the countries the text itself names."""
     text = f"{title}\n{snippet or ''}"
     terms = honey_terms(text, language)
     countries = tag_countries(text)
+    if home_country and home_country not in countries:
+        countries.append(home_country)
     topic_strength = tag_topics(title, snippet)
     topics = [k for k in TOPICS if k in topic_strength]
 
@@ -968,6 +994,36 @@ def explain_reason(reason: str | None, lang: str = "it") -> str | None:
 
 def relevance_level(score: int) -> str:
     return "high" if score >= 60 else "medium" if score >= 35 else "low"
+
+
+# "Most important" ranking (news page highlights, country pages). Deliberately simple and
+# explainable: the stored relevance score, a little more when several outlets carried the story,
+# a little less for each day of age. No new judgement is made here.
+TRADE_TOPICS = ("trade", "prices", "tariffs", "import_restrictions")
+IMPORTANCE_OUTLET_POINTS = 3      # per additional outlet that carried the story...
+IMPORTANCE_OUTLET_CAP = 3         # ...up to this many
+IMPORTANCE_AGE_POINTS = 1.5       # lost per day of age
+
+
+SAME_STORY_RATIO = 66            # looser than FUZZY_THRESHOLD: only to avoid showing one story twice in a short list
+SAME_STORY_DAYS = 4
+
+
+def same_story(title_norm_a: str, when_a: datetime | None, title_norm_b: str, when_b: datetime | None) -> bool:
+    """Two articles a reader would call the same story (two outlets reporting one press release in
+    different words). Used only to keep a short "most important" list varied: nothing is merged
+    or hidden elsewhere, and the stored duplicates (`find_original`) keep their stricter rule."""
+    if not title_norm_a or not title_norm_b:
+        return False
+    if when_a is not None and when_b is not None and abs((when_a - when_b).days) > SAME_STORY_DAYS:
+        return False
+    return fuzz.token_set_ratio(title_norm_a, title_norm_b) >= SAME_STORY_RATIO
+
+
+def importance(score: int | None, duplicate_count: int | None, when: datetime | None, now: datetime) -> float:
+    age_days = max(0.0, (now - when).total_seconds() / 86400) if when is not None else 0.0
+    return (float(score or 0) + IMPORTANCE_OUTLET_POINTS * min(duplicate_count or 0, IMPORTANCE_OUTLET_CAP)
+            - IMPORTANCE_AGE_POINTS * age_days)
 
 
 def topic_list() -> list[dict]:
@@ -1092,8 +1148,10 @@ def ingest_article(
     image_url: str | None = None,
     publisher: str | None = None,
     language: str | None = None,
+    home_country: str | None = None,
 ) -> tuple[NewsArticle | None, Outcome]:
-    """Store one feed item. Returns (article, outcome); article is None when filtered."""
+    """Store one feed item. Returns (article, outcome); article is None when filtered.
+    `home_country`: see `analyse` (passed by national honey-sector feeds only)."""
     publisher = strip_html(publisher)[:200] or None
     clean = clean_title(title, publisher)
     link = clean_url(url or "")
@@ -1114,7 +1172,7 @@ def ingest_article(
 
     lang = normalise_language(language) or normalise_language(source.language)
     excerpt = clean_snippet(snippet, clean, publisher)
-    result = analyse(clean, excerpt, language=lang, reliability=source.reliability)
+    result = analyse(clean, excerpt, language=lang, reliability=source.reliability, home_country=home_country)
     if not result.is_honey:
         return None, "filtered"
 

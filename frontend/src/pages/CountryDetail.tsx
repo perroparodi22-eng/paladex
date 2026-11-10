@@ -47,7 +47,8 @@ export default function CountryDetail() {
   }
   if (q.error) return <div>{back}<ErrorBlock error={q.error} onRetry={() => q.refetch()} /></div>
   if (!q.data) return null
-  return <Profile p={q.data} back={back} />
+  // keyed by country: the export/import switch and the open details of one country never carry over to the next
+  return <Profile key={q.data.country.iso3} p={q.data} back={back} />
 }
 
 function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
@@ -77,6 +78,7 @@ function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
         {header}
         <KpiRow p={p} />
         <CountryYtdPanel p={p} name={countryName(c, lang)} />
+        <ProfileNews p={p} compact className="mb-5 min-w-0" />
         <div className="mb-5"><ProfileProduction data={p.production} /></div>
         <div className="mb-5"><ProfileWebFindings p={p} /></div>
         <CountryNotes iso3={c.iso3} name={countryName(c, lang)} className="mb-5" />
@@ -192,7 +194,8 @@ export function KpiRow({ p }: { p: CountryProfile }) {
               {(y.correction || l?.correction) && <CorrectionBadge c={y.correction ?? l?.correction} compact className="my-1" />}
               {l && (
                 <div>
-                  {t('countries.kpi.fullYear', { y: l.year })}: <span className="num">{fmtT(l.net_weight_kg, lang)} t</span>
+                  {/* a country that publishes no weights (Uruguay): the value, never "— t" */}
+                  {t('countries.kpi.fullYear', { y: l.year })}: <span className="num">{l.net_weight_kg === null && l.usd_value !== null ? fmtUsd(l.usd_value, lang) : `${fmtT(l.net_weight_kg, lang)} t`}</span>
                   {l.source?.key !== y.source?.key && <> ({l.source?.publisher || l.source?.name})</>}
                 </div>
               )}
@@ -205,9 +208,10 @@ export function KpiRow({ p }: { p: CountryProfile }) {
       return (
         <StatTile
           label={label}
-          value={<>{fmtT(l.net_weight_kg, lang)}<span className="text-muted text-[0.6em] ml-1">t</span></>}
+          value={l.net_weight_kg === null && l.usd_value !== null ? fmtUsd(l.usd_value, lang)
+            : <>{fmtT(l.net_weight_kg, lang)}<span className="text-muted text-[0.6em] ml-1">t</span></>}
           sub={<YearSub year={`${l.year}${l.summed_from_partners ? ' · Σ' : ''}`} status={l.data_status} />}
-          delta={l.yoy_volume_pct}
+          delta={l.net_weight_kg === null ? null : l.yoy_volume_pct}
           deltaLabel={l.prev ? `vs ${l.prev.year}` : undefined}
           demo={l.is_demo}
           footer={<>

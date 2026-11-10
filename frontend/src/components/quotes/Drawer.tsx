@@ -6,6 +6,8 @@ import { X } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useI18n } from '@/i18n'
 
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
 export function Drawer({ open, onClose, title, eyebrow, meta, actions, children, footer, size = 'lg', labelId, closeOnBackdrop = true }: {
   open: boolean
   onClose: () => void
@@ -31,6 +33,24 @@ export function Drawer({ open, onClose, title, eyebrow, meta, actions, children,
       if (e.key === 'Escape') {
         e.stopPropagation()
         close.current()
+        return
+      }
+      // Tab stays inside the dialog (it is modal: the page behind is not reachable by mouse either)
+      if (e.key !== 'Tab' || !panel.current) return
+      const stops = Array.from(panel.current.querySelectorAll<HTMLElement>(FOCUSABLE))
+        .filter((el) => el.offsetParent !== null || el === document.activeElement)
+      if (stops.length === 0) {
+        e.preventDefault()
+        return
+      }
+      const first = stops[0], last = stops[stops.length - 1]
+      const at = document.activeElement
+      if (e.shiftKey && (at === first || at === panel.current || !panel.current.contains(at))) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && (at === last || !panel.current.contains(at))) {
+        e.preventDefault()
+        first.focus()
       }
     }
     document.addEventListener('keydown', onKey)

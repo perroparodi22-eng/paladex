@@ -400,7 +400,8 @@ def trade_history(
         "total_scope": annual["total_scope"],
         "available": bool(years_out or ytd),
         "annual": years_out, "ytd": ytd,
-        "excluded_partial": annual["excluded_partial"], "discrepancies": annual["discrepancies"],
+        "excluded_partial": annual["excluded_partial"], "excluded_months": monthly["excluded_months"],
+        "discrepancies": annual["discrepancies"],
         "providers": annual["providers"],
     }
 

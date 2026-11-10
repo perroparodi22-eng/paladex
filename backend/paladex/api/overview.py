@@ -285,6 +285,51 @@ def _detach(db: Session, objs) -> None:
             db.expunge(o)
 
 
+def _mean_of(values) -> float | None:
+    vals = [v for v in values if v is not None]
+    return sum(vals) / len(vals) if vals else None
+
+
+class AveragedPoint:
+    """Several stored rows of ONE series, product and period, shown as one figure: their simple
+    average, as the Prezzi page shows it (prices._combine). The USDA report lists two lines for some
+    origin / colour / month; picking one of them by row id made the tile, its month-on-month change
+    and the daily summary disagree with Prezzi (a "-16,4% in a month" that was really -8,4%).
+    Everything that is not a price (period, unit, currency, source, dates) is read from the newest
+    row; `id` is None because no single stored row is the figure shown."""
+
+    id = None
+    _MEAN = ("price_per_kg", "usd_per_kg", "eur_per_kg", "price_value")
+
+    def __init__(self, rows: list):
+        self.rows = rows
+        self._newest = rows[-1]
+        for f in self._MEAN:
+            setattr(self, f, _mean_of(getattr(r, f) for r in rows))
+        lows = [r.price_low for r in rows if r.price_low is not None]
+        highs = [r.price_high for r in rows if r.price_high is not None]
+        self.price_low = sum(lows) / len(lows) if len(lows) == len(rows) else None
+        self.price_high = sum(highs) / len(highs) if len(highs) == len(rows) else None
+        self.is_demo = any(r.is_demo for r in rows)
+
+    def __getattr__(self, name: str):
+        if name.startswith("_") or name == "rows":
+            raise AttributeError(name)
+        return getattr(self._newest, name)
+
+
+def _one_point_per_period(points: list) -> list:
+    """`points` (one series, ascending period) with the rows of the same product and period
+    replaced by their average (see AveragedPoint). Different products of one series (the source's
+    own variety text differs) stay separate, as `same_product` expects."""
+    groups: dict[tuple, list] = {}
+    for p in points:
+        groups.setdefault((p.period_start, _raw_key(p.variety_raw)), []).append(p)
+    if len(groups) == len(points):
+        return points
+    return [g[0] if len(g) == 1 else AveragedPoint(g) for g in groups.values()]
+
+
 @dataclass
 class PriceSeries:
     key: tuple
@@ -438,6 +483,8 @@ class Ctx:
                 s.points = [o for o in older.get(k, ()) if o.period_start >= need_from] + s.points
         out = [s for s in series.values() if s.points]
         _detach(self.db, (o for s in out for o in s.points))
+        for s in out:
+            s.points = _one_point_per_period(s.points)
         return out
 
     def label_hint(self, s: PriceSeries) -> str | None:
@@ -572,8 +619,14 @@ def series_label(ctx: Ctx, s: PriceSeries) -> str:
 def _corrections_of(ctx: Ctx, model, rows) -> dict[int, dict]:
     """{row id: "corrected by ..."} for the rows corrected by a person (shared rows are detached and
     carry no `extra`: one query by primary key, none when no row is corrected)."""
-    ids = [r.id for r in rows if r is not None and r.reliability == "user"]
+    stored = [x for r in rows if r is not None for x in _stored_rows(r)]
+    ids = [r.id for r in stored if r.reliability == "user"]
     return briefs_by_id(ctx.db, model, ids) if ids else {}
+
+
+def _stored_rows(point) -> list:
+    """The stored row(s) behind a point: itself, or the rows an AveragedPoint averages."""
+    return point.rows if isinstance(point, AveragedPoint) else [point]
 
 
 def _source_periods(ctx: Ctx) -> dict[int, set[str]]:
@@ -632,7 +685,10 @@ def _tile(ctx: Ctx, s: PriceSeries, corrections: dict[int, dict] | None = None) 
              for p in same_product(s.points, last)[-SPARK_POINTS:]]
     return {
         "id": "|".join("" if k is None else str(k) for k in s.key),
-        "row_id": last.id,          # the stored row shown (what a person can correct, POST /api/corrections)
+        # the stored row shown (what a person can correct, POST /api/corrections); None when the
+        # figure is the average of several rows of the period (`averaged_rows`)
+        "row_id": last.id,
+        "averaged_rows": len(last.rows) if isinstance(last, AveragedPoint) else None,
         "label": series_label(ctx, s),
         "label_hint": ctx.label_hint(s),
         "origin_iso3": s.origin_iso3, "origin_label": last.origin_label, "variety": s.variety,
@@ -654,7 +710,7 @@ def _tile(ctx: Ctx, s: PriceSeries, corrections: dict[int, dict] | None = None) 
         "period_label": last.period_label, "period_start": iso(last.period_start),
         "period_end": iso(last.period_end), "frequency": last.frequency,
         "data_status": last.data_status, "reliability": last.reliability, "is_demo": last.is_demo,
-        "correction": (corrections or {}).get(last.id),
+        "correction": next((c for c in ((corrections or {}).get(r.id) for r in _stored_rows(last)) if c), None),
         "link": _prices_link(s),
     }
 

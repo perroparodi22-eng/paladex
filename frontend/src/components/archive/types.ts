@@ -136,6 +136,8 @@ export interface TradeHistoryResponse {
     expected_update: string | null; expected_update_en: string | null }[]
   ytd: { source: SourceBrief | null; freshness: Freshness; is_demo: boolean; through_month: number; latest_label: string; years: YtdYear[] }[]
   excluded_partial: { source: SourceBrief | null; period_label: string; months_count: number; last_month: string }[]
+  /** months a source published without the reporter's total (partial data): never shown as a total */
+  excluded_months?: { source: SourceBrief | null; month: string; reason: 'no_total'; partners_count: number }[]
   discrepancies: { period_label: string; diff_pct: number; values: { source: SourceBrief | null; net_weight_kg: number }[] }[]
   providers: { key: string; name: string; publisher: string | null; enabled: boolean }[]
 }

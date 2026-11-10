@@ -175,6 +175,8 @@ export interface SeriesResponse {
   available: boolean
   series: TradeSeries[]
   excluded_partial: { source: SourceBrief | null; period_label: string; months_count: number; last_month: string }[]
+  /** months a source published without the reporter's total (partial data): never shown as a total */
+  excluded_months?: { source: SourceBrief | null; month: string; reason: 'no_total'; partners_count: number }[]
   discrepancies: { period_label: string; diff_pct: number; values: { source: SourceBrief | null; net_weight_kg: number }[] }[]
   providers: Provider[]
 }

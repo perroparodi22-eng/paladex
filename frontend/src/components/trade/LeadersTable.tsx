@@ -6,7 +6,7 @@ import { DemoBadge, ErrorBlock, Loading, Panel, Segmented, StatusBadge } from '@
 import { useI18n } from '@/i18n'
 import { fmtDate, fmtNumber } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
-import { BasisMarks, DataMissing, fmtT, fmtUsdM, fmtUv, nameOf, ShareBar, SourcesFooter, YoY } from './bits'
+import { BasisMarks, DataMissing, fmtT, fmtUsd, fmtUsdM, fmtUv, nameOf, ShareBar, SourcesFooter, YoY } from './bits'
 import type { LeaderRow, LeadersResponse, TradeFlow, TradeMetric } from './types'
 
 const INITIAL_ROWS = 10
@@ -125,7 +125,10 @@ function Row({ r, max, metric, mirror }: { r: LeaderRow; max: number; metric: Tr
   const mag = (metric === 'volume' ? r.net_weight_kg : r.usd_value) ?? 0
   const prevTitle = mirror
     ? (r.yoy_like_for_like_reporters ? t('trade.leaders.yoyLfl', { n: r.yoy_like_for_like_reporters }) : t('trade.leaders.noPrev'))
-    : r.prev ? t('trade.leaders.prevTitle', { y: r.prev.year, v: `${fmtT(r.prev.net_weight_kg, lang)} t` }) : t('trade.leaders.noPrev')
+    : r.prev ? t('trade.leaders.prevTitle', {
+      y: r.prev.year,
+      v: metric === 'value' && r.prev.usd_value !== null ? fmtUsd(r.prev.usd_value, lang) : `${fmtT(r.prev.net_weight_kg, lang)} t`,
+    }) : t('trade.leaders.noPrev')
   const srcTitle = [
     `${t('prov.source')}: ${r.source ? r.source.publisher || r.source.name : r.sources_list?.map((s) => s.publisher || s.name).join(', ')}`,
     `${t('prov.period')}: ${r.period_label}`,

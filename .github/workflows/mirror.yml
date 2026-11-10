@@ -193,11 +193,15 @@ jobs:
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
       - name: Build the read-only copy
+        # Normally about 12 minutes. On 8 Nov 2026 it ran for 45 minutes until GitHub lost the runner
+        # (no log survived): a stuck build now stops here with its log instead.
+        timeout-minutes: 40
         env:
           PALADEX_PYTHON: python
         run: scripts/mirror/build.sh "$PALADEX_DATA_DIR/paladex.sqlite3" "$RUNNER_TEMP/mirror-out"
 
       - name: Publish on Netlify
+        id: publish
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
         run: |
@@ -212,8 +216,26 @@ jobs:
           start=$SECONDS
           # A fixed version of the Netlify command (the one that published the first copy): a new
           # release can never change what this step does without a change to this file.
+          set +e
           npx --yes netlify-cli@27.16.2 deploy --prod --no-build --dir "$RUNNER_TEMP/mirror-out" \
-            --site "$NETLIFY_SITE_ID" --auth "$NETLIFY_AUTH_TOKEN" --message "Daily copy, run ${{ github.run_number }}"
+            --site "$NETLIFY_SITE_ID" --auth "$NETLIFY_AUTH_TOKEN" --message "Daily copy, run ${{ github.run_number }}" \
+            2>&1 | tee "$RUNNER_TEMP/netlify.log"
+          code=${PIPESTATUS[0]}
+          set -e
+          if [ "$code" -ne 0 ]; then
+            # The Netlify account has no credits left for this billing period: Netlify refuses every
+            # new deploy until credits are added or the period renews. Nothing in this repository can
+            # change that, and trying again tomorrow fails the same way, so this is reported as a
+            # warning (run summary, and the copy itself shows how old it is) instead of a failed run
+            # with an e-mail every morning. Any other refusal still fails the run.
+            if grep -qi "credit usage exceeded" "$RUNNER_TEMP/netlify.log"; then
+              echo "::warning::NOT published: the Netlify account has used up its credits, so Netlify blocks new deploys until credits are added (app.netlify.com, Billing) or the billing period renews. The phone copy keeps showing its last published data."
+              echo "result=no_credits" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            exit "$code"
+          fi
+          echo "result=published" >> "$GITHUB_OUTPUT"
           echo "Publishing took $((SECONDS - start)) s"
 
       - name: Summary
@@ -227,6 +249,11 @@ jobs:
               echo "- data collected up to: $(python -c "import json,sys; print(json.load(open(sys.argv[1]))['data_collected_until'])" "$m") (UTC)"
               echo "- copy produced at: $(python -c "import json,sys; print(json.load(open(sys.argv[1]))['generated_at'])" "$m") (UTC)"
               echo "- $(find "$RUNNER_TEMP/mirror-out" -type f | wc -l) files, $(du -sh "$RUNNER_TEMP/mirror-out" | cut -f1)"
+              case "${{ steps.publish.outputs.result }}" in
+                published)  echo "- published on Netlify" ;;
+                no_credits) echo "- **NOT published: the Netlify account has used up its credits.** The phone still shows the previous copy. Add credits on app.netlify.com (Billing) or wait for the billing period to renew; the next run publishes by itself." ;;
+                *)          echo "- not published (see the Publish step)" ;;
+              esac
             } >> "$GITHUB_STEP_SUMMARY"
           else
             echo "### Online copy not built" >> "$GITHUB_STEP_SUMMARY"

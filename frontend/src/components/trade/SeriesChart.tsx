@@ -4,6 +4,7 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { DemoBadge, FreshnessBadge, Note, SourceLine, StatusBadge } from '@/components/ui'
 import { useI18n } from '@/i18n'
 import { fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
+import { fmtMonthLong } from './ytd'
 import { AXIS_TICK, AXIS_TICK_MONO, fmtT, fmtUv, GRID_STROKE, SERIES_COLORS } from './bits'
 import type { SeriesPoint, SeriesResponse } from './types'
 
@@ -98,6 +99,11 @@ export function SeriesChart({ data, height = 300 }: { data: SeriesResponse; heig
         {data.excluded_partial.length > 0 && (
           <div className="text-[0.8rem] text-muted">
             {t('trade.series.excluded', { list: data.excluded_partial.map((e) => t('trade.series.excludedItem', { y: e.period_label, n: e.months_count })).join(', ') })}
+          </div>
+        )}
+        {data.freq === 'M' && (data.excluded_months?.length ?? 0) > 0 && (
+          <div className="text-[0.8rem] text-muted" data-excluded-months>
+            {t('trade.series.excludedMonths', { m: [...new Set(data.excluded_months!.map((e) => fmtMonthLong(e.month, lang)))].join(', ') })}
           </div>
         )}
         {data.discrepancies.length > 0 && (
