@@ -157,8 +157,9 @@ export function PriceChart({ data, labels, colorOf, toggle, hideAll, restore, vi
     if (p && p.expected_points && p.n_points < p.expected_points) {
       return <circle key={key} cx={cx} cy={cy} r={3.5} fill="#fff" stroke={color} strokeWidth={1.75} />
     }
+    // a figure with no neighbour (a yearly price among monthly lines) is a lone point: big enough to be seen
+    if (!has(index - 1) && !has(index + 1)) return <circle key={key} cx={cx} cy={cy} r={5.5} fill={color} stroke="#fff" strokeWidth={2} />
     if (index === lastIdx[id]) return <circle key={key} cx={cx} cy={cy} r={4} fill={color} stroke="#fff" strokeWidth={2} />
-    if (!has(index - 1) && !has(index + 1)) return <circle key={key} cx={cx} cy={cy} r={3} fill={color} stroke="#fff" strokeWidth={1.5} />
     return <g key={key} />
   }
 
@@ -268,7 +269,8 @@ export function PriceChart({ data, labels, colorOf, toggle, hideAll, restore, vi
                     className={clsx('w-full flex items-center gap-2 px-1 py-[2px] rounded-sm text-left hover:bg-ivory/70', !c && 'text-muted')}
                   >
                     <Swatch color={c} on={Boolean(c)} />
-                    <span className="flex-1 min-w-0 truncate text-[0.88rem]">{labels[s.id]}</span>
+                    {/* two lines: with one, "Italia · Acacia · C…" hid which price list the line is */}
+                    <span className="flex-1 min-w-0 break-words text-[0.86rem] leading-tight line-clamp-2">{labels[s.id]}</span>
                     {stalePeriod && <span className="text-[0.7rem] text-warn num shrink-0">{fmtPeriodLabel(lp.period_label, lang)}</span>}
                     <span className={clsx('num text-[0.88rem] shrink-0', c ? 'text-charcoal' : 'text-muted')}>{fmtPrice(toUnit(lp?.value, unit), lang)}</span>
                   </button>

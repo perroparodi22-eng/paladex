@@ -141,7 +141,12 @@ def create_app(start_scheduler: bool = True) -> FastAPI:
             candidate = (dist / full_path).resolve()
             if full_path and candidate.is_file() and dist.resolve() in candidate.parents:
                 return FileResponse(candidate)
-            return FileResponse(dist / "index.html")
+            # The page that names the current script files is checked with the server at every visit
+            # ("no-cache" = ask first; unchanged -> a short 304 answer). Without the header a browser
+            # kept an old page for hours after an update and went on showing the previous version
+            # (11 Nov 2026: new prices "did not appear"). The script files have a new name at every
+            # build, so they can stay cached.
+            return FileResponse(dist / "index.html", headers={"Cache-Control": "no-cache"})
     else:
         @app.get("/", include_in_schema=False)
         def no_frontend():

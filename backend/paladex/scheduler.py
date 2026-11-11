@@ -110,7 +110,36 @@ def start() -> BackgroundScheduler | None:
     if age is None or age > settings.startup_collect_if_older_than_hours:
         log.info("start-up catch-up collection (last run age: %s h)", age)
         start_collection(trigger="startup")
+    else:
+        # A new version can bring a source that has never been read. Without this it waited for its
+        # own schedule (11 Nov 2026: the weekly Eurostat price source arrived on a Wednesday, the
+        # owner restarted two hours after a collection, and Germany's prices would have come the
+        # following Tuesday).
+        try:
+            fresh = never_collected_keys()
+        except Exception:  # pragma: no cover - never block start-up
+            log.exception("could not list the sources never collected")
+            fresh = []
+        if fresh:
+            log.info("start-up collection of sources never read before: %s", ", ".join(fresh))
+            start_collection(keys=fresh, trigger="startup")
     return sched
+
+
+def never_collected_keys() -> list[str]:
+    """Registered, enabled sources that have no collection run at all, in registry order."""
+    from sqlalchemy import select
+
+    from .db import session_scope
+    from .models import Source
+
+    keys = [c.key for c in all_collectors()]
+    if not keys:
+        return []
+    with session_scope() as session:
+        never = set(session.scalars(select(Source.key).where(
+            Source.key.in_(keys), Source.enabled.is_(True), Source.last_run_at.is_(None))).all())
+    return [k for k in keys if k in never]
 
 
 def shutdown() -> None:
