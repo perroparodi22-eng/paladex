@@ -2,7 +2,9 @@
 //
 // Colour follows the series, never its rank: a series keeps its colour slot while it stays
 // visible, so filtering or hiding another line never repaints it. At most MAX_VISIBLE lines
-// are drawn (one per palette slot; hues are never cycled).
+// are drawn (one per palette slot; hues are never cycled). Asking for one more shows it in
+// place of the line shown longest (it used to refuse the click: "I click them and they do not
+// appear", 11 Nov 2026).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEFAULT_VISIBLE, MAX_VISIBLE, SERIES_COLORS } from './utils'
 
@@ -31,6 +33,7 @@ export function useSeriesSlots(ids: string[], resetKey: string) {
   const [slots, setSlots] = useState<Record<string, number>>({})
   const [limitHit, setLimitHit] = useState(false)
   const userHidden = useRef<Set<string>>(new Set())
+  const shownOrder = useRef<string[]>([])      // series the person switched on, oldest first
   const lastKey = useRef(resetKey)
   const idsKey = ids.join(',')
 
@@ -56,14 +59,22 @@ export function useSeriesSlots(ids: string[], resetKey: string) {
       if (prev[id] !== undefined) {
         const { [id]: _drop, ...rest } = prev
         userHidden.current.add(id)
+        shownOrder.current = shownOrder.current.filter((x) => x !== id)
         setLimitHit(false)
         return rest
       }
-      if (Object.keys(prev).length >= MAX_VISIBLE) {
-        setLimitHit(true)
-        return prev
-      }
       userHidden.current.delete(id)
+      shownOrder.current = [...shownOrder.current.filter((x) => x !== id), id]
+      if (Object.keys(prev).length >= MAX_VISIBLE) {
+        // the palette is full: the new line takes the place (and the colour) of the one shown
+        // longest, first among those Paladex chose by itself
+        const out = Object.keys(prev).find((x) => !shownOrder.current.includes(x)) ?? shownOrder.current.find((x) => prev[x] !== undefined && x !== id)
+        if (out === undefined) return prev
+        const { [out]: slot, ...rest } = prev
+        shownOrder.current = shownOrder.current.filter((x) => x !== out)
+        setLimitHit(true)
+        return { ...rest, [id]: slot }
+      }
       return { ...prev, [id]: lowestFree(new Set(Object.values(prev))) }
     })
   }, [])

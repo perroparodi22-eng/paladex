@@ -7,6 +7,7 @@ import { Badge, DemoBadge, EmptyState, ErrorBlock, Loading, PageHeader, Panel, S
 import { CountryCompaniesBlock } from '@/components/companies/CountryCompanies'
 import { AvailabilityChips, countryName, useRegion } from '@/components/countries/parts'
 import { ProfileProduction, useNextRelease } from '@/components/countries/ProfileProduction'
+import { CountryPricesSimple } from '@/components/countries/CountryPrices'
 import { ProfileContext, ProfileMissing, ProfileNews, ProfilePrices, ProfileRegulations } from '@/components/countries/ProfileSections'
 import { ProfileTrade } from '@/components/countries/ProfileTrade'
 import { useYtdTitle } from '@/components/countries/ProfileYtd'
@@ -78,6 +79,7 @@ function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
         {back}
         {header}
         <KpiRow p={p} />
+        <CountryPricesSimple p={p} className="mb-5" />
         <CountryYtdPanel p={p} name={countryName(c, lang)} />
         <ProfileNews p={p} compact className="mb-5 min-w-0" />
         <div className="mb-5"><ProfileProduction data={p.production} /></div>

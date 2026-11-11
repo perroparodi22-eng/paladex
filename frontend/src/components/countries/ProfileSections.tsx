@@ -9,6 +9,8 @@ import { pickLang, useI18n } from '@/i18n'
 import { fmtDate, fmtNumber, fmtPeriod } from '@/lib/format'
 import { useLabels } from '@/lib/meta'
 import type { Lang } from '@/lib/types'
+import { FixValue } from '@/components/corrections/QuickFix'
+import { priceFigure } from './CountryPrices'
 import { countryName } from './parts'
 import type { CountryProfile, MissingItem, PriceRow } from './types'
 import { isMappedUrl, pageUrl } from '@/lib/links'
@@ -53,7 +55,7 @@ export function ProfilePrices({ p }: { p: CountryProfile }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {g.rows.map((r, i) => <PriceLine key={i} r={r} />)}
+                    {g.rows.map((r, i) => <PriceLine key={i} r={r} p={p} />)}
                   </tbody>
                 </table>
               </div>
@@ -66,9 +68,12 @@ export function ProfilePrices({ p }: { p: CountryProfile }) {
   )
 }
 
-function PriceLine({ r }: { r: PriceRow }) {
+function PriceLine({ r, p }: { r: PriceRow; p: CountryProfile }) {
   const { t, lang } = useI18n()
-  const { variety, country } = useLabels()
+  const { variety, country, priceType } = useLabels()
+  // the number is the button: tap it and type the right one (the price as published, in its own unit)
+  const figure = priceFigure(r, [countryName(p.country, lang), priceType(r.price_type), variety(r.variety),
+    r.market_iso3 ? country(r.market_iso3) : null, fmtPeriod(r.period_label, lang)].filter(Boolean).join(' · '), p.country.iso3)
   const range = r.price_low !== null && r.price_high !== null && r.price_low !== r.price_high
     ? `${fmtNumber(r.price_low, lang, 2)}–${fmtNumber(r.price_high, lang, 2)}` : null
   return (
@@ -83,7 +88,9 @@ function PriceLine({ r }: { r: PriceRow }) {
         {(r.market_location || r.terms) && <div className="text-[0.78rem] text-muted">{[r.market_location, r.terms].filter(Boolean).join(' · ')}</div>}
       </td>
       <td className="num text-right whitespace-nowrap">
-        {fmtNumber(r.price_value, lang, 2)} <span className="text-muted text-[0.8em]">{r.currency}/{r.unit}</span>
+        <FixValue figure={figure} correction={r.correction}>
+          <span>{fmtNumber(r.price_value, lang, 2)} <span className="text-muted text-[0.8em]">{r.currency}/{r.unit}</span></span>
+        </FixValue>
         {range && <div className="text-[0.75rem] text-muted">{range}</div>}
       </td>
       <td className="num text-right">{r.usd_per_kg !== null ? fmtNumber(r.usd_per_kg, lang, 2) : '—'}</td>

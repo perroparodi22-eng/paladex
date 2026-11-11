@@ -66,3 +66,60 @@ def test_offline_job_is_retried_instead_of_dropped(monkeypatch):
 def test_collector_jobs_have_no_misfire_limit():
     kw = scheduler.collector_job_kwargs(_Weekly())
     assert kw["misfire_grace_time"] is None and kw["coalesce"] is True and kw["id"] == "collect:t_weekly"
+
+
+def test_a_source_never_read_is_collected_at_start_even_after_a_recent_collection(db, monkeypatch):
+    """A new version brings a new source two hours after the last collection: it is read at once,
+    alone, instead of waiting for its weekly schedule."""
+    from paladex.api import meta
+    from paladex.models import Source, utcnow
+
+    class _New:
+        key = "t_new_source"
+        schedule = {"trigger": "interval", "weeks": 1}
+
+    class _Old(_New):
+        key = "t_old_source"
+
+    class _Off(_New):
+        key = "t_off_source"
+
+    for key, last, enabled in (("t_new_source", None, True), ("t_old_source", utcnow(), True), ("t_off_source", None, False)):
+        db.add(Source(key=key, name=key, kind="api", reliability="official", category="prices", enabled=enabled, last_run_at=last))
+    db.commit()
+    monkeypatch.setenv("PALADEX_SCHEDULER_ENABLED", "true")
+    config.get_settings.cache_clear()
+    monkeypatch.setattr(scheduler, "_job", lambda key, attempt=0: None)
+    monkeypatch.setattr(scheduler, "all_collectors", lambda: [_Old(), _New(), _Off()])
+    monkeypatch.setattr(runner, "last_full_run_age_hours", lambda: 2.0)
+    started: list = []
+    monkeypatch.setattr(meta, "start_collection", lambda keys=None, force=False, trigger="manual": started.append((keys, trigger)) or True)
+    assert scheduler.never_collected_keys() == ["t_new_source"]
+    try:
+        assert scheduler.start() is not None
+    finally:
+        scheduler.shutdown()
+        config.get_settings.cache_clear()
+    assert started == [(["t_new_source"], "startup")]
+
+
+def test_the_page_is_always_checked_with_the_server_so_an_update_shows_at_once(db, tmp_path, monkeypatch):
+    """index.html names the script files of the current build: a browser must ask for it at every
+    visit (no-cache), or it goes on showing the previous version after an update."""
+    from fastapi.testclient import TestClient
+
+    from paladex.main import create_app
+
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "index.html").write_text("<!doctype html><title>Paladex</title>", encoding="utf-8")
+    (tmp_path / "assets" / "index-abc123.js").write_text("console.log(1)", encoding="utf-8")
+    monkeypatch.setenv("PALADEX_FRONTEND_DIST", str(tmp_path))
+    config.get_settings.cache_clear()
+    try:
+        client = TestClient(create_app(start_scheduler=False), base_url="http://127.0.0.1:8765")
+        for path in ("/", "/prezzi", "/paesi/DEU"):
+            r = client.get(path)
+            assert r.status_code == 200 and "Paladex" in r.text and r.headers["cache-control"] == "no-cache", path
+        assert client.get("/assets/index-abc123.js").status_code == 200
+    finally:
+        config.get_settings.cache_clear()

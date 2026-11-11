@@ -57,7 +57,7 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
 2. Backend: `cd backend && PALADEX_ENV_FILE=/nonexistent .venv/bin/python -m pytest -x -q -o addopts=""`
    (1,818 tests on 10 Nov; 6-9 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
    `-q` default. Tests set `PALADEX_CORRECTIONS_SYNC=false` themselves.
-3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (175 tests), `npx vite build`.
+3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (178 tests), `npx vite build`.
 4. The built `frontend/dist` IS committed (the owner's PC has no Node): copy the build from the clean
    worktree into `frontend/dist` and commit it.
 5. New or changed collectors: run them for real into a scratch data dir
@@ -144,6 +144,22 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   sums of several rows (year-to-date figures, "12 m" totals, mirror data), trade values in USD, charts,
   the Archivio. The old drawer (flag a doubt / note) is one small link away in the window; without an
   AI key "Scrivi a Paladex" only offers the note on a country.
+- **After an update (11 Nov, owner: "Germany did not update, I cannot see their prices"):** two causes, both
+  fixed. (1) A source brought by a new version waited for its own schedule when the last collection was
+  less than 6 hours old: `scheduler.start` now collects at once the registered sources that have never
+  run (`never_collected_keys`). (2) `index.html` was served without `Cache-Control`, so a browser could
+  keep the old page (and the old script names) for hours: it is now `no-cache`. When checking a new
+  build in a browser that has seen the old one, do not trust a page opened before this fix. The "304"
+  lines in the terminal are normal ("not modified" answers), not errors.
+- **Prices on the country page (11 Nov):** simple view shows `CountryPricesSimple`
+  (`components/countries/CountryPrices.tsx`) right under the top tiles: per kind of price, up to 4 lines in
+  EUR/kg, one per market (`pickCountryPrices`), FAO's copy of a Eurostat price left out, each number
+  fixed by tapping it; the full view's price table got the same tap-to-fix. Data: `profile.prices` (it
+  already carried `row_id` and `correction`).
+- **Price chart (full Prezzi, 11 Nov, owner: "Italy: they appear but when I click them they do not"):**
+  the legend refused a ninth series with a small note. `useSeriesSlots.toggle` now shows it in place of
+  the series shown longest (same colour slot); a lone point (a yearly figure among monthly lines) is
+  drawn bigger; legend names wrap on two lines instead of being cut.
 - **European prices (11 Nov, owner: "all European countries should have their prices listed"):** new collector
   `eurostat_honey_prices` (`collectors/prices_europe.py`, Eurostat `apri_ap_anouta`, honey, EUR per 100 kg,
   annual producer price, 17 countries; verified live: 358 rows). The simple Prezzi page has a new block
