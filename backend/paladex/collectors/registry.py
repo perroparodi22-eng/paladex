@@ -36,6 +36,7 @@ COLLECTOR_MODULES: list[str] = [
     "paladex.collectors.companies_official",   # honey exporters/importers by company: Uruguay XXI SIE, HMRC traders
     "paladex.collectors.web_findings",     # other sources (non-official): recent web figures, each verified on its page
     "paladex.collectors.production_europe",  # official production, Europe: Spain MAPA, Hungary KSH, Bulgaria MZH, Greece ELSTAT
+    "paladex.collectors.prices_europe",      # Eurostat: annual producers' selling price of honey per European country
 ]
 
 IMPORT_ERRORS: dict[str, str] = {}

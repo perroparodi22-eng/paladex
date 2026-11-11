@@ -62,7 +62,7 @@ function Cell({ label, children, className, hideLabel = false }: { label: string
   )
 }
 
-function PriceRowView({ r, ccy }: { r: LatestRow; ccy: Ccy }) {
+function PriceRowView({ r, ccy, annual = false }: { r: LatestRow; ccy: Ccy; annual?: boolean }) {
   const { t, lang } = useI18n()
   const { country, variety, priceType } = useLabels()
   const v = plainVariety(r.variety, lang, variety)
@@ -102,7 +102,8 @@ function PriceRowView({ r, ccy }: { r: LatestRow; ccy: Ccy }) {
           earlier={r.earlier && r.change_earlier_pct != null ? { pct: r.change_earlier_pct, period_label: r.earlier.period_label } : null}
           className="text-[0.95rem]" />
       </div>
-      <Cell label={t('simple.pt.monthAgo')} className="sm:order-3">
+      {/* a yearly figure has no "month before": the cell keeps its place on a wide screen, empty */}
+      <Cell label={t('simple.pt.monthAgo')} className={clsx('sm:order-3', annual && 'max-sm:hidden sm:invisible')}>
         {earlier ? (
           <>
             <Money v={earlier.value} ccy={ccy} />
@@ -161,6 +162,70 @@ function TypeTable({ type, ccy }: { type: string; ccy: Ccy }) {
           <p className="mt-2 text-[0.92rem] text-muted" data-simple-old>
             {t('simple.pt.old', { list: picked.old.map((r) => `${r.origin_iso3 ? country(r.origin_iso3) : r.origin_label} (${fmtPeriod(r.period_label, lang)})`).join(', ') })}
           </p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/** Of two official yearly figures for one country, Eurostat's (in euro, from the country's own
+ * statistical office) comes before FAO's copy of it in dollars, unless FAO's is newer. */
+export function preferEurostat(rows: LatestRow[]): LatestRow[] {
+  const newest = new Map<string, string>()
+  for (const r of rows) {
+    if (r.source?.key !== 'eurostat_honey_prices' || !r.origin_iso3) continue
+    if ((newest.get(r.origin_iso3) ?? '') < (r.period_label ?? '')) newest.set(r.origin_iso3, r.period_label ?? '')
+  }
+  return rows.filter((r) => r.source?.key !== 'faostat' || !r.origin_iso3 || (newest.get(r.origin_iso3) ?? '') < (r.period_label ?? ''))
+}
+
+/** Every European country with the price its producers sold honey at (owner's request, 11 Nov 2026:
+ * "all European countries should have their prices listed"): one line per country, the newest
+ * figure, and in words which countries publish none. Yearly official averages (Eurostat, FAO, the
+ * national lists Paladex reads): never mixed with the bulk prices above. */
+export function EuropeTable({ ccy }: { ccy: Ccy }) {
+  const { t, lang } = useI18n()
+  const { meta, country } = useLabels()
+  const europe = useMemo(() => (meta?.countries ?? []).filter((c) => c.region === 'Europe').map((c) => c.iso3)
+    .sort((a, b) => country(a).localeCompare(country(b), lang)), [meta, country, lang])
+  const q = useQuery({
+    queryKey: ['prices', 'simple-europe', ccy, europe.length],
+    queryFn: () => api.get<LatestResponse>('/prices/latest', { price_type: 'producer', origin: europe, currency: ccy }),
+    enabled: europe.length > 0,
+  })
+  const picked = useMemo(() => (q.data ? pickPriceRows(preferEurostat(q.data.rows), q.data.today, europe, europe.length) : null), [q.data, europe])
+  if (!europe.length) return null
+  const have = new Set([...(picked?.rows ?? []), ...(picked?.old ?? [])].map((r) => r.origin_iso3))
+  const none = europe.filter((c) => !have.has(c))
+  return (
+    <section className="panel" data-simple-europe>
+      <div className="px-4 pb-1 pt-4 sm:px-6">
+        <h2 className="font-serif text-[1.35rem] font-semibold leading-tight text-forest-900">{t('simple.europe.title')}</h2>
+        <p className="mt-0.5 text-[0.95rem] text-muted">{t('simple.europe.hint')}</p>
+      </div>
+      <div className="px-4 pb-3 sm:px-6">
+        {q.isLoading ? <Loading /> : q.error ? <ErrorBlock error={q.error} onRetry={() => q.refetch()} /> : picked && (
+          <>
+            {picked.rows.length > 0 && (
+              <>
+                <div className="mt-2 hidden grid-cols-[minmax(0,1.9fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-x-4 border-b border-line pb-1.5 text-[0.84rem] text-muted sm:grid">
+                  <span>{t('simple.europe.country')}</span><span>{t('simple.pt.latest')}</span><span />
+                  <span>{t('simple.pt.yearAgo')}</span><span>{t('simple.pt.trend')}</span>
+                </div>
+                <ul>{picked.rows.map((r) => <PriceRowView key={r.series_id} r={r} ccy={ccy} annual={r.freq !== 'M'} />)}</ul>
+              </>
+            )}
+            {picked.old.length > 0 && (
+              <p className="mt-2 text-[0.92rem] text-muted" data-europe-old>
+                {t('simple.europe.old', { list: picked.old.map((r) => `${country(r.origin_iso3!)} (${fmtPeriod(r.period_label, lang)})`).join(', ') })}
+              </p>
+            )}
+            {none.length > 0 && (
+              <p className="mt-2 text-[0.92rem] text-muted" data-europe-none>
+                {t('simple.europe.none', { list: none.map((c) => country(c)).join(', ') })}
+              </p>
+            )}
+          </>
         )}
       </div>
     </section>
@@ -260,6 +325,7 @@ export function SimplePrices({ details }: { details: ReactNode }) {
       ) : (
         <div className="space-y-5">
           {types.map((ty) => <TypeTable key={ty} type={ty} ccy={ccy} />)}
+          <EuropeTable ccy={ccy} />
           {ct && (
             <section className="panel px-4 py-4 sm:px-6">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">

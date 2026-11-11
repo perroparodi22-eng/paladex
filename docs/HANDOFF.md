@@ -57,7 +57,7 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
 2. Backend: `cd backend && PALADEX_ENV_FILE=/nonexistent .venv/bin/python -m pytest -x -q -o addopts=""`
    (1,818 tests on 10 Nov; 6-9 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
    `-q` default. Tests set `PALADEX_CORRECTIONS_SYNC=false` themselves.
-3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (174 tests), `npx vite build`.
+3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (175 tests), `npx vite build`.
 4. The built `frontend/dist` IS committed (the owner's PC has no Node): copy the build from the clean
    worktree into `frontend/dist` and commit it.
 5. New or changed collectors: run them for real into a scratch data dir
@@ -144,6 +144,18 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   sums of several rows (year-to-date figures, "12 m" totals, mirror data), trade values in USD, charts,
   the Archivio. The old drawer (flag a doubt / note) is one small link away in the window; without an
   AI key "Scrivi a Paladex" only offers the note on a country.
+- **European prices (11 Nov, owner: "all European countries should have their prices listed"):** new collector
+  `eurostat_honey_prices` (`collectors/prices_europe.py`, Eurostat `apri_ap_anouta`, honey, EUR per 100 kg,
+  annual producer price, 17 countries; verified live: 358 rows). The simple Prezzi page has a new block
+  "Europa, paese per paese" (`EuropeTable` in `components/simple/SimplePrices.tsx`): every country of
+  region "Europe" with its newest producer price (Eurostat preferred over FAO's copy unless FAO is newer,
+  `preferEurostat`), old figures named with their year, and the countries with no price said in words
+  (on the owner's data: Belgium, Denmark, Finland, France, Ireland, Malta, Montenegro, Netherlands).
+  Searched and NOT found: a free monthly bulk price list for any European country other than Italy.
+  Spain's MAPA weekly workbook (`precios_medios_nacionales_<year>-s<week>.xlsx`) has no honey row; MAPA
+  publishes honey prices once a year per campaign as a PDF ("Precios sector miel", monthly figures
+  inside): not integrated. DG AGRI's deck (`ec_honey_market`, already collected) stored no price rows on
+  the owner's data; its site answered 429 to one request on 11 Nov, not retried.
 - **Simpler look (11 Nov, owner: "more simplistic, easier to view"):** one place, `tailwind.config.js` and
   `styles/index.css`: rounder corners, soft card shadow, labels and table headers in normal letters (no
   spaced capitals), numbers in the text font (`.num` is no longer monospace), badges as small pills,
@@ -153,7 +165,7 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   before "Conferma"; new revision, official value kept, undo; exchange between computers through the
   `paladex-corrections` branch, **OFF until switched on, on each computer** (Fonti -> "Correzioni e
   note" -> "Scambia le correzioni con gli altri computer"). The phone copy applies them read-only.
-- Collectors (21 modules, `backend/paladex/collectors/registry.py`): USDA (AMS report incl. ESMIS +
+- Collectors (22 modules, `backend/paladex/collectors/registry.py`): USDA (AMS report incl. ESMIS +
   MyMarketNews archive, FAS GATS, NASS), US Census, Eurostat Comext (EU-27), EC TAXUD weekly, DG AGRI,
   UK HMRC (trade + traders), UN Comtrade, FAOSTAT, ECB FX, Italy (ONM, CCIAA Cuneo/Siena, ISMEA),
   Argentina INDEC + MAGyP, Uruguay XXI (trade + exporters), Chile Aduanas + Odepa, Brazil Comex Stat +
