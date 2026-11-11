@@ -12,7 +12,7 @@ import type { OverviewData } from '@/components/overview/types'
 import type { LatestResponse, LatestRow } from '@/components/prices/types'
 import { MAIN_ORIGINS, pickPriceRows } from '@/components/simple/pickPrices'
 import { pickChanges, SimpleOverview, tilesByOrigin } from '@/components/simple/SimpleOverview'
-import { SimplePrices } from '@/components/simple/SimplePrices'
+import { EuropeTable, preferEurostat, SimplePrices } from '@/components/simple/SimplePrices'
 import { SourceChip } from '@/components/simple/SourceChip'
 import { ViewSwitch } from '@/components/simple/ViewSwitch'
 import { I18nProvider } from '@/i18n'
@@ -359,4 +359,33 @@ test('Panoramica prices: a gap in the source is named, the change against the la
   } : x))
   const out = text(show(<SimpleOverview d={{ ...OV, prices: { ...OV.prices, items: tiles } }} />))
   assert.match(out, /Argentina .* 3,40 €\/kg ▲ \+19,5% rispetto ad ago 2025 \(prezzo in USD\) · nessun dato della fonte per ago 2026 e set 2025/)
+})
+
+// --- 11 Nov 2026: every European country with its price (owner: "all European countries should have their prices listed")
+test('Europe, country by country: one yearly producer price per country, Eurostat before FAO, and who publishes none', () => {
+  const EUROSTAT = { key: 'eurostat_honey_prices', name: 'Eurostat: prezzo di vendita del miele', publisher: 'Eurostat (European Commission)', reliability: 'official', homepage: null }
+  const FAO = { key: 'faostat', name: 'FAOSTAT', publisher: 'Food and Agriculture Organization of the United Nations (FAO)', reliability: 'official', homepage: null }
+  const yearly = (iso3: string, period: string, value: number, source: typeof FAO, more: Partial<LatestRow> = {}) => row({
+    origin_iso3: iso3, market_iso3: iso3, price_type: 'producer', freq: 'A', native_frequency: 'A', period, end: `${period}-12-31`, value, source, terms: null,
+    previous: null, change_prev_pct: null, year_ago: { period_label: String(Number(period) - 1), value: 13.73, n_points: 1, published_at: null }, change_yoy_pct: 10.2, ...more })
+  const rows = [
+    yearly('DEU', '2024', 15.13, FAO), yearly('DEU', '2024', 15.1341, EUROSTAT),     // the same figure twice: Eurostat's is shown
+    yearly('ESP', '2023', 4.2, EUROSTAT), yearly('ESP', '2024', 4.4, FAO),          // FAO newer: FAO's is shown
+    yearly('HUN', '2008', 2.58, EUROSTAT),                                          // stopped reporting: named as old
+  ]
+  assert.deepEqual(preferEurostat(rows).map((r) => `${r.origin_iso3} ${r.period_label} ${r.source?.key}`),
+    ['DEU 2024 eurostat_honey_prices', 'ESP 2023 eurostat_honey_prices', 'ESP 2024 faostat', 'HUN 2008 eurostat_honey_prices'])
+  const qc = withMeta()
+  qc.setQueryData(['prices', 'simple-europe', 'EUR', 7], { price_type: 'producer', currency: 'EUR', freq: 'A', today: '2026-11-11', rows })
+  const html = show(<EuropeTable ccy="EUR" />, { qc })
+  const out = text(html)
+  assert.match(out, /^Europa, paese per paese Il prezzo a cui gli apicoltori di ogni paese hanno venduto il miele: media dell’anno, dalle statistiche ufficiali\. Non è un prezzo all’ingrosso in fusti/)
+  assert.match(out, /Paese Ultimo prezzo Un anno prima Andamento Germania tutto il miele Ultimo prezzo: 15,13 €\/kg .*2024 ▲ \+10,2% in un anno/)
+  assert.match(out, /Fonte: Eurostat · 2024/)
+  assert.ok(out.indexOf('Germania') < out.indexOf('Spagna'))                       // by name
+  assert.match(out, /Spagna tutto il miele Ultimo prezzo: 4,40 €\/kg/)
+  assert.match(out, /Ultimo dato non recente per: Ungheria \(2008\)\./)
+  assert.match(out, /Nessun prezzo pubblicato dalle fonti che Paladex legge per: Francia, Italia, Regno Unito, Ucraina\./)
+  assert.equal((html.match(/data-simple-price=/g) ?? []).length, 2)
+  assert.match(text(show(<EuropeTable ccy="EUR" />, { qc, lang: 'en' })), /^Europe, country by country .* No price published by the sources Paladex reads for: France, Italy, Ukraine, United Kingdom\./)
 })
