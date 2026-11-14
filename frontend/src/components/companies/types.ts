@@ -26,7 +26,22 @@ export interface CompanyCountryRef {
 export interface OverviewCountry extends CompanyCountryRef, Availability {
   companies: Partial<Record<string, number>>
   latest_period: string | null
+  /** companies found on the web for this country (not official, shown apart) */
+  web_companies?: number
 }
+
+/** A honey business found on the web (backend/paladex/reference/companies_web.py): not official. */
+export interface WebCompany {
+  name: string
+  role: 'exporter' | 'packer' | 'cooperative' | 'importer' | 'trader'
+  city: string | null
+  website: string
+  source_url: string | null
+  what_it: string | null
+  what_en: string | null
+}
+
+export interface WebCompanies { searched_on: string | null; companies: WebCompany[] }
 
 export interface CompanySource {
   key: string
@@ -44,6 +59,7 @@ export interface CompanySource {
 
 export interface CompaniesOverview {
   checked_on: string
+  web_searched_on?: string | null
   countries: OverviewCountry[]
   status_counts: Record<AvailabilityStatus, number>
   sources: CompanySource[]
@@ -126,4 +142,6 @@ export interface CompaniesCountry {
   availability: Availability
   checked_on: string
   lists: CompanyList[]
+  /** companies found on the web: never mixed with `lists` */
+  web?: WebCompanies | null
 }

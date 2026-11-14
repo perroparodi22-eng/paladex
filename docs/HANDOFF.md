@@ -57,7 +57,7 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
 2. Backend: `cd backend && PALADEX_ENV_FILE=/nonexistent .venv/bin/python -m pytest -x -q -o addopts=""`
    (1,818 tests on 10 Nov; 6-9 min). Without `-o addopts=""` the "N passed" line is hidden by the repo's
    `-q` default. Tests set `PALADEX_CORRECTIONS_SYNC=false` themselves.
-3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (178 tests), `npx vite build`.
+3. Frontend: `npx tsc --noEmit -p .`, `node tests/run.mjs` (180 tests), `npx vite build`.
 4. The built `frontend/dist` IS committed (the owner's PC has no Node): copy the build from the clean
    worktree into `frontend/dist` and commit it.
 5. New or changed collectors: run them for real into a scratch data dir
@@ -144,6 +144,24 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   sums of several rows (year-to-date figures, "12 m" totals, mirror data), trade values in USD, charts,
   the Archivio. The old drawer (flag a doubt / note) is one small link away in the window; without an
   AI key "Scrivi a Paladex" only offers the note on a country.
+- **Companies found on the web (15 Nov, owner: "do the business part per each country, the first Google
+  results, no need for them to update"):** a FIXED, non-official list, `reference/companies_web_seed.json`
+  (49 companies, 31 countries), served by `api/companies.py` as `web` (country) and `web_companies` /
+  `web_searched_on` (overview), shown by `components/companies/WebCompanies.tsx` on the Aziende page and
+  on every country page (simple view: under the prices), always apart from the official lists and
+  labelled "Non ufficiale" with the search date; alphabetical, no figures, no ranking. Rules in
+  `reference/companies_web.py`: a company is listed only with its OWN website, and only if
+  `scripts/check_companies_web.py` could open that site and found the company's name and honey on it
+  (13 of 62 candidates were left out: site refused automated readers or did not open; never worked
+  around). `--recheck` says which entries still pass. The web search tool returned mostly directories,
+  so lists are short (Italy, Uruguay, Colombia, Peru, Cuba, Croatia, Egypt, Ethiopia and others have
+  none): to add companies, append candidates and run the script; never add a name from memory.
+- **Phone copy dropped by the owner (15 Nov: "forget about the phone app, forget everything about
+  that"):** do not work on it or report on it unless he raises it again. `.github/workflows/mirror.yml`
+  and `docs/PHONE_ACCESS.md` are still in the repository (he has not asked to remove or disable them).
+- **Does the data update? (checked 15 Nov):** yes, while Paladex is open. The owner's database had no
+  collection run after 11 Nov because the app had not been started since; a full run on a copy brought
+  about 2,400 new rows. It does not collect while closed (no service, no start with Windows).
 - **After an update (11 Nov, owner: "Germany did not update, I cannot see their prices"):** two causes, both
   fixed. (1) A source brought by a new version waited for its own schedule when the last collection was
   less than 6 hours old: `scheduler.start` now collects at once the registered sources that have never
@@ -242,7 +260,7 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
 
 ## 6. Open items (in rough priority order)
 
-1. **Phone copy: blocked by Netlify credits since 9 Nov** (section 4). Nothing to fix in the code; the
+1. **(Dropped by the owner on 15 Nov: see section 5, do not work on it.)** Phone copy: blocked by Netlify credits since 9 Nov (section 4). Nothing to fix in the code; the
    owner must add credits or wait for the renewal, then the next run publishes by itself (or trigger
    one). The workflow change that stops the daily failure e-mails only takes effect once it is on
    `main` (scheduled workflows run from `main`). After the first successful run, check that the crawl

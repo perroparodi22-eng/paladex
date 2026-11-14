@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { Link, useSearchParams } from 'react-router-dom'
 import { countryName } from '@/components/countries/parts'
 import { AvailabilityBadge, AvailabilityNote, ListPanel } from '@/components/companies/parts'
+import { WebCompaniesPanel } from '@/components/companies/WebCompanies'
 import { STATUS_ORDER, type CompaniesCountry, type CompaniesOverview, type OverviewCountry } from '@/components/companies/types'
 import { ErrorBlock, Loading, Note, PageHeader, Panel, QueryState } from '@/components/ui'
 import { useI18n } from '@/i18n'
@@ -91,6 +92,7 @@ function CountHint({ c }: { c: OverviewCountry }) {
   const parts = (['importer', 'exporter', 'registered_exporter'] as const)
     .filter((r) => c.companies[r])
     .map((r) => t(`companies.hint.${r}`, { n: c.companies[r] ?? 0 }))
+  if (c.web_companies) parts.push(t('companies.hint.web', { n: c.web_companies }))
   if (!parts.length) return null
   return <span className="num text-[0.78rem] text-muted">{parts.join(' · ')}</span>
 }
@@ -120,6 +122,7 @@ export function CountryBody({ d }: { d: CompaniesCountry }) {
       </Panel>
       {d.lists.map((l) => <ListPanel key={`${l.role}-${l.source?.key}-${l.hs_code}`} list={l} />)}
       {d.lists.length > 0 && <p className="text-[0.85rem] text-muted">{t('companies.privacy')}</p>}
+      <WebCompaniesPanel web={d.web} />
     </div>
   )
 }
