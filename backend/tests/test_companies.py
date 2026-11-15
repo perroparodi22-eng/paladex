@@ -382,7 +382,14 @@ def test_api_availability_per_country(api):
     assert {st[i]["status"] for i in origins if i not in ("IND", "CAN")} == {"unavailable"}
     assert "Export Inspection Council" in st["IND"]["authority"] and "SENASICA" in st["MEX"]["authority"]
     assert "EU Login" in st["UKR"]["reason_en"] and "Imperva" in st["NZL"]["reason_en"]
-    assert d["status_counts"]["unverified"] == 0
+    # A country can also be listed only for its companies found on the web (reference/companies_web.py,
+    # 15 Nov 2026: Japan): what its authorities publish has not been researched, and the page says so.
+    from paladex.api.companies import AVAILABILITY
+    from paladex.reference import companies_web
+
+    web_only = {i for i in companies_web.counts() if i not in AVAILABILITY}
+    assert d["status_counts"]["unverified"] == len(web_only) and web_only <= {"JPN"}
+    assert all(st[i]["status"] == "unverified" and st[i]["web_companies"] > 0 for i in web_only)
     # figures first, then registers, then lists that exist but cannot be used, then not published
     order = [c["status"] for c in d["countries"]]
     assert order.index("figures") < order.index("register") < order.index("unavailable") < order.index("not_published")
