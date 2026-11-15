@@ -25,7 +25,6 @@ import { CorrectionBadge } from '@/components/corrections/CorrectionBadge'
 import { FixValue } from '@/components/corrections/QuickFix'
 import type { FigureRef } from '@/components/corrections/types'
 import { CountryNotes } from '@/components/corrections/CorrectionsPanel'
-import { Details } from '@/components/simple/Details'
 import { CountryYtdPanel } from '@/components/simple/SimpleCountry'
 
 export default function CountryDetail() {
@@ -73,23 +72,40 @@ function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
     />
   )
   if (simple) {
-    // Simple view (lib/view.tsx): the headline figures, the year so far, production and the
-    // unofficial sources; everything else one click away.
+    // Simple view (lib/view.tsx): EVERYTHING about the country on one page (owner, 15 Nov 2026: "when
+    // I click on Italy or Vietnam I want to see everything related to that country, also the
+    // business"). Nothing sits behind "Mostra dettagli" any more; an index at the top jumps to a
+    // section. Order: prices, companies, trade, production, news, regulations, notes, sources.
+    const name = countryName(c, lang)
     return (
-      <div data-view="simple">
+      <div data-view="simple" data-country-all>
         {back}
         {header}
         <KpiRow p={p} />
-        <CountryPricesSimple p={p} className="mb-5" />
-        <CountryWebCompanies iso3={c.iso3} className="mb-5" />
-        <CountryYtdPanel p={p} name={countryName(c, lang)} />
-        <ProfileNews p={p} compact className="mb-5 min-w-0" />
-        <div className="mb-5"><ProfileProduction data={p.production} /></div>
-        <div className="mb-5"><ProfileWebFindings p={p} /></div>
-        <CountryNotes iso3={c.iso3} name={countryName(c, lang)} className="mb-5" />
-        <Details hint={t('simple.country.detailsHint')}>
-          <FullSections p={p} />
-        </Details>
+        <SectionIndex />
+        <section id="prezzi" className="scroll-mt-24 mb-5"><CountryPricesSimple p={p} /></section>
+        <section id="aziende" className="scroll-mt-24">
+          <CountryWebCompanies iso3={c.iso3} className="mb-5" />
+          <div className="mb-5"><CountryCompaniesBlock iso3={c.iso3} /></div>
+        </section>
+        <section id="commercio" className="scroll-mt-24">
+          <CountryYtdPanel p={p} name={name} />
+          <div className="mb-5"><ProfileTrade p={p} /></div>
+        </section>
+        <section id="produzione" className="scroll-mt-24">
+          <div className="mb-5"><ProfileProduction data={p.production} /></div>
+          <div className="mb-5"><ProfileWebFindings p={p} /></div>
+        </section>
+        <section id="notizie" className="scroll-mt-24"><ProfileNews p={p} className="mb-5 min-w-0" /></section>
+        <section id="normative" className="scroll-mt-24 mb-5"><ProfileRegulations p={p} /></section>
+        <CountryNotes iso3={c.iso3} name={name} className="mb-5" />
+        <ProfileMissing p={p} />
+        <div className="mb-5"><ProfileContext p={p} /></div>
+        {p.sources.length > 0 && (
+          <Panel title={t('countries.sourcesTitle')}>
+            <SourcesFooter sources={p.sources} />
+          </Panel>
+        )}
       </div>
     )
   }
@@ -127,26 +143,22 @@ function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
   )
 }
 
-/** Simple view's "Mostra dettagli": the sections the simple page leaves out, in the full order. */
-function FullSections({ p }: { p: CountryProfile }) {
+/** "Vai a: Prezzi · Aziende · Commercio ...": jumps to a section of the (long) simple country page. */
+export const COUNTRY_SECTIONS = ['prezzi', 'aziende', 'commercio', 'produzione', 'notizie', 'normative'] as const
+
+function SectionIndex() {
   const { t } = useI18n()
   return (
-    <>
-      <ProfileMissing p={p} />
-      <div className="mb-5"><ProfileContext p={p} /></div>
-      <div className="mb-5"><ProfileTrade p={p} /></div>
-      <div className="mb-5"><CountryCompaniesBlock iso3={p.country.iso3} /></div>
-      <div className="mb-5"><ProfilePrices p={p} /></div>
-      <div className="grid gap-5 xl:grid-cols-2 items-start mb-5">
-        <ProfileNews p={p} />
-        <ProfileRegulations p={p} />
-      </div>
-      {p.sources.length > 0 && (
-        <Panel title={t('countries.sourcesTitle')}>
-          <SourcesFooter sources={p.sources} />
-        </Panel>
-      )}
-    </>
+    <nav className="mb-5 flex flex-wrap items-center gap-x-2 gap-y-2" aria-label={t('simple.country.jump')} data-section-index>
+      <span className="text-[0.95rem] text-muted">{t('simple.country.jump')}</span>
+      {COUNTRY_SECTIONS.map((id) => (
+        <button key={id} type="button"
+          onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          className="rounded-full border border-line bg-white px-3.5 py-1.5 text-[0.95rem] font-medium text-forest-800 transition-colors hover:border-forest-600 hover:bg-forest-50">
+          {t(`simple.country.sec.${id}`)}
+        </button>
+      ))}
+    </nav>
   )
 }
 

@@ -16,8 +16,9 @@ import { perKg, PLAIN_PRICE_TYPE_HINT, PLAIN_PRICE_TYPE_TITLE, plainPriceLabel, 
 import { countryName } from './parts'
 import type { CountryProfile, PriceRow } from './types'
 
-/** Rows shown per kind of price before "all the prices". */
-export const SIMPLE_PRICE_ROWS = 4
+/** Rows shown per kind of price before "all the prices": every row the page receives (the owner
+ * asked to see everything about a country on its page, 15 Nov 2026). */
+export const SIMPLE_PRICE_ROWS = 10
 
 /** The stored row behind a price of the country page: what a person fixes by tapping the number.
  * `shown`: the figure on screen when it is not the row's own unit (euro per kilo). */
