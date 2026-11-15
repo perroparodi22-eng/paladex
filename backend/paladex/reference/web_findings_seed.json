@@ -582,6 +582,27 @@
    "notes": "SCOPE: exports to the USA only (historically 90%+ of Vietnam's honey exports), not total exports. 29,5 triệu = 29,500,000 USD; down more than 31% vs 2024."
   },
   {
+   "country_iso3": "VNM",
+   "metric": "exports",
+   "period_label": "2025",
+   "period_start": "2025-01-01",
+   "period_end": "2025-12-31",
+   "value": 32000,
+   "unit": "t",
+   "value_as_published": "gần 32 nghìn tấn",
+   "status": "reported",
+   "kind": "news",
+   "is_official": false,
+   "publisher": "Báo Đại Đoàn Kết (newspaper of the Vietnam Fatherland Front)",
+   "source_url": "https://daidoanket.vn/nang-tam-gia-tri-tu-nghe-nuoi-ong.html",
+   "source_title": "Nâng tầm giá trị từ nghề nuôi ong",
+   "published_at": "2026-08-06",
+   "language": "vi",
+   "quote": "Năm 2025, cả nước xuất khẩu gần 32 nghìn tấn mật ong và các sản phẩm phấn hoa, sữa ong chúa, keo ong.",
+   "also_reported_by": [],
+   "notes": "SCOPE: honey TOGETHER WITH pollen, royal jelly and propolis, not honey alone. 'gần' = nearly: an approximate figure (32 nghìn tấn = 32,000 t). The article does not name the source of the figure. Found on 15 Nov 2026 when looking for Vietnam's 2025 exports in tonnes; Vietnam's customs does not publish honey separately."
+  },
+  {
    "country_iso3": "BRA",
    "metric": "production",
    "period_label": "2025",
@@ -1678,7 +1699,7 @@
   {
    "country_iso3": "THA",
    "searched": "Thai-language and English searches for 2025/2026 honey (น้ำผึ้ง) exports, production and prices: Ministry of Commerce TPSO trade releases, Department of Livestock Development, OPSMOAC, The Nation, Thai press",
-   "result": "No 2025 or 2026 national honey figure found. Latest is 2024 bee-product exports of 7,311.88 t / THB 621.43 million (The Nation, citing Thai authorities, broader than honey) and 2024 ITC/WITS-based values; nothing for 2025 production or prices."
+   "result": "No 2025 or 2026 national honey figure found. Latest is 2024 bee-product exports of 7,311.88 t / THB 621.43 million (The Nation, citing Thai authorities, broader than honey) and 2024 ITC/WITS-based values; nothing for 2025 production or prices. UPDATE 15 Nov 2026: Thailand's official monthly honey exports and imports are now read directly from the Thai Customs statistic report (collector th_customs_honey): 12,216 t exported in 2025."
   },
   {
    "country_iso3": "ESP",
