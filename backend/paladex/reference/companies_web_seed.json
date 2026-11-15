@@ -2,6 +2,26 @@
  "searched_on": "2026-11-15",
  "entries": [
   {
+   "iso3": "ALB",
+   "name": "Albanian Bees and Honey",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.albanianbeesandhoney.com",
+   "source_url": "https://www.albanianbeesandhoney.com",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "ALB",
+   "name": "Mjaltë Morava",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.morava.al",
+   "source_url": "https://www.morava.al/",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
    "iso3": "ARG",
    "name": "Argenmieles",
    "role": "exporter",
@@ -10,6 +30,16 @@
    "source_url": "http://www.argenmieles.com.ar",
    "what_it": "Marchio di miele del gruppo NEXCO; vende miele sfuso, in favo e confezionato.",
    "what_en": "Honey brand of the NEXCO group; sells bulk, comb and packed honey."
+  },
+  {
+   "iso3": "ARG",
+   "name": "Cam Honey Brothers",
+   "role": "exporter",
+   "city": null,
+   "website": "https://www.camhoneybrothers.com",
+   "source_url": "https://www.camhoneybrothers.com",
+   "what_it": "Azienda che vende ed esporta miele.",
+   "what_en": "Company that sells and exports honey."
   },
   {
    "iso3": "ARG",
@@ -62,6 +92,26 @@
    "what_en": "Food company with honey among its product lines, next to jams and more."
   },
   {
+   "iso3": "AUT",
+   "name": "Honigmayr",
+   "role": "packer",
+   "city": "Tenneck",
+   "website": "https://www.honigmayr.at/",
+   "source_url": "https://www.honigmayr.at/en/",
+   "what_it": "Imbottiglia miele in vasetti e flaconi e lo vende, anche per l'estero.",
+   "what_en": "Bottles honey in jars and dispenser bottles and sells it, including for export."
+  },
+  {
+   "iso3": "BEL",
+   "name": "Bijenhof",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.bijenhof.be",
+   "source_url": "https://www.bijenhof.be",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
    "iso3": "BEL",
    "name": "Meli (Meli NV)",
    "role": "packer",
@@ -80,6 +130,26 @@
    "source_url": "http://weynshoning.be/nl/",
    "what_it": "Acquista miele da apicoltori nel mondo, lo controlla, lo filtra e lo confeziona per i propri negozi e rivenditori.",
    "what_en": "Buys honey from beekeepers worldwide, tests, filters and packs it for its own shops and retailers."
+  },
+  {
+   "iso3": "BGR",
+   "name": "Bulgarian Organic Foods",
+   "role": "cooperative",
+   "city": "Kyosevtsi",
+   "website": "https://natural-honey.eu",
+   "source_url": "https://natural-honey.eu",
+   "what_it": "Cooperativa di apicoltori che produce e vende miele biologico, soprattutto sui mercati esteri.",
+   "what_en": "Producers' cooperative of beekeepers that produces and sells organic honey, mainly to foreign markets."
+  },
+  {
+   "iso3": "BGR",
+   "name": "Harmonica",
+   "role": "packer",
+   "city": null,
+   "website": "https://harmonica.bg",
+   "source_url": "https://harmonica.bg/en/products/acacia-honey/",
+   "what_it": "Marchio bulgaro di prodotti biologici che confeziona e vende miele raccolto da apicoltori fornitori.",
+   "what_en": "Bulgarian organic food brand that packs and sells honey collected from supplier beekeepers."
   },
   {
    "iso3": "BGR",
@@ -102,6 +172,76 @@
    "what_en": "Produces and trades honey and hive products."
   },
   {
+   "iso3": "BIH",
+   "name": "BeeJapa",
+   "role": "exporter",
+   "city": null,
+   "website": "https://beejapa.com/",
+   "source_url": "https://beejapa.com/natural-honey-from-bosnia-and-herzegovina/",
+   "what_it": "Commercializza miele bosniaco e altri prodotti dell'alveare, con attenzione ai distributori esteri.",
+   "what_en": "Markets Bosnian honey and other bee products, with a focus on foreign distributors."
+  },
+  {
+   "iso3": "BIH",
+   "name": "SPZ Apimed",
+   "role": "cooperative",
+   "city": "Sanski Most",
+   "website": "https://apimed.store",
+   "source_url": "https://apimed.store/med/",
+   "what_it": "Cooperativa apicola che acquista da apicoltori, confeziona e vende miele e prodotti dell'alveare.",
+   "what_en": "Beekeeping cooperative buying from beekeepers, packing and selling honey and hive products."
+  },
+  {
+   "iso3": "BLR",
+   "name": "Medovi4ek (Medovy Kray)",
+   "role": "packer",
+   "city": "Novoselki, Slonim district",
+   "website": "https://medovi4ek.by",
+   "source_url": "https://medovi4ek.by/",
+   "what_it": "Apiario che vende miele naturale e prodotti dell'alveare con consegna in Bielorussia.",
+   "what_en": "Apiary selling natural honey and hive products with delivery across Belarus."
+  },
+  {
+   "iso3": "BLR",
+   "name": "Myadovy Shlyakh (Мядовы шлях)",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.honeyway.by",
+   "source_url": "https://www.honeyway.by",
+   "what_it": "Produce prodotti naturali a base di miele.",
+   "what_en": "Makes natural honey-based products."
+  },
+  {
+   "iso3": "BLR",
+   "name": "Zolotaya Sota (Золотая сота)",
+   "role": "trader",
+   "city": "Brest",
+   "website": "https://www.medoptom.by",
+   "source_url": "https://www.medoptom.by",
+   "what_it": "Vende miele confezionato e miele all'ingrosso.",
+   "what_en": "Sells packed honey and honey wholesale."
+  },
+  {
+   "iso3": "BOL",
+   "name": "Gustoso",
+   "role": "packer",
+   "city": null,
+   "website": "https://gustoso.com.bo",
+   "source_url": "https://gustoso.com.bo/miel-de-abejas/",
+   "what_it": "Marchio boliviano che confeziona miele di api in vasetti.",
+   "what_en": "Bolivian brand that packs bee honey in jars."
+  },
+  {
+   "iso3": "BOL",
+   "name": "Melimel",
+   "role": "packer",
+   "city": "Santa Cruz de la Sierra",
+   "website": "https://www.melimel.com.bo",
+   "source_url": "https://www.melimel.com.bo/",
+   "what_it": "Marchio boliviano di miele puro, mieli alla frutta e propoli.",
+   "what_en": "Bolivian brand of pure honey, fruit honeys and propolis."
+  },
+  {
    "iso3": "BRA",
    "name": "Apidouro Comercial Exportadora e Importadora Ltda.",
    "role": "exporter",
@@ -110,6 +250,26 @@
    "source_url": "https://www.apidouro.com.br",
    "what_it": "Produce miele biologico da alveari certificati in varie regioni del Brasile e lo esporta all'estero.",
    "what_en": "Produces organic honey from certified hives in several Brazilian regions and exports it abroad."
+  },
+  {
+   "iso3": "BRA",
+   "name": "Melbras",
+   "role": "exporter",
+   "city": null,
+   "website": "https://www.melbras.com.br",
+   "source_url": "https://www.melbras.com.br",
+   "what_it": "Azienda che vende ed esporta miele.",
+   "what_en": "Company that sells and exports honey."
+  },
+  {
+   "iso3": "BRA",
+   "name": "Wanali",
+   "role": "exporter",
+   "city": null,
+   "website": "https://www.wanali.com.br",
+   "source_url": "https://www.wanali.com.br",
+   "what_it": "Azienda che vende ed esporta miele.",
+   "what_en": "Company that sells and exports honey."
   },
   {
    "iso3": "CAN",
@@ -122,6 +282,26 @@
    "what_en": "Co-operative of Canadian beekeepers that sources its members' honey and packs and sells it as Canadian honey."
   },
   {
+   "iso3": "CHE",
+   "name": "Bee-Family",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.bee-family.com",
+   "source_url": "https://www.bee-family.com",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "CHE",
+   "name": "Narimpex",
+   "role": "importer",
+   "city": "Biel/Bienne",
+   "website": "https://narimpex.ch/",
+   "source_url": "https://narimpex.ch/",
+   "what_it": "Importa miele, in particolare dal Messico, lo miscela e lo imbottiglia in Svizzera; vende anche frutta secca e noci.",
+   "what_en": "Imports honey, notably from Mexico, blends and bottles it in Switzerland; also sells dried fruit and nuts."
+  },
+  {
    "iso3": "CHL",
    "name": "Apicoop",
    "role": "cooperative",
@@ -130,6 +310,16 @@
    "source_url": "https://www.apicoop.cl",
    "what_it": "Cooperativa di apicoltori che vende ed esporta miele.",
    "what_en": "Beekeepers' cooperative that sells and exports honey."
+  },
+  {
+   "iso3": "CHL",
+   "name": "Isla Natura",
+   "role": "exporter",
+   "city": null,
+   "website": "https://www.islanatura.com",
+   "source_url": "https://www.islanatura.com",
+   "what_it": "Azienda che vende ed esporta miele.",
+   "what_en": "Company that sells and exports honey."
   },
   {
    "iso3": "CHL",
@@ -152,6 +342,56 @@
    "what_en": "Makes and exports natural honey and bee products, in jars, tins and bulk."
   },
   {
+   "iso3": "COL",
+   "name": "Biomieles",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.biomieles.com.co",
+   "source_url": "https://www.biomieles.com.co",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "COL",
+   "name": "Campo Dulce SAS",
+   "role": "packer",
+   "city": "El Bagre",
+   "website": "https://www.campodulce.com.co",
+   "source_url": "https://www.campodulce.com.co",
+   "what_it": "Impresa creata da associazioni di apicoltori del Bajo Cauca che raccoglie e confeziona miele e lo vende con un proprio marchio e a clienti industriali.",
+   "what_en": "Company formed by beekeeper associations in the Bajo Cauca that collects and packs honey and sells it under its own brand and to industrial customers."
+  },
+  {
+   "iso3": "CYP",
+   "name": "Mellona",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.mellona.com.cy",
+   "source_url": "https://www.mellona.com.cy",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "CYP",
+   "name": "Oros Maxaira",
+   "role": "packer",
+   "city": "Melini",
+   "website": "https://orosmaxaira.com",
+   "source_url": "https://orosmaxaira.com",
+   "what_it": "Azienda familiare cipriota che alleva api, produce, confeziona e vende miele con il proprio marchio.",
+   "what_en": "Cypriot family company that keeps bees and produces, packs and sells honey under its own brand."
+  },
+  {
+   "iso3": "CZE",
+   "name": "Beedol (Výzkumný ústav včelařský)",
+   "role": "packer",
+   "city": "Máslovice",
+   "website": "https://www.beedol.cz",
+   "source_url": "https://www.beedol.cz",
+   "what_it": "Istituto di apicoltura che confeziona e vende miele con il marchio Dolský med, anche su misura.",
+   "what_en": "Beekeeping research company that packs and sells honey under the Dolský med brand, also made to order."
+  },
+  {
    "iso3": "CZE",
    "name": "Medokom (Medokomerc)",
    "role": "trader",
@@ -160,6 +400,16 @@
    "source_url": "https://www.medokomerc.cz",
    "what_it": "Acquista miele ceco e da fornitori europei e sudamericani, lo confeziona in vasetti e secchi e lo distribuisce a catene, online e all'ingrosso.",
    "what_en": "Buys Czech honey and honey from European and South American suppliers, packs it in jars and buckets and distributes it to chains, online and wholesale."
+  },
+  {
+   "iso3": "CZE",
+   "name": "Medová farma",
+   "role": "trader",
+   "city": null,
+   "website": "https://medova-farma.cz",
+   "source_url": "https://medova-farma.cz",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
   },
   {
    "iso3": "DEU",
@@ -202,6 +452,96 @@
    "what_en": "Processes and packs organic honey and other sweeteners, including manuka honey."
   },
   {
+   "iso3": "DNK",
+   "name": "Søbogaard",
+   "role": "packer",
+   "city": "Herning",
+   "website": "https://soebogaard.dk",
+   "source_url": "https://soebogaard.dk/en/vare/uopvarmet-dansk-honning/",
+   "what_it": "Azienda agricola vicino a Herning che vende miele danese non riscaldato e altri mieli con proprio marchio.",
+   "what_en": "Farm near Herning that sells unheated Danish honey and other honeys under its own brand."
+  },
+  {
+   "iso3": "DNK",
+   "name": "Vendia Honning",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.vendiahonning.dk",
+   "source_url": "https://www.vendiahonning.dk",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "ECU",
+   "name": "Honey Farm Honey",
+   "role": "packer",
+   "city": "Quito",
+   "website": "https://honeyfarmhoney.com",
+   "source_url": "https://honeyfarmhoney.com/",
+   "what_it": "Apicoltore di Quito che vende miele crudo e non filtrato raccolto in Ecuador.",
+   "what_en": "Quito beekeeper selling raw unfiltered honey harvested in Ecuador."
+  },
+  {
+   "iso3": "ECU",
+   "name": "Keco's Beekeeping",
+   "role": "packer",
+   "city": "Quito",
+   "website": "https://www.kecobeekeeping.com",
+   "source_url": "https://www.kecobeekeeping.com/",
+   "what_it": "Apicoltura di Quito che vende miele naturale dei propri apiari.",
+   "what_en": "Quito beekeeping business selling natural honey from its own apiaries."
+  },
+  {
+   "iso3": "ESP",
+   "name": "Andaluza de Mieles",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.andaluzademieles.com",
+   "source_url": "https://www.andaluzademieles.com",
+   "what_it": "Azienda che confeziona e vende miele.",
+   "what_en": "Company that packs and sells honey."
+  },
+  {
+   "iso3": "ESP",
+   "name": "HoneyGreen",
+   "role": "trader",
+   "city": "Paterna",
+   "website": "https://honeygreen.com",
+   "source_url": "https://honeygreen.com",
+   "what_it": "Fornisce miele e altri prodotti dell'alveare come ingredienti per l'industria alimentare, degli integratori e cosmetica.",
+   "what_en": "Supplies honey and other hive products as ingredients for the food, supplement and cosmetics industries."
+  },
+  {
+   "iso3": "ESP",
+   "name": "Maes Honey",
+   "role": "packer",
+   "city": "Aldeatejada",
+   "website": "https://maeshoney.com",
+   "source_url": "https://maeshoney.com",
+   "what_it": "Impresa di Salamanca che distribuisce e confeziona miele naturale.",
+   "what_en": "Salamanca company that distributes and packs natural honey."
+  },
+  {
+   "iso3": "ESP",
+   "name": "Miel Mayem",
+   "role": "packer",
+   "city": "L'Alcúdia",
+   "website": "https://mielmayem.com",
+   "source_url": "https://mielmayem.com",
+   "what_it": "Azienda familiare di Valencia che confeziona e vende mieli spagnoli monoflorali.",
+   "what_en": "Family company near Valencia that packs and sells single-origin Spanish honeys."
+  },
+  {
+   "iso3": "ESP",
+   "name": "Miel Moncabrer",
+   "role": "packer",
+   "city": "Cocentaina",
+   "website": "https://mielmoncabrer.com",
+   "source_url": "https://mielmoncabrer.com",
+   "what_it": "Azienda familiare che produce, distribuisce ed esporta miele e altri prodotti apistici.",
+   "what_en": "Family firm that produces, distributes and exports honey and other bee products."
+  },
+  {
    "iso3": "ESP",
    "name": "Mielso S.A.",
    "role": "packer",
@@ -212,6 +552,66 @@
    "what_en": "Packs honey at its own plant, distributes it wholesale and exports it."
   },
   {
+   "iso3": "ESP",
+   "name": "Sierra Miel",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.sierramiel.es",
+   "source_url": "https://www.sierramiel.es",
+   "what_it": "Azienda che confeziona e vende miele.",
+   "what_en": "Company that packs and sells honey."
+  },
+  {
+   "iso3": "EST",
+   "name": "Artisan Honey",
+   "role": "packer",
+   "city": null,
+   "website": "https://artisanhoney.ee",
+   "source_url": "https://artisanhoney.ee",
+   "what_it": "Produce miele dalle proprie arnie e lo vende in confezioni regalo e in miscele con frutti di bosco.",
+   "what_en": "Produces honey from its own hives and sells it in gift sets and berry blends."
+  },
+  {
+   "iso3": "EST",
+   "name": "Metsaserva Mesi",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.metsaservamesi.ee",
+   "source_url": "https://www.metsaservamesi.ee",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "FIN",
+   "name": "Hunajainen SAM",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.hunajainensam.fi",
+   "source_url": "https://www.hunajainensam.fi",
+   "what_it": "Azienda che confeziona e vende miele.",
+   "what_en": "Company that packs and sells honey."
+  },
+  {
+   "iso3": "FIN",
+   "name": "Hunajayhtymä Oy",
+   "role": "packer",
+   "city": "Loimaa",
+   "website": "http://www.hunaja.fi",
+   "source_url": "http://www.hunaja.fi",
+   "what_it": "Impresa finlandese che confeziona miele per i consumatori e per i beekeeper.",
+   "what_en": "Finnish company that packs honey for consumers and beekeepers."
+  },
+  {
+   "iso3": "FRA",
+   "name": "Apidis",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.apidis.com",
+   "source_url": "https://www.apidis.com",
+   "what_it": "Azienda che confeziona e vende miele.",
+   "what_en": "Company that packs and sells honey."
+  },
+  {
    "iso3": "FRA",
    "name": "Famille Michaud Apiculteurs",
    "role": "packer",
@@ -220,6 +620,26 @@
    "source_url": "https://www.famillemichaud.com",
    "what_it": "Seleziona e confeziona miele di varia origine, venduto con propri marchi e fornito anche a industrie alimentari e ristorazione.",
    "what_en": "Selects and packs honey from various origins, sold under its own brands and also supplied to food manufacturers and foodservice."
+  },
+  {
+   "iso3": "FRA",
+   "name": "Les Compagnons du Miel",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.lescompagnonsdumiel.fr",
+   "source_url": "https://www.lescompagnonsdumiel.fr",
+   "what_it": "Azienda che confeziona e vende miele.",
+   "what_en": "Company that packs and sells honey."
+  },
+  {
+   "iso3": "FRA",
+   "name": "Naturalim France Miel",
+   "role": "cooperative",
+   "city": null,
+   "website": "https://www.naturalim.fr",
+   "source_url": "https://www.naturalim.fr",
+   "what_it": "Cooperativa di apicoltori che vende miele.",
+   "what_en": "Beekeepers' cooperative that sells honey."
   },
   {
    "iso3": "GBR",
@@ -262,6 +682,96 @@
    "what_en": "Sells honey from Attica, together with halva, sweets and royal jelly."
   },
   {
+   "iso3": "GRC",
+   "name": "Melissourgion",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.melissourgion.com",
+   "source_url": "https://www.melissourgion.com",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "GRC",
+   "name": "Organic Beez",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.organicbeez.gr",
+   "source_url": "https://www.organicbeez.gr",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "HRV",
+   "name": "OPG Bacani",
+   "role": "packer",
+   "city": "Ludbreg",
+   "website": "https://www.opg-bacani.hr",
+   "source_url": "https://www.opg-bacani.hr",
+   "what_it": "Azienda agricola che vende miele e prodotti a base di miele con listino online.",
+   "what_en": "Farm selling honey and honey products with an online price list."
+  },
+  {
+   "iso3": "HRV",
+   "name": "OPG Pcelarstvo Orec",
+   "role": "packer",
+   "city": "Slavonski Brod",
+   "website": "https://www.pcelarstvo-orec.hr",
+   "source_url": "https://www.pcelarstvo-orec.hr/prodaja-meda/",
+   "what_it": "Azienda apicola che vende miele di acacia, tiglio, castagno e altri dalla propria produzione.",
+   "what_en": "Beekeeping farm selling acacia, linden, chestnut and other honeys from its own production."
+  },
+  {
+   "iso3": "HRV",
+   "name": "OPG Petrec",
+   "role": "packer",
+   "city": null,
+   "website": "https://opg-petrec.hr",
+   "source_url": "https://opg-petrec.hr/proizvodi.html",
+   "what_it": "Azienda agricola che vende miele di acacia e tiglio in barattoli di varie misure.",
+   "what_en": "Farm selling acacia and linden honey in jars of several sizes."
+  },
+  {
+   "iso3": "HRV",
+   "name": "Prva kuca meda",
+   "role": "packer",
+   "city": "Zupanja",
+   "website": "https://prvakucameda.com",
+   "source_url": "https://prvakucameda.com/",
+   "what_it": "Negozio di miele domestico di Zupanja con vendita online.",
+   "what_en": "Domestic honey shop in Zupanja with online sales."
+  },
+  {
+   "iso3": "HRV",
+   "name": "Pčelarstvo Daruvar",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.pcelarstvo-daruvar.hr",
+   "source_url": "https://www.pcelarstvo-daruvar.hr",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "HUN",
+   "name": "Aranynektár",
+   "role": "exporter",
+   "city": null,
+   "website": "https://www.aranynektar.hu",
+   "source_url": "https://www.aranynektar.hu",
+   "what_it": "Azienda che vende ed esporta miele.",
+   "what_en": "Company that sells and exports honey."
+  },
+  {
+   "iso3": "HUN",
+   "name": "Honey-World",
+   "role": "exporter",
+   "city": null,
+   "website": "https://www.honeyworld.hu",
+   "source_url": "https://www.honeyworld.hu",
+   "what_it": "Azienda che vende ed esporta miele.",
+   "what_en": "Company that sells and exports honey."
+  },
+  {
    "iso3": "HUN",
    "name": "Magyar Méz Manufaktúra",
    "role": "packer",
@@ -300,6 +810,36 @@
    "source_url": "https://honeyandspice.in/pages/bulk-honey",
    "what_it": "Acquista miele indiano, lo controlla, lo confeziona e lo esporta in grandi quantità, anche per marchi altrui.",
    "what_en": "Sources Indian honey, checks it, packs it and exports it in bulk, including for other brands to repack."
+  },
+  {
+   "iso3": "IRL",
+   "name": "Boyne Valley",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.boynevalley.com",
+   "source_url": "https://www.boynevalley.com",
+   "what_it": "Azienda che confeziona e vende miele.",
+   "what_en": "Company that packs and sells honey."
+  },
+  {
+   "iso3": "IRL",
+   "name": "Healy's Honey",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.healyshoney.ie",
+   "source_url": "https://www.healyshoney.ie",
+   "what_it": "Azienda che confeziona e vende miele.",
+   "what_en": "Company that packs and sells honey."
+  },
+  {
+   "iso3": "IRL",
+   "name": "Nuts in Bulk",
+   "role": "trader",
+   "city": "Dublin area",
+   "website": "https://nutsinbulk.ie/",
+   "source_url": "https://nutsinbulk.ie/product/flower-honey-bulk-5kg-bucket",
+   "what_it": "Rivenditore all'ingrosso che offre miele in secchi alimentari da cinque chili insieme ad altri prodotti sfusi.",
+   "what_en": "Wholesale seller offering honey in five kilo food-grade buckets alongside other bulk products."
   },
   {
    "iso3": "ITA",
@@ -433,6 +973,26 @@
   },
   {
    "iso3": "LTU",
+   "name": "Apiproduktai",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.apiproduktai.lt",
+   "source_url": "https://www.apiproduktai.lt",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "LTU",
+   "name": "Brolių medus (Brothers' Honey)",
+   "role": "packer",
+   "city": "Lukoniai",
+   "website": "https://broliumedus.lt",
+   "source_url": "https://broliumedus.lt",
+   "what_it": "Azienda apistica di famiglia che vende miele e prodotti a base di miele con un proprio marchio, online e in negozi.",
+   "what_en": "Family beekeeping farm selling honey and honey-based products under its own brand, online and in shops."
+  },
+  {
+   "iso3": "LTU",
    "name": "UAB Medaus pirkliai",
    "role": "trader",
    "city": null,
@@ -440,6 +1000,46 @@
    "source_url": "https://medauspirkliai.lt",
    "what_it": "Acquista miele naturale, lo lavora, lo confeziona e lo vende all'ingrosso.",
    "what_en": "Buys natural honey, processes and packs it and sells it wholesale."
+  },
+  {
+   "iso3": "LUX",
+   "name": "De Beiefritz",
+   "role": "trader",
+   "city": null,
+   "website": "https://beiefritz.lu",
+   "source_url": "https://beiefritz.lu",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "LUX",
+   "name": "Hunneg Këscht",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.hunnegkescht.lu",
+   "source_url": "https://www.hunnegkescht.lu",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "LVA",
+   "name": "Kurland Honey",
+   "role": "cooperative",
+   "city": "Jelgava",
+   "website": "https://kurland-honey.mozellosite.com",
+   "source_url": "https://kurland-honey.mozellosite.com/home/",
+   "what_it": "Cooperativa di apicoltori lettoni nata per esportare il miele prodotto dai soci.",
+   "what_en": "Latvian beekeepers' cooperative formed to export the honey its members produce."
+  },
+  {
+   "iso3": "LVA",
+   "name": "Sanum per Fructus",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.sanumperfructus.com",
+   "source_url": "https://www.sanumperfructus.com",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
   },
   {
    "iso3": "MDA",
@@ -462,6 +1062,26 @@
    "what_en": "Produces and sells natural honey and other bee products; states it exports to several countries."
   },
   {
+   "iso3": "MDA",
+   "name": "Nectar Lux",
+   "role": "exporter",
+   "city": null,
+   "website": "https://www.nectarlux.md",
+   "source_url": "https://www.nectarlux.md",
+   "what_it": "Azienda che vende ed esporta miele.",
+   "what_en": "Company that sells and exports honey."
+  },
+  {
+   "iso3": "MDA",
+   "name": "Regina Naturii",
+   "role": "packer",
+   "city": null,
+   "website": "https://reginanaturii.com",
+   "source_url": "https://reginanaturii.com",
+   "what_it": "Produce, lavora, confeziona ed esporta miele naturale, anche con un marchio proprio per l'estero.",
+   "what_en": "Produces, processes, packs and exports natural honey, including under its own export brand."
+  },
+  {
    "iso3": "MEX",
    "name": "MIMIEL (Integradora Agroindustrial MIRA)",
    "role": "packer",
@@ -472,6 +1092,66 @@
    "what_en": "Sells packed and bulk honey, including private label, from Yucatán."
   },
   {
+   "iso3": "MKD",
+   "name": "Biotiko",
+   "role": "exporter",
+   "city": "Kavadarci",
+   "website": "https://biotiko.com/",
+   "source_url": "https://biotiko.com/",
+   "what_it": "Raccoglie e vende miele biologico della regione di Mariovo e dichiara di volerlo esportare.",
+   "what_en": "Collects and sells organic honey from the Mariovo region and states it aims to export it."
+  },
+  {
+   "iso3": "MKD",
+   "name": "Silver Roots",
+   "role": "trader",
+   "city": null,
+   "website": "https://silverrootsagro.com/",
+   "source_url": "https://silverrootsagro.com/north-macedonia/honey.html",
+   "what_it": "Si presenta come produttore, esportatore e commerciante di miele macedone.",
+   "what_en": "Presents itself as a manufacturer, exporter and trader of Macedonian honey."
+  },
+  {
+   "iso3": "MLT",
+   "name": "Diar il-Bniet",
+   "role": "packer",
+   "city": null,
+   "website": "https://diarilbniet.com",
+   "source_url": "https://diarilbniet.com/product-category/malta-honey/",
+   "what_it": "Negozio online con una categoria di miele maltese accanto ad altri prodotti locali.",
+   "what_en": "Online shop with a Maltese honey category next to other local products."
+  },
+  {
+   "iso3": "MLT",
+   "name": "Foundation for the Conservation of the Maltese Honey Bee",
+   "role": "cooperative",
+   "city": null,
+   "website": "https://maltesehoneybee.org",
+   "source_url": "https://maltesehoneybee.org/price-list/",
+   "what_it": "Fondazione che vende miele maltese direttamente e tramite negozi partner, con listino prezzi.",
+   "what_en": "Foundation that sells Maltese honey directly and through partner shops, with a price list."
+  },
+  {
+   "iso3": "MNE",
+   "name": "Kuća meda",
+   "role": "packer",
+   "city": "Spuž",
+   "website": "https://kucameda.me/",
+   "source_url": "https://kucameda.me/",
+   "what_it": "Acquista miele dagli apicoltori, lo analizza e lo confeziona con il marchio Crnogorski med.",
+   "what_en": "Buys honey from beekeepers, tests it and packs it under the Crnogorski med brand."
+  },
+  {
+   "iso3": "NLD",
+   "name": "Het Bijenhuis",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.bijenhuis.nl",
+   "source_url": "https://www.bijenhuis.nl",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
    "iso3": "NLD",
    "name": "TjalmaHoning",
    "role": "importer",
@@ -480,6 +1160,36 @@
    "source_url": "https://www.tjalmahoning.nl",
    "what_it": "Importa miele da vari paesi e lo vende all'ingrosso a negozi, ristoranti, panifici e grandi acquirenti.",
    "what_en": "Imports honey from various countries and sells it wholesale to shops, restaurants, bakeries and large buyers."
+  },
+  {
+   "iso3": "NOR",
+   "name": "Honningcentralen",
+   "role": "cooperative",
+   "city": "Kløfta",
+   "website": "https://honning.no/",
+   "source_url": "https://honning.no/en/about-us",
+   "what_it": "Cooperativa di apicoltori norvegesi che raccoglie il miele dei soci e lo vende a commercio, ristorazione e industria, importandone anche.",
+   "what_en": "Cooperative of Norwegian beekeepers that collects members' honey and sells it to retail, food service and industry, also importing honey."
+  },
+  {
+   "iso3": "NOR",
+   "name": "Hurumhonning",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.hurumhonning.no",
+   "source_url": "https://www.hurumhonning.no",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "NOR",
+   "name": "Kjartans Honning",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.kjartanshonning.no",
+   "source_url": "https://www.kjartanshonning.no",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
   },
   {
    "iso3": "NZL",
@@ -512,6 +1222,46 @@
    "what_en": "Produces, processes and packs New Zealand honey and also ships abroad on request."
   },
   {
+   "iso3": "PER",
+   "name": "Apícola Caballero",
+   "role": "packer",
+   "city": "Lima",
+   "website": "https://apicolacaballero.com",
+   "source_url": "https://apicolacaballero.com/",
+   "what_it": "Negozio online di Lima di prodotti apistici: miele, polline, propoli e pappa reale.",
+   "what_en": "Lima online shop of hive products: honey, pollen, propolis and royal jelly."
+  },
+  {
+   "iso3": "PER",
+   "name": "Panal Real",
+   "role": "packer",
+   "city": "Lima",
+   "website": "https://panalreal.com",
+   "source_url": "https://panalreal.com/",
+   "what_it": "Venditore di Lima di miele di Oxapampa biologico e senza conservanti.",
+   "what_en": "Lima seller of organic Oxapampa honey without preservatives."
+  },
+  {
+   "iso3": "PER",
+   "name": "Proapi",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.proapiperu.com",
+   "source_url": "https://www.proapiperu.com",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "POL",
+   "name": "Apis Lublin",
+   "role": "cooperative",
+   "city": null,
+   "website": "https://www.apis.pl",
+   "source_url": "https://www.apis.pl",
+   "what_it": "Cooperativa di apicoltori che vende miele.",
+   "what_en": "Beekeepers' cooperative that sells honey."
+  },
+  {
    "iso3": "POL",
    "name": "Gospodarstwo Pasieczne \"Sądecki Bartnik\" sp. z o.o.",
    "role": "packer",
@@ -520,6 +1270,36 @@
    "source_url": "https://bartnik.pl",
    "what_it": "Ha apiari propri e un servizio di acquisto del miele; vende mieli naturali in vari formati.",
    "what_en": "Has its own apiaries and a honey purchasing service; sells natural honeys in several formats."
+  },
+  {
+   "iso3": "POL",
+   "name": "Mazurskie Miody",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.mazurskiemiody.pl",
+   "source_url": "https://www.mazurskiemiody.pl",
+   "what_it": "Azienda che confeziona e vende miele.",
+   "what_en": "Company that packs and sells honey."
+  },
+  {
+   "iso3": "POL",
+   "name": "Miody Polskie Sp. z o.o.",
+   "role": "packer",
+   "city": "Miedźno",
+   "website": "https://www.miody-polskie.pl",
+   "source_url": "https://www.miody-polskie.pl",
+   "what_it": "Confeziona miele di vari tipi in vasetti con un proprio marchio, venduto in farmacie e negozi.",
+   "what_en": "Packs several kinds of honey in jars under its own brand, sold through pharmacies and shops."
+  },
+  {
+   "iso3": "POL",
+   "name": "Pszczelarz Kozacki",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.pszczelarzkozacki.pl",
+   "source_url": "https://www.pszczelarzkozacki.pl",
+   "what_it": "Azienda che confeziona e vende miele.",
+   "what_en": "Company that packs and sells honey."
   },
   {
    "iso3": "PRT",
@@ -533,6 +1313,26 @@
   },
   {
    "iso3": "PRT",
+   "name": "Capolib",
+   "role": "cooperative",
+   "city": null,
+   "website": "https://capolib.pt",
+   "source_url": "https://capolib.pt",
+   "what_it": "Cooperativa di apicoltori che vende miele.",
+   "what_en": "Beekeepers' cooperative that sells honey."
+  },
+  {
+   "iso3": "PRT",
+   "name": "Lousãmel",
+   "role": "cooperative",
+   "city": "Lousã",
+   "website": "https://lousamel.pt",
+   "source_url": "https://lousamel.pt",
+   "what_it": "Cooperativa di apicoltori che gestisce il miele DOP Serra da Lousã.",
+   "what_en": "Beekeepers' cooperative that manages the protected-origin Serra da Lousã honey."
+  },
+  {
+   "iso3": "PRT",
    "name": "Serramel (Euromel, Lda)",
    "role": "packer",
    "city": "Penamacor",
@@ -540,6 +1340,26 @@
    "source_url": "https://www.serramel.com/",
    "what_it": "Azienda apicola familiare che produce e vende miele e prodotti a base di miele.",
    "what_en": "Family beekeeping business that produces and sells honey and honey-based products."
+  },
+  {
+   "iso3": "PRY",
+   "name": "Miel Don Carlos",
+   "role": "packer",
+   "city": "Asunción",
+   "website": "https://www.apicultura.com.py",
+   "source_url": "https://www.apicultura.com.py",
+   "what_it": "Marchio familiare paraguaiano di miele, con produzione propria e acquisto da altri apicoltori.",
+   "what_en": "Family honey brand in Paraguay that sells its own honey and honey bought from other beekeepers."
+  },
+  {
+   "iso3": "ROU",
+   "name": "Apicola Costache (Mos Costache)",
+   "role": "packer",
+   "city": "Ion Rosu, Ialomita",
+   "website": "https://apicolacostache.ro",
+   "source_url": "https://apicolacostache.ro/produs/mos-costache-miere-salcamnuci-2/",
+   "what_it": "Azienda che raccoglie miele da apicoltori locali e lo vende confezionato con il marchio Mos Costache.",
+   "what_en": "Company collecting honey from local beekeepers and selling it packed under the Mos Costache brand."
   },
   {
    "iso3": "ROU",
@@ -550,6 +1370,46 @@
    "source_url": "https://www.apidava.ro",
    "what_it": "Lavora e confeziona miele di varie qualità e prodotti a base di miele.",
    "what_en": "Processes and packs honey of several kinds and honey-based products."
+  },
+  {
+   "iso3": "ROU",
+   "name": "Herta Bio Apicole",
+   "role": "packer",
+   "city": "Gales, Sibiu",
+   "website": "https://hertabioapicole.ro",
+   "source_url": "https://hertabioapicole.ro/",
+   "what_it": "Produttore di miele biologico con negozio online, confezioni regalo e vari tipi di miele.",
+   "what_en": "Organic honey producer with an online shop, gift packs and several honey types."
+  },
+  {
+   "iso3": "RUS",
+   "name": "Medkov",
+   "role": "packer",
+   "city": null,
+   "website": "https://medkov102.ru",
+   "source_url": "https://medkov102.ru",
+   "what_it": "Confeziona miele di tiglio e grano saraceno in vasetti di varie misure e accetta ordini all'ingrosso.",
+   "what_en": "Packs linden and buckwheat honey in jars of various sizes and takes wholesale orders."
+  },
+  {
+   "iso3": "RUS",
+   "name": "MEDOVZ",
+   "role": "packer",
+   "city": "Ufa",
+   "website": "https://medovz.com",
+   "source_url": "https://medovz.com",
+   "what_it": "Vende miele bashkiro all'ingrosso, sfuso e confezionato, anche con marchio del cliente.",
+   "what_en": "Sells Bashkir honey wholesale, in bulk and packed, including under the customer's own label."
+  },
+  {
+   "iso3": "SRB",
+   "name": "Medino",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.medino.rs",
+   "source_url": "https://www.medino.rs",
+   "what_it": "Azienda che confeziona e vende miele.",
+   "what_en": "Company that packs and sells honey."
   },
   {
    "iso3": "SRB",
@@ -570,6 +1430,96 @@
    "source_url": "https://tisacoop.rs",
    "what_it": "Confeziona miele naturale nel proprio impianto con il marchio Tiszamed.",
    "what_en": "Packs natural honey in its own honey plant under the Tiszamed brand."
+  },
+  {
+   "iso3": "SVK",
+   "name": "Apimed",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.apimed.sk",
+   "source_url": "https://www.apimed.sk",
+   "what_it": "Produce idromele e altri prodotti a base di miele.",
+   "what_en": "Makes mead and other honey-based products."
+  },
+  {
+   "iso3": "SVK",
+   "name": "Včely sv. Ambróza",
+   "role": "packer",
+   "city": "near Košice",
+   "website": "https://vcelysvambroza.sk",
+   "source_url": "https://vcelysvambroza.sk",
+   "what_it": "Azienda familiare vicino a Košice che produce e vende vari mieli e prodotti al miele.",
+   "what_en": "Family firm near Košice that produces and sells various honeys and honey products."
+  },
+  {
+   "iso3": "SVN",
+   "name": "Cebelarstvo Ferencak",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.cebelarstvoferencak.si",
+   "source_url": "https://www.cebelarstvoferencak.si/med",
+   "what_it": "Apicoltura che vende miele di acacia, tiglio, castagno, fiori e bosco in vasetti di varie misure.",
+   "what_en": "Beekeeping business selling acacia, linden, chestnut, flower and forest honey in jars of several sizes."
+  },
+  {
+   "iso3": "SVN",
+   "name": "Cebelarstvo Solar",
+   "role": "packer",
+   "city": "Lasko hills",
+   "website": "https://cebelarstvo-solar.si",
+   "source_url": "https://cebelarstvo-solar.si/med/",
+   "what_it": "Apicoltura che vende miele sloveno con denominazione protetta tramite negozio online.",
+   "what_en": "Beekeeping business selling Slovenian protected-designation honey through an online shop."
+  },
+  {
+   "iso3": "SVN",
+   "name": "Cebelarstvo Tekavcic",
+   "role": "packer",
+   "city": null,
+   "website": "https://cebelarstvo-tekavcic.si",
+   "source_url": "https://cebelarstvo-tekavcic.si/izdelek/akacijev-med-900g/",
+   "what_it": "Apicoltura che vende miele di acacia, bosco, tiglio e fiori in vasetti con consegna tramite corriere.",
+   "what_en": "Beekeeping business selling acacia, forest, linden and flower honey in jars with courier delivery."
+  },
+  {
+   "iso3": "SVN",
+   "name": "Cebelarstvo VITA-MED",
+   "role": "packer",
+   "city": "Podplat",
+   "website": "https://vita-med-posl.si",
+   "source_url": "https://vita-med-posl.si/trgovina/",
+   "what_it": "Apicoltura con negozio online di miele di acacia, bosco, tiglio e abete.",
+   "what_en": "Beekeeping business with an online shop of acacia, forest, linden and fir honey."
+  },
+  {
+   "iso3": "SVN",
+   "name": "Čebelarna Novak",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.cebelarna-novak.si",
+   "source_url": "https://www.cebelarna-novak.si",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "SWE",
+   "name": "Ripa Honung",
+   "role": "trader",
+   "city": null,
+   "website": "https://ripahonung.se",
+   "source_url": "https://ripahonung.se",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
+  },
+  {
+   "iso3": "SWE",
+   "name": "Swedish Bee Company",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.swedishbeecompany.se",
+   "source_url": "https://www.swedishbeecompany.se",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
   },
   {
    "iso3": "THA",
@@ -613,6 +1563,16 @@
   },
   {
    "iso3": "UKR",
+   "name": "Beehive",
+   "role": "exporter",
+   "city": "Chornyavka",
+   "website": "https://beehive.ua",
+   "source_url": "https://beehive.ua",
+   "what_it": "Compra miele, lo lavora in uno stabilimento proprio e lo vende soprattutto all'estero, in fusti ai grandi clienti e in parte confezionato.",
+   "what_en": "Buys honey, processes it in its own plant and sells it mostly abroad, in drums to large customers and partly packed for retail."
+  },
+  {
+   "iso3": "UKR",
    "name": "Organic Export (ТОВ «Органік Експорт»)",
    "role": "exporter",
    "city": "Krasylivka (Brovary district, Kyiv region)",
@@ -620,6 +1580,46 @@
    "source_url": "https://organicexport.com.ua",
    "what_it": "Acquista miele direttamente dagli apicoltori, lo lavora e lo fornisce a compratori esteri e al mercato interno, anche con marchio del cliente.",
    "what_en": "Buys honey directly from beekeepers, processes it and supplies foreign buyers and the home market, including private label."
+  },
+  {
+   "iso3": "URY",
+   "name": "CAEPA Cooperativa Agraria de Productos Apícolas",
+   "role": "cooperative",
+   "city": null,
+   "website": "https://www.caepa.com.uy",
+   "source_url": "https://www.caepa.com.uy",
+   "what_it": "Cooperativa agraria uruguaiana di prodotti apistici.",
+   "what_en": "Uruguayan agricultural cooperative for beekeeping products."
+  },
+  {
+   "iso3": "URY",
+   "name": "La Granja Honey",
+   "role": "packer",
+   "city": "Migues",
+   "website": "https://lagranjahoney.com.uy",
+   "source_url": "https://lagranjahoney.com.uy/",
+   "what_it": "Azienda apistica familiare uruguaiana che vende miele di prateria, multifloreale e di monte.",
+   "what_en": "Uruguayan family apiary selling prairie, multifloral and mountain honey."
+  },
+  {
+   "iso3": "URY",
+   "name": "NectarBee",
+   "role": "exporter",
+   "city": "Montevideo",
+   "website": "http://www.nectarbee.com.uy",
+   "source_url": "http://www.nectarbee.com.uy/",
+   "what_it": "Esportatore uruguaiano di miele che offre anche estrazione e confezionamento per apicoltori.",
+   "what_en": "Uruguayan honey exporter that also offers extraction and packing services for beekeepers."
+  },
+  {
+   "iso3": "URY",
+   "name": "Pueblo Apícola",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.puebloapicola.com.uy",
+   "source_url": "https://www.puebloapicola.com.uy",
+   "what_it": "Azienda che vende miele.",
+   "what_en": "Company that sells honey."
   },
   {
    "iso3": "USA",
@@ -640,6 +1640,26 @@
    "source_url": "https://www.naturalhoneyimporters.com",
    "what_it": "Importa e fornisce miele di vari paesi, anche sfuso in fusti, con analisi in laboratorio.",
    "what_en": "Imports and supplies honey from several countries, also in bulk drums, with laboratory testing."
+  },
+  {
+   "iso3": "VEN",
+   "name": "Miel de Abejas La Encantada",
+   "role": "packer",
+   "city": null,
+   "website": "http://www.miellaencantada.com",
+   "source_url": "http://www.miellaencantada.com",
+   "what_it": "Marchio venezuelano di miele puro di api e altri prodotti dell'alveare.",
+   "what_en": "Venezuelan brand of pure bee honey and other hive products."
+  },
+  {
+   "iso3": "VEN",
+   "name": "SweetBees",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.sweetbees.com.ve",
+   "source_url": "https://www.sweetbees.com.ve/",
+   "what_it": "Azienda che vende miele in bustine monodose.",
+   "what_en": "Company selling honey in single-dose sachets."
   },
   {
    "iso3": "VNM",

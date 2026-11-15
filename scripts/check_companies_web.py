@@ -37,7 +37,9 @@ NOT_OWN_SITE = ("alibaba.", "made-in-china.", "tridge.", "volza.", "europages.",
 # "honey" in the languages of the countries searched; short words only as whole words
 HONEY = re.compile(
     r"honey|honig|honing|miele\b|\bmiel\b|\bmieles\b|\bmel\b|\bm[eé]z\b|\bmed\b|\bmedu\b|\bmiere\b|mi[oó]d|\bbal\b|medus|"
-    r"мед|мёд|μέλι|μελι|mật ong|蜂蜜|عسل|น้ำผึ้ง|apicol|apicult|apiari|beekeep|imker|pszczel|včel|pčel|albine",
+    r"мед|мёд|μέλι|μελι|mật ong|蜂蜜|عسل|น้ำผึ้ง|apicol|apicult|apiari|beekeep|imker|pszczel|včel|pčel|albine|"
+    # Nordic, Baltic, Albanian, Maltese, Luxembourgish, Icelandic (folded text: "ë" -> "e", "ħ" stays)
+    r"hunaja|honung|honning|mesi|mee|mjalt|ghasel|għasel|hunneg|hunang|biodl|mehilai|mesinik|cebel|bit[eė]s|bišu",
     re.I)
 GENERIC = {"honey", "honig", "miel", "miele", "mel", "mieles", "company", "group", "grupo", "gruppo", "foods", "food", "trading",
            "export", "exports", "import", "international", "limited", "ltd", "gmbh", "srl", "spa", "sa", "s.a.", "inc", "llc",
