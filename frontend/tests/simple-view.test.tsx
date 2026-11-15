@@ -271,18 +271,25 @@ function countryPage(view: View) {
   return text(show(<Routes><Route path="/paesi/:iso3" element={<CountryDetail />} /></Routes>, { qc, url: '/paesi/ARG', view }))
 }
 
-test('simple country page: headline tiles, the year so far, production and unofficial sources; the rest one click away', () => {
+test('simple country page: everything about the country on one page, with an index to jump to a section', () => {
+  // owner, 15 Nov 2026: "when I click on Italy or Vietnam I want to see EVERYTHING related to that
+  // country, also the business": nothing is behind "Mostra dettagli" any more
   const out = countryPage('simple')
   assert.match(out, /Argentina/)
   assert.match(out, /Produzione 69\.298 t anno 2024/)
+  assert.match(out, /Vai a: Prezzi Aziende Commercio Produzione Notizie Normative e dazi/)
   assert.match(out, /Commercio dell’anno in corso 2026 finora Esportazioni 2026 finora \(gen–set\)/)
   assert.match(out, /93\.811 t/)
   assert.match(out, /Altre fonti \(non ufficiali\)/)
-  assert.match(out, /Mostra dettagli/)
-  assert.doesNotMatch(out, /Dati non disponibili|Notizie che citano il paese|Normative/)
+  assert.doesNotMatch(out, /Mostra dettagli/)
+  // the sections that used to be hidden are on the page, in this order
+  const at = (re: RegExp) => { const i = out.search(re); assert.ok(i >= 0, String(re)); return i }
+  const order = [at(/Vai a:/), at(/Prezzi del miele/), at(/Commercio dell’anno in corso/), at(/Statistiche di produzione/),
+    at(/Altre fonti \(non ufficiali\)/), out.lastIndexOf('Normative')]      // the panel, not the index entry
+  assert.deepEqual(order, [...order].sort((a, b) => a - b))
   const full = countryPage('full')
   assert.match(full, /Dati non disponibili/)
-  assert.doesNotMatch(full, /Mostra dettagli/)
+  assert.doesNotMatch(full, /Mostra dettagli|Vai a:/)
 })
 
 // ---------------------------------------------------------------------------------------------

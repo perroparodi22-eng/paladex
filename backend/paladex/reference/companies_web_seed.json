@@ -302,6 +302,126 @@
    "what_en": "Sources Indian honey, checks it, packs it and exports it in bulk, including for other brands to repack."
   },
   {
+   "iso3": "ITA",
+   "name": "AFApicoltori",
+   "role": "trader",
+   "city": null,
+   "website": "https://afapicoltori.com",
+   "source_url": "https://afapicoltori.com/services/vendita-miele-allingrosso/",
+   "what_it": "Vende miele all'ingrosso in fusti e lattine.",
+   "what_en": "Sells honey wholesale in drums and cans."
+  },
+  {
+   "iso3": "ITA",
+   "name": "Apicoltura Brezzo",
+   "role": "packer",
+   "city": "Monteu Roero",
+   "website": "https://www.brezzo.it",
+   "source_url": "https://www.brezzo.it",
+   "what_it": "Produce e confeziona miele e altri prodotti dell'alveare con proprio marchio.",
+   "what_en": "Produces and packs honey and other hive products under its own brand."
+  },
+  {
+   "iso3": "ITA",
+   "name": "Apicoltura Comaro",
+   "role": "packer",
+   "city": null,
+   "website": "https://comaro.it",
+   "source_url": "https://comaro.it/nostro-miele/ingrosso/",
+   "what_it": "Fornisce miele alle aziende in secchielli, fusti, contenitori su bancale e autocisterna.",
+   "what_en": "Supplies honey to businesses in pails, drums, pallet containers and tankers."
+  },
+  {
+   "iso3": "ITA",
+   "name": "Apicoltura Laterza",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.apicolturalaterza.com",
+   "source_url": "https://www.apicolturalaterza.com/miele/",
+   "what_it": "Produce miele e lo vende all'ingrosso in fusti e latte, oltre che al dettaglio.",
+   "what_en": "Produces honey and sells it wholesale in drums and tins, as well as retail."
+  },
+  {
+   "iso3": "ITA",
+   "name": "Apicoltura Manfredini",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.manfrediniapicoltura.it",
+   "source_url": "https://www.manfrediniapicoltura.it/miele-per-lindustria-dolciaria/",
+   "what_it": "Invasetta ed etichetta miele, anche per conto terzi, e lo vende all'ingrosso, anche all'industria dolciaria.",
+   "what_en": "Jars and labels honey, also for third parties, and sells it wholesale, including to the confectionery industry."
+  },
+  {
+   "iso3": "ITA",
+   "name": "Apicoltura Stocchero",
+   "role": "packer",
+   "city": null,
+   "website": "https://www.apicolturastocchero.it",
+   "source_url": "https://www.apicolturastocchero.it/prodotto/miele-dacacia/",
+   "what_it": "Azienda apistica che vende miele in fusti, latte e vasetti.",
+   "what_en": "Beekeeping business selling honey in drums, tins and jars."
+  },
+  {
+   "iso3": "ITA",
+   "name": "Eden",
+   "role": "packer",
+   "city": "Montezemolo",
+   "website": "https://www.edenbee.it",
+   "source_url": "https://www.edenbee.it/per-le-aziende/",
+   "what_it": "Laboratorio che smiela, confeziona e stocca miele, anche per conto terzi e con marchio del cliente.",
+   "what_en": "Workshop that extracts, packs and stores honey, also for third parties and under the client's brand."
+  },
+  {
+   "iso3": "ITA",
+   "name": "Etna Honey",
+   "role": "trader",
+   "city": null,
+   "website": "https://etnahoney.it",
+   "source_url": "https://etnahoney.it/",
+   "what_it": "Commercializza miele siciliano all'ingrosso in fusti e contenitori di varie dimensioni.",
+   "what_en": "Sells Sicilian honey wholesale in drums and containers of several sizes."
+  },
+  {
+   "iso3": "ITA",
+   "name": "Genex",
+   "role": "importer",
+   "city": null,
+   "website": "https://www.genexsrl.com",
+   "source_url": "https://www.genexsrl.com/chisiamo.html",
+   "what_it": "Importa miele dall'Europa orientale, insieme ad altri prodotti alimentari.",
+   "what_en": "Imports honey from Eastern Europe, along with other food products."
+  },
+  {
+   "iso3": "ITA",
+   "name": "MieleAllIngrosso.it (ApiZUG Honey)",
+   "role": "trader",
+   "city": null,
+   "website": "https://www.mieleallingrosso.it",
+   "source_url": "https://www.mieleallingrosso.it/",
+   "what_it": "Vende miele all'ingrosso in fusti, secchi e vasi, di origine italiana e rumena.",
+   "what_en": "Sells honey wholesale in drums, pails and jars, of Italian and Romanian origin."
+  },
+  {
+   "iso3": "ITA",
+   "name": "Mielizia",
+   "role": "packer",
+   "city": "Monterenzio",
+   "website": "https://www.mielizia.com",
+   "source_url": "https://www.mielizia.com",
+   "what_it": "Marchio di miele dei soci della cooperativa nazionale degli apicoltori, venduto confezionato.",
+   "what_en": "Honey brand of the national beekeepers' cooperative members, sold packed."
+  },
+  {
+   "iso3": "ITA",
+   "name": "Terra e Api",
+   "role": "trader",
+   "city": null,
+   "website": "https://terraeapi.it",
+   "source_url": "https://terraeapi.it",
+   "what_it": "Vende miele all'ingrosso in secchi e fusti e offre confezionamento per conto terzi in vasi di vetro.",
+   "what_en": "Sells honey wholesale in pails and drums and offers contract packing in glass jars."
+  },
+  {
    "iso3": "JPN",
    "name": "Honey Japan K.K.",
    "role": "importer",

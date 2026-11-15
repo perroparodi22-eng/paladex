@@ -146,7 +146,7 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   AI key "Scrivi a Paladex" only offers the note on a country.
 - **Companies found on the web (15 Nov, owner: "do the business part per each country, the first Google
   results, no need for them to update"):** a FIXED, non-official list, `reference/companies_web_seed.json`
-  (55 companies, 32 countries after a second Asian round), served by `api/companies.py` as `web` (country) and `web_companies` /
+  (67 companies, 33 countries after a second Asian round and an Italian round: Italy has 12), served by `api/companies.py` as `web` (country) and `web_companies` /
   `web_searched_on` (overview), shown by `components/companies/WebCompanies.tsx` on the Aziende page and
   on every country page (simple view: under the prices), always apart from the official lists and
   labelled "Non ufficiale" with the search date; alphabetical, no figures, no ranking. Rules in
@@ -169,6 +169,13 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   articles. Companies: India, Vietnam and Thailand have three web companies each. Not done, no free
   source found: wholesale or producer prices for Thailand (customs average values only), official
   2025 exports for Vietnam and Thailand (partner declarations are shown instead).
+- **Country page shows everything (15 Nov, owner: "when I click on Italy or Vietnam I want to see EVERYTHING
+  related to that country, also the business"):** the simple view of `/paesi/<ISO3>` no longer hides
+  anything behind "Mostra dettagli". Order: top tiles, a "Vai a:" index (`SectionIndex`, buttons that
+  scroll to `#prezzi`, `#aziende`, `#commercio`, `#produzione`, `#notizie`, `#normative`), prices (all
+  the rows the profile carries, `SIMPLE_PRICE_ROWS = 10`), companies (web panel + the official block),
+  trade (year so far + year by year and partners), production and web findings, news (full list),
+  regulations, notes, what is missing, context, sources. The page is long on purpose.
 - **Thailand official trade, Vietnam 2025 exports (15 Nov, owner: "try to find other sources"):** new
   collector `th_customs_honey` (`collectors/trade_thailand.py`): Thai Customs statistic report, honey
   04090000000, exports and imports by partner, monthly, kg and baht; first run from January two years
