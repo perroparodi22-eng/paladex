@@ -376,7 +376,7 @@ _GATE_EXCLUSIONS = _words([
 _GATE_VETO = _words([r"sildenafil", r"tadalafil", r"male enhancement", r"(?:sexual|libido) enhanc\w*",
                      r"vip honey", r"royal honey",
                      # market-research advertising ("Honey Market Size, Share, Analysis ... 2034") and a crypto token
-                     r"market size,? (?:share|growth|trends?)", r"cagr", r"hny/usd"])
+                     r"market size,? (?:share|growth|trends?)", r"cagr", r"hny/usd", r"honey token"])
 # An item whose only honey word is "miele" and that talks about appliances is about Miele the brand.
 _APPLIANCE = _words([r"lavatric\w*", r"lavastovigl\w*", r"elettrodomestic\w*", r"asciugatric\w*",
                      r"aspirapolver\w*", r"dishwashers?", r"washing machines?", r"dryers?", r"appliances?",
@@ -424,6 +424,39 @@ _GATE_STRONG_RAW = re.compile(
 # Czech / Slovak "včel*" and Slovenian "čebel*" (bee, beekeeper) are matched with their caron for the
 # same reason: folded "cebel" is the start of Turkish "Cebelitarık" (Gibraltar).
 _GATE_HU_RAW = re.compile(r"(?<!\w)(?:\w*méz(?!ga)\w*|méhész\w*|méhcsalád\w*|včel\w*|čebel\w*)(?!\w)")
+# Thai and Japanese (15 Nov 2026, Google News searches for Thailand and Japan): no spaces between
+# words, and folding strips the Thai vowel and tone marks, so they are matched as plain substrings
+# of the unfolded text. Read on the first real run of the two searches:
+#   * Thai "น้ำผึ้ง" (honey) is also a common woman's nickname, a TV show ("honey moon") and a
+#     political idiom ("one drop of honey"): it counts only next to a sector word (export, import,
+#     price, market, output, farmers, longan, research, standard). "เลี้ยงผึ้ง" (beekeeping) is
+#     enough by itself.
+#   * Japanese honey words (はちみつ, ハチミツ, 蜂蜜) fill shop news (gift sets, sweets, cafes): an item
+#     in Japanese counts only with a sector word (imports, exports, price, beekeeping, yield,
+#     output, self-sufficiency). "ハニー" is never read as honey (a nickname and a brand word).
+_GATE_ASIA_RAW = re.compile(r"เลี้ยงผึ้ง|はちみつ|ハチミツ")
+_TH_HONEY, _TH_SECTOR = "น้ำผึ้ง", re.compile(r"ส่งออก|นำเข้า|ราคา|ตลาด|ผลผลิต|เกษตรกร|ผู้ผลิต|ลำไย|วิจัย|มาตรฐาน")
+_JA_SECTOR = re.compile(r"輸入|輸出|価格|養蜂|収量|収穫量|生産量|自給率|相場|高騰")
+# ... and a shop or event story (an opening, a gift bag, a festival, a beauty brand) only with a market word
+_JA_SHOP = re.compile(r"オープン|福袋|ギフト|祭り|創業祭|再入荷|ランキング|美容")
+_JA_MARKET = re.compile(r"輸入|輸出|価格|収量|収穫量|生産量|自給率|相場|高騰")
+
+
+def is_shop_listing(title: str | None, publisher: str | None = None) -> bool:
+    """A product page, a menu or a social post that a news search returned as if it were an article
+    (first real run of the Thailand and Japan searches, 15 Nov 2026: "Honey Bee Drink, Thai Tea
+    (Pack of 24)", "Buy ... Online at Best Price", a restaurant menu, a DJ's post)."""
+    t, p = fold(title or ""), fold(publisher or "")
+    return bool(_SHOP_OUTLETS.search(p) or _SHOP_OUTLETS.search(t.rsplit(" - ", 1)[-1] if " - " in t else "")
+                or _SHOP_TITLES.search(t))
+
+
+_SHOP_OUTLETS = re.compile(
+    r"amazon|walmart|ebay|ubuy|daraz|lazada|shopee|etsy|alibaba|aliexpress|flipkart|target\.com|costco|instacart|"
+    r"instagram|facebook|tiktok|youtube|pinterest|doordash|uber ?eats|grubhub|tripadvisor|yelp|rakuten|iherb|desertcart")
+_SHOP_TITLES = re.compile(
+    r"\bbuy\b.{0,60}\bonline\b|\bat best price\b|\bpack of \d+|\b\d+(?:\.\d+)?[- ]?(?:oz|ounce|fl oz)\b|"
+    r"\bmenu (?:delivery|& prices)|\border .{0,40}\b(?:delivery|menu)\b|\b\d+ ?g\b\s*(?:\(|$)|#\w+")
 # Words that are honey in one language and something else in another: counted only in items of
 # their own language (the feed's or the item's declared language).
 #   "med" (Serbian, Croatian, Bosnian, Slovenian, Czech, Slovak) is "medical" elsewhere; "meda" and
@@ -460,6 +493,12 @@ def honey_terms(text: str, language: str | None = None) -> list[str]:
     mel = _GATE_MEL_PT if (language or "").startswith("pt") else _GATE_MEL_PHRASES
     found += [m.group(0) for m in mel.finditer(t)]
     found += [m.group(0) for m in _GATE_HU_RAW.finditer(unicodedata.normalize("NFC", text or "").lower())]
+    raw = unicodedata.normalize("NFC", text or "")
+    found += [m.group(0) for m in _GATE_ASIA_RAW.finditer(raw)]
+    if _TH_HONEY in raw and _TH_SECTOR.search(raw):
+        found.append(_TH_HONEY)
+    if (language or "")[:2] == "ja" and found and (not _JA_SECTOR.search(raw) or (_JA_SHOP.search(raw) and not _JA_MARKET.search(raw))):
+        return []           # Japanese shop news about honey products
     for languages, rx in _GATE_LANGUAGE_ONLY:
         if (language or "")[:2] in languages:
             found += [m.group(0) for m in rx.finditer(t)]
@@ -695,6 +734,7 @@ _EXTRA_COUNTRY_KEYWORDS: dict[str, list[str]] = {
     "UKR": ["ucraini", "ucraina", "ucrania", "ucraniano", "ucraniana", "ukrainische", "ukrainischen",
             "ukrainischer"],
     "VNM": ["vietnamita", "vietnamiti", "vietnamesischen", "vietnamesischer"],
+    "JPN": ["japan", "japanese", "giappone", "giapponese", "giapponesi", "japon", "japones", "japonesa"],
     "IND": ["indien", "indische", "indischen", "indischer",
             # India's export agencies and honey states, named in headlines instead of the country
             "apeda", "dgft", "assam", "tripura", "meghalaya"],
@@ -762,6 +802,7 @@ _CJK_COUNTRIES: dict[str, str] = {
     "CAN": r"加拿大",
     "AUS": r"澳大利亚|澳大利亞|澳洲",
     "THA": r"泰国|泰國",
+    "JPN": r"日本",
 }
 # Keywords that are also ordinary words: only counted when capitalised in the original text.
 _CASE_SENSITIVE = {"turkey": "Turkey", "chile": "Chile", "polish": "Polish"}

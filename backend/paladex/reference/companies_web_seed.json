@@ -273,6 +273,26 @@
   },
   {
    "iso3": "IND",
+   "name": "AA Food Factory",
+   "role": "exporter",
+   "city": "Lalru",
+   "website": "https://aafoodfactory.com/",
+   "source_url": "https://aafoodfactory.com/",
+   "what_it": "Produttore ed esportatore di miele con sede vicino a Lalru, in Punjab.",
+   "what_en": "Honey manufacturer and exporter based near Lalru in Punjab."
+  },
+  {
+   "iso3": "IND",
+   "name": "Apis India Limited",
+   "role": "packer",
+   "city": "Roorkee",
+   "website": "https://apisindia.com/",
+   "source_url": "https://apisindia.com/",
+   "what_it": "Azienda indiana che lavora e confeziona miele nello stabilimento di Roorkee.",
+   "what_en": "Indian company that processes and packs honey at its plant in Roorkee."
+  },
+  {
+   "iso3": "IND",
    "name": "Honey and Spice (Bonneterre Foods Private Limited)",
    "role": "exporter",
    "city": "Bengaluru",
@@ -280,6 +300,16 @@
    "source_url": "https://honeyandspice.in/pages/bulk-honey",
    "what_it": "Acquista miele indiano, lo controlla, lo confeziona e lo esporta in grandi quantità, anche per marchi altrui.",
    "what_en": "Sources Indian honey, checks it, packs it and exports it in bulk, including for other brands to repack."
+  },
+  {
+   "iso3": "JPN",
+   "name": "Honey Japan K.K.",
+   "role": "importer",
+   "city": "Tokyo",
+   "website": "http://www.honeyjapan.com",
+   "source_url": "http://www.honeyjapan.com",
+   "what_it": "Importatore di miele con sede a Tokyo, attivo anche nella vendita online.",
+   "what_en": "Tokyo-based honey importer that also sells online."
   },
   {
    "iso3": "LTU",
@@ -423,6 +453,16 @@
   },
   {
    "iso3": "THA",
+   "name": "Chiangmai Healthy Product Co., Ltd. (Fora Bee)",
+   "role": "packer",
+   "city": "Chiang Mai",
+   "website": "https://www.forabee.com",
+   "source_url": "https://www.forabee.com",
+   "what_it": "Azienda di Chiang Mai che lavora e confeziona miele e prodotti derivati sotto il marchio Fora Bee.",
+   "what_en": "Chiang Mai company that processes and packs honey and honey-based products under the Fora Bee brand."
+  },
+  {
+   "iso3": "THA",
    "name": "Honey Polyplus Co., Ltd.",
    "role": "exporter",
    "city": "Chiang Mai",
@@ -430,6 +470,16 @@
    "source_url": "https://www.honeypolyplus.com",
    "what_it": "Produce ed esporta miele naturale (longan, millefiori, litchi) e offre vendita all'ingrosso e marchio per conto terzi.",
    "what_en": "Produces and exports natural honey (longan, wildflower, lychee) and offers wholesale and OEM branding."
+  },
+  {
+   "iso3": "THA",
+   "name": "Supha Bee Farm",
+   "role": "packer",
+   "city": "Mae Rim, Chiang Mai",
+   "website": "https://www.suphabeefarm.com",
+   "source_url": "https://www.suphabeefarm.com",
+   "what_it": "Apicoltura e azienda del miele a Mae Rim, vicino a Chiang Mai, con prodotti a base di miele.",
+   "what_en": "Bee farm and honey business in Mae Rim near Chiang Mai, with honey-based products."
   },
   {
    "iso3": "TUR",
@@ -480,6 +530,16 @@
    "source_url": "http://viethoney.com.vn/",
    "what_it": "Azienda di Ho Chi Minh City che produce e commercia miele puro e lo esporta, con marchio Viethoney.",
    "what_en": "Ho Chi Minh City company that produces, trades and exports pure honey under the Viethoney brand."
+  },
+  {
+   "iso3": "VNM",
+   "name": "EatuHoney (Cong ty CP Ong mat EatuHoney)",
+   "role": "packer",
+   "city": "Buon Ma Thuot",
+   "website": "http://eatuhoney.com",
+   "source_url": "http://eatuhoney.com",
+   "what_it": "Azienda di Buon Ma Thuot che produce e commercializza miele e altri prodotti dell'alveare.",
+   "what_en": "Buon Ma Thuot company that produces and trades honey and other bee products."
   },
   {
    "iso3": "VNM",

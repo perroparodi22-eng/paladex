@@ -404,7 +404,7 @@ def test_replaced_feeds_are_removed_when_never_used_and_switched_off_otherwise(d
 def test_google_searches_for_china_india_vietnam_are_on_and_the_generic_ones_stay_opt_in(db):
     from paladex.collectors.news_feeds import GOOGLE_COUNTRY_FEEDS
 
-    assert {f.country for f in GOOGLE_COUNTRY_FEEDS} == {"CHN", "IND", "VNM"}
+    assert {f.country for f in GOOGLE_COUNTRY_FEEDS} == {"CHN", "IND", "VNM", "THA", "JPN"}   # Thailand, Japan: 15 Nov
     rows = {s.key: s for s in db.scalars(select(Source).where(Source.category == "news"))}
     for f in GOOGLE_COUNTRY_FEEDS:
         assert rows[f.key].enabled is True and rows[f.key].country_iso3 == f.country
@@ -496,3 +496,37 @@ def test_brazil_export_source_gets_several_attempts_a_day_and_pauses_before_its_
     c = get_collector("br_comexstat")
     assert c.schedule == {"trigger": "cron", "hour": "3,9,15,21", "minute": 40}
     assert to.COMEX_PAUSE_BEFORE_QUERY_S >= 10
+
+
+def test_the_honey_gate_reads_thai_and_japanese_and_japan_is_a_country():
+    """15 Nov 2026: Google News searches for Thailand and Japan. Thai and Japanese have no spaces and
+    Thai loses its marks when folded, so they are matched on the text as written."""
+    from paladex.services import news as n
+
+    assert n.honey_terms("น้ำผึ้งไทยส่งออกเพิ่มขึ้น ราคาพุ่ง") == ["น้ำผึ้ง"]
+    assert n.honey_terms("เกษตรกรผู้เลี้ยงผึ้งเชียงใหม่") == ["เลี้ยงผึ้ง"]
+    assert n.honey_terms("ตลาดน้ำผึ้ง UAE มาแรง: อ่านเทรนด์ก่อนเจาะตลาด") == ["น้ำผึ้ง"]
+    # read on the first real run: a celebrity nicknamed "honey", a TV show, a political idiom
+    for junk in ("สุดเศร้า! เปิดข้อความ น้ำผึ้ง ณัฐริกา หลังสูญเสียคุณพ่อที่รัก", "น้ำผึ้งพระจันทร์ วาไรตี้ทอล์คโชว์",
+                 "เตือนอย่าใช้กำลังสกัดม็อบใต้ หวั่นเป็นน้ำผึ้งหยดเดียว", "ผึ้งต่อย"):
+        assert n.honey_terms(junk, "th") == [], junk
+    assert "はちみつ" in n.honey_terms("国産はちみつの価格が上昇 輸入蜂蜜は減少", "ja")
+    assert n.honey_terms("ハチミツ輸入量が増加", "ja") == ["ハチミツ"]
+    assert n.honey_terms("蜂蜜価格の高騰が養蜂業の復活を促している。", "ja")
+    # Japanese shop news about honey products is not market news; "ハニー" is never honey
+    assert n.honey_terms("国内自給率わずかの「国産はちみつ」 自社で養蜂・採蜜 一般販売開始", "ja")      # a market word wins
+    assert n.honey_terms("HONEY to INR: Convert Honey Token (HONEY) to Indian Rupees (INR)") == []          # a crypto token
+    for junk in ("【数量限定】今年も登場！「2027新春はちみつ福袋」蜂蜜専門店", "はちみつ飴再入荷しました！", "ハニートラップ疑惑",
+                 "小郡市『Cafe&Bar honeyfunny』11月オープン！養蜂場直営のはちみつカフェ", "藤井養蜂場『秋のはちみつ祭り』採蜜実演"):
+        assert n.honey_terms(junk, "ja") == [], junk
+    assert n.honey_terms("蜂蜜出口价格上涨", "zh")                       # Chinese items are not held to the Japanese rule
+    # product pages, menus and social posts returned by a news search
+    assert n.is_shop_listing("Honey Bee Drink, Thai Tea, 10.5-Ounce (Pack of 24)", "Amazon.com")
+    assert n.is_shop_listing("Buy royel honey thailand Online at Best Price in Bangladesh - Daraz")
+    assert n.is_shop_listing("Order Honey Jar Cafe Thai - Portland, OR Menu Delivery [Menu & Prices]", "DoorDash")
+    assert n.is_shop_listing("Thai DJ rocks a Sabai on the global stage! #thailand", "Instagram")
+    assert not n.is_shop_listing("First report of small hive beetles infesting honey bee colonies in Thailand", "Wiley")
+    assert not n.is_shop_listing("Vietnam honey exports to the US face 60% duty", "VnExpress")
+    assert n.tag_countries("Japan honey imports fall on weak yen") == ["JPN"]
+    assert n.tag_countries("日本の蜂蜜輸入") == ["JPN"]
+    assert n.tag_countries("Thailand honey exports rise as longan season starts") == ["THA"]

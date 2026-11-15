@@ -146,16 +146,29 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   AI key "Scrivi a Paladex" only offers the note on a country.
 - **Companies found on the web (15 Nov, owner: "do the business part per each country, the first Google
   results, no need for them to update"):** a FIXED, non-official list, `reference/companies_web_seed.json`
-  (49 companies, 31 countries), served by `api/companies.py` as `web` (country) and `web_companies` /
+  (55 companies, 32 countries after a second Asian round), served by `api/companies.py` as `web` (country) and `web_companies` /
   `web_searched_on` (overview), shown by `components/companies/WebCompanies.tsx` on the Aziende page and
   on every country page (simple view: under the prices), always apart from the official lists and
   labelled "Non ufficiale" with the search date; alphabetical, no figures, no ranking. Rules in
   `reference/companies_web.py`: a company is listed only with its OWN website, and only if
   `scripts/check_companies_web.py` could open that site and found the company's name and honey on it
-  (13 of 62 candidates were left out: site refused automated readers or did not open; never worked
+  (17 of 72 candidates were left out: site refused automated readers or did not open; never worked
   around). `--recheck` says which entries still pass. The web search tool returned mostly directories,
   so lists are short (Italy, Uruguay, Colombia, Peru, Cuba, Croatia, Egypt, Ethiopia and others have
   none): to add companies, append candidates and run the script; never add a name from memory.
+- **Asia (15 Nov, owner: "fill in India, Vietnam and Thailand, make sure Asian countries have all
+  information needed"):** what the three pages lacked was news for Thailand and companies. Added: Google
+  News searches `news_google_th_honey` (English, headline must name Thailand), `news_google_th_nam_phueng`
+  (Thai) and `news_google_jp_hachimitsu` (Japanese; Japan is Asia's main honey importer and had no
+  news source). An English search for Japan was tried and dropped: it returned only product listings.
+  Read on the first real runs and now filtered: product pages, menus and social posts returned by any
+  Google search (`services.news.is_shop_listing`, applied to the whole `google_news` family); Thai
+  "น้ำผึ้ง" counts only next to a sector word (it is also a nickname, a TV show and an idiom);
+  Japanese honey words count only with a sector word, and a shop or event story only with a market
+  word. `tag_countries` now knows Japan. After the filters the three searches kept about 3, 3 and 15
+  articles. Companies: India, Vietnam and Thailand have three web companies each. Not done, no free
+  source found: wholesale or producer prices for Thailand (customs average values only), official
+  2025 exports for Vietnam and Thailand (partner declarations are shown instead).
 - **Phone copy dropped by the owner (15 Nov: "forget about the phone app, forget everything about
   that"):** do not work on it or report on it unless he raises it again. `.github/workflows/mirror.yml`
   and `docs/PHONE_ACCESS.md` are still in the repository (he has not asked to remove or disable them).
