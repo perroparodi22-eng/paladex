@@ -5,6 +5,7 @@ import { ArrowLeft, Star } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { Badge, DemoBadge, EmptyState, ErrorBlock, Loading, PageHeader, Panel, StatTile, StatusBadge } from '@/components/ui'
 import { CountryCompaniesBlock } from '@/components/companies/CountryCompanies'
+import { CountryWebCompanies } from '@/components/companies/WebCompanies'
 import { AvailabilityChips, countryName, useRegion } from '@/components/countries/parts'
 import { ProfileProduction, useNextRelease } from '@/components/countries/ProfileProduction'
 import { CountryPricesSimple } from '@/components/countries/CountryPrices'
@@ -80,6 +81,7 @@ function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
         {header}
         <KpiRow p={p} />
         <CountryPricesSimple p={p} className="mb-5" />
+        <CountryWebCompanies iso3={c.iso3} className="mb-5" />
         <CountryYtdPanel p={p} name={countryName(c, lang)} />
         <ProfileNews p={p} compact className="mb-5 min-w-0" />
         <div className="mb-5"><ProfileProduction data={p.production} /></div>
@@ -106,6 +108,7 @@ function Profile({ p, back }: { p: CountryProfile; back: React.ReactNode }) {
 
       <div className="mb-5"><ProfileTrade p={p} /></div>
       <div className="mb-5"><CountryCompaniesBlock iso3={c.iso3} /></div>
+      <CountryWebCompanies iso3={c.iso3} className="mb-5" />
       <div className="mb-5"><ProfilePrices p={p} /></div>
       <div className="mb-5"><ProfileWebFindings p={p} /></div>
       <CountryNotes iso3={c.iso3} name={countryName(c, lang)} className="mb-5" />

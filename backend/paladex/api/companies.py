@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Country, Source
 from ..models_companies import CompanyRecord, CompanyRole, MeasureKind
+from ..reference import companies_web
 from .common import demo_clause, freshness, iso, source_brief
 
 router = APIRouter(prefix="/companies", tags=["companies"])
@@ -328,19 +329,24 @@ def _country_ref(c: Country) -> dict:
 def companies_overview(db: Session = Depends(get_db)):
     countries = {c.iso3: c for c in db.scalars(select(Country))}
     counts = _counts(db)
+    # Companies found on the web (reference/companies_web.py): not official, shown apart; a country
+    # that has only those is listed too, with its official status unchanged.
+    web = companies_web.counts()
     rows = []
-    for iso3 in sorted(set(AVAILABILITY) | set(counts)):
+    for iso3 in sorted(set(AVAILABILITY) | set(counts) | set(web)):
         c = countries.get(iso3)
         if c is None:
             continue
         a = availability_for(iso3)
         n = counts.get(iso3, {})
-        rows.append({**_country_ref(c), **a, "companies": n.get("companies", {}), "latest_period": n.get("latest_period")})
+        rows.append({**_country_ref(c), **a, "companies": n.get("companies", {}), "latest_period": n.get("latest_period"),
+                     "web_companies": web.get(iso3, 0)})
     rows.sort(key=lambda r: (STATUS_ORDER.index(r["status"]), not r["priority"], r["name_it"]))
     keys = {k for r in rows for k in r["source_keys"]}
     sources = [_source_info(s) for s in db.scalars(select(Source).where(Source.key.in_(keys)).order_by(Source.key))]
     return {
         "checked_on": CHECKED_ON,
+        "web_searched_on": companies_web.searched_on(),
         "countries": rows,
         "status_counts": {s: sum(1 for r in rows if r["status"] == s) for s in STATUS_ORDER},
         "sources": sources,
@@ -457,4 +463,4 @@ def companies_country(iso3: str, db: Session = Depends(get_db)):
             **body,
         })
     return {"country": _country_ref(c), "availability": availability_for(code), "checked_on": CHECKED_ON,
-            "lists": lists}
+            "lists": lists, "web": companies_web.section(code)}

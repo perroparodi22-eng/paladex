@@ -114,12 +114,14 @@ _EDITIONS = {
     "en-IN": ("en-IN", "IN", "IN:en", "inglese, edizione India"),
     "vi": ("vi", "VN", "VN:vi", "vietnamita"),
     "zh": ("zh-CN", "CN", "CN:zh-Hans", "cinese"),
+    "th": ("th", "TH", "TH:th", "thailandese"),
+    "ja": ("ja", "JP", "JP:ja", "giapponese"),
 }
 _EDITIONS_EN = {
     "en": "English, US edition", "en-GB": "English, UK edition", "it": "Italian",
     "es-AR": "Spanish, Argentina edition", "es-ES": "Spanish, Spain edition",
     "pt-BR": "Portuguese, Brazil edition", "de": "German",
-    "en-IN": "English, India edition", "vi": "Vietnamese", "zh": "Chinese",
+    "en-IN": "English, India edition", "vi": "Vietnamese", "zh": "Chinese", "th": "Thai", "ja": "Japanese",
 }
 
 
@@ -647,8 +649,8 @@ FEEDS += COUNTRY_FEEDS
 # these too, where each can be switched off. Headline and link only; the link opens the article
 # through Google News.
 _GN_NOISE = '-"honey trap" -"honey-trap" -"honey pot" -scrap -"market size" -site:oec.world'
-_GN_OWNER_NOTE = ("Attivata su richiesta del titolare (10 nov 2026) per avere notizie di Cina, India e Vietnam; "
-                  "si può spegnere da questa pagina. ")
+_GN_OWNER_NOTE = ("Attivata su richiesta del titolare (10 e 15 nov 2026) per avere notizie dei paesi asiatici "
+                  "(Cina, India, Vietnam, Thailandia, Giappone); si può spegnere da questa pagina. ")
 
 
 def _gn_country(key: str, country: str, label: str, label_en: str, query: str, edition: str, *,
@@ -682,6 +684,18 @@ GOOGLE_COUNTRY_FEEDS: list[FeedSpec] = [
                 f'OR adulteration OR tariff OR beekeepers) {_GN_NOISE}', "en", window="1y", native=False),
     _gn_country("cn_fengmi", "CHN", "miele in Cina, stampa cinese", "honey in China, Chinese press",
                 "蜂蜜 (出口 OR 价格 OR 产量 OR 蜂农 OR 养蜂)", "zh", window="90d", native=True),
+    # 15 Nov 2026, owner: "fill in India, Vietnam and Thailand, make sure Asian countries have all
+    # information needed". Thailand (an origin) and Japan (Asia's main honey importer) had no news
+    # source at all; same pattern as above. The honey gate reads Thai and Japanese since this date.
+    _gn_country("th_honey", "THA", "miele in Thailandia (export, prezzi)", "honey in Thailand (exports, prices)",
+                'intitle:honey (Thailand OR Thai) (export OR exports OR price OR prices OR longan OR tariff '
+                f'OR beekeepers OR production) {_GN_NOISE}', "en", window="1y", native=False),
+    _gn_country("th_nam_phueng", "THA", "miele in Thailandia, stampa thailandese", "honey in Thailand, Thai press",
+                '"น้ำผึ้ง" (ส่งออก OR ราคา OR ผู้เลี้ยงผึ้ง OR ผลผลิต OR ลำไย)', "th", window="90d", native=True),
+    # No English search for Japan: its first real run returned only product listings (a barbecue
+    # sauce, a shampoo, keycaps), none of them news.
+    _gn_country("jp_hachimitsu", "JPN", "miele in Giappone, stampa giapponese", "honey in Japan, Japanese press",
+                "(はちみつ OR 蜂蜜 OR ハチミツ) (輸入 OR 価格 OR 養蜂 OR 生産量 OR 国産)", "ja", window="90d", native=True),
 ]
 FEEDS += GOOGLE_COUNTRY_FEEDS
 
@@ -865,6 +879,9 @@ class FeedCollector(Collector):
         for item in items:
             if item["published_at"] is not None and item["published_at"] < oldest:
                 ctx.counters.count("filtered")  # archive item, not news
+                continue
+            if spec.family == "google_news" and news_service.is_shop_listing(item.get("title"), item.get("publisher")):
+                ctx.counters.count("filtered")  # a product page or a social post, not an article
                 continue
             if spec.require_country and spec.country not in news_service.tag_countries(
                     f"{news_service.strip_html(item['title'])}\n{news_service.strip_html(item.get('snippet') or '')}"):
