@@ -169,6 +169,16 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   articles. Companies: India, Vietnam and Thailand have three web companies each. Not done, no free
   source found: wholesale or producer prices for Thailand (customs average values only), official
   2025 exports for Vietnam and Thailand (partner declarations are shown instead).
+- **Thailand official trade, Vietnam 2025 exports (15 Nov, owner: "try to find other sources"):** new
+  collector `th_customs_honey` (`collectors/trade_thailand.py`): Thai Customs statistic report, honey
+  04090000000, exports and imports by partner, monthly, kg and baht; first run from January two years
+  back, then the last 4 months again. Verified live: 1,390 rows, 2025 exports 12,216 t, Jan-Sep 2026
+  10,905 t; its 2024 totals equal FAOSTAT's. Thailand's page now shows its own 2025 and year-to-date
+  figures and customs unit values by destination (the nearest thing to a bulk price: no Thai farm or
+  wholesale honey price list was found in Thai or English searches). Vietnam: its customs does not
+  publish honey separately; a newspaper figure was added to the web findings (Đại Đoàn Kết, 6 Aug 2026:
+  nearly 32,000 t in 2025, honey together with pollen, royal jelly and propolis; quote checked with
+  `services.web_verify`).
 - **Phone copy dropped by the owner (15 Nov: "forget about the phone app, forget everything about
   that"):** do not work on it or report on it unless he raises it again. `.github/workflows/mirror.yml`
   and `docs/PHONE_ACCESS.md` are still in the repository (he has not asked to remove or disable them).
@@ -212,7 +222,7 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   before "Conferma"; new revision, official value kept, undo; exchange between computers through the
   `paladex-corrections` branch, **OFF until switched on, on each computer** (Fonti -> "Correzioni e
   note" -> "Scambia le correzioni con gli altri computer"). The phone copy applies them read-only.
-- Collectors (22 modules, `backend/paladex/collectors/registry.py`): USDA (AMS report incl. ESMIS +
+- Collectors (23 modules, `backend/paladex/collectors/registry.py`): USDA (AMS report incl. ESMIS +
   MyMarketNews archive, FAS GATS, NASS), US Census, Eurostat Comext (EU-27), EC TAXUD weekly, DG AGRI,
   UK HMRC (trade + traders), UN Comtrade, FAOSTAT, ECB FX, Italy (ONM, CCIAA Cuneo/Siena, ISMEA),
   Argentina INDEC + MAGyP, Uruguay XXI (trade + exporters), Chile Aduanas + Odepa, Brazil Comex Stat +

@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=9">
+		<meta http-equiv="X-UA-Compatible" content="IE=9"/>
+		<meta name="keywords" content="องค์กรที่มุ่งมั่นให้บริการศุลกากรเป็นเลิศเพื่อการพัฒนาที่ยั่งยืนของเศรษฐกิจไทยและเชื่อมโยงการค้าโลก">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta name="keywords" content="องค์กรที่มุ่งมั่นให้บริการศุลกากรเป็นเลิศเพื่อการพัฒนาที่ยั่งยืนของเศรษฐกิจไทยและเชื่อมโยงการค้าโลก">
+		<title>
+			Thai Customs		</title>
+		<link rel="stylesheet"  href="bootstrap/css/bootstrap.css">
+		<link rel="stylesheet"  href="bootstrap/css/stylesheet_user.css">
+		<link href="https://fonts.googleapis.com/css?family=Kanit:200,300,400,500,600&amp;subset=thai" rel="stylesheet">		
+		<link rel="stylesheet" href="font-awesome/css/font-awesome.min.css">		
+		<link href="bootstrap/css/animate.min.css" rel="stylesheet">
+		<link href="bootstrap/css/bootstrap-dropdownhover.min.css" rel="stylesheet">
+		<script src="bootstrap/js/jquery.js"></script>
+		<script src="bootstrap/js/bootstrap.js"></script>
+		<script src="cust.js"></script>	
+		<script src="cosciisoft_slider_banner.js"></script>
+		<script src="bootstrap/js/bootstrap-dropdownhover.min.js"></script>
+		<script>
+			function check_validate(){
+				var alertx="";
+				var tariff_length=document.getElementById("tariff_code").value.length;
+				var ct_code=document.getElementById("country_code").value.length;
+				
+				if (ct_code==0) {
+					if(!(tariff_length==0 || tariff_length==2 || tariff_length==4 || tariff_length==8 || tariff_length==11 )){
+						alertx="Please Enter HS-CODE 2,4, 8 or 11 digits <br/>";
+						alertx+="<br/> <span style=\"color:#00cc00\">Note : In case of data before 2007 (&#60;HS2007) which has 7 digits,you must add an additional 0 at the end of the 7-digit HS code. And if you want to search HS code with the statistic code, in the search form you must fill : 99999990<label style=\"color:#FF0000\">000</label></span>";
+						alertx+="</br></br> <span style=\"color:#ffb31a\">หมายเหตุ : </span> <span style=\"color:#FF0000\">สำหรับข้อมูลก่อน ปี 2550 (&#60;HS2007) ให้เพิ่ม 0 ต่อท้ายพิกัดศุลกากร 7 หลัก</span> <span style=\"color:#ffb31a\">และหากต้องการค้นหาด้วยรหัสสถิติ ให้เพิ่มรหัสสถิติต่อท้ายยพิกัดศุลกากร  เช่น  99999990<label style=\"color:#FF0000\">000</label></span>";
+					}
+				}
+				
+				if(alertx==""){
+					send_to('statistic_report.php?show_search=1&s=oRDLVfOdPTQpxAkG');
+					}else{
+					alert_modal("Alert message",alertx);
+				}
+			}
+			function check_validate_export(){
+				var alertx="";
+				var tariff_length=document.getElementById("tariff_code").value.length;
+				var ct_code=document.getElementById("country_code").value.length;
+				if (ct_code==0) {
+					if(!(tariff_length==0 || tariff_length==2 || tariff_length==4 || tariff_length==8 || tariff_length==11 )){
+						alertx="Please Enter HS-CODE 2,4, 8 or 11 digits <br/>";
+						alertx+="<br/> <span style=\"color:#00cc00\">Note : In case of data before 2007 (&#60;HS2007) which has 7 digits,you must add an additional 0 at the end of the 7-digit HS code. And if you want to search HS code with the statistic code, in the search form you must fill : 99999990<label style=\"color:#FF0000\">000</label></span>";
+						alertx+="</br></br> <span style=\"color:#ffb31a\">หมายเหตุ : </span> <span style=\"color:#FF0000\">สำหรับข้อมูลก่อน ปี 2550 (&#60;HS2007) ให้เพิ่ม 0 ต่อท้ายพิกัดศุลกากร 7 หลัก</span> <span style=\"color:#ffb31a\">และหากต้องการค้นหาด้วยรหัสสถิติ ให้เพิ่มรหัสสถิติต่อท้ายยพิกัดศุลกากร  เช่น  99999990<label style=\"color:#FF0000\">000</label></span>";
+					}
+				}
+				
+				if(alertx==""){
+					send_to('statistic_export_by_country.php?s=oRDLVfOdPTQpxAkG');
+					}else{
+					alert_modal("Alert message",alertx);
+				}
+			}
+			function check_validate_export_csv(){
+				window.location = "https://catalog.customs.go.th";
+			}
+		</script>
+		<style>
+			.width-dynamic{
+			width:80%;
+			}
+			@media (max-width: 768px) {
+			.hidden-on-mobile { display: none;}
+			.width-dynamic{
+			width:100%;
+			}
+			}
+			.table-nonfluid {
+			width: auto !important;
+			}
+		</style>
+		<!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+		<!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+		<!--[if lt IE 9]>        
+			<script src="bootstrap/js/respond.min.js"></script>
+		<![endif]-->
+	</head>
+	<body>
+		<div id="alert_miodal"class="modal fade bs-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="mySmallModalLabel">
+			<div class="modal-dialog modal-sm" role="document">
+				<div class="modal-content"> 
+					<div class="modal-header"> 
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button> 
+						<b id="alert_miodal_title" class="modal-title" id="mySmallModalLabel">&nbsp;</b> 
+					</div> 
+					<div class="modal-body" id="alert_miodal_content"> 
+						&nbsp;
+					</div> 
+				</div> 
+			</div> 
+		</div>		
+		<form id="form1" method="post">
+			<input name="top_menu" id="top_menu" type="hidden" value="menu_homepage">
+			<input name="left_menu" id="left_menu" type="hidden" value="">
+			<input name="current_id" id="current_id" type="hidden" value="">
+			<input name="s_page" type="hidden" id="s_page" value="">
+			<input name="order_by" type="hidden" id="order_by" value="">
+			<input name="sort_type" type="hidden" id="sort_type" value="">
+			<input name="lang" type="hidden" id="lang" value="en">
+			<input name="ini_menu" type="hidden" id="ini_menu" value="">
+			<input name="ini_content" type="hidden" id="ini_content" value="">
+			<input name="show_search" type="hidden" id="show_search" value="1">
+			<input name="fix_active" type="hidden" id="fix_active" value="">
+			<input name="hierarchy" type="hidden" id="hierarchy" value="">
+			<input name="xmonth" type="hidden" id="xmonth" value="">
+			<input name="tab" type="hidden" id="tab" value="by_country">
+			<!-- Special CSS -->
+<!-- Special CSS End here-->
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-1L10Z7XKL6"></script>
+<script>
+	if (document.cookie.indexOf('accepted_cookies') > 0) {
+		// var head = document.getElementsByTagName('head')[0];
+		// var js = document.createElement("script");
+		// js.type = "text/javascript";
+		// js.src = "https://www.googletagmanager.com/gtag/js?id=G-1L10Z7XKL6";
+		// head.appendChild(js);
+		(function(i, s, o, g, r, a, m) {
+			i['GoogleAnalyticsObject'] = r;
+			i[r] = i[r] || function() {
+				(i[r].q = i[r].q || []).push(arguments)
+			}, i[r].l = 1 * new Date();
+			a = s.createElement(o),
+				m = s.getElementsByTagName(o)[0];
+			a.async = 1;
+			a.src = g;
+			m.parentNode.insertBefore(a, m)
+		})(window, document, 'script', '//www.google-analytics.com/analytics.js', 'ga');
+
+		(function(w, d, s, l, i) {
+			w[l] = w[l] || [];
+			w[l].push({
+				'gtm.start': new Date().getTime(),
+				event: 'gtm.js'
+			});
+			var f = d.getElementsByTagName(s)[0],
+				j = d.createElement(s),
+				dl = l != 'dataLayer' ? '&l=' + l : '';
+			j.async = true;
+			j.src =
+				'https://www.googletagmanager.com/gtm.js?id=' + i + dl;
+			f.parentNode.insertBefore(j, f);
+		})(window, document, 'script', 'dataLayer', 'GTM-TR2BW72L');
+
+		window.dataLayer = window.dataLayer || [];
+
+		function gtag() {
+			dataLayer.push(arguments);
+		}
+		gtag('create', 'UA-XXXXX-Y', {
+			'cookieFlags': 'SameSite=None; Secure'
+		});
+		gtag('js', new Date());
+		gtag('config', 'G-1L10Z7XKL6');
+
+		ga('create', 'UA-XXXXX-Y', {
+			'cookieFlags': 'SameSite=None; Secure'
+		});
+		ga('send', 'pageview');
+	}
+
+	function launchGoogleSearch(element, event) {
+		if (event.keyCode != 13) {
+			return;
+		}
+		if (element.value.trim() == '') {
+			return;
+		}
+
+		window.open('https://cse.google.com/cse?cx=661d2a82864834eb4&q=' + encodeURIComponent(element.value.trim()), '_blank');
+	}
+
+	function fontSizeChange(percentage) {
+		document.body.style.fontSize = percentage + "%";
+	}
+</script>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TR2BW72L"
+		height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+<style>
+	#top_menu_panel {
+		/*background: rgba(55, 55, 55, 0.6);*/
+		padding-top: 20px;
+		z-index: 0;
+	}
+
+	#top_menu_panel>ul>li>a {
+		font-family: 'Kanit', sans-serif;
+		font-size: 10px;
+		color: #ffffff;
+	}
+
+	@media (min-width: 767px) {
+		#xheader {
+			background-image: url('data_files/61aba64ddc09f101267f2d8bb6c3ceed.jpg');
+			background-repeat: no-repeat;
+			height: 105px;
+			padding-right: 10px;
+		}
+
+		#top_menu_panel>ul>li>a {
+			font-size: 14px;
+		}
+	}
+
+	#xheader {
+		position: relative;
+	}
+
+	.top_btn_zone {
+		height: 40px;
+		width: 320px;
+		position: absolute;
+		bottom: 0;
+		right: 0;
+		text-align: right;
+		margin-bottom: 0px;
+	}
+	.top_btn_zone a {
+		color:#ffffff;
+		font-size: 20px !important;
+	}
+	.top_btn_zone a img {
+		width: 24px;
+		height: 24px;
+	}
+	/*
+	@media (max-width: 768px) {
+	padding-right:0px;
+	}
+    */
+</style>
+<div>
+	<div class="container" style="margin-top:4px">
+		<div id="xheader">
+			<div class="nav-top-bullet" id="top_menu_panel">
+				<ul>
+					<li class=""><a  href="index.php?lang=en&left_menu=menu_homepage" onClick="plus_menu_hit('5')"><span class='glyphicon glyphicon-home' aria-hidden='true'></span> Home</a></li><li class=""><a  href="content_special.php?link=contact_form&lang=en&left_menu=menu_contactus" onClick="plus_menu_hit('12')"><span class='fa fa-phone-square' aria-hidden='true'></span> Contact Us</a></li><li class=""><a  href="list_strc_faq.php?ini_content=faq&order_by=co_last_update_datetime&lang=en&left_menu=menu_center_004" onClick="plus_menu_hit('151')"><span class='fa fa-quote-left' aria-hidden='true'></span> FAQ</a></li><li class=""><a  href="content_special.php?link=sitemap.php&lang=en&left_menu=menu_sitemap" onClick="plus_menu_hit('26')"><span class='fa fa-sitemap' aria-hidden='true'></span> Sitemap</a></li>				</ul>
+			</div>
+			<div class="top_btn_zone">
+				<!-- Top button zone content -->
+				 <a href="javascript:fontSizeChange(100)" title="Small Font"><img alt="Small Font" src="images/small_a_btn.png"></a>
+				 <a href="javascript:fontSizeChange(140)" title="Default Font"><img alt="Default Font" src="images/medium_a_btn.png"></a>
+				 <a href="javascript:fontSizeChange(200)" title="Large Font"><img alt="Large Font" src="images/large_a_btn.png"></a>
+			</div>
+		</div>
+	</div>
+</div>
+<div class="container" style="margin-top:3px;">
+	<nav class="navbar navbar-default" style="margin:0px;padding:0px">
+		<div class="container">
+			<div class="navbar-header">
+				<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+					<span class="sr-only">Toggle navigation</span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+				</button>
+			</div>
+			<div id="navbar" class="collapse navbar-collapse">
+				<ul class="nav navbar-nav navbar-left">
+											<li class="dropdown">
+							<a href="#" class="dropdown-toggle" data-hover="dropdown" data-animations="fadeIn fadeIn fadeIn fadeIn" data-toggle="dropdown">Passengers/Individual <span class="caret"></span></a>
+							<div class="dropdown-menu multi-column columns-2">
+								<div class="row">
+									<div class="col-sm-6">
+										<ul class="multi-column-dropdown">
+											<li class=""><a  href="cont_strc_simple.php?ini_content=individual_160426_01&lang=en&left_menu=menu_individual_submenu_03_01" onClick="plus_menu_hit('164')">Restricted and Prohibited Items</a></li>											<li class="divider"></li>
+											<li class=""><a  href="list_strc_simple_neted.php?ini_content=individual_160503_03_160905_01&lang=en&left_menu=menu_individual_submenu_01_160421_01" onClick="plus_menu_hit('170')">Guidelines for Airport Passengers</a></li><li class=""><a  href="list_strc_simple_neted.php?ini_content=individual_160503_03_160922_01&lang=en&left_menu=menu_individual_submenu_01_160421_02" onClick="plus_menu_hit('171')">Postal Import</a></li>										</ul>
+									</div>
+									<div class="col-sm-6">
+										<ul class="multi-column-dropdown">
+											<li class=""><a  href="cont_strc_simple.php?ini_content=individual_F01_160503_01&ini_menu=menu_individual_submenu_02&lang=en&left_menu=menu_individual_submenu_02_160503_01" onClick="plus_menu_hit('229')">Diplomatic Channel</a></li><li class=""><a  href="cont_strc_simple.php?ini_content=individual_F01_160922_01&ini_menu=menu_individual_submenu_02&lang=en&left_menu=menu_individual_submenu_02_160922_01" onClick="plus_menu_hit('302')">Donation Goods Import</a></li><li class=""><a  href="cont_strc_simple.php?ini_content=individual_F01_160426_01&ini_menu=menu_individual_submenu_02&lang=en&left_menu=menu_individual_submenu_02_160421_01" onClick="plus_menu_hit('172')">Household Items Import Clearance</a></li><li class=""><a  href="list_strc_simple_neted.php?ini_content=individual_F01_160913_01&ini_menu=menu_individual_submenu_02&lang=en&left_menu=menu_individual_submenu_02_160421_02" onClick="plus_menu_hit('173')">Pet Travel</a></li><li class=""><a  href="content_with_menu1.php?ini_menu=menu_individual_submenu_02&ini_content=individual_F01_160909_01_02&xleft_menu=menu_individual_submenu_02_160421_03_160922_01&root_left_menu=menu_individual_submenu_02_160421_03&lang=en&left_menu=menu_individual_submenu_02_160421_03" onClick="plus_menu_hit('174')">Temporary Import/Export Vehicles</a></li><li class=""><a  href="cont_strc_simple.php?ini_content=individual_160503_02&ini_menu=menu_individual_submenu_02&lang=en&left_menu=menu_individual_submenu_05" onClick="plus_menu_hit('231')">VAT Refund</a></li><li class=""><a  href="cont_strc_simple.php?ini_content=individual_F01_160426_05&ini_menu=menu_individual_submenu_02&lang=en&left_menu=menu_individual_submenu_02_160421_05" onClick="plus_menu_hit('176')">Importing Human Remains or Ashes</a></li>										</ul>
+									</div>
+								</div>
+							</div>
+						</li>
+																<li class="dropdown">
+							<a href="#" class="dropdown-toggle" data-hover="dropdown" data-animations="fadeIn fadeIn fadeIn fadeIn" data-toggle="dropdown">Business <span class="caret"></span></a>
+							<div class="dropdown-menu multi-column columns-2">
+								<div class="row">
+									<div class="col-sm-6">
+										<ul class="multi-column-dropdown">
+																						<li class="divider"></li>
+																						<li class="divider"></li>
+																					</ul>
+										<!--
+										<ul class="multi-column-dropdown">
+											<li class=""><a  href="list_strc_download.php?ini_content=Work_Manual_01_200409_01&ini_menu=menu_about_160421_03&order_by=co_name_th&sort_type=0&lang=en&left_menu=menu_about_200409_01_200409_01" onClick="plus_menu_hit('545')">Work Manual</a></li><li class=""><a  href="list_strc_download.php?ini_content=Work_Manual_01_200409_02&ini_menu=menu_about_160421_03&order_by=co_name_th&sort_type=0&lang=en&left_menu=menu_about_200409_01_200409_02" onClick="plus_menu_hit('546')">Thai Customs Service Standards</a></li>										</ul>
+                                        -->
+									</div>
+									<div class="col-sm-6">
+										<ul class="multi-column-dropdown">
+											<li class=""><a  href="cont_strc_simple.php?ini_content=business_160426_03_160909_02&lang=en&left_menu=menu_business_160421_03_160725_04" onClick="plus_menu_hit('257')">Customs Procedures under the A.T.A. Carnet System</a></li>											<li class="divider"></li>
+																					</ul>
+									</div>
+								</div>
+							</div>
+						</li>
+																<li class="dropdown">
+							<a href="#" class="dropdown-toggle" data-toggle="dropdown" data-animations="fadeIn fadeIn fadeIn fadeIn" data-hover="dropdown">Laws <span class="caret"></span></a>
+							<div class="dropdown-menu multi-column columns-3">
+								<div class="row">
+									<div class="col-sm-4">
+										<ul class="multi-column-dropdown">
+											<li class=""><a  href="list_strc_download.php?ini_menu=menu_interest_and_law_160421_04&ini_content=general_interest_160426_05_160810_01&show_search=1&order_by=co_priority&sort_type=1&lang=th&xleft_menu=menu_interest_and_law_160421_04_160810_01&lang=en&left_menu=menu_interest_and_law_160421_04" onClick="plus_menu_hit('196')">Customs Laws</a></li>										</ul>
+									</div>
+									<div class="col-sm-4">
+										<ul class="multi-column-dropdown">
+											<li class=""><a  href="list_strc_download_with_docno_date.php?ini_content=announce_160426_01&ini_menu=menu_Interest_and_law_160421_07&left_menu=menu_Interest_and_law_160421_07_160421_01&order_by=date&sort_type=0&lang=en&left_menu=menu_Interest_and_law_160421_07_160421_01" onClick="plus_menu_hit('201')">Customs Department Notification</a></li><li class=""><a  href="list_strc_download_with_docno_date.php?ini_content=announce_230119_01&ini_menu=menu_Interest_and_law_160421_07&left_menu=menu_Interest_and_law_160421_07_230119_01&order_by=date&sort_type=0&lang=en&left_menu=menu_Interest_and_law_160421_07_230119_01" onClick="plus_menu_hit('571')">Customs Department Notification (the Gazette)</a></li><li class=""><a  href="list_strc_download_with_docno_date.php?ini_content=announce_230119_02&ini_menu=menu_Interest_and_law_160421_07&left_menu=menu_Interest_and_law_160421_07_230119_02&order_by=date&sort_type=0&lang=en&left_menu=menu_Interest_and_law_160421_07_230119_02" onClick="plus_menu_hit('572')">Related Cabinet Resolutions</a></li>																																</ul>
+									</div>
+									<div class="col-sm-4">
+										<ul class="multi-column-dropdown">
+																					</ul>
+									</div>
+								</div>
+							</div>
+						</li>
+																<li class="dropdown">
+							<a href="#" class="dropdown-toggle" data-toggle="dropdown" data-animations="fadeIn fadeIn fadeIn fadeIn" data-hover="dropdown">Public Relation <span class="caret"></span></a>
+							<div class="dropdown-menu multi-column columns-2s">
+								<div class="row">
+									<div class="col-sm-6">
+										<ul class="multi-column-dropdown">
+											<li class=""><a  href="list_strc_simple_with_date.php?ini_content=customs_news&ini_menu=menu_public_relations_160421_04&order_by=date&sort_type=0&lang=en&left_menu=menu_public_relations_160421_04_160421_01" onClick="plus_menu_hit('218')">What's new</a></li><li class=""><a  href="list_strc_download.php?ini_content=COVID-19_200429_01&ini_menu=menu_public_relations_160421_04&menu_public_relations_160421_04&order_by=co_name_th&sort_type=0&lang=en&left_menu=menu_public_relations_160421_04_200429_01" onClick="plus_menu_hit('548')">COVID-19 PLAN</a></li>																																																						</ul>
+									</div>
+									<div class="col-sm-6">
+										<ul class="multi-column-dropdown">
+																																																																																							</ul>
+									</div>
+								</div>
+							</div>
+						</li>
+																<li class="dropdown">
+							<a href="#" class="dropdown-toggle" data-toggle="dropdown" data-animations="fadeIn fadeIn fadeIn fadeIn" data-hover="dropdown">About Us <span class="caret"></span></a>
+							<div class="dropdown-menu multi-column columns-2s">
+								<div class="row">
+									<div class="col-sm-6">
+										<ul class="multi-column-dropdown">
+											<li class=""><a  href="cont_strc_simple.php?top_menu=menu_about&xleft_menu=menu_about_160421_01_160421_04&ini_menu=menu_about_160421_01&ini_content=about_160426_01&lang=en&left_menu=menu_about_160421_01_160421_04" onClick="plus_menu_hit('60')">History</a></li><li class=""><a  href="content_with_menu2.php?top_menu=menu_about&left_menu=menu_about_160421_01_160421_03&ini_menu=menu_about_160421_01&ini_page=cont_strc_pure_last_image.php&objname=about_160426_02&lang=en&left_menu=menu_about_160421_01_160421_03" onClick="plus_menu_hit('61')">Organisational Chart</a></li><li class=""><a  href="cont_strc_simple.php?ini_content=dcio_customs_4&lang=en&left_menu=menu_about_160421_01_260410_01" onClick="plus_menu_hit('634')">Department Chief Information Officer</a></li><li class=""><a  href="list_strc_link.php?ini_content=customs_website&left_menu=menu_about_160421_01_160421_01&ini_menu=menu_about_160421_01&lang=en&left_menu=menu_about_160421_01_160421_01" onClick="plus_menu_hit('220')">Our Websites</a></li><li class=""><a  href="cont_strc_download.php?ini_content=about_160426_03_160426_01&lang=en&left_menu=menu_about_160421_01_160421_02" onClick="plus_menu_hit('221')">Phonebook</a></li>										</ul>
+									</div>
+									<div class="col-sm-6">
+										<ul class="multi-column-dropdown">
+											<li class=""><a  href="content_with_menu1.php?top_menu=menu_about&left_menu=menu_about_160421_02_160421_01&ini_menu=menu_about_160421_02&ini_content=vision_mission_strategy&lang=en&left_menu=menu_about_160421_02_160421_01" onClick="plus_menu_hit('223')">Vision, Mission, Strategy and Corporate Values</a></li>										</ul>
+																				<ul class="multi-column-dropdown">
+											<li class=""><a  href="list_strc_download.php?ini_content=Work_Manual_01_200409_01&ini_menu=menu_about_160421_03&order_by=co_name_th&sort_type=0&lang=en&left_menu=menu_about_200409_01_200409_01" onClick="plus_menu_hit('545')">Work Manual</a></li><li class=""><a  href="list_strc_download.php?ini_content=Work_Manual_01_200409_02&ini_menu=menu_about_160421_03&order_by=co_name_th&sort_type=0&lang=en&left_menu=menu_about_200409_01_200409_02" onClick="plus_menu_hit('546')">Thai Customs Service Standards</a></li>										</ul>
+									</div>
+
+								</div>
+							</div>
+						</li>
+									</ul>
+				<ul class="nav navbar-nav navbar-right">
+					<!-- <li class="dropdown"><a class="dropdown-toggle" href="https://www.facebook.com/customsdepartment.thai" title="Thai Customs Facebook Page" target="_blank"><span class="fab fa-facebook-square"></span></a></li> -->
+					<!-- <li class="dropdown"><a class="dropdown-toggle" href="https://www.facebook.com/people/%E0%B8%81%E0%B8%A3%E0%B8%A1%E0%B8%A8%E0%B8%B8%E0%B8%A5%E0%B8%81%E0%B8%B2%E0%B8%81%E0%B8%A3-The-Customs-Department-Thailand/61581751074914/" title="Thai Customs Facebook Page" target="_blank"><span class="fab fa-facebook-square"></span></a></li> -->
+					<li class="dropdown"><a class="dropdown-toggle" href="https://www.facebook.com/customsdepartment.thai" title="Thai Customs Facebook Page" target="_blank"><span class="fab fa-facebook-square"></span></a></li>
+					<li class="dropdown">
+						<a href="#" class="dropdown-toggle" data-toggle="dropdown" data-animations="fadeInDown fadeInLeft fadeInUp fadeInRight" data-hover="dropdown" title="Global"><span class="glyphicon glyphicon-globe" aria-hidden="true"></span> <span class="caret"></span></a>
+						<div class="dropdown-menu">
+							<div class="row">
+								<div class="col-sm-12">
+									<ul class="multi-column-dropdown">
+										<li class=""><a target="_blank" href="https://snc4cus.customs.go.th?lang=en&_menu=nmenu_officer_service_001" onClick="plus_menu_hit('132')"><span class='fas fa-network-wired'></span> Intranet</a></li><li class=""><a target="_blank" href="https://workd.go.th?lang=en&_menu=nmenu_officer_service_002" onClick="plus_menu_hit('133')"><span class='fas fa-envelope'></span> Customs Mail</a></li>									</ul>
+								</div>
+							</div>
+						</div>
+					</li>
+					<li class="dropdown">
+						<a href="#" class="dropdown-toggle" data-toggle="dropdown" data-animations="fadeInLeft fadeInLeft fadeInUp fadeInRight" data-hover="dropdown"><img src="xicon/icon_flag_en.png" alt="en"> <span class="caret"></span></a>
+						<div class="dropdown-menu">
+							<div class="row">
+								<div class="col-sm-12">
+									<ul class="multi-column-dropdown">
+										<li>
+											<div style="float:left;padding-left:10px;padding-top:3px"><img src="xicon/icon_flag_th.png" alt="ภาษาไทย"></div>
+											<div style="float:left;padding-left:0px"><a href="javascript:send_to('statistic_report.php?lang=th&show_search=1')">ภาษาไทย</a></div>
+										</li>
+										<li>
+											<div style="float:left;padding-top:3px;vertical-align:baseline;"><img src="xicon/icon_flag_en.png" alt="English (US)"></div>
+											<div style="float:left"><a href="javascript:send_to('statistic_report.php?lang=en&show_search=1')">English</a></div>
+										</li>
+									</ul>
+								</div>
+							</div>
+						</div>
+					</li>
+					<li>
+
+						<!-- <div class="input-search">
+						<label for="global_key" style="display: none;">Search</label>
+						<input name="global_key" id="global_key" type="text" class="form-control" placeholder="Search..."  onKeyPress="if(event.keyCode==13) if(this.value.trim()!=''){send_to('content_special.php?link=search_form.php&top_menu=menu_searching_result');}" >						
+						</div> -->
+						<!-- <input name="global_key" id="global_key" type="text" class="form-control" placeholder="Search..."  onKeyPress="if(event.keyCode==13) if(this.value.trim()!=''){send_to('content_special.php?link=search_form.php&top_menu=menu_searching_result');}" value="">	-->
+												<!-- <script async src="https://cse.google.com/cse.js?cx=661d2a82864834eb4">
+						</script>
+						<div class="input-search" style="width:180px !important;height:36px !important;">
+							<div class="gcse-searchbox-only"></div>
+						</div> -->
+						<div class="input-search">
+							<label for="global_key" style="display: none;">Search</label>
+							<input name="global_key" id="global_key" type="text" class="form-control" placeholder="Search..." onKeyPress="launchGoogleSearch(this, event)" >
+						</div>
+					</li>
+				</ul>
+			</div>
+			<!--/.nav-collapse -->
+		</div>
+	</nav>
+</div>
+<style>
+	.gsc-search-box {
+		width: 154px !important;
+	}
+
+	#gsc-i-id1 {
+		background: none !important;
+	}
+
+	table.gsc-search-box td.gsc-input {
+		padding-right: 5px !important;
+	}
+
+	button.gsc-search-button {
+		width: 33px !important;
+		padding: 6px !important;
+		background-color: #63bd31 !important;
+		border-color: #63bd31 !important;
+	}
+</style>
+<!--
+	<div class="top-left-logo">
+	
+	</div>		
+-->			<!-- container content-->
+			<div class="container">			
+				<!-- row1-->
+				<div class="row" style="padding-top:10px">
+					<div class="col-md-3 hidden-on-mobile">
+						<div>
+	<h3 class="groupname">Electronic Service</h3><ul class="nav nav-left"><li class=""><a  href="list_strc_download.php?ini_content=infographic_210311_01&ini_menu=nmenu_esevice_210310_01&root_left_menu=nmenu_esevice_210310_01_210310_01&xleft_menu=nmenu_esevice_210310_01_210311_01&lang=en&left_menu=nmenu_esevice_210310_01" onClick="plus_menu_hit('553')"><span class='glyphicon glyphicon-info-sign' aria-hidden='true'></span> Infographic</a></li><li class=""><a  href="list_strc_link_image_with_infographic.php?ini_content=customs_tariff_service&lang=en&left_menu=nmenu_esevice_001" onClick="plus_menu_hit('123')"><span class='glyphicon glyphicon-search' aria-hidden='true'></span> Tariff Classification <img src='/images/icon_new.gif' alt='new' /></a></li><li class=""><a  href="http://tariffeservice.customs.go.th?lang=en&left_menu=nmenu_esevice_171113_01" onClick="plus_menu_hit('468')"><span class='fa fa-list-alt' aria-hidden='true'></span> Tariff e-Service <img src='/images/icon_new.gif' alt='new' /></a></li><li class=""><a target="_blank" href="https://catalog.customs.go.th/?lang=en&left_menu=nmenu_esevice_220901_01" onClick="plus_menu_hit('570')"><span class='fas fa-database'></span> Customs Data Catalog <img src='/images/icon_new.gif' alt='new' /></a></li><li class=""><a  href="statistic_report.php?ini_content=statistics_report&ini_menu=nmenu_esevice&left_menu=nmenu_esevice_007&lang=en&left_menu=nmenu_esevice_007" onClick="plus_menu_hit('153')"><span class='glyphicon glyphicon-stats' aria-hidden='true'></span> Statistical Data</a></li><li class=""><a target="_blank" href="https://ctt.customs.go.th/TCR/?lang=en&left_menu=nmenu_esevice_250314_01" onClick="plus_menu_hit('622')"><span class='glyphicon glyphicon-inbox' aria-hidden='true'></span> Customs Request <img src='/images/icon_new.gif' alt='new' /></a></li><li class=""><a target="_blank" href="https://e-tracking.customs.go.th/ETS/index.jsp?lang=en&left_menu=nmenu_esevice_002" onClick="plus_menu_hit('124')"><span class='glyphicon glyphicon-road' aria-hidden='true'></span> e-Tracking System</a></li><li class=""><a target="_blank" href="http://registeronline.customs.go.th/RON/SecurityServlet?lang=en&left_menu=nmenu_esevice_181129_01" onClick="plus_menu_hit('509')"><span class='fas fa-user-tie'></span> Register online system</a></li><li class=""><a target="_blank" href="https://apps.customs.go.th/list_strc_simple_neted.php?ini_content=pbc_01&ini_menu=menu_pbc&left_menu=menu_pbc_01&&root_left_menu=menu_pbc&xleft_menu=menu_pbc_01&lang=en&left_menu=nmenu_esevice_180531_01" onClick="plus_menu_hit('484')"><span class='fas fa-user-check'></span> <span style='font-size:80%'>Pre-Check Personal/Household effects</span></a></li><li class=""><a target="_blank" href="https://etax.mof.go.th?lang=en&left_menu=nmenu_esevice_180117_01" onClick="plus_menu_hit('472')"><span class='fas fa-desktop'></span> Tax Single Sign On</a></li><li class=""><a target="_blank" href="content_special.php?link=exch_search.php&lang=en&left_menu=nmenu_esevice_003" onClick="plus_menu_hit('125')"><span class='glyphicon glyphicon-usd' aria-hidden='true'></span> Exchange Rate</a></li><li class=""><a  href="list_strc_download_with_document.php?order_by=co_priority&sort_type=0&ini_content=forms&show_search=1&root_left_menu=nmenu_esevice_005_180220_02&lang=th&left_menu=nmenu_esevice_005&ini_menu=nmenu_esevice&lang=en&left_menu=nmenu_esevice_005" onClick="plus_menu_hit('127')"><span class='glyphicon glyphicon-duplicate' aria-hidden='true'></span> Forms</a></li><li class=""><a  href="list_strc_download_with_document.php?order_by=co_last_update_datetime&sort_type=0&ini_content=reference_files&show_search=1&lang=en&left_menu=nmenu_esevice_006" onClick="plus_menu_hit('130')"><span class='glyphicon glyphicon-list-alt' aria-hidden='true'></span> Reference Files</a></li><li class=""><a  href="list_multi_tab.php?link=list_xannounce.php&ini_tab=nmenu_esevice_160901_01&tab=nmenu_esevice_160901_01_160901_01&ini_content=permitted_and_certificate_01&lang=en&left_menu=nmenu_esevice_160901_01" onClick="plus_menu_hit('269')"><span class='glyphicon glyphicon-check' aria-hidden='true'></span> License and Electronic Cert.</a></li><li class=""><a target="_blank" href="https://postalbooking.customs.go.th/?lang=en&left_menu=nmenu_esevice_211203_01" onClick="plus_menu_hit('564')"><span class='fas fa-box'></span> Postal Booking</a></li><li class=""><a target="_blank" href="https://tic.customs.go.th?lang=en&left_menu=nmenu_esevice_230131_01" onClick="plus_menu_hit('573')"><span class='fa fa-medkit'></span> Tax Incentives Clinic</a></li><li class=""><a target="_blank" href=" https://e-submission.customs.go.th/?lang=en&left_menu=nmenu_esevice_260820_01" onClick="plus_menu_hit('647')"><span class='glyphicon glyphicon-send' aria-hidden='true'></span> ระบบ e-Submission</a></li></ul></h3>	
+	<h3 class="groupname_invest">
+		Web Traffic Statistics	</h3>
+	<div>
+				<ul class="list-group">
+			<!-- <li class="list-group-item"><span class="badge">3</span> Active views</li> -->
+			<li class="list-group-item"><span class="badge">2,527</span> Today views</li>
+			<li class="list-group-item"><span class="badge">201,462</span> This month views</li>
+			<li class="list-group-item"><span class="badge">25,379,197</span> Total views</li>
+		</ul>
+	</div>
+	<b>For more information please contact. :</b> <br>
+	<strong>Customs Care Center</strong> at Tel. 1164 <br>The Customs Department, 1, Suntorn Kosa Road, Klong Toey, Bangkok, 10110<br>
+<!-- Tel. +66-2667-6000, +66-2667-7000<br> -->
+<!-- Fax : +66-2667-7767<br> -->
+E-mail : <a href="mailto:saraban@customs.go.th">saraban@customs.go.th</a><br>
+Call Center : <a href="tel:1164">1164</a><br>
+	<img src="data_files/0968ad51fd829969afc0fe6bcc89fbb9.jpg">
+</div>
+					</div>
+					<div class="col-md-9">
+						<h3 class="groupname"></h3>
+						<ol class="breadcrumb">
+							<li><a href="javascript:goto('index.php?lang=en')">
+								Homepage							</a></li>
+													</ol>
+						<!--list row-->
+						<div class="form-group ">
+							<table class="table table-bordered table-striped">				
+								<colgroup>
+									<col class="col-md-2">
+									<col class="col-md-7">
+								</colgroup>
+								<tr>
+									<th scope="row"> <label>Type<span class="text-danger">*</span></label></th>
+									<td>
+										<select id="imex_type" name="imex_type" class="form-control width-dynamic">
+											<option value="import" >Import</option>
+											<option value="export" selected>Export</option>
+										</select>
+									</td>
+								</tr>
+								<tr>
+									<th scope="row" nowrap> <label>HS-Code</label></th>
+									<td>													
+										<input name="tariff_code" type="number" class="form-control width-dynamic" id="tariff_code" value="04090000000" placeholder="Enter HS-Code 2,4,8 or 11 digits" value="" onKeyPress="if(event.keyCode==13) check_validate();">
+										
+									</td>
+								</tr>
+								<tr>
+									<th scope="row"> <label>Country</label></th>
+									<td>													
+										<select id="country_code" name="country_code" class="form-control width-dynamic">
+											<option value='' >All Country</option><option value="AF" > AF - AFGHANISTAN</option><option value="AX" > AX - ÅLAND ISLANDS</option><option value="AL" > AL - ALBANIA</option><option value="DZ" > DZ - ALGERIA</option><option value="AS" > AS - AMERICAN SAMOA</option><option value="AD" > AD - ANDORRA</option><option value="AO" > AO - ANGOLA</option><option value="AI" > AI - ANGUILLA</option><option value="AQ" > AQ - ANTARCTICA</option><option value="AG" > AG - ANTIGUA AND BARBUDA</option><option value="AR" > AR - ARGENTINA</option><option value="AM" > AM - ARMENIA</option><option value="AW" > AW - ARUBA</option><option value="AU" > AU - AUSTRALIA</option><option value="AT" > AT - AUSTRIA</option><option value="AZ" > AZ - AZERBAIJAN</option><option value="BS" > BS - BAHAMAS</option><option value="BH" > BH - BAHRAIN</option><option value="BD" > BD - BANGLADESH</option><option value="BB" > BB - BARBADOS</option><option value="BY" > BY - BELARUS</option><option value="BE" > BE - BELGIUM</option><option value="BZ" > BZ - BELIZE</option><option value="BJ" > BJ - BENIN</option><option value="BM" > BM - BERMUDA</option><option value="BT" > BT - BHUTAN</option><option value="BO" > BO - BOLIVIA</option><option value="BQ" > BQ - BONAIRE,SAINT EUSTATIUS AND SABA</option><option value="BA" > BA - BOSNIA AND HERZEGOVINA    </option><option value="BW" > BW - BOTSWANA</option><option value="BV" > BV - BOUVET ISLAND</option><option value="BR" > BR - BRAZIL</option><option value="IO" > IO - BRITISH INDIAN OCEAN TERRITORY</option><option value="BN" > BN - BRUNEI DARUSSALAM</option><option value="BG" > BG - BULGARIA</option><option value="BF" > BF - BURKINA FASO</option><option value="BI" > BI - BURUNDI</option><option value="KH" > KH - CAMBODIA</option><option value="CM" > CM - CAMEROON</option><option value="CA" > CA - CANADA</option><option value="CV" > CV - CAPE VERDE</option><option value="KY" > KY - CAYMAN ISLANDS</option><option value="CF" > CF - CENTRAL AFRICAN REPUBLIC</option><option value="TD" > TD - CHAD</option><option value="CL" > CL - CHILE</option><option value="CN" > CN - CHINA</option><option value="CX" > CX - CHRISTMAS ISLAND</option><option value="CC" > CC - COCOS (KEELING) ISLANDS</option><option value="CO" > CO - COLOMBIA</option><option value="KM" > KM - COMOROS</option><option value="CG" > CG - CONGO</option><option value="CD" > CD - CONGO, THE DEMOCRATIC REPUBLIC OF THE</option><option value="CK" > CK - COOK ISLANDS</option><option value="CR" > CR - COSTA RICA</option><option value="CI" > CI - COTE D IVOIRE</option><option value="HR" > HR - CROATIA</option><option value="CU" > CU - CUBA</option><option value="CW" > CW - CURACAO</option><option value="CY" > CY - CYPRUS</option><option value="CZ" > CZ - CZECH REPUBLIC</option><option value="DD" > DD - DDD</option><option value="DK" > DK - DENMARK</option><option value="DJ" > DJ - DJIBOUTI</option><option value="DM" > DM - DOMINICA</option><option value="DO" > DO - DOMINICAN REPUBLIC</option><option value="TP" > TP - EAST TIMOR</option><option value="EC" > EC - ECUADOR</option><option value="EG" > EG - EGYPT</option><option value="SV" > SV - EL SALVADOR</option><option value="GQ" > GQ - EQUATORIAL GUINEA</option><option value="ER" > ER - ERITREA</option><option value="EE" > EE - ESTONIA</option><option value="SZ" > SZ - ESWATINI</option><option value="ET" > ET - ETHIOPIA</option><option value="FK" > FK - FALKLAND ISLANDS (MALVINAS)</option><option value="FO" > FO - FAROE ISLANDS</option><option value="FJ" > FJ - FIJI</option><option value="FI" > FI - FINLAND</option><option value="YY" > YY - FOR HIGH SEA ZONE</option><option value="FR" > FR - FRANCE</option><option value="FX" > FX - FRANCE, METROPOLITAN</option><option value="GF" > GF - FRENCE GUIANA</option><option value="PF" > PF - FRENCH POLYNESIA</option><option value="TF" > TF - FRENCH SOUTHERN TERRITORIES</option><option value="GA" > GA - GABON</option><option value="GM" > GM - GAMBIA</option><option value="GE" > GE - GEORGIA</option><option value="DE" > DE - GERMANY</option><option value="GH" > GH - GHANA</option><option value="GI" > GI - GIBRALTAR</option><option value="GR" > GR - GREECE</option><option value="GL" > GL - GREENLAND</option><option value="GD" > GD - GRENADA</option><option value="GP" > GP - GUADELOUPE</option><option value="GU" > GU - GUAM</option><option value="GT" > GT - GUATEMALA</option><option value="GG" > GG - GUERNSEY</option><option value="GN" > GN - GUINEA</option><option value="GW" > GW - GUINEA-BISSAU</option><option value="GY" > GY - GUYANA</option><option value="HT" > HT - HAITI</option><option value="HM" > HM - HEARD ISLAND AND MCDONALD ISLANDS</option><option value="HN" > HN - HONDURAS</option><option value="HK" > HK - HONG KONG</option><option value="HU" > HU - HUNGARY</option><option value="IS" > IS - ICELAND</option><option value="IN" > IN - INDIA</option><option value="ID" > ID - INDONESIA</option><option value="IR" > IR - IRAN (ISLAMIC REPUBLIC OF)</option><option value="IQ" > IQ - IRAQ</option><option value="IE" > IE - IRELAND</option><option value="IM" > IM - ISLE OF MAN</option><option value="IL" > IL - ISRAEL</option><option value="IT" > IT - ITALY</option><option value="JM" > JM - JAMAICA</option><option value="JP" > JP - JAPAN</option><option value="JE" > JE - JERSEY</option><option value="JO" > JO - JORDAN</option><option value="KZ" > KZ - KAZAKHSTAN</option><option value="KE" > KE - KENYA</option><option value="KI" > KI - KIRIBATI</option><option value="KP" > KP - KOREA DPR</option><option value="KR" > KR - KOREA,REPUBLIC OF</option><option value="KW" > KW - KUWAIT</option><option value="KG" > KG - KYRGYZSTAN</option><option value="LA" > LA - LAO PDR</option><option value="LV" > LV - LATVIA</option><option value="LB" > LB - LEBANON</option><option value="LS" > LS - LESOTHO</option><option value="LR" > LR - LIBERIA</option><option value="LY" > LY - LIBYAN ARAB JAMAHIRIYA</option><option value="LI" > LI - LIECHTENSTEIN</option><option value="LT" > LT - LITHUANIA</option><option value="LU" > LU - LUXEMBOURG</option><option value="MO" > MO - MACAU</option><option value="MK" > MK - MACEDONIA</option><option value="MG" > MG - MADAGASCAR</option><option value="MW" > MW - MALAWI</option><option value="MY" > MY - MALAYSIA</option><option value="MV" > MV - MALDIVES</option><option value="ML" > ML - MALI</option><option value="MT" > MT - MALTA</option><option value="MH" > MH - MARSHALL ISLAND</option><option value="MQ" > MQ - MARTINIQUE</option><option value="MR" > MR - MAURITANIA</option><option value="MU" > MU - MAURITIUS</option><option value="YT" > YT - MAYOTTE</option><option value="MX" > MX - MEXICO</option><option value="FM" > FM - MICRONESIA (FEDERATED STATES OF)</option><option value="MD" > MD - MOLDOVA REPUBLIC OF</option><option value="MC" > MC - MONACO</option><option value="MN" > MN - MONGOLIA</option><option value="ME" > ME - MONTENEGRO</option><option value="MS" > MS - MONTSERRAT</option><option value="MA" > MA - MOROCCO</option><option value="MZ" > MZ - MOZAMBIQUE</option><option value="MM" > MM - MYANMAR</option><option value="NA" > NA - NAMIBIA</option><option value="NR" > NR - NAURU</option><option value="NP" > NP - NEPAL</option><option value="NL" > NL - NETHERLANDS</option><option value="AN" > AN - NETHERLANDS ANTILLES</option><option value="NC" > NC - NEW CALEDONIA</option><option value="NZ" > NZ - NEW ZEALAND</option><option value="NI" > NI - NICARAGUA</option><option value="NE" > NE - NIGER</option><option value="NG" > NG - NIGERIA</option><option value="NU" > NU - NIUE</option><option value="NF" > NF - NORFOLK ISLAND</option><option value="MP" > MP - NORTHERN MARIANA ISLANDS</option><option value="NO" > NO - NORWAY</option><option value="OM" > OM - OMAN</option><option value="OT" > OT - OTHER COUNTRY</option><option value="PK" > PK - PAKISTAN</option><option value="PW" > PW - PALAU</option><option value="PS" > PS - PALESTINIAN TERRITORY, OCCUPIED</option><option value="PA" > PA - PANAMA</option><option value="PG" > PG - PAPUA NEW GUINEA</option><option value="PY" > PY - PARAGUAY</option><option value="PE" > PE - PERU</option><option value="PH" > PH - PHILIPPINES</option><option value="PN" > PN - PITCAIRN</option><option value="PL" > PL - POLAND</option><option value="PT" > PT - PORTUGAL</option><option value="PR" > PR - PUERTO RICO</option><option value="QA" > QA - QATAR</option><option value="RE" > RE - REUNION</option><option value="RO" > RO - ROMANIA</option><option value="RU" > RU - RUSSIAN FEDERATION</option><option value="RW" > RW - RWANDA</option><option value="BL" > BL - SAINT BARTH&Eacute;LEMY</option><option value="SH" > SH - SAINT HELENA</option><option value="KN" > KN - SAINT KITTS AND NEVIS</option><option value="LC" > LC - SAINT LUCIA</option><option value="MF" > MF - SAINT MARTIN (FRENCH PART)</option><option value="PM" > PM - SAINT PIERRE AND MIQUELON</option><option value="VC" > VC - SAINT VINCENT AND THE GRENADINES</option><option value="WS" > WS - SAMOA</option><option value="SM" > SM - SAN MARINO</option><option value="ST" > ST - SAO TOME AND PRINCIPE</option><option value="SA" > SA - SAUDI ARABIA</option><option value="SN" > SN - SENEGAL</option><option value="RS" > RS - SERBIA</option><option value="CS" > CS - SERBIA & MONTENEGRO</option><option value="SC" > SC - SEYCHELLES</option><option value="SL" > SL - SIERRA LEONE</option><option value="SG" > SG - SINGAPORE</option><option value="SX" > SX - SINT MAARTEN</option><option value="SK" > SK - SLOVAKIA</option><option value="SI" > SI - SLOVENIA</option><option value="SB" > SB - SOLOMON ISLANDS</option><option value="SO" > SO - SOMALIA</option><option value="ZA" > ZA - SOUTH AFRICA</option><option value="GS" > GS - SOUTH GEORGIA AND THE SOUTH SANDWIC</option><option value="SS" > SS - SOUTH SUDAN</option><option value="ES" > ES - SPAIN</option><option value="LK" > LK - SRI LANKA</option><option value="SD" > SD - SUDAN</option><option value="SR" > SR - SURINAME</option><option value="SJ" > SJ - SVALBARD AND JAN MAYEN</option><option value="SE" > SE - SWEDEN</option><option value="CH" > CH - SWITZERLAND</option><option value="SY" > SY - SYRIAN ARAB REPUBLIC</option><option value="TW" > TW - TAIWAN, PROVINCE OF CHINA</option><option value="TJ" > TJ - TAJIKISTAN</option><option value="TZ" > TZ - TANZANIA UNITED REPUBLIC OF</option><option value="TH" > TH - THAILAND</option><option value="TL" > TL - TIMOR-LESTE</option><option value="TG" > TG - TOGO</option><option value="TK" > TK - TOKELAU</option><option value="TO" > TO - TONGA</option><option value="TT" > TT - TRINIDAD AND TOBAGO</option><option value="TN" > TN - TUNISIA</option><option value="TR" > TR - TÜRKIYE</option><option value="TM" > TM - TURKMENISTAN</option><option value="TC" > TC - TURKS AND CAICOS ISLANDS</option><option value="TV" > TV - TUVALU</option><option value="UG" > UG - UGANDA</option><option value="UA" > UA - UKRAINE</option><option value="AE" > AE - UNITED ARAB EMIRATES</option><option value="GB" > GB - UNITED KINGDOM</option><option value="US" > US - UNITED STATES</option><option value="UM" > UM - UNITED STATES MINOR OUTLYING ISLAND</option><option value="UY" > UY - URUGUAY</option><option value="UZ" > UZ - UZBEKISTAN</option><option value="VU" > VU - VANUATU</option><option value="VA" > VA - VATICAN CITY</option><option value="VE" > VE - VENEZUELA</option><option value="VN" > VN - VIETNAM</option><option value="VG" > VG - VIRGIN ISLANDS (BRITISH)</option><option value="VI" > VI - VIRGIN ISLANDS (U.S.)</option><option value="WF" > WF - WALLIS AND FUTUNA ISLANDS</option><option value="EH" > EH - WESTERN SAHARA</option><option value="YE" > YE - YEMEN</option><option value="YU" > YU - YUGOSLAVIA</option><option value="ZR" > ZR - ZAIRE</option><option value="ZM" > ZM - ZAMBIA</option><option value="ZW" > ZW - ZIMBABWE</option><option value="ZZ" > ZZ - รหัสประเทศสำหรับเขตต่อเนื่องฯ</option><option value="FZ" > FZ - รหัสประเทศสำหรับเขตปลอดอากร</option><option value="EZ" > EZ - รหัสประเทศสำหรับเขตอุตสาหกรรมส่งออก</option>	
+										</select>
+									</td>
+								</tr>
+								<tr>
+									<th scope="row"> <label>Month<span class="text-danger">*</span></label></th>
+									<td class="form-inline">			
+										<select id="width-dynamic" name="month" class="form-control width-dynamic">
+											<option value="1" > January</option><option value="2" > February</option><option value="3" > March</option><option value="4" > April</option><option value="5" > May</option><option value="6" > June</option><option value="7" > July</option><option value="8" > August</option><option value="9" selected> September</option><option value="10" > October</option><option value="11" > November</option><option value="12" > December</option>										</select>										
+									</td>
+								</tr>
+								<tr>
+									<th scope="row"> <label>Year<span class="text-danger">*</span></label></th>		
+									<td class="form-inline">	
+										<select id="width-dynamic" name="year" class="form-control width-dynamic">
+											<option value="2026" selected> 2026</option><option value="2025" > 2025</option><option value="2024" > 2024</option><option value="2023" > 2023</option><option value="2022" > 2022</option><option value="2021" > 2021</option><option value="2020" > 2020</option><option value="2019" > 2019</option><option value="2018" > 2018</option><option value="2017" > 2017</option><option value="2016" > 2016</option><option value="2015" > 2015</option><option value="2014" > 2014</option><option value="2013" > 2013</option><option value="2012" > 2012</option><option value="2011" > 2011</option><option value="2010" > 2010</option><option value="2009" > 2009</option><option value="2008" > 2008</option><option value="2007" > 2007</option><option value="2006" > 2006</option><option value="2005" > 2005</option><option value="2004" > 2004</option><option value="2003" > 2003</option><option value="2002" > 2002</option><option value="2001" > 2001</option>										</select>
+									</td>
+								</tr>
+								<tr>
+									<th scope="row" nowrap> <label>Latest released</label></th>
+									<td>
+										September 2026									</td>
+								</tr>
+								<tr>
+									<td></td>
+									<td>
+										<button type="button" class="btn btn-success" onClick="check_validate()"><span class="glyphicon glyphicon-search" aria-hidden="true"></span> Search</button>
+										<button type="button" class="btn btn-info" onClick="check_validate_export()"><span class="glyphicon glyphicon-download-alt" aria-hidden="true"></span> Export</button>
+										<button type="button" class="btn btn-info" onClick="check_validate_export_csv()"><span class="glyphicon glyphicon-download-alt" aria-hidden="true"></span> Export CSV</button><br>
+										<label style="color:#ff9900">Note : Only 11-digit HS-CODE has the quantity detail.</label><br>
+										<label class="text-danger">* กรมศุลกากร ขอสงวนสิทธิ์ในการปรับปรุงแก้ไขข้อมูลบนเว็บไซต์นี้ *</label><br>
+										<label class="text-success" style="visibility: hidden;"><a href="http://www.customs.go.th/cont_strc_download.php?lang=th&top_menu=menu_homepage&current_id=14232a32404f505f46464b4b464b49" target="_blank">* รายละเอียดวิธีการใช้งานระบบ *</a></label>
+										</td>
+									</tr>
+								</table>
+																	<div style="padding-bottom:20px;">
+										<ul class="nav nav-tabs">
+											<li class='active'><a href="javascript:send_to('statistic_report.php?tab=by_country&s=oRDLVfOdPTQpxAkG')">By Country</a></li><li ><a href="javascript:send_to('statistic_report.php?tab=by_tariff_classification&s=oRDLVfOdPTQpxAkG')">By Tariff Classification</a></li><li ><a href="javascript:send_to('statistic_report.php?tab=by_statistic_code&s=oRDLVfOdPTQpxAkG')">By Statistic Code</a></li>									
+										</ul>
+									</div>								
+									<style>
+	.xtable_header{
+	background-color:#337ab7;
+	color:#ffffff;	
+	}
+	.ytable_header{
+	background-color:#ef9f3c;
+	color:#ffffff;	
+	}
+</style>
+<div>
+		<table class="table table-bordered">
+	<tr>
+		<th width="100px" class="xtable_header" rowspan="4">HS-CODE</th>
+		<th width="100px"><a href="javascript:send_to('statistic_report.php?tariff_code=04');">04</a></th>
+		<td width="300px">DAIRY PRODUCE BIRD EGG HONEY</td>
+	</tr>
+	<tr><th width='100px'><a href="javascript:send_to('statistic_report.php?tariff_code=0409');">0409</a></th><td width='300px'>Natural honey.</td></tr><tr><th width='100px'><a href="javascript:send_to('statistic_report.php?tariff_code=04090000');">04090000</a></th><td width='300px'>Natural honey.</td></tr><tr><th width='100px'> Statistic code : 000</th><td width='300px'>Natural honey. (KGM)</td></tr>		
+</table>		<div class="table-responsive">
+		<table class="table table-bordered table-hover table-striped">	
+			<thead>
+				<tr>
+					<th rowspan="2" colspan="2" style="width:50%;text-align:center">COUNTRY</th>
+					<th style="text-align:center" colspan="2">Sept 2026</th>
+					<th style="text-align:center" colspan="2">Jan - Sept 2026</th>				
+				</tr>
+				<tr>				
+					<th class="xtable_header" style="text-align:center">Quantity</th>					<th class="xtable_header" style="text-align:center">FOB (Baht)</th>
+					<th class="ytable_header" style="text-align:center">Quantity</th>					<th class="ytable_header" style="text-align:center">FOB (Baht)</th>
+					
+				</tr>
+			</thead>
+			<tbody>			
+									<tr>
+						<td>AU</td>
+						<td>AUSTRALIA</td>
+													<td align="right">63,000							</td>
+												<td align="right">
+							3,696,930						</td>
+													<td align="right">
+								781,500							</td>
+												<td align="right">
+							44,529,404						</td>					
+					</tr>
+										<tr>
+						<td>BS</td>
+						<td>BAHAMAS</td>
+													<td align="right">13,932							</td>
+												<td align="right">
+							2,525,756						</td>
+													<td align="right">
+								13,932							</td>
+												<td align="right">
+							2,525,756						</td>					
+					</tr>
+										<tr>
+						<td>BH</td>
+						<td>BAHRAIN</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								915							</td>
+												<td align="right">
+							154,917						</td>					
+					</tr>
+										<tr>
+						<td>BD</td>
+						<td>BANGLADESH</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								1,834							</td>
+												<td align="right">
+							265,659						</td>					
+					</tr>
+										<tr>
+						<td>BE</td>
+						<td>BELGIUM</td>
+													<td align="right">273,000							</td>
+												<td align="right">
+							19,069,290						</td>
+													<td align="right">
+								771,500							</td>
+												<td align="right">
+							55,235,407						</td>					
+					</tr>
+										<tr>
+						<td>BT</td>
+						<td>BHUTAN</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								258							</td>
+												<td align="right">
+							22,042						</td>					
+					</tr>
+										<tr>
+						<td>BN</td>
+						<td>BRUNEI DARUSSALAM</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								744							</td>
+												<td align="right">
+							189,060						</td>					
+					</tr>
+										<tr>
+						<td>KH</td>
+						<td>CAMBODIA</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								1,050							</td>
+												<td align="right">
+							170,962						</td>					
+					</tr>
+										<tr>
+						<td>CA</td>
+						<td>CANADA</td>
+													<td align="right">81,601							</td>
+												<td align="right">
+							5,694,607						</td>
+													<td align="right">
+								400,011							</td>
+												<td align="right">
+							27,649,725						</td>					
+					</tr>
+										<tr>
+						<td>CN</td>
+						<td>CHINA</td>
+													<td align="right">74,009							</td>
+												<td align="right">
+							11,285,069						</td>
+													<td align="right">
+								150,601							</td>
+												<td align="right">
+							23,545,702						</td>					
+					</tr>
+										<tr>
+						<td>FR</td>
+						<td>FRANCE</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								3							</td>
+												<td align="right">
+							34						</td>					
+					</tr>
+										<tr>
+						<td>DE</td>
+						<td>GERMANY</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								369,913							</td>
+												<td align="right">
+							22,280,198						</td>					
+					</tr>
+										<tr>
+						<td>HK</td>
+						<td>HONG KONG</td>
+													<td align="right">7,740							</td>
+												<td align="right">
+							1,362,101						</td>
+													<td align="right">
+								25,852							</td>
+												<td align="right">
+							4,452,128						</td>					
+					</tr>
+										<tr>
+						<td>ID</td>
+						<td>INDONESIA</td>
+													<td align="right">120,000							</td>
+												<td align="right">
+							9,480,000						</td>
+													<td align="right">
+								716,673							</td>
+												<td align="right">
+							53,231,281						</td>					
+					</tr>
+										<tr>
+						<td>IE</td>
+						<td>IRELAND</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								23,200							</td>
+												<td align="right">
+							1,704,955						</td>					
+					</tr>
+										<tr>
+						<td>IT</td>
+						<td>ITALY</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								5							</td>
+												<td align="right">
+							127						</td>					
+					</tr>
+										<tr>
+						<td>JP</td>
+						<td>JAPAN</td>
+													<td align="right">16,214							</td>
+												<td align="right">
+							1,772,589						</td>
+													<td align="right">
+								324,547							</td>
+												<td align="right">
+							24,254,470						</td>					
+					</tr>
+										<tr>
+						<td>KR</td>
+						<td>KOREA,REPUBLIC OF</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								24							</td>
+												<td align="right">
+							2,487						</td>					
+					</tr>
+										<tr>
+						<td>KW</td>
+						<td>KUWAIT</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								464							</td>
+												<td align="right">
+							75,562						</td>					
+					</tr>
+										<tr>
+						<td>LA</td>
+						<td>LAO PDR</td>
+													<td align="right">6,154							</td>
+												<td align="right">
+							905,939						</td>
+													<td align="right">
+								50,771							</td>
+												<td align="right">
+							5,933,971						</td>					
+					</tr>
+										<tr>
+						<td>LT</td>
+						<td>LITHUANIA</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								20,400							</td>
+												<td align="right">
+							1,127,202						</td>					
+					</tr>
+										<tr>
+						<td>MO</td>
+						<td>MACAU</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								933							</td>
+												<td align="right">
+							292,992						</td>					
+					</tr>
+										<tr>
+						<td>MY</td>
+						<td>MALAYSIA</td>
+													<td align="right">101,700							</td>
+												<td align="right">
+							8,074,641						</td>
+													<td align="right">
+								805,651							</td>
+												<td align="right">
+							66,464,306						</td>					
+					</tr>
+										<tr>
+						<td>MM</td>
+						<td>MYANMAR</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								665							</td>
+												<td align="right">
+							148,968						</td>					
+					</tr>
+										<tr>
+						<td>NL</td>
+						<td>NETHERLANDS</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								114,000							</td>
+												<td align="right">
+							7,663,454						</td>					
+					</tr>
+										<tr>
+						<td>NG</td>
+						<td>NIGERIA</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								5,328							</td>
+												<td align="right">
+							468,913						</td>					
+					</tr>
+										<tr>
+						<td>PH</td>
+						<td>PHILIPPINES</td>
+													<td align="right">11,250							</td>
+												<td align="right">
+							881,504						</td>
+													<td align="right">
+								37,257							</td>
+												<td align="right">
+							4,679,455						</td>					
+					</tr>
+										<tr>
+						<td>QA</td>
+						<td>QATAR</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								1,005							</td>
+												<td align="right">
+							169,712						</td>					
+					</tr>
+										<tr>
+						<td>SA</td>
+						<td>SAUDI ARABIA</td>
+													<td align="right">69,316							</td>
+												<td align="right">
+							3,928,575						</td>
+													<td align="right">
+								394,116							</td>
+												<td align="right">
+							20,824,546						</td>					
+					</tr>
+										<tr>
+						<td>SG</td>
+						<td>SINGAPORE</td>
+													<td align="right">1,626							</td>
+												<td align="right">
+							325,200						</td>
+													<td align="right">
+								72,340							</td>
+												<td align="right">
+							11,376,929						</td>					
+					</tr>
+										<tr>
+						<td>ZA</td>
+						<td>SOUTH AFRICA</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								1							</td>
+												<td align="right">
+							33						</td>					
+					</tr>
+										<tr>
+						<td>TW</td>
+						<td>TAIWAN, PROVINCE OF CHINA</td>
+													<td align="right">223,181							</td>
+												<td align="right">
+							15,022,905						</td>
+													<td align="right">
+								2,969,995							</td>
+												<td align="right">
+							208,567,056						</td>					
+					</tr>
+										<tr>
+						<td>TG</td>
+						<td>TOGO</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								1							</td>
+												<td align="right">
+							236						</td>					
+					</tr>
+										<tr>
+						<td>AE</td>
+						<td>UNITED ARAB EMIRATES</td>
+													<td align="right">0							</td>
+												<td align="right">
+							0						</td>
+													<td align="right">
+								4,096							</td>
+												<td align="right">
+							622,361						</td>					
+					</tr>
+										<tr>
+						<td>US</td>
+						<td>UNITED STATES</td>
+													<td align="right">301,901							</td>
+												<td align="right">
+							20,287,710						</td>
+													<td align="right">
+								2,843,393							</td>
+												<td align="right">
+							167,428,041						</td>					
+					</tr>
+										<tr>
+						<td>VN</td>
+						<td>VIETNAM</td>
+													<td align="right">22							</td>
+												<td align="right">
+							22,056						</td>
+													<td align="right">
+								2,374							</td>
+												<td align="right">
+							1,271,248						</td>					
+					</tr>
+										<tr>
+						<th colspan="2" style="text-align:right">SUM</th>			
+													<th style="text-align:right">
+								1,364,646							</th>
+												<th style="text-align:right">104,334,872</th>
+													<th style="text-align:right">
+								10,905,352							</th>
+												<th style="text-align:right">757,329,299</th>					
+					</tr>
+			</tbody>
+		</table>
+	</div>
+</div>
+																			
+															</div>	
+							<!--list row-->
+						</div>
+						<!--md-9-->
+					</div>
+					<!-- row1-->
+					<hr>
+					<footer class="footer">
+						<div style="float: left;padding-right:8px">
+	<div id="ipv6_enabled_www_test_logo"></div>
+        <!-- IPv6-test.com button BEGIN -->
+        <a target="_blank" href='http://ipv6-test.com/validate.php?url=www.customs.go.th'><img src='https://ipv6-test.com/button-ipv6-small.png' alt='ipv6 ready' title='ipv6 ready' border='0' /></a>
+        <!-- IPv6-test.com button END -->	
+        <a target="_blank" href="https://achecks.org/achecker#wcag2aa,https://www.customs.go.th/"><img src="https://achecks.org/images/icon_W2_aa.jpg" alt="AChecker accessibility checker compliance: WCAG 2.0 (Level AA)" height="32" width="102" /></a>
+</div>
+<div>
+	Information on this site Listed under the conditions of use and copyright information of The Customs Department 
+    <br/>Copyright 2015 The Customs Department. All rights reserved @Develop by Innovation and System Analysis Unit
+	<div id=histats_counter></div>
+</div>
+<script type="text/javascript">var _Hasync= _Hasync|| [];
+	_Hasync.push(["Histats.start", "1,3627900,4,107,170,20,00011111"]);
+	_Hasync.push(["Histats.fasi", "1"]);
+	_Hasync.push(["Histats.track_hits", ""]);
+	(function() {
+		var hs = document.createElement("script"); hs.type = "text/javascript"; hs.async = true;
+		hs.src = ("//s10.histats.com/js15_as.js");
+		(document.getElementsByTagName("head")[0] || document.getElementsByTagName("body")[0]).appendChild(hs);
+	})();
+</script>
+<noscript><a href="/" target="_blank"><img  src="//sstatic1.histats.com/0.gif?3627900&101" alt="Website Statistics" border="0"></a></noscript>
+<!-- <script language="JavaScript" type="text/javascript">
+	var Ipv6_Js_Server ="https://";
+	document.write(unescape("%3Cscript src='" + Ipv6_Js_Server + "www.ipv6forum.com/ipv6_enabled/sa/SA1.php?id=5846' type='text/javascript'%3E%3C/script%3E"));
+</script> -->					</footer>
+				</div>
+				<!-- container-->
+			</form>
+		</body>
+	</html>
+	<script>set_obj_active('tariff_code');</script>
+			
