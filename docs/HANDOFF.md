@@ -195,6 +195,33 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   publish honey separately; a newspaper figure was added to the web findings (Đại Đoàn Kết, 6 Aug 2026:
   nearly 32,000 t in 2025, honey together with pollen, royal jelly and propolis; quote checked with
   `services.web_verify`).
+- **News for every country (16 Nov, owner: "make the news bigger, add more countries' news, about honey
+  and honey companies of each country, make sure they also update live"):** 70 of the 130 countries
+  had no news source (Central America and the Caribbean, most of Asia, the Middle East, Africa, New
+  Caledonia). Each now has one Google News search, `GOOGLE_WORLD_FEEDS` in `collectors/news_feeds.py`
+  (keys `news_google_<iso3>_honey`, built from `WORLD_NEWS_COUNTRIES`: language and the country's
+  words), ON by default, read every 3 hours like the other feeds. The headline must carry the honey
+  word (English, Spanish, French or Portuguese) and the query asks for beekeepers, exports, prices,
+  production, companies or cooperatives. An item is kept when it names the country: by the country
+  tagger, by the search's own words (`FeedSpec.country_words`, e.g. "Omani", "Kurdistan"; the item is
+  then tagged with the country), or when the paper itself carries the country's name ("Jamaica
+  Observer") and the text names no other country. Words that are also something else are left out
+  (Georgia the US state, Jordan the first name, Sidr honey for Yemen).
+  Read on the real feeds before keeping them: 68 searches answered, 50 countries had news, about 190
+  articles of the last year. Filtered after reading: trade-data directory pages (Tridge, OEC), honey
+  beer / tea / BBQ sauce / mustard, the bakery "Honey Bun", fast-food menus, "miel del amor",
+  honey in Egyptian tombs, cane syrup ("miel de caña"), the band Miel San Marcos, Portuguese and
+  French honeymoons. 18 countries had nothing recent (El Salvador, Honduras, Dominican Republic,
+  Haiti, Armenia, Azerbaijan, Tajikistan, Mongolia, Cambodia, Singapore, Hong Kong, Laos, Kuwait,
+  Central African Republic, Angola, Malawi, Mozambique, Madagascar): their searches stay on and
+  will show news when it is published. Georgia and Saudi Arabia answered on the first read (2 and 8
+  articles) and were refused on the second.
+  **Google refuses bursts:** after about 45 searches one second apart it answered 429 for a while.
+  All Google searches of the program are now spaced 4 seconds apart (`_google_pause`, not in tests);
+  a refused search shows as failed on the Fonti page and is read again at its next turn. Do not
+  shorten the gap or add many more Google searches without reading the answers on a real run.
+  Tried on a copy of the owner's database: 8 searches, 57 new articles, Oman's and Jamaica's pages
+  show their news.
 - **Phone copy dropped by the owner (15 Nov: "forget about the phone app, forget everything about
   that"):** do not work on it or report on it unless he raises it again. `.github/workflows/mirror.yml`
   and `docs/PHONE_ACCESS.md` are still in the repository (he has not asked to remove or disable them).

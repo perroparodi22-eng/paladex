@@ -44,6 +44,8 @@ from __future__ import annotations
 
 import calendar
 import re
+import threading
+import time
 import types
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -89,6 +91,10 @@ class FeedSpec:
     require_country: bool = False
     # Google News searches are opt-in (see _GN_TERMS); True for the ones the owner asked for.
     on_by_default: bool = False
+    # With `require_country`: the country's name and adjective as the search's language writes them
+    # (folded, lower case). An item that carries one of them is about the country and is tagged
+    # with it, also for the countries the general tagger (services.news.tag_countries) does not know.
+    country_words: tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -116,12 +122,15 @@ _EDITIONS = {
     "zh": ("zh-CN", "CN", "CN:zh-Hans", "cinese"),
     "th": ("th", "TH", "TH:th", "thailandese"),
     "ja": ("ja", "JP", "JP:ja", "giapponese"),
+    "es-419": ("es-419", "US", "US:es-419", "spagnolo, America Latina"),
+    "fr": ("fr", "FR", "FR:fr", "francese"),
 }
 _EDITIONS_EN = {
     "en": "English, US edition", "en-GB": "English, UK edition", "it": "Italian",
     "es-AR": "Spanish, Argentina edition", "es-ES": "Spanish, Spain edition",
     "pt-BR": "Portuguese, Brazil edition", "de": "German",
     "en-IN": "English, India edition", "vi": "Vietnamese", "zh": "Chinese", "th": "Thai", "ja": "Japanese",
+    "es-419": "Spanish, Latin America", "fr": "French",
 }
 
 
@@ -649,8 +658,8 @@ FEEDS += COUNTRY_FEEDS
 # these too, where each can be switched off. Headline and link only; the link opens the article
 # through Google News.
 _GN_NOISE = '-"honey trap" -"honey-trap" -"honey pot" -scrap -"market size" -site:oec.world'
-_GN_OWNER_NOTE = ("Attivata su richiesta del titolare (10 e 15 nov 2026) per avere notizie dei paesi asiatici "
-                  "(Cina, India, Vietnam, Thailandia, Giappone); si può spegnere da questa pagina. ")
+_GN_OWNER_NOTE = ("Attivata su richiesta del titolare (novembre 2026) per avere notizie sul miele paese per paese; "
+                  "si può spegnere da questa pagina. ")
 
 
 def _gn_country(key: str, country: str, label: str, label_en: str, query: str, edition: str, *,
@@ -698,6 +707,129 @@ GOOGLE_COUNTRY_FEEDS: list[FeedSpec] = [
                 "(はちみつ OR 蜂蜜 OR ハチミツ) (輸入 OR 価格 OR 養蜂 OR 生産量 OR 国産)", "ja", window="90d", native=True),
 ]
 FEEDS += GOOGLE_COUNTRY_FEEDS
+
+
+# ---------------------------------------------------------------------------
+# Every other country: one Google News search each (owner's request, 16 Nov 2026)
+# ---------------------------------------------------------------------------
+#
+# "Make the news bigger, add more countries' news about honey and companies related to honey, of
+# each country, and make sure they live update." Seventy countries had no news source at all
+# (Central America and the Caribbean, most of Asia, the Middle East, Africa). Each gets one search
+# in the language its press mostly writes in for a foreign reader (English, Spanish, French or
+# Portuguese): "honey" in the headline, the country's name or adjective, and a sector word
+# (beekeepers, exports, prices, production, companies, cooperatives). An item is kept only when its
+# own headline or excerpt names the country (`country_words`), or when the paper carries the
+# country's name ("Jamaica Observer") and the text names no other country; it is then tagged with
+# that country.
+# Checked every 3 hours like every feed; on by default; each can be switched off on the Fonti page.
+_WORLD_QUERY = {
+    "en": ('intitle:honey ({a}) (beekeepers OR beekeeping OR export OR exports OR price OR prices OR production '
+           f'OR company OR companies OR cooperative OR farmers) {_GN_NOISE}'),
+    "es": ('intitle:miel ({a}) (apicultores OR apicultura OR exportación OR exportaciones OR producción OR cosecha '
+           'OR precio OR empresa OR cooperativa)'),
+    "fr": ('intitle:miel ({a}) (apiculteurs OR apiculture OR exportation OR production OR récolte OR prix '
+           'OR entreprise OR coopérative) -"lune de miel"'),
+    "pt": ('intitle:mel ({a}) (apicultores OR apicultura OR exportação OR produção OR preço OR empresa '
+           'OR cooperativa) -"lua de mel"'),
+}
+_WORLD_EDITION = {"en": "en", "es": "es-419", "fr": "fr", "pt": "pt-BR"}
+# iso3: (language, the first words go in the search, every word identifies the country in a headline)
+WORLD_NEWS_COUNTRIES: dict[str, tuple[str, tuple[str, ...]]] = {
+    # Central America and the Caribbean
+    "CUB": ("es", ("Cuba", "cubana", "cubano", "cubanos", "cubanas")),
+    "GTM": ("es", ("Guatemala", "guatemalteca", "guatemalteco", "guatemaltecos")),
+    "SLV": ("es", ('"El Salvador"', "salvadoreña", "salvadoreño", "salvadoreños")),
+    "NIC": ("es", ("Nicaragua", "nicaragüense", "nicaragüenses")),
+    "HND": ("es", ("Honduras", "hondureña", "hondureño", "hondureños")),
+    "CRI": ("es", ('"Costa Rica"', "costarricense", "costarricenses")),
+    "PAN": ("es", ("Panamá", "panameña", "panameño", "panameños")),
+    "DOM": ("es", ('"República Dominicana"', "dominicana", "dominicano", "dominicanos")),
+    "BLZ": ("en", ("Belize", "Belizean")),
+    "HTI": ("fr", ("Haïti", "haïtien", "haïtienne", "haïtiens")),
+    "JAM": ("en", ("Jamaica", "Jamaican")),
+    # Asia
+    "HKG": ("en", ('"Hong Kong"',)),
+    "TWN": ("en", ("Taiwan", "Taiwanese")),
+    "PAK": ("en", ("Pakistan", "Pakistani")),
+    "MMR": ("en", ("Myanmar", "Burmese")),
+    "MYS": ("en", ("Malaysia", "Malaysian")),
+    "IDN": ("en", ("Indonesia", "Indonesian")),
+    "PHL": ("en", ("Philippines", "Philippine", "Filipino")),
+    "KOR": ("en", ('"South Korea"', "Korean", "Korea")),
+    "KAZ": ("en", ("Kazakhstan", "Kazakh")),
+    "KGZ": ("en", ("Kyrgyzstan", "Kyrgyz")),
+    # "Georgia" alone is also a US state: the adjective and the capital only
+    "GEO": ("en", ("Georgian", "Tbilisi")),
+    "ARM": ("en", ("Armenia", "Armenian")),
+    "AZE": ("en", ("Azerbaijan", "Azerbaijani")),
+    "UZB": ("en", ("Uzbekistan", "Uzbek")),
+    "TJK": ("en", ("Tajikistan", "Tajik")),
+    "AFG": ("en", ("Afghanistan", "Afghan")),
+    "NPL": ("en", ("Nepal", "Nepali", "Nepalese")),
+    "BGD": ("en", ("Bangladesh", "Bangladeshi")),      # not "Sundarbans": half of it is in India
+    "LKA": ("en", ('"Sri Lanka"', '"Sri Lankan"')),
+    "MNG": ("en", ("Mongolia", "Mongolian")),
+    "LAO": ("en", ("Laos", "Lao")),
+    "KHM": ("en", ("Cambodia", "Cambodian")),
+    "SGP": ("en", ("Singapore", "Singaporean")),
+    # Middle East
+    "IRN": ("en", ("Iran", "Iranian")),
+    "ISR": ("en", ("Israel", "Israeli")),
+    "SAU": ("en", ('"Saudi Arabia"', "Saudi")),
+    "ARE": ("en", ("UAE", '"United Arab Emirates"', "Emirati", "Dubai", '"Abu Dhabi"')),
+    # "Jordan" alone is also a first name: the adjective and the capital only
+    "JOR": ("en", ("Jordanian", "Amman")),
+    "KWT": ("en", ("Kuwait", "Kuwaiti")),
+    "QAT": ("en", ("Qatar", "Qatari")),
+    "OMN": ("en", ("Oman", "Omani")),
+    "LBN": ("en", ("Lebanon", "Lebanese")),
+    "YEM": ("en", ("Yemen", "Yemeni")),
+    "SYR": ("en", ("Syria", "Syrian")),
+    "IRQ": ("en", ("Iraq", "Iraqi", "Kurdistan")),
+    # Africa
+    "EGY": ("en", ("Egypt", "Egyptian")),
+    "MAR": ("fr", ("Maroc", "marocain", "marocaine", "marocains")),
+    "DZA": ("fr", ("Algérie", "algérien", "algérienne", "algériens")),
+    "TUN": ("fr", ("Tunisie", "tunisien", "tunisienne", "tunisiens")),
+    "ETH": ("en", ("Ethiopia", "Ethiopian", "Tigray")),
+    "KEN": ("en", ("Kenya", "Kenyan")),
+    "TZA": ("en", ("Tanzania", "Tanzanian", "Zanzibar")),
+    "ZAF": ("en", ('"South Africa"', '"South African"')),
+    "SEN": ("fr", ("Sénégal", "sénégalais", "sénégalaise")),
+    "BFA": ("fr", ('"Burkina Faso"', "burkinabè", "burkinabé")),
+    "GHA": ("en", ("Ghana", "Ghanaian")),
+    "NGA": ("en", ("Nigeria", "Nigerian")),
+    "CMR": ("fr", ("Cameroun", "camerounais", "camerounaise")),
+    "CAF": ("fr", ("Centrafrique", "centrafricain", "centrafricaine")),
+    "COD": ("fr", ("RDC", '"RD Congo"', "congolais", "Kinshasa")),
+    "UGA": ("en", ("Uganda", "Ugandan")),
+    "RWA": ("en", ("Rwanda", "Rwandan")),
+    "AGO": ("pt", ("Angola", "angolano", "angolana", "angolanos")),
+    "ZMB": ("en", ("Zambia", "Zambian")),
+    "MWI": ("en", ("Malawi", "Malawian")),
+    "MOZ": ("pt", ("Moçambique", "moçambicano", "moçambicana", "moçambicanos")),
+    "ZWE": ("en", ("Zimbabwe", "Zimbabwean")),
+    "MDG": ("fr", ("Madagascar", "malgache", "malgaches")),
+    # Oceania
+    "NCL": ("fr", ('"Nouvelle-Calédonie"', "calédonien", "calédonienne")),
+}
+
+
+def _gn_world(iso3: str) -> FeedSpec:
+    import dataclasses
+
+    from ..reference.countries import country_name
+
+    lang, words = WORLD_NEWS_COUNTRIES[iso3]
+    query = _WORLD_QUERY[lang].format(a=" OR ".join(words[:3]))
+    spec = _gn_country(f"{iso3.lower()}_honey", iso3, f"miele in {country_name(iso3, 'it')}",
+                       f"honey in {country_name(iso3, 'en')}", query, _WORLD_EDITION[lang], window="1y", native=False)
+    return dataclasses.replace(spec, country_words=tuple(news_service.fold(w.strip('"')) for w in words))
+
+
+GOOGLE_WORLD_FEEDS: list[FeedSpec] = [_gn_world(iso3) for iso3 in WORLD_NEWS_COUNTRIES]
+FEEDS += GOOGLE_WORLD_FEEDS
 
 
 # ---------------------------------------------------------------------------
@@ -846,6 +978,26 @@ def parse_feed(content: bytes, spec: FeedSpec | None = None) -> tuple[list[dict]
 # ---------------------------------------------------------------------------
 
 
+# Google News: one search every few seconds at most, across all the searches of the program. With
+# about eighty searches switched on, a start-up collection would send them in one burst, and Google
+# answers a burst with "429 Too Many Requests" (16 Nov 2026: refused after about 45 searches read
+# one second apart). The pause only spreads the requests out; a search that is refused all the same
+# shows as failed on the Fonti page and is read again at its next turn.
+GOOGLE_MIN_GAP_S = 4.0
+_google_lock = threading.Lock()
+_google_last: float | None = None
+
+
+def _google_pause() -> None:
+    global _google_last
+    with _google_lock:
+        if _google_last is not None:
+            wait = GOOGLE_MIN_GAP_S - (time.monotonic() - _google_last)
+            if wait > 0:
+                time.sleep(wait)
+        _google_last = time.monotonic()
+
+
 class FeedCollector(Collector):
     """Base for one RSS/Atom feed. Concrete classes are generated from FEEDS below."""
 
@@ -860,6 +1012,8 @@ class FeedCollector(Collector):
 
     def collect(self, ctx: CollectContext) -> None:
         spec = self.feed
+        if spec.family == "google_news" and ctx._own_client:   # no waiting when a test supplies the client
+            _google_pause()
         doc = ctx.fetch(spec.url, headers={"Accept": FEED_ACCEPT}, title=spec.name)
         # An archive feed is read again even when its file has not changed: its older entries were
         # skipped while it was an ordinary feed, and re-reading costs a few look-ups (known links are
@@ -883,12 +1037,23 @@ class FeedCollector(Collector):
             if spec.family == "google_news" and news_service.is_shop_listing(item.get("title"), item.get("publisher")):
                 ctx.counters.count("filtered")  # a product page or a social post, not an article
                 continue
-            if spec.require_country and spec.country not in news_service.tag_countries(
-                    f"{news_service.strip_html(item['title'])}\n{news_service.strip_html(item.get('snippet') or '')}"):
-                ctx.counters.count("filtered")  # the search matched, but the item is not about the country
-                continue
+            item_home = home
+            if spec.require_country:
+                text = f"{news_service.strip_html(item['title'])}\n{news_service.strip_html(item.get('snippet') or '')}"
+                named = news_service.tag_countries(text)
+                if spec.country in named:
+                    pass
+                elif news_service.mentions(text, spec.country_words):
+                    item_home = spec.country    # named in the search's own words: tagged with the country
+                elif not named and news_service.mentions(item.get("publisher"), spec.country_words):
+                    # a paper of the country ("Jamaica Observer", "Times of Oman") writing about honey
+                    # without naming any country: home news
+                    item_home = spec.country
+                else:
+                    ctx.counters.count("filtered")  # the search matched, but the item is not about the country
+                    continue
             try:
-                ctx.add_news(**item, home_country=home)
+                ctx.add_news(**item, home_country=item_home)
                 ctx.checkpoint()
             except IntegrityError:
                 ctx.session.rollback()
