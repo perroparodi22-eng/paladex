@@ -155,6 +155,46 @@ def test_rejected_answers_are_not_stored_nor_asked_again_and_network_trouble_is_
     assert db.get(NewsArticle, b.id).title_it == "Gli apicoltori chiedono incentivi più alti"
 
 
+def test_chinese_and_japanese_headlines_are_short_and_write_numbers_their_own_way():
+    # a compact script: the Italian is several times longer
+    assert tt.acceptable("熊本地震被災の養蜂園 鶴居産ハチミツが復興の希望に 過去最多の収穫量",
+                         "Il miele prodotto dall'apicoltura Tsurui, colpita dal terremoto di Kumamoto, diventa una "
+                         "speranza per la ricostruzione: raccolto record")
+    assert not tt.acceptable("蜂蜜", "x" * 200)
+    # full-width digits, tenths ("３割" is 30%), ten-thousands ("10万" is 100,000)
+    assert tt.acceptable("銀座ビル屋上、養蜂始め２０年 蜂蜜年２．８トン", "Sul tetto di Ginza, 20 anni di apicoltura: 2,8 tonnellate di miele")
+    assert tt.acceptable("ハチミツの収量が例年の３割に", "La produzione di miele scende al 30% del solito")
+    assert tt.acceptable("無届けなら「10万円以下の過料」も", "Senza notifica, multa fino a 100.000 yen")
+    assert not tt.acceptable("無届けなら「10万円以下の過料」も", "Senza notifica, multa fino a 10.000 yen")
+    assert tt.acceptable("蜂蜜出口增长12.5万吨", "Le esportazioni di miele crescono di 125.000 tonnellate")
+    assert not tt.acceptable("蜂蜜出口增长12.5万吨", "Le esportazioni di miele crescono di 12,5 tonnellate")
+    # Indian English: lakh (100,000) and crore (10 million)
+    lakh = "India doubles honey production to 1.5 lakh metric tonnes, exports triple: PM Modi"
+    assert tt.acceptable(lakh, "L'India raddoppia la produzione di miele a 150.000 tonnellate, le esportazioni triplicano: PM Modi")
+    assert not tt.acceptable(lakh, "L'India raddoppia la produzione di miele a 15.000 tonnellate, le esportazioni triplicano")
+    assert tt.acceptable("Honey mission gets Rs 500 crore", "La missione del miele riceve 5 miliardi di rupie") is False
+    assert tt.acceptable("Honey mission gets Rs 500 crore", "La missione del miele riceve 5.000.000.000 di rupie")
+
+
+@respx.mock
+def test_headlines_rejected_under_older_checks_are_asked_again_once(on):
+    db = on
+    a = _add(db, "ハチミツの収量が例年の３割に", "ja")
+    db.add(AppSetting(key=tt.STATE_KEY, value={"day": "2026-11-15", "chars": 4500, "quota_reached": False, "failed": [a.id]}))
+    db.commit()
+    route = respx.get(tt.API_URL).mock(return_value=httpx.Response(200, json=answer("La produzione di miele scende al 30% del solito")))
+    assert tt.translate_pending(db, pause=0)["translated"] == 1 and route.call_count == 1
+    state = db.get(AppSetting, tt.STATE_KEY).value
+    assert state["rules"] == tt.RULES and state["failed"] == []
+    # with the current checks a rejected headline is still not asked twice
+    b = _add(db, "蜂蜜出口增长12.5万吨", "zh")
+    db.commit()
+    route.mock(return_value=httpx.Response(200, json=answer("Le esportazioni di miele crescono di 12,5 tonnellate")))
+    assert tt.translate_pending(db, pause=0)["rejected"] == 1
+    assert tt.translate_pending(db, pause=0)["rejected"] == 0 and route.call_count == 2
+    assert db.get(AppSetting, tt.STATE_KEY).value["failed"] == [b.id]
+
+
 @respx.mock
 def test_off_by_setting_off_with_an_ai_provider_and_the_optional_email(db, monkeypatch):
     from paladex import config
