@@ -36,9 +36,12 @@ from __future__ import annotations
 
 import html
 import logging
+import re
 import threading
 import time
+import unicodedata
 from datetime import date
+from decimal import Decimal, InvalidOperation
 
 import httpx
 from sqlalchemy import case, func, select
@@ -60,6 +63,9 @@ SECONDS_BETWEEN_REQUESTS = 1.2
 MAX_TITLE_CHARS = 400                    # the service accepts 500 bytes per request
 STATE_KEY = "title_translation:state"
 FAILED_KEEP = 800                        # ids not asked again (rejected answers), newest kept
+# Changed whenever the checks in `acceptable` change: the headlines rejected under the old checks
+# are then asked again once.
+RULES = 2
 TIMEOUT = httpx.Timeout(20.0, connect=10.0)
 
 # Language codes the service wants written differently from ours.
@@ -108,15 +114,41 @@ def pick_translation(payload: dict) -> str | None:
     return None
 
 
+# Chinese, Japanese, Korean and Thai write a headline in far fewer characters than Italian needs,
+# and their numbers differently: full-width digits ("２０年"), and units that multiply ("10万円" is
+# 100,000 yen, "３割" is 30%). Read on the owner's news, 16 Nov 2026: every rejected Chinese or
+# Japanese headline was a correct translation refused for its length or for such a number.
+_COMPACT_SCRIPT = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\u0e00-\u0e7f\uac00-\ud7af]")
+# ... and Indian English counts in lakh (100,000) and crore (10 million): "1.5 lakh tonnes".
+_EAST_ASIAN_UNIT = re.compile(r"(\d+(?:\.\d+)?)\s*(千万|百万|万|萬|億|亿|千|割|lakhs?\b|crores?\b)", re.I)
+_UNIT_FACTOR = {"千万": 10_000_000, "百万": 1_000_000, "万": 10_000, "萬": 10_000, "億": 100_000_000,
+                "亿": 100_000_000, "千": 1_000, "割": 10, "lakh": 100_000, "crore": 10_000_000}
+
+
+def _numbers_source(original: str) -> str:
+    """The headline as the number check should read it: full-width digits as plain ones, and a
+    number written with an East Asian unit replaced by its value ("10万" -> "100000"), so that a
+    translation saying 10,000 for it is refused."""
+    def value(m: re.Match) -> str:
+        try:
+            unit = m.group(2).lower().rstrip("s") if m.group(2).isascii() else m.group(2)
+            return " " + format((Decimal(m.group(1)) * _UNIT_FACTOR[unit]).normalize(), "f") + " "
+        except InvalidOperation:      # pragma: no cover - the pattern only matches plain numbers
+            return m.group(0)
+
+    return _EAST_ASIAN_UNIT.sub(value, unicodedata.normalize("NFKC", original))
+
+
 def acceptable(original: str, translated: str | None) -> bool:
     if not translated:
         return False
     t = translated.strip()
     if not t or t.casefold() == original.strip().casefold():
         return False                      # nothing was translated
-    if len(t) > 3 * len(original) + 40 or "MYMEMORY" in t.upper():
+    compact = len(_COMPACT_SCRIPT.findall(original)) * 3 > len(original)
+    if len(t) > (8 if compact else 3) * len(original) + 40 or "MYMEMORY" in t.upper():
         return False
-    return _numbers_ok(t, original)
+    return _numbers_ok(t, _numbers_source(original))
 
 
 def translate_title(title: str, language: str, *, client: httpx.Client, email: str | None = None) -> str | None:
@@ -144,7 +176,10 @@ def _state(session: Session) -> dict:
     state = dict(row.value) if row is not None and isinstance(row.value, dict) else {}
     if state.get("day") != date.today().isoformat():
         state = {"day": date.today().isoformat(), "chars": 0, "quota_reached": False,
-                 "failed": list(state.get("failed") or [])}
+                 "failed": list(state.get("failed") or []), "rules": state.get("rules")}
+    if state.get("rules") != RULES:       # the checks changed: ask the rejected headlines again
+        state["failed"] = []
+        state["rules"] = RULES
     state.setdefault("failed", [])
     return state
 

@@ -12,6 +12,14 @@ copy is published daily for the owner's phone (private Netlify project, Netlify 
 Italian by default, English available. The owner writes short, informal messages (often in English,
 sometimes Italian); answer in plain words, no jargon, and say plainly what you did and what failed.
 
+**The GitHub repository is PUBLIC since 16 Nov 2026 (the owner switched it and, asked, chose to keep it
+public so his father's Mac downloads and updates without a GitHub sign-in).** Everything committed is
+readable by anyone, on every branch (the repository also holds other projects of his on other
+branches). So: never commit a name, an e-mail address, a key, a supplier, a quote or anything from
+`data/` or `.env`; the corrections exchange would publish every correction on the
+`paladex-corrections` branch (not created yet: tell the owner before it is switched on). A scan of
+`main`'s whole history on 16 Nov found no key or password.
+
 **Hard rules (the owner insisted on all of them):**
 - Never fabricate or estimate a figure. Full provenance on every figure (source, period, publication
   date, link). Never mix price types. Never present old data as current.
@@ -299,8 +307,17 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
   (`collectors/runner.py`), labelled "Traduzione automatica" (`ai_model = "mymemory"`, `display.title_by =
   "machine"`, `MtBadge` / `TranslatedBadge` in `components/ui`). About 55 headlines a day per computer
   (5,000 characters), unreadable languages and relevant articles first; ten times more with
-  `PALADEX_TITLE_TRANSLATION_EMAIL` (the owner was asked whether to set one: not answered yet, never set
-  his address without his yes). Does nothing when an AI provider is configured (the AI translates and
+  `PALADEX_TITLE_TRANSLATION_EMAIL`. **16 Nov, owner: "translate the headlines of the news, all of them
+  and always", and yes to his address as the service's contact:** the address is in the `.env` of his
+  PC only (never in the repository, which is public; his father's Mac needs the same line in its own
+  `.env` or stays at 55 a day). Tried on a copy of his database: no allowance notice past 5,000
+  characters, about 55 headlines a minute. Chinese and Japanese headlines were all being rejected by
+  the checks, though the translations were right: the length limit now allows for compact scripts and
+  the number check reads full-width digits and the units 万 / 億 / 千 / 割 (`_numbers_source`; "10万" is
+  100,000, and a translation saying 10,000 is still refused). `RULES` in the module is raised when
+  the checks change, and the headlines rejected before are then asked again once. Still refused, by
+  design: a one-word headline for which the service has only someone's translation memory
+  ("OKTOBER" came back as "14 Ottobre"). Does nothing when an AI provider is configured (the AI translates and
   replaces machine translations). Tests switch it off (`conftest.py`); `test_title_translate.py` mocks it.
   English titles are not produced (the allowance goes to Italian, the default language).
 - **China, India, Vietnam news = Google News searches (10 Nov, owner's explicit request: "use normal Google"):**
@@ -337,8 +354,10 @@ sometimes Italian); answer in plain words, no jargon, and say plainly what you d
    (rebuild it from a database that has them at the next starter rebuild); the owner's PC fetches them
    by itself. GDELT news: rate-limited on GitHub ("one request every 5 seconds", a few searches postponed
    per run) and refused from the dev network since 4 Nov; worth a look if the news section thins out.
-3. **Father's PC setup** (not done yet): Python + clone of this private repository with a GitHub
-   account that has access, start Paladex, set the author name ("Firmi come… cambia" -> "Papà"), paste an
+3. **Father's PC setup** (in progress on his MacBook Air through GitHub Desktop, 16 Nov; the repository is
+   public now, so downloading needs no account, but the automatic update at start needs the `git`
+   command on the Mac and the corrections exchange needs an account allowed to write): Python + clone
+   of this repository, start Paladex, set the author name ("Firmi come… cambia" -> "Papà"), paste an
    AI key (optional; without it the box works as a form), and switch on the exchange on BOTH computers.
    README section "Correzioni e secondo computer" has the steps; the owner may want them simplified.
 4. Owner to paste the Comtrade key on his PC (Fonti e qualità dati); optionally switch on the weekly AI
