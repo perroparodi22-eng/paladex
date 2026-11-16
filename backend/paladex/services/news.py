@@ -360,7 +360,13 @@ def _unfolded(patterns: list[str]) -> re.Pattern | None:
 _GATE_EXCLUSIONS = _words([
     r"yo yo honey singh", r"honey singh", r"honey badgers?", r"honey[ -]?trap\w*", r"honey boo boo",
     r"honey bunch(?:es)?(?: of oats)?", r"honey nut(?: cheerios)?", r"honey irani", r"honey rose",
-    r"honey bunny", r"honey blonde", r"honey locusts?", r"honey crisp", r"honey[ -]?pots?", r"honey ?moon\w*",
+    r"honey bunny", r"honey blonde", r"honey locusts?", r"honey crisp", r"honey[ -]?pots?", r"honey ?moon\w*", r"lua de mel", r"lune de miel",
+    # flavoured food and drink, and a Jamaican bakery called Honey Bun (first real run of the
+    # country searches of 16 Nov 2026: "honey beer", "Jasmine Lychee Honey Tea", "Honey BBQ Sauce")
+    r"honey buns?", r"honey beers?", r"honey (?:\w+ )?teas?", r"honey soy", r"honey bbq(?: sauce)?",
+    r"honey mustard", r"honey smacks", r"honey hard cand\w+", r"teas? with (?:\w+ and )?honey",
+    # Spanish: cane syrup for rum ("miel virgen de caña"), agave and maple syrup, and the band Miel San Marcos
+    r"miel(?: virgen)? de (?:cana|agave|maple|arce|palma)", r"miel san marcos",
     # a fruit, a grade of brass scrap and a crypto token (Google News searches, Nov 2026)
     r"honey pomelos?", r"honey ?dew melons?", r"brass honey(?: scrap)?", r"honey (?:brass|scrap)", r"honey price \(hny",
     r"(?:land of )?milk (?:and|&) honey", r"honey,? i shrunk", r"american honey (?:queen|movie|film)",
@@ -374,7 +380,11 @@ _GATE_EXCLUSIONS = _words([
 # Item-level vetoes: male-enhancement "honey" sachets with hidden drugs (FDA warnings). Removing
 # the phrase is not enough because the item still says "honey" elsewhere.
 _GATE_VETO = _words([r"sildenafil", r"tadalafil", r"male enhancement", r"(?:sexual|libido) enhanc\w*",
-                     r"vip honey", r"royal honey",
+                     r"vip honey", r"royal honey", r"miel del amor",
+                     # archaeology trivia ("3,000-year-old honey found in Egyptian tombs")
+                     r"[\d.,]+[ -]years?[ -]old honey", r"egyptian tombs?",
+                     # fast-food menus ("new hot honey, ranch and Korean BBQ dips")
+                     r"mcdonald\w*", r"mcflurry", r"mccrispy", r"burger king", r"kfc",
                      # market-research advertising ("Honey Market Size, Share, Analysis ... 2034") and a crypto token
                      r"market size,? (?:share|growth|trends?)", r"cagr", r"hny/usd", r"honey token"])
 # An item whose only honey word is "miele" and that talks about appliances is about Miele the brand.
@@ -442,10 +452,21 @@ _JA_SHOP = re.compile(r"オープン|福袋|ギフト|祭り|創業祭|再入荷
 _JA_MARKET = re.compile(r"輸入|輸出|価格|収量|収穫量|生産量|自給率|相場|高騰")
 
 
+def mentions(text: str | None, words: tuple[str, ...] | list[str]) -> bool:
+    """True when one of `words` (already folded, lower case; a word or a short phrase) stands in
+    `text` as a whole word."""
+    if not text or not words:
+        return False
+    folded = fold(text)
+    return any(re.search(rf"(?<!\w){re.escape(w)}(?!\w)", folded) for w in words if w)
+
+
 def is_shop_listing(title: str | None, publisher: str | None = None) -> bool:
-    """A product page, a menu or a social post that a news search returned as if it were an article
-    (first real run of the Thailand and Japan searches, 15 Nov 2026: "Honey Bee Drink, Thai Tea
-    (Pack of 24)", "Buy ... Online at Best Price", a restaurant menu, a DJ's post)."""
+    """A product page, a menu, a social post or a trade-data directory page that a news search
+    returned as if it were an article (first real run of the Thailand and Japan searches, 15 Nov
+    2026: "Honey Bee Drink, Thai Tea (Pack of 24)", "Buy ... Online at Best Price", a restaurant
+    menu, a DJ's post; country searches of 16 Nov 2026: "Honey Malawi Suppliers, Trade & Prices |
+    Market Overview 2026" from Tridge, "Honey in Saudi Arabia Trade" from the OEC)."""
     t, p = fold(title or ""), fold(publisher or "")
     return bool(_SHOP_OUTLETS.search(p) or _SHOP_OUTLETS.search(t.rsplit(" - ", 1)[-1] if " - " in t else "")
                 or _SHOP_TITLES.search(t))
@@ -453,7 +474,8 @@ def is_shop_listing(title: str | None, publisher: str | None = None) -> bool:
 
 _SHOP_OUTLETS = re.compile(
     r"amazon|walmart|ebay|ubuy|daraz|lazada|shopee|etsy|alibaba|aliexpress|flipkart|target\.com|costco|instacart|"
-    r"instagram|facebook|tiktok|youtube|pinterest|doordash|uber ?eats|grubhub|tripadvisor|yelp|rakuten|iherb|desertcart")
+    r"instagram|facebook|tiktok|youtube|pinterest|doordash|uber ?eats|grubhub|tripadvisor|yelp|rakuten|iherb|desertcart|"
+    r"tridge|observatory of economic complexity")
 _SHOP_TITLES = re.compile(
     r"\bbuy\b.{0,60}\bonline\b|\bat best price\b|\bpack of \d+|\b\d+(?:\.\d+)?[- ]?(?:oz|ounce|fl oz)\b|"
     r"\bmenu (?:delivery|& prices)|\border .{0,40}\b(?:delivery|menu)\b|\b\d+ ?g\b\s*(?:\(|$)|#\w+")
